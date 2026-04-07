@@ -674,6 +674,52 @@ struct NolonResourceKitTests {
         #expect(STFile(ruleURL).isExists == false)
     }
 
+    @Test("ProviderResourceService copies provider AGENTS doc into nolon agents folder")
+    func providerResourceServiceCopiesAgentDocToNolon() throws {
+        let root = try STFolder(sanbox: .temporary)
+            .folder("nolon-resource-agent-copy-\(UUID().uuidString)")
+            .create()
+        defer { try? root.deleteIncludingBrokenSymlink() }
+
+        let manager = NolonManager(rootURL: root.url)
+        let service = ProviderResourceService(nolonManager: manager)
+        let providerRoot = root.folder("provider-codex")
+        _ = providerRoot.createIfNotExists()
+        let source = providerRoot.file("AGENTS.md")
+        try "# Provider Agents".write(to: source.url, atomically: true, encoding: .utf8)
+
+        let copied = try service.copyAgentDocToNolon(atPath: source.url.path)
+
+        #expect(STFile(source.url).isExists)
+        #expect(STFile(copied).isExists)
+        #expect(copied.deletingLastPathComponent().standardizedFileURL.path == manager.agentsURL.standardizedFileURL.path)
+    }
+
+    @Test("ProviderResourceService moves provider AGENTS doc into nolon agents folder with conflict suffix")
+    func providerResourceServiceMovesAgentDocToNolonWithConflictSuffix() throws {
+        let root = try STFolder(sanbox: .temporary)
+            .folder("nolon-resource-agent-move-\(UUID().uuidString)")
+            .create()
+        defer { try? root.deleteIncludingBrokenSymlink() }
+
+        let manager = NolonManager(rootURL: root.url)
+        let service = ProviderResourceService(nolonManager: manager)
+        let providerRoot = root.folder("provider-codex")
+        _ = providerRoot.createIfNotExists()
+        let source = providerRoot.file("AGENTS.md")
+        try "# Provider Agents".write(to: source.url, atomically: true, encoding: .utf8)
+
+        let existing = manager.agentsFolder.file("AGENTS.md")
+        _ = manager.agentsFolder.createIfNotExists()
+        try "# Existing".write(to: existing.url, atomically: true, encoding: .utf8)
+
+        let moved = try service.moveAgentDocToNolon(atPath: source.url.path)
+
+        #expect(STFile(source.url).isExists == false)
+        #expect(STFile(moved).isExists)
+        #expect(moved.lastPathComponent == "AGENTS-copy-1.md")
+    }
+
     @MainActor
     @Test("InstalledResourceStatusService resolves global MCP slugs from cache")
     func installedResourceStatusServiceResolvesGlobalMcpSlugs() throws {

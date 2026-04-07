@@ -655,6 +655,8 @@ struct ResourceCatalogGridView: View {
             } footerContent: {
                 loadMoreRowIfNeeded
             }
+        case .agents:
+            EmptyView()
             
         case .none:
             EmptyView()

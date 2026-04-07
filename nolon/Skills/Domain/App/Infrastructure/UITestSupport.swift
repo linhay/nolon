@@ -49,6 +49,8 @@ enum UITestSupport {
             return .workflows
         case "mcps":
             return .mcps
+        case "agents":
+            return .agents
         default:
             return nil
         }

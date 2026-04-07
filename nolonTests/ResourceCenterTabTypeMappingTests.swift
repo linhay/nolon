@@ -14,4 +14,8 @@ final class ResourceCenterTabTypeMappingTests: XCTestCase {
     func testBDD_GivenMCPsTab_WhenResolvingLocalizedName_ThenReturnsMCPsTitle() {
         XCTAssertTrue(["MCP", "MCPs", "工具"].contains(ResourceCenterTabID.mcps.localizedName))
     }
+
+    func testBDD_GivenAgentsTab_WhenResolvingLocalizedName_ThenReturnsAgentsTitle() {
+        XCTAssertFalse(ResourceCenterTabID.agents.localizedName.isEmpty)
+    }
 }

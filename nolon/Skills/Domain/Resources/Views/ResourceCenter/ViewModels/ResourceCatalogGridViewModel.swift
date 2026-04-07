@@ -106,6 +106,14 @@ final class ResourceCatalogGridViewModel {
             canLoadMore = false
             return
         }
+        if tab == .agents {
+            clearAllContent()
+            errorMessage = nil
+            isLoading = false
+            currentLoadID = nil
+            canLoadMore = false
+            return
+        }
 
         let trimmedQuery = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
         let hasQuery = !trimmedQuery.isEmpty
@@ -188,6 +196,9 @@ final class ResourceCatalogGridViewModel {
                     limit: cachedLimit,
                     canLoadMore: loadMoreEnabled
                 )
+            case .agents:
+                clearAllContent()
+                canLoadMore = false
             }
         } catch is CancellationError {
             // 任务被取消（如用户快速切换仓库），静默忽略，不显示错误
@@ -211,6 +222,8 @@ final class ResourceCatalogGridViewModel {
                     cachedItems = workflows.map { itemMapper.toCatalogItem($0) }
                 case .mcps:
                     cachedItems = mcps.map { itemMapper.toCatalogItem($0) }
+                case .agents:
+                    cachedItems = []
                 }
             } else {
                 cachedItems = []
@@ -228,6 +241,7 @@ final class ResourceCatalogGridViewModel {
     func loadMore(repository: RemoteRepository?, tab: ResourceCenterTabID?, searchQuery: String) async {
         guard let repository = repository, let tab = tab else { return }
         guard repository.templateType == .clawdhub else { return }
+        guard tab != .agents else { return }
 
         let trimmedQuery = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
         let kind = tab.catalogKind
@@ -293,6 +307,8 @@ final class ResourceCatalogGridViewModel {
                     limit: nextLimit,
                     canLoadMore: canLoad
                 )
+            case .agents:
+                return
             }
         } catch {
             guard currentLoadID == loadID else { return }
@@ -305,6 +321,8 @@ final class ResourceCatalogGridViewModel {
                 cachedItems = workflows.map { itemMapper.toCatalogItem($0) }
             case .mcps:
                 cachedItems = mcps.map { itemMapper.toCatalogItem($0) }
+            case .agents:
+                cachedItems = []
             }
             pagingStore.saveError(
                 for: cacheKey,
@@ -330,6 +348,8 @@ final class ResourceCatalogGridViewModel {
             skills = []
             workflows = []
             mcps = cached.items.map { itemMapper.toRemoteMCP($0) }
+        case .agents:
+            clearAllContent()
         }
 
         errorMessage = cached.errorMessage
@@ -678,6 +698,8 @@ private extension ResourceCenterTabID {
             return .workflow
         case .mcps:
             return .mcp
+        case .agents:
+            return .skill
         }
     }
 }

@@ -62,7 +62,8 @@ struct ResourceCenterTabView: View, DebugPageLocatable {
             counts: [
                 .skills: viewModel.skillsCount,
                 .workflows: viewModel.workflowsCount,
-                .mcps: viewModel.mcpsCount
+                .mcps: viewModel.mcpsCount,
+                .agents: viewModel.agentsCount
             ]
         )
     }

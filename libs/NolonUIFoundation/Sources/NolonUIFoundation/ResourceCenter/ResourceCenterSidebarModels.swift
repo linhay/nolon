@@ -4,6 +4,7 @@ public enum ResourceCenterTabID: String, CaseIterable, Codable, Hashable, Sendab
     case skills
     case workflows
     case mcps
+    case agents
 
     public var id: Self { self }
 }
@@ -17,6 +18,8 @@ public extension ResourceCenterTabID {
             return NSLocalizedString("tab.workflows", value: "Workflows", comment: "Workflows tab title")
         case .mcps:
             return NSLocalizedString("tab.mcps", value: "MCPs", comment: "MCPs tab title")
+        case .agents:
+            return NSLocalizedString("tab.agents", value: "Agents", comment: "Agents tab title")
         }
     }
 }
@@ -66,6 +69,13 @@ public extension ResourceCenterTabItem {
                 fallbackTitle: "MCPs",
                 iconName: "server.rack",
                 count: counts[.mcps] ?? 0
+            ),
+            .init(
+                id: .agents,
+                titleKey: "tab.agents",
+                fallbackTitle: "Agents",
+                iconName: "person.text.rectangle",
+                count: counts[.agents] ?? 0
             )
         ]
     }

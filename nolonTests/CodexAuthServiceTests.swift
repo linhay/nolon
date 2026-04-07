@@ -767,6 +767,19 @@ final class ProviderUsageEngineDeleteTests: XCTestCase {
 
 @MainActor
 final class ProviderUsageEngineManualRefreshTests: XCTestCase {
+    private func makeAuthJSON(email: String) -> String {
+        """
+        {"tokens":{"id_token":"id-\(UUID().uuidString)","access_token":"access-\(UUID().uuidString)"},"user":{"email":"\(email)"}}
+        """
+    }
+
+    private func makeStoredAccount(
+        name: String,
+        manager: CodexAuthManager
+    ) async throws -> CodexAuthAccount {
+        try await manager.addAccount(name: name, authJSONString: makeAuthJSON(email: "\(name)@example.com"))
+    }
+
     func testBDD_GivenCachedCodexUsage_WhenLoadStarts_ThenCachedCardsAppearBeforePreflightFinishes() async throws {
         let isolatedRoot = FileManager.default.temporaryDirectory
             .appendingPathComponent("nolon-codex-cached-load-\(UUID().uuidString)", isDirectory: true)
@@ -927,7 +940,7 @@ final class ProviderUsageEngineManualRefreshTests: XCTestCase {
         XCTAssertTrue(viewModel.codexRefreshingAccountIds.isEmpty)
     }
 
-    func testBDD_GivenCodexActiveAccount_WhenEvaluatingScheduledRefreshDecision_ThenUses5MinuteWindow() async {
+    func testBDD_GivenCodexActiveAccount_WhenEvaluatingScheduledRefreshDecision_ThenUses5MinuteWindow() async throws {
         let provider = Provider(
             name: "Codex",
             defaultSkillsPath: "/tmp/codex-skills",
@@ -935,9 +948,14 @@ final class ProviderUsageEngineManualRefreshTests: XCTestCase {
             installMethod: .symlink,
             templateId: "codex"
         )
-        let account = CodexAuthAccount(name: "active", relativeAuthPath: "auth/active.json")
+        let authManager = CodexAuthManager(
+            rootURL: FileManager.default.temporaryDirectory
+                .appendingPathComponent("nolon-active-window-\(UUID().uuidString)", isDirectory: true)
+        )
+        let account = try await makeStoredAccount(name: "active", manager: authManager)
         let viewModel = ProviderUsageEngine(
             provider: provider,
+            codexAuthManager: authManager,
             codexPreflightAction: { _, _, _ in nil },
             codexOutcomeFetchAction: { account, _, _ in
                 ProviderAccountUsageOutcome(
@@ -999,7 +1017,7 @@ final class ProviderUsageEngineManualRefreshTests: XCTestCase {
         XCTAssertEqual(dueDecision.reason, "codex_recent_due")
     }
 
-    func testBDD_GivenCodexActiveAccountWithShortestWindowHighUsage_WhenEvaluatingDecision_ThenUsesTiered3MinuteInterval() async {
+    func testBDD_GivenCodexActiveAccountWithShortestWindowHighUsage_WhenEvaluatingDecision_ThenUsesTiered3MinuteInterval() async throws {
         let provider = Provider(
             name: "Codex",
             defaultSkillsPath: "/tmp/codex-skills",
@@ -1007,9 +1025,14 @@ final class ProviderUsageEngineManualRefreshTests: XCTestCase {
             installMethod: .symlink,
             templateId: "codex"
         )
-        let account = CodexAuthAccount(name: "active-tier", relativeAuthPath: "auth/active-tier.json")
+        let authManager = CodexAuthManager(
+            rootURL: FileManager.default.temporaryDirectory
+                .appendingPathComponent("nolon-active-tier-\(UUID().uuidString)", isDirectory: true)
+        )
+        let account = try await makeStoredAccount(name: "active-tier", manager: authManager)
         let viewModel = ProviderUsageEngine(
             provider: provider,
+            codexAuthManager: authManager,
             codexOutcomeFetchAction: { account, _, _ in
                 Self.makeScheduledRefreshOutcome(
                     account: account,
@@ -1035,7 +1058,7 @@ final class ProviderUsageEngineManualRefreshTests: XCTestCase {
         XCTAssertTrue(dueDecision.reason.hasPrefix("codex_active_tier_ge90_w300_u95_"))
     }
 
-    func testBDD_GivenCodexRecentAccountWithShortestWindowMediumUsage_WhenEvaluatingDecision_ThenUsesTiered10MinuteInterval() async {
+    func testBDD_GivenCodexRecentAccountWithShortestWindowMediumUsage_WhenEvaluatingDecision_ThenUsesTiered10MinuteInterval() async throws {
         let provider = Provider(
             name: "Codex",
             defaultSkillsPath: "/tmp/codex-skills",
@@ -1043,9 +1066,14 @@ final class ProviderUsageEngineManualRefreshTests: XCTestCase {
             installMethod: .symlink,
             templateId: "codex"
         )
-        let account = CodexAuthAccount(name: "recent-tier", relativeAuthPath: "auth/recent-tier.json")
+        let authManager = CodexAuthManager(
+            rootURL: FileManager.default.temporaryDirectory
+                .appendingPathComponent("nolon-recent-tier-\(UUID().uuidString)", isDirectory: true)
+        )
+        let account = try await makeStoredAccount(name: "recent-tier", manager: authManager)
         let viewModel = ProviderUsageEngine(
             provider: provider,
+            codexAuthManager: authManager,
             codexOutcomeFetchAction: { account, _, _ in
                 Self.makeScheduledRefreshOutcome(
                     account: account,
@@ -1071,7 +1099,7 @@ final class ProviderUsageEngineManualRefreshTests: XCTestCase {
         XCTAssertTrue(dueDecision.reason.hasPrefix("codex_recent_tier_ge50_w300_u55_"))
     }
 
-    func testBDD_GivenCodexLongestWindowZeroQuota_WhenEvaluatingDecision_ThenUses60MinuteThrottleAndRecoversToTiered() async {
+    func testBDD_GivenCodexLongestWindowZeroQuota_WhenEvaluatingDecision_ThenUses60MinuteThrottleAndRecoversToTiered() async throws {
         let provider = Provider(
             name: "Codex",
             defaultSkillsPath: "/tmp/codex-skills",
@@ -1079,9 +1107,14 @@ final class ProviderUsageEngineManualRefreshTests: XCTestCase {
             installMethod: .symlink,
             templateId: "codex"
         )
-        let account = CodexAuthAccount(name: "zero-long", relativeAuthPath: "auth/zero-long.json")
+        let authManager = CodexAuthManager(
+            rootURL: FileManager.default.temporaryDirectory
+                .appendingPathComponent("nolon-zero-long-\(UUID().uuidString)", isDirectory: true)
+        )
+        let account = try await makeStoredAccount(name: "zero-long", manager: authManager)
         let viewModel = ProviderUsageEngine(
             provider: provider,
+            codexAuthManager: authManager,
             codexOutcomeFetchAction: { account, _, _ in
                 Self.makeScheduledRefreshOutcome(
                     account: account,
@@ -1121,7 +1154,7 @@ final class ProviderUsageEngineManualRefreshTests: XCTestCase {
         XCTAssertTrue(recoveredTier.reason.hasPrefix("codex_active_tier_ge90_w300_u95_"))
     }
 
-    func testBDD_GivenCodexFailureStreak_WhenEvaluatingScheduledRefreshDecision_ThenBackoffEscalatesFrom30To60Minutes() async {
+    func testBDD_GivenShortestWindowResetReachedAtZero_WhenEvaluatingDecision_ThenTriggersOneImmediateRefresh() async throws {
         let provider = Provider(
             name: "Codex",
             defaultSkillsPath: "/tmp/codex-skills",
@@ -1129,9 +1162,199 @@ final class ProviderUsageEngineManualRefreshTests: XCTestCase {
             installMethod: .symlink,
             templateId: "codex"
         )
-        let account = CodexAuthAccount(name: "failed", relativeAuthPath: "auth/failed.json")
+        let authManager = CodexAuthManager(
+            rootURL: FileManager.default.temporaryDirectory
+                .appendingPathComponent("nolon-short-reset-\(UUID().uuidString)", isDirectory: true)
+        )
+        let account = try await makeStoredAccount(name: "short-reset", manager: authManager)
+        let resetAt = Date().addingTimeInterval(-5)
         let viewModel = ProviderUsageEngine(
             provider: provider,
+            codexAuthManager: authManager,
+            codexOutcomeFetchAction: { account, _, _ in
+                let usage = UsageSnapshot(
+                    identity: UsageIdentity(accountEmail: "short-reset@example.com", accountOrganization: nil, loginMethod: "oauth", plan: "plus"),
+                    windows: [
+                        UsageWindow(
+                            id: "short",
+                            title: "Short",
+                            window: RateWindow(usedPercent: 100, resetsAt: resetAt, windowMinutes: 300)
+                        ),
+                        UsageWindow(
+                            id: "weekly",
+                            title: "Weekly",
+                            window: RateWindow(usedPercent: 60, windowMinutes: 10_080)
+                        ),
+                    ],
+                    primary: nil,
+                    secondary: nil,
+                    tertiary: nil,
+                    updatedAt: Date()
+                )
+                let result = ProviderFetchResult(
+                    usage: usage,
+                    credits: nil,
+                    cost: nil,
+                    sourceLabel: "CLI",
+                    fetchKind: .cli,
+                    strategyKind: .direct
+                )
+                return ProviderAccountUsageOutcome(
+                    provider: .codex,
+                    account: .tokenAccount(
+                        .init(
+                            id: account.id,
+                            label: account.name,
+                            token: "",
+                            addedAt: account.createdAt.timeIntervalSince1970,
+                            lastUsed: nil
+                        )
+                    ),
+                    outcome: ProviderFetchOutcome(fetchKind: .cli, result: .success(result))
+                )
+            }
+        )
+        viewModel.codexAccounts = [account]
+        viewModel.activeCodexAccountId = account.id
+        viewModel.codexAccountSummaries[account.id] = CodexAuthSummary(lastSyncSucceededAt: Date())
+        viewModel.codexAccountOutcomes = [
+            ProviderAccountUsageOutcome(
+                provider: .codex,
+                account: .tokenAccount(
+                    .init(
+                        id: account.id,
+                        label: account.name,
+                        token: "",
+                        addedAt: account.createdAt.timeIntervalSince1970,
+                        lastUsed: nil
+                    )
+                ),
+                outcome: ProviderFetchOutcome(
+                    fetchKind: .cli,
+                    result: .success(
+                        .init(
+                            usage: UsageSnapshot(
+                                identity: UsageIdentity(accountEmail: "short-reset@example.com", accountOrganization: nil, loginMethod: "oauth", plan: "plus"),
+                                windows: [
+                                    UsageWindow(
+                                        id: "short",
+                                        title: "Short",
+                                        window: RateWindow(usedPercent: 100, resetsAt: resetAt, windowMinutes: 300)
+                                    ),
+                                    UsageWindow(
+                                        id: "weekly",
+                                        title: "Weekly",
+                                        window: RateWindow(usedPercent: 60, windowMinutes: 10_080)
+                                    ),
+                                ],
+                                primary: nil,
+                                secondary: nil,
+                                tertiary: nil,
+                                updatedAt: Date()
+                            ),
+                            credits: nil,
+                            cost: nil,
+                            sourceLabel: "CLI",
+                            fetchKind: .cli,
+                            strategyKind: .direct
+                        )
+                    )
+                )
+            )
+        ]
+
+        let immediateDecision = viewModel.codexScheduledRefreshDecision(for: account, now: Date())
+        XCTAssertTrue(immediateDecision.shouldRefresh)
+        XCTAssertTrue(immediateDecision.reason.hasPrefix("codex_shortest_reset_w300_r0_"))
+
+        await viewModel.refreshCodexAccountImmediately(id: account.id)
+
+        let duplicateDecision = viewModel.codexScheduledRefreshDecision(for: account, now: Date().addingTimeInterval(1))
+        XCTAssertFalse(duplicateDecision.shouldRefresh)
+        XCTAssertTrue(duplicateDecision.reason.hasPrefix("codex_shortest_reset_w300_r0_"))
+        XCTAssertTrue(duplicateDecision.reason.hasSuffix("_already_refreshed"))
+    }
+
+    func testBDD_GivenSingleWindowResetReachedAtZero_WhenEvaluatingDecision_ThenStillTriggersImmediateRefresh() async throws {
+        let provider = Provider(
+            name: "Codex",
+            defaultSkillsPath: "/tmp/codex-skills",
+            workflowPath: "/tmp/codex-prompts",
+            installMethod: .symlink,
+            templateId: "codex"
+        )
+        let authManager = CodexAuthManager(
+            rootURL: FileManager.default.temporaryDirectory
+                .appendingPathComponent("nolon-single-short-reset-\(UUID().uuidString)", isDirectory: true)
+        )
+        let account = try await makeStoredAccount(name: "single-short-reset", manager: authManager)
+        let resetAt = Date().addingTimeInterval(-5)
+        let viewModel = ProviderUsageEngine(provider: provider, codexAuthManager: authManager)
+        viewModel.codexAccounts = [account]
+        viewModel.activeCodexAccountId = account.id
+        viewModel.codexAccountSummaries[account.id] = CodexAuthSummary(lastSyncSucceededAt: Date())
+        viewModel.codexAccountOutcomes = [
+            ProviderAccountUsageOutcome(
+                provider: .codex,
+                account: .tokenAccount(
+                    .init(
+                        id: account.id,
+                        label: account.name,
+                        token: "",
+                        addedAt: account.createdAt.timeIntervalSince1970,
+                        lastUsed: nil
+                    )
+                ),
+                outcome: ProviderFetchOutcome(
+                    fetchKind: .cli,
+                    result: .success(
+                        .init(
+                            usage: UsageSnapshot(
+                                identity: UsageIdentity(accountEmail: "single-short-reset@example.com", accountOrganization: nil, loginMethod: "oauth", plan: "plus"),
+                                windows: [
+                                    UsageWindow(
+                                        id: "short",
+                                        title: "Short",
+                                        window: RateWindow(usedPercent: 100, resetsAt: resetAt, windowMinutes: 300)
+                                    ),
+                                ],
+                                primary: nil,
+                                secondary: nil,
+                                tertiary: nil,
+                                updatedAt: Date()
+                            ),
+                            credits: nil,
+                            cost: nil,
+                            sourceLabel: "CLI",
+                            fetchKind: .cli,
+                            strategyKind: .direct
+                        )
+                    )
+                )
+            )
+        ]
+
+        let decision = viewModel.codexScheduledRefreshDecision(for: account, now: Date())
+        XCTAssertTrue(decision.shouldRefresh)
+        XCTAssertTrue(decision.reason.hasPrefix("codex_shortest_reset_w300_r0_"))
+    }
+
+    func testBDD_GivenCodexFailureStreak_WhenEvaluatingScheduledRefreshDecision_ThenBackoffEscalatesFrom30To60Minutes() async throws {
+        let provider = Provider(
+            name: "Codex",
+            defaultSkillsPath: "/tmp/codex-skills",
+            workflowPath: "/tmp/codex-prompts",
+            installMethod: .symlink,
+            templateId: "codex"
+        )
+        let authManager = CodexAuthManager(
+            rootURL: FileManager.default.temporaryDirectory
+                .appendingPathComponent("nolon-failure-streak-\(UUID().uuidString)", isDirectory: true)
+        )
+        let account = try await makeStoredAccount(name: "failed", manager: authManager)
+        let viewModel = ProviderUsageEngine(
+            provider: provider,
+            codexAuthManager: authManager,
             codexOutcomeFetchAction: { account, _, _ in
                 ProviderAccountUsageOutcome(
                     provider: .codex,
@@ -1242,9 +1465,14 @@ final class ProviderUsageEngineManualRefreshTests: XCTestCase {
             installMethod: .symlink,
             templateId: "codex"
         )
-        let account = CodexAuthAccount(name: "test", relativeAuthPath: "auth/test.json")
+        let authManager = CodexAuthManager(
+            rootURL: FileManager.default.temporaryDirectory
+                .appendingPathComponent("nolon-refresh-complete-\(UUID().uuidString)", isDirectory: true)
+        )
+        let account = try await makeStoredAccount(name: "test", manager: authManager)
         let viewModel = ProviderUsageEngine(
             provider: provider,
+            codexAuthManager: authManager,
             codexOutcomeFetchAction: { account, _, _ in
                 try? await Task.sleep(nanoseconds: 80_000_000)
                 let outcome = ProviderFetchOutcome(fetchKind: .cli, result: .failure(UsageViewModelTestError(message: "network done")))
@@ -1280,9 +1508,14 @@ final class ProviderUsageEngineManualRefreshTests: XCTestCase {
             installMethod: .symlink,
             templateId: "codex"
         )
-        let account = CodexAuthAccount(name: "test", relativeAuthPath: "auth/test.json")
+        let authManager = CodexAuthManager(
+            rootURL: FileManager.default.temporaryDirectory
+                .appendingPathComponent("nolon-refresh-timeout-\(UUID().uuidString)", isDirectory: true)
+        )
+        let account = try await makeStoredAccount(name: "test", manager: authManager)
         let viewModel = ProviderUsageEngine(
             provider: provider,
+            codexAuthManager: authManager,
             codexOutcomeFetchAction: { account, _, _ in
                 try? await Task.sleep(nanoseconds: 5_000_000_000)
                 let outcome = ProviderFetchOutcome(fetchKind: .cli, result: .failure(UsageViewModelTestError(message: "late result")))

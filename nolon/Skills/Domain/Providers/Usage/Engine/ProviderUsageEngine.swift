@@ -3216,14 +3216,23 @@ final class ProviderUsageEngine {
         let windowMinutes: Int
         let usedPercent: Double
         let remainingPercent: Double
+        let resetsAt: Date?
     }
 
     func codexScheduledRefreshDecision(for account: CodexAuthAccount, now: Date) -> RefreshDecision {
         guard let role = codexRefreshRole(for: account, now: now) else {
             return RefreshDecision(shouldRefresh: false, nextEligibleAt: .distantFuture, reason: "codex_not_active_or_recent")
         }
-        let policy = codexScheduledRefreshPolicy(for: account.id, role: role)
         let lastRefresh = codexScheduledRefreshLastAt[account.id]
+        if let immediateDecision = codexImmediateRefreshDecisionForShortestWindowReset(
+            accountID: account.id,
+            role: role,
+            lastRefresh: lastRefresh,
+            now: now
+        ) {
+            return immediateDecision
+        }
+        let policy = codexScheduledRefreshPolicy(for: account.id, role: role)
         let nextEligibleAt = (lastRefresh ?? .distantPast).addingTimeInterval(policy.interval)
         let shouldRefresh = now >= nextEligibleAt
         return RefreshDecision(
@@ -3376,7 +3385,8 @@ final class ProviderUsageEngine {
         return CodexWindowUsageSignal(
             windowMinutes: windowMinutes,
             usedPercent: usedPercent,
-            remainingPercent: remainingPercent
+            remainingPercent: remainingPercent,
+            resetsAt: shortest.resetsAt
         )
     }
 
@@ -3395,7 +3405,47 @@ final class ProviderUsageEngine {
         return CodexWindowUsageSignal(
             windowMinutes: windowMinutes,
             usedPercent: usedPercent,
-            remainingPercent: remainingPercent
+            remainingPercent: remainingPercent,
+            resetsAt: longest.resetsAt
+        )
+    }
+
+    func codexImmediateRefreshDecisionForShortestWindowReset(
+        accountID: UUID,
+        role: CodexRefreshRole,
+        lastRefresh: Date?,
+        now: Date
+    ) -> RefreshDecision? {
+        guard codexTierRoleLabel(for: role) != nil else { return nil }
+        guard let shortestSignal = codexShortestWindowSignal(for: accountID),
+              shortestSignal.remainingPercent <= 0,
+              let shortestResetsAt = shortestSignal.resetsAt,
+              shortestResetsAt <= now
+        else {
+            return nil
+        }
+        if let longestSignal = codexLongestWindowSignal(for: accountID),
+           longestSignal.windowMinutes > shortestSignal.windowMinutes,
+           longestSignal.remainingPercent <= 0
+        {
+            return nil
+        }
+        if let lastRefresh, lastRefresh >= shortestResetsAt {
+            let remainingToken = Self.codexPercentReasonToken(shortestSignal.remainingPercent)
+            let base = "codex_shortest_reset_w\(shortestSignal.windowMinutes)_r\(remainingToken)"
+            return RefreshDecision(
+                shouldRefresh: false,
+                nextEligibleAt: shortestResetsAt.addingTimeInterval(1),
+                reason: "\(base)_already_refreshed"
+            )
+        }
+
+        let remainingToken = Self.codexPercentReasonToken(shortestSignal.remainingPercent)
+        let base = "codex_shortest_reset_w\(shortestSignal.windowMinutes)_r\(remainingToken)"
+        return RefreshDecision(
+            shouldRefresh: true,
+            nextEligibleAt: now,
+            reason: "\(base)_due"
         )
     }
 

@@ -11,13 +11,16 @@ final class ResourceCenterTabViewModel {
     var skillsCount: Int = 0
     var workflowsCount: Int = 0
     var mcpsCount: Int = 0
+    var agentsCount: Int = 0
     private let countService = RemoteRepositoryCountService()
+    private let agentsProfilesService = NolonAgentsProfilesService()
     
     func count(for tab: ResourceCenterTabID) -> Int {
         switch tab {
         case .skills: return skillsCount
         case .workflows: return workflowsCount
         case .mcps: return mcpsCount
+        case .agents: return agentsCount
         }
     }
     
@@ -26,5 +29,6 @@ final class ResourceCenterTabViewModel {
         skillsCount = counts.skills
         workflowsCount = counts.workflows
         mcpsCount = counts.mcps
+        agentsCount = (try? agentsProfilesService.listProfiles().count) ?? 0
     }
 }
