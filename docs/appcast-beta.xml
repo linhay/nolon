@@ -61,5 +61,71 @@
                        xml:lang="en" />
         </item>
 
+    
+        <item>
+            <title>2.1.11</title>
+            <pubDate>Wed, 08 Apr 2026 11:24:09 +0800</pubDate>
+            <sparkle:version>202604081055</sparkle:version>
+            <sparkle:shortVersionString>2.1.11</sparkle:shortVersionString>
+            <link>https://github.com/linhay/nolon/releases/download/v2.1.11/nolon-arm64.dmg</link>
+            <description><![CDATA[<div style="white-space: pre-wrap; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;">## nolon 2.1.11
+
+### Changes
+- feat(codex): ship advanced config and binary release notes
+- feat: add nolon agents management
+- feat: expand provider agents support
+- feat(agents-link): add nolon unified agents linking with placeholder and menu
+- fix(mcp-link): stabilize codex projection sync and add deletion regressions
+- test(concurrency): mark codex refresh helper nonisolated
+- fix(mcp-sync): propagate mcps deletions to all linked providers
+- fix(mcp-sync): avoid no-op rewrites that trigger config.toml watch loops
+- fix(mcp-sync): propagate ~/.nolon/mcps changes to linked providers
+- feat(mcp-ui): add MCP link menu beside search with dedicated mcpLinkEnabled state
+- fix(ui): decouple MCP tab placeholder from skills-link state
+- fix(ui): show MCP-specific link placeholder artwork and copy on MCP tab
+- fix(ui): show linked-to-nolon placeholder on MCP tab and hide add button when linked
+- feat(ui): add linked skills placeholder artwork and stable add-button hide
+- feat(providers): add fragment-first MCP sync with provider-native projection
+- chore: commit all remaining workspace changes
+- feat(provider): show linked placeholder and hide add action for skills link
+- feat(usage): codex tiered refresh with zero-quota throttle
+
+### Downloads
+
+| Platform | Architecture | Download |
+|----------|--------------|----------|
+| macOS | Apple Silicon (M1/M2/M3) | `nolon-arm64.dmg` |
+| macOS | Intel | `nolon-x86_64.dmg` |
+
+### Installation
+1. Download the appropriate DMG for your Mac
+   - **Apple Silicon** (M1, M2, M3 chips): `nolon-arm64.dmg`
+   - **Intel** (older Macs): `nolon-x86_64.dmg`
+2. Open the DMG and drag nolon to Applications
+3. Launch nolon from Applications
+
+### System Requirements
+- macOS 14.0 or later
+
+---
+*Built on 2026-04-08*</div>]]></description>
+            <enclosure url="https://github.com/linhay/nolon/releases/download/v2.1.11/nolon-arm64.dmg"
+                       sparkle:version="202604081055"
+                       sparkle:shortVersionString="2.1.11"
+                       sparkle:edSignature="KsA6qZ4pOhyeKxs6gYhxim3ig/VmOW0GyuHLOxjW6BLbj5lHvSJr2u/R7zsaPw/uKF2QRgZsv/nsmD4lhqEPCQ=="
+                       length="46327761"
+                       type="application/x-apple-diskimage"
+                       sparkle:os="macos"
+                       xml:lang="en" />
+            <enclosure url="https://github.com/linhay/nolon/releases/download/v2.1.11/nolon-x86_64.dmg"
+                       sparkle:version="202604081055"
+                       sparkle:shortVersionString="2.1.11"
+                       sparkle:edSignature="LdsWftgDZ+hUaxtX2ovGfmdqRx4VFv+3jQfZKTw90HoANYcBeQMItXIsFsebOSQlUtdU/MNcfLLvkQmu5VXCCw=="
+                       length="42231038"
+                       type="application/x-apple-diskimage"
+                       sparkle:os="macos"
+                       xml:lang="en" />
+        </item>
+
     </channel>
 </rss>
