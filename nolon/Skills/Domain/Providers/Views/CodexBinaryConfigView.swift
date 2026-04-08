@@ -27,6 +27,7 @@ final class CodexBinaryConfigViewModel {
     var isCheckingPath = false
     var isSyncingRemoteVersions = false
     var remoteVersionSyncFailed = false
+    var selectedVersionRowID: String?
 
     private let manager: CodexBinaryManager
     private let provider: Provider
@@ -47,6 +48,7 @@ final class CodexBinaryConfigViewModel {
             manifest = try await manager.loadManifest()
             preferredModelDraft = loadModelFromConfig() ?? manifest.preferredModel ?? ""
             applyCachedRemoteRelease(from: manifest)
+            ensureValidSelectedRow()
             isLoading = false
         } catch {
             // Recover from malformed/corrupted manifest without blocking the page.
@@ -55,6 +57,7 @@ final class CodexBinaryConfigViewModel {
                 _ = try await manager.saveManifest(manifest)
                 preferredModelDraft = loadModelFromConfig() ?? manifest.preferredModel ?? ""
                 applyCachedRemoteRelease(from: manifest)
+                ensureValidSelectedRow()
                 isLoading = false
             } catch {
                 isLoading = false
@@ -79,6 +82,7 @@ final class CodexBinaryConfigViewModel {
             self.applyCachedRemoteRelease(from: self.manifest)
             await self.refreshRemoteReleases()
             self.remoteVersionSyncFailed = self.manifest.updateState == .checkFailed
+            self.ensureValidSelectedRow()
             self.isSyncingRemoteVersions = false
         }
     }
@@ -88,6 +92,7 @@ final class CodexBinaryConfigViewModel {
         defer { isCheckingUpdates = false }
         manifest = await manager.checkForRustReleaseUpdateIfNeeded(force: force)
         await refreshRemoteReleases()
+        ensureValidSelectedRow()
     }
 
     func importLocalBinary(from url: URL) async {
@@ -95,6 +100,7 @@ final class CodexBinaryConfigViewModel {
             _ = try await manager.importBinary(from: url)
             manifest = try await manager.loadManifest()
             await refreshCurrentCLIVersion()
+            ensureValidSelectedRow()
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -115,6 +121,7 @@ final class CodexBinaryConfigViewModel {
             manifest = try await manager.loadManifest()
             await refreshRemoteReleases()
             await refreshCurrentCLIVersion()
+            ensureValidSelectedRow()
             remoteDownloadProgress = nil
             isDownloadingRemoteVersion = false
             activeRemoteDownloadTag = nil
@@ -137,6 +144,7 @@ final class CodexBinaryConfigViewModel {
             manifest = try await manager.loadManifest()
             await refreshRemoteReleases()
             await refreshCurrentCLIVersion()
+            ensureValidSelectedRow(preferredRowID: "remote-\(release.tag)")
             remoteDownloadProgress = nil
             isDownloadingRemoteVersion = false
             activeRemoteDownloadTag = nil
@@ -153,6 +161,7 @@ final class CodexBinaryConfigViewModel {
             try await manager.activate(versionId: versionId)
             manifest = try await manager.loadManifest()
             await refreshCurrentCLIVersion()
+            ensureValidSelectedRow(preferredRowID: "local-\(versionId)")
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -163,6 +172,7 @@ final class CodexBinaryConfigViewModel {
             try await manager.remove(versionId: versionId)
             manifest = try await manager.loadManifest()
             await refreshCurrentCLIVersion()
+            ensureValidSelectedRow()
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -360,6 +370,7 @@ final class CodexBinaryConfigViewModel {
         do {
             remoteReleases = try await manager.fetchRemoteReleases(includePrerelease: showBetaVersions)
             remoteVersionSyncFailed = false
+            ensureValidSelectedRow()
         } catch {
             // Keep existing/cached rows; remote list failure should not block Binary page.
             remoteVersionSyncFailed = true
@@ -381,6 +392,9 @@ final class CodexBinaryConfigViewModel {
             tag: tag,
             version: version,
             assetURL: assetURL,
+            htmlURL: manifest.lastSeenRemoteHTMLURL.flatMap(URL.init(string:)),
+            publishedAt: manifest.lastSeenRemotePublishedAt,
+            notes: manifest.lastSeenRemoteNotes,
             isPrerelease: !CodexBinaryManager.isStableVersion(version)
         )
 
@@ -392,6 +406,87 @@ final class CodexBinaryConfigViewModel {
         if !remoteReleases.contains(where: { $0.tag == cached.tag }) {
             remoteReleases.insert(cached, at: 0)
         }
+    }
+
+    func selectVersionRow(_ rowID: String) {
+        selectedVersionRowID = rowID
+    }
+
+    func selectedReleaseNotesData() -> CodexBinaryReleaseNotesData? {
+        guard let selectedVersionRowID,
+              let row = combinedVersionRows.first(where: { $0.id == selectedVersionRowID }) else {
+            return nil
+        }
+        let release = release(for: row)
+        return CodexBinaryReleaseNotesData(
+            title: NSLocalizedString(
+                "codex.binary.release_notes.title",
+                value: "Release Notes",
+                comment: "Release notes title"
+            ),
+            versionText: "v\(row.versionString)",
+            subtitleText: release.flatMap(Self.releaseSubtitle(for:)),
+            notesMarkdown: release?.notes,
+            actionURL: release?.htmlURL
+        )
+    }
+
+    private func release(for row: VersionRow) -> CodexRemoteRelease? {
+        switch row {
+        case .remote(let release):
+            return release
+        case .local(let version):
+            if let sourceURL = version.sourceURL,
+               let matched = remoteReleases.first(where: { $0.assetURL.absoluteString == sourceURL }) {
+                return matched
+            }
+            if let matched = remoteReleases.first(where: { $0.version == version.detectedVersion }) {
+                return matched
+            }
+            if manifest.lastSeenRemoteVersion == version.detectedVersion,
+               let tag = manifest.lastSeenRemoteTag,
+               let raw = manifest.lastSeenRemoteAssetURL,
+               let assetURL = URL(string: raw) {
+                return CodexRemoteRelease(
+                    tag: tag,
+                    version: version.detectedVersion,
+                    assetURL: assetURL,
+                    htmlURL: manifest.lastSeenRemoteHTMLURL.flatMap(URL.init(string:)),
+                    publishedAt: manifest.lastSeenRemotePublishedAt,
+                    notes: manifest.lastSeenRemoteNotes,
+                    isPrerelease: !CodexBinaryManager.isStableVersion(version.detectedVersion)
+                )
+            }
+            return nil
+        }
+    }
+
+    private func ensureValidSelectedRow(preferredRowID: String? = nil) {
+        let validIDs = Set(combinedVersionRows.map(\.id))
+        if let preferredRowID, validIDs.contains(preferredRowID) {
+            selectedVersionRowID = preferredRowID
+            return
+        }
+        if let selectedVersionRowID, validIDs.contains(selectedVersionRowID) {
+            return
+        }
+        selectedVersionRowID = combinedVersionRows.first?.id
+    }
+
+    private static func releaseSubtitle(for release: CodexRemoteRelease) -> String? {
+        guard let publishedAt = release.publishedAt else { return nil }
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .none
+        return String(
+            format: NSLocalizedString(
+                "codex.binary.release_notes.subtitle",
+                value: "Published %@",
+                comment: "Release notes published date"
+            ),
+            formatter.string(from: publishedAt)
+        )
     }
 
     func resolvedConfigFile() -> STFile? {
@@ -536,6 +631,7 @@ struct CodexBinaryConfigView: View {
             statusHeaderData: binaryStatusHeaderData,
             actionBarData: actionBarData,
             versionTableData: versionTableData,
+            releaseNotesData: viewModel.selectedReleaseNotesData(),
             onPrimaryAction: {
                 Task { await viewModel.runPrimaryAction() }
             },
@@ -552,9 +648,11 @@ struct CodexBinaryConfigView: View {
                 Task { await viewModel.setShowBetaVersions(enabled) }
             },
             onTapRow: { rowID in
+                viewModel.selectVersionRow(rowID)
                 handleVersionTableSelect(rowID: rowID)
             },
             onTapAction: { rowID in
+                viewModel.selectVersionRow(rowID)
                 handleVersionTableAction(rowID: rowID)
             }
         )

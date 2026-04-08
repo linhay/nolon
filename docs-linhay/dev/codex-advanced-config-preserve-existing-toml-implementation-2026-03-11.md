@@ -36,14 +36,61 @@
   - `model_provider`
   - `profile`
   - `personality`
+  - `hide_agent_reasoning`
+  - `model_auto_compact_token_limit`
+  - `compact_prompt`
+  - `experimental_compact_prompt_file`
   - `model_reasoning_summary`
   - `model_verbosity`
+- `[history]`
+  - `persistence`
+  - `max_bytes`
 - `[features]`
 - `[agents]`
   - `max_threads`
   - `max_depth`
 - `[agents.<role>]`
   - 结构化 UI 已支持的 role 字段
+
+### 4. 2026-04-07 补齐官方 Codex 配置覆盖
+本次继续对齐 OpenAI 官方 Codex 文档，补充 `Advanced` tab 的以下能力：
+
+- 新增历史与压缩控制：
+  - `history.persistence`
+  - `history.max_bytes`
+  - `hide_agent_reasoning`
+  - `model_auto_compact_token_limit`
+  - `compact_prompt`
+  - `experimental_compact_prompt_file`
+- 修正值域：
+  - `approval_policy` UI 不再继续推荐已废弃的 `on-failure`
+  - `personality` UI 改为官方值域：`none | friendly | pragmatic`
+  - role 级 `model_reasoning_effort` 增加 `xhigh`
+- 补齐 role 级官方字段：
+  - `model_reasoning_summary`
+  - `model_verbosity`
+  - `personality`
+  - `web_search`
+- 补齐 section 级官方文档入口：
+  - Config Basics
+  - Config Reference
+  - Sandboxing
+  - Agent approvals & security
+  - Subagents
+  - Models
+
+### 5. 保留 unsupported 官方语法
+为了避免结构化保存误删官方仍支持但 UI 尚未建模的写法，本次新增“raw fallback 保留”策略：
+
+- 顶层受控字段若解析失败但存在原始赋值，会在保存时按原样回写。
+- `[history]` 受控字段若值型未识别，也会按原样保留。
+- `[agents.<role>]` 的受控字段若原本使用当前 UI 不支持的写法，也不会因保存其他字段而被删除。
+
+典型受保护场景：
+- `approval_policy = { granular = { ... } }`
+
+### 6. 当前仍保留 raw TOML 入口的原因
+`Advanced` tab 现在已经覆盖高频项，但官方 reference 中仍有较多偏专家/偏实验字段，不适合一次性做成结构化控件。保留 `Edit Raw TOML` 作为兜底，后续按使用频率继续扩展。
 
 ### 3. 初始化期禁止写回
 - 新增 hydration 状态：

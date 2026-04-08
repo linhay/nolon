@@ -2,11 +2,23 @@ import AppKit
 import Observation
 import ProviderCatalog
 import SwiftUI
+import UniformTypeIdentifiers
 import STFilePath
 import CodexProvider
 import NolonResourceKit
 import NolonUI
 import NolonUIFoundation
+
+private enum CodexAdvancedDocs {
+    static let configBasics = "https://developers.openai.com/codex/config-basic"
+    static let configAdvanced = "https://developers.openai.com/codex/config-advanced"
+    static let configReference = "https://developers.openai.com/codex/config-reference"
+    static let sandboxing = "https://developers.openai.com/codex/concepts/sandboxing"
+    static let approvals = "https://developers.openai.com/codex/agent-approvals-security"
+    static let subagents = "https://developers.openai.com/codex/concepts/subagents"
+    static let models = "https://developers.openai.com/codex/models"
+    static let compaction = "https://developers.openai.com/codex/compaction"
+}
 
 enum CodexLinkFolder: String, CaseIterable, Identifiable, Hashable {
     case prompts
@@ -44,12 +56,21 @@ struct CodexAdvancedStructuredDraft: Sendable {
     let modelProvider: String?
     let profile: String?
     let personality: String?
+    let hideAgentReasoning: Bool?
+    let modelAutoCompactTokenLimit: Int?
+    let compactPrompt: String?
+    let experimentalCompactPromptFile: String?
     let reasoningSummary: String?
     let verbosity: String?
+    let historyPersistence: String?
+    let historyMaxBytes: Int?
     let featureValues: [String: Bool]
     let agentsMaxThreads: Int?
     let agentsMaxDepth: Int?
     let roleDrafts: [CodexAgentRoleDraft]
+    let preservedTopLevelRawValues: [String: String]
+    let preservedHistoryRawValues: [String: String]
+    let preservedRoleRawValues: [String: [String: String]]
 }
 
 struct CodexStructuredConfigPatchService: Sendable {
@@ -74,8 +95,17 @@ struct CodexStructuredConfigPatchService: Sendable {
         "model_provider",
         "profile",
         "personality",
+        "hide_agent_reasoning",
+        "model_auto_compact_token_limit",
+        "compact_prompt",
+        "experimental_compact_prompt_file",
         "model_reasoning_summary",
         "model_verbosity"
+    ]
+
+    private let controlledHistoryKeys: [String] = [
+        "persistence",
+        "max_bytes"
     ]
 
     private let controlledRoleKeys: [String] = [
@@ -94,6 +124,7 @@ struct CodexStructuredConfigPatchService: Sendable {
     func patch(original: String, draft: CodexAdvancedStructuredDraft) throws -> String {
         var document = parseDocument(original.replacingOccurrences(of: "\r\n", with: "\n"))
         patchTopLevel(in: &document, draft: draft)
+        patchHistory(in: &document, draft: draft)
         patchFeatures(in: &document, draft: draft)
         patchAgents(in: &document, draft: draft)
         return renderDocument(document)
@@ -101,14 +132,27 @@ struct CodexStructuredConfigPatchService: Sendable {
 
     func extractDraft(from original: String) -> CodexAdvancedStructuredDraft {
         let document = parseDocument(original.replacingOccurrences(of: "\r\n", with: "\n"))
-        let topLevel = Dictionary(uniqueKeysWithValues: document.preamble.compactMap { line -> (String, String)? in
-            guard let key = parseAssignmentKey(from: line), let value = parseStringValue(from: line) else { return nil }
+        let topLevelAssignments = Dictionary(uniqueKeysWithValues: document.preamble.compactMap { line -> (String, String)? in
+            guard let key = parseAssignmentKey(from: line), let value = parseRawAssignmentValue(from: line) else { return nil }
             return (key, value)
         })
+        let preservedTopLevelRawValues = preservedRawValues(
+            keys: controlledTopLevelKeys,
+            assignments: topLevelAssignments,
+            typedKeys: stringKeys.union(boolKeys).union(intKeys)
+        )
 
         let featureValues = document.sections
             .first(where: { $0.name == "features" })
             .map(parseBooleanAssignments(in:)) ?? [:]
+
+        let historySection = document.sections.first(where: { $0.name == "history" })
+        let historyAssignments = historySection.map(parseRawAssignments(in:)) ?? [:]
+        let preservedHistoryRawValues = preservedRawValues(
+            keys: controlledHistoryKeys,
+            assignments: historyAssignments,
+            typedKeys: historyStringKeys.union(historyIntKeys)
+        )
 
         let agentsSection = document.sections.first(where: { $0.name == "agents" })
         let roles = document.sections
@@ -122,24 +166,52 @@ struct CodexStructuredConfigPatchService: Sendable {
                     configFile: values["config_file"] ?? "",
                     model: values["model"] ?? "",
                     modelReasoningEffort: values["model_reasoning_effort"] ?? "",
+                    modelReasoningSummary: values["model_reasoning_summary"] ?? "",
+                    modelVerbosity: values["model_verbosity"] ?? "",
                     sandboxMode: values["sandbox_mode"] ?? "",
-                    approvalPolicy: values["approval_policy"] ?? ""
+                    approvalPolicy: values["approval_policy"] ?? "",
+                    personality: values["personality"] ?? "",
+                    webSearch: values["web_search"] ?? ""
                 )
             }
+        let preservedRoleRawValues = Dictionary(
+            uniqueKeysWithValues: document.sections
+                .filter { $0.name.hasPrefix("agents.") }
+                .compactMap { section -> (String, [String: String])? in
+                    let roleName = String(section.name.dropFirst("agents.".count))
+                    let rawAssignments = parseRawAssignments(in: section)
+                    let preserved = preservedRawValues(
+                        keys: controlledRoleKeys,
+                        assignments: rawAssignments,
+                        typedKeys: roleStringKeys
+                    )
+                    guard !preserved.isEmpty else { return nil }
+                    return (roleName, preserved)
+                }
+        )
 
         return CodexAdvancedStructuredDraft(
-            approvalPolicy: topLevel["approval_policy"],
-            sandboxMode: topLevel["sandbox_mode"],
-            webSearch: topLevel["web_search"],
-            modelProvider: topLevel["model_provider"],
-            profile: topLevel["profile"],
-            personality: topLevel["personality"],
-            reasoningSummary: topLevel["model_reasoning_summary"],
-            verbosity: topLevel["model_verbosity"],
+            approvalPolicy: parseStringValue(for: "approval_policy", in: topLevelAssignments),
+            sandboxMode: parseStringValue(for: "sandbox_mode", in: topLevelAssignments),
+            webSearch: parseStringValue(for: "web_search", in: topLevelAssignments),
+            modelProvider: parseStringValue(for: "model_provider", in: topLevelAssignments),
+            profile: parseStringValue(for: "profile", in: topLevelAssignments),
+            personality: parseStringValue(for: "personality", in: topLevelAssignments),
+            hideAgentReasoning: parseBoolValue(for: "hide_agent_reasoning", in: topLevelAssignments),
+            modelAutoCompactTokenLimit: parseIntValue(for: "model_auto_compact_token_limit", in: topLevelAssignments),
+            compactPrompt: parseStringValue(for: "compact_prompt", in: topLevelAssignments),
+            experimentalCompactPromptFile: parseStringValue(for: "experimental_compact_prompt_file", in: topLevelAssignments),
+            reasoningSummary: parseStringValue(for: "model_reasoning_summary", in: topLevelAssignments),
+            verbosity: parseStringValue(for: "model_verbosity", in: topLevelAssignments),
+            historyPersistence: parseStringValue(for: "persistence", in: historyAssignments),
+            historyMaxBytes: parseIntValue(for: "max_bytes", in: historyAssignments),
             featureValues: featureValues,
             agentsMaxThreads: agentsSection.flatMap { parseIntegerValue(for: "max_threads", in: $0) },
             agentsMaxDepth: agentsSection.flatMap { parseIntegerValue(for: "max_depth", in: $0) },
-            roleDrafts: roles
+            roleDrafts: roles,
+            preservedTopLevelRawValues: preservedTopLevelRawValues,
+            preservedHistoryRawValues: preservedHistoryRawValues,
+            preservedRoleRawValues: preservedRoleRawValues
         )
     }
 
@@ -198,25 +270,53 @@ struct CodexStructuredConfigPatchService: Sendable {
     }
 
     private func patchTopLevel(in document: inout Document, draft: CodexAdvancedStructuredDraft) {
-        let generated = [
-            stringAssignmentLine(key: "approval_policy", value: draft.approvalPolicy),
-            stringAssignmentLine(key: "sandbox_mode", value: draft.sandboxMode),
-            stringAssignmentLine(key: "web_search", value: draft.webSearch),
-            stringAssignmentLine(key: "model_provider", value: draft.modelProvider),
-            stringAssignmentLine(key: "profile", value: draft.profile),
-            stringAssignmentLine(key: "personality", value: draft.personality),
-            stringAssignmentLine(key: "model_reasoning_summary", value: draft.reasoningSummary),
-            stringAssignmentLine(key: "model_verbosity", value: draft.verbosity)
-        ].compactMap { $0 }
+        let generated = compactGeneratedLines([
+            generatedStringLine(key: "approval_policy", value: draft.approvalPolicy, preserved: draft.preservedTopLevelRawValues),
+            generatedStringLine(key: "sandbox_mode", value: draft.sandboxMode, preserved: draft.preservedTopLevelRawValues),
+            generatedStringLine(key: "web_search", value: draft.webSearch, preserved: draft.preservedTopLevelRawValues),
+            generatedStringLine(key: "model_provider", value: draft.modelProvider, preserved: draft.preservedTopLevelRawValues),
+            generatedStringLine(key: "profile", value: draft.profile, preserved: draft.preservedTopLevelRawValues),
+            generatedStringLine(key: "personality", value: draft.personality, preserved: draft.preservedTopLevelRawValues),
+            generatedBoolLine(key: "hide_agent_reasoning", value: draft.hideAgentReasoning, preserved: draft.preservedTopLevelRawValues),
+            generatedIntLine(key: "model_auto_compact_token_limit", value: draft.modelAutoCompactTokenLimit, preserved: draft.preservedTopLevelRawValues),
+            generatedStringLine(key: "compact_prompt", value: draft.compactPrompt, preserved: draft.preservedTopLevelRawValues),
+            generatedStringLine(key: "experimental_compact_prompt_file", value: draft.experimentalCompactPromptFile, preserved: draft.preservedTopLevelRawValues),
+            generatedStringLine(key: "model_reasoning_summary", value: draft.reasoningSummary, preserved: draft.preservedTopLevelRawValues),
+            generatedStringLine(key: "model_verbosity", value: draft.verbosity, preserved: draft.preservedTopLevelRawValues)
+        ])
 
-        var filtered: [String] = []
-        for line in document.preamble {
-            guard let key = parseAssignmentKey(from: line), controlledTopLevelKeys.contains(key) else {
-                filtered.append(line)
-                continue
+        document.preamble = appendGeneratedLines(
+            generated,
+            to: filteredLines(in: document.preamble, removingKeys: Set(controlledTopLevelKeys))
+        )
+    }
+
+    private func patchHistory(in document: inout Document, draft: CodexAdvancedStructuredDraft) {
+        let generated = compactGeneratedLines([
+            generatedStringLine(key: "persistence", value: draft.historyPersistence, preserved: draft.preservedHistoryRawValues),
+            generatedIntLine(key: "max_bytes", value: draft.historyMaxBytes, preserved: draft.preservedHistoryRawValues)
+        ])
+
+        let sectionIndex = document.sections.firstIndex(where: { $0.name == "history" })
+        let existingBody = sectionIndex.map { document.sections[$0].body } ?? []
+        let filteredBody = appendGeneratedLines(
+            generated,
+            to: filteredLines(in: existingBody, removingKeys: Set(controlledHistoryKeys))
+        )
+
+        if !sectionHasMeaningfulContent(filteredBody) {
+            if let sectionIndex {
+                document.sections.remove(at: sectionIndex)
             }
+            return
         }
-        document.preamble = appendGeneratedLines(generated, to: filtered)
+
+        let section = SectionBlock(name: "history", header: "[history]", body: filteredBody)
+        if let sectionIndex {
+            document.sections[sectionIndex] = section
+        } else {
+            document.sections.append(section)
+        }
     }
 
     private func patchFeatures(in document: inout Document, draft: CodexAdvancedStructuredDraft) {
@@ -321,19 +421,23 @@ struct CodexStructuredConfigPatchService: Sendable {
     }
 
     private func patchRoleBody(_ body: [String], role: CodexAgentRoleDraft) -> [String] {
-        let generated = [
-            stringAssignmentLine(key: "description", value: normalized(role.description)),
-            stringAssignmentLine(key: "config_file", value: normalized(role.configFile)),
-            stringAssignmentLine(key: "model", value: normalized(role.model)),
-            stringAssignmentLine(key: "model_reasoning_effort", value: normalized(role.modelReasoningEffort)),
-            stringAssignmentLine(key: "approval_policy", value: normalized(role.approvalPolicy)),
-            stringAssignmentLine(key: "sandbox_mode", value: normalized(role.sandboxMode))
-        ].compactMap { $0 }
+        let preserved = role.preservedRawValues
+        let generated = compactGeneratedLines([
+            generatedStringLine(key: "description", value: normalized(role.description), preserved: preserved),
+            generatedStringLine(key: "config_file", value: normalized(role.configFile), preserved: preserved),
+            generatedStringLine(key: "model", value: normalized(role.model), preserved: preserved),
+            generatedStringLine(key: "model_reasoning_effort", value: normalized(role.modelReasoningEffort), preserved: preserved),
+            generatedStringLine(key: "model_reasoning_summary", value: normalized(role.modelReasoningSummary), preserved: preserved),
+            generatedStringLine(key: "model_verbosity", value: normalized(role.modelVerbosity), preserved: preserved),
+            generatedStringLine(key: "approval_policy", value: normalized(role.approvalPolicy), preserved: preserved),
+            generatedStringLine(key: "sandbox_mode", value: normalized(role.sandboxMode), preserved: preserved),
+            generatedStringLine(key: "personality", value: normalized(role.personality), preserved: preserved),
+            generatedStringLine(key: "web_search", value: normalized(role.webSearch), preserved: preserved)
+        ])
 
-        return patchBody(
-            body,
-            removingKeys: Set(controlledRoleKeys),
-            generatedLines: generated
+        return appendGeneratedLines(
+            generated,
+            to: filteredLines(in: body, removingKeys: Set(controlledRoleKeys))
         )
     }
 
@@ -342,14 +446,18 @@ struct CodexStructuredConfigPatchService: Sendable {
         removingKeys: Set<String>,
         generatedLines: [String]
     ) -> [String] {
+        appendGeneratedLines(generatedLines, to: filteredLines(in: body, removingKeys: removingKeys))
+    }
+
+    private func filteredLines(in lines: [String], removingKeys: Set<String>) -> [String] {
         var filtered: [String] = []
-        for line in body {
+        for line in lines {
             guard let key = parseAssignmentKey(from: line), removingKeys.contains(key) else {
                 filtered.append(line)
                 continue
             }
         }
-        return appendGeneratedLines(generatedLines, to: filtered)
+        return filtered
     }
 
     private func appendGeneratedLines(_ generatedLines: [String], to existingLines: [String]) -> [String] {
@@ -385,6 +493,48 @@ struct CodexStructuredConfigPatchService: Sendable {
         return String(key)
     }
 
+    private var stringKeys: Set<String> {
+        [
+            "approval_policy",
+            "sandbox_mode",
+            "web_search",
+            "model_provider",
+            "profile",
+            "personality",
+            "compact_prompt",
+            "experimental_compact_prompt_file",
+            "model_reasoning_summary",
+            "model_verbosity"
+        ]
+    }
+
+    private var boolKeys: Set<String> {
+        ["hide_agent_reasoning"]
+    }
+
+    private var intKeys: Set<String> {
+        ["model_auto_compact_token_limit"]
+    }
+
+    private var historyStringKeys: Set<String> {
+        ["persistence"]
+    }
+
+    private var historyIntKeys: Set<String> {
+        ["max_bytes"]
+    }
+
+    private var roleStringKeys: Set<String> {
+        Set(controlledRoleKeys)
+    }
+
+    private func parseRawAssignments(in section: SectionBlock) -> [String: String] {
+        Dictionary(uniqueKeysWithValues: section.body.compactMap { line -> (String, String)? in
+            guard let key = parseAssignmentKey(from: line), let value = parseRawAssignmentValue(from: line) else { return nil }
+            return (key, value)
+        })
+    }
+
     private func parseAssignments(in section: SectionBlock) -> [String: String] {
         Dictionary(uniqueKeysWithValues: section.body.compactMap { line -> (String, String)? in
             guard let key = parseAssignmentKey(from: line), let value = parseStringValue(from: line) else { return nil }
@@ -409,9 +559,32 @@ struct CodexStructuredConfigPatchService: Sendable {
         return nil
     }
 
-    private func parseStringValue(from line: String) -> String? {
+    private func parseRawAssignmentValue(from line: String) -> String? {
         guard let equalIndex = line.firstIndex(of: "=") else { return nil }
-        let rawValue = line[line.index(after: equalIndex)...].trimmingCharacters(in: .whitespacesAndNewlines)
+        return line[line.index(after: equalIndex)...].trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private func parseStringValue(for key: String, in assignments: [String: String]) -> String? {
+        guard let raw = assignments[key] else { return nil }
+        return parseStringValue(fromRawValue: raw)
+    }
+
+    private func parseBoolValue(for key: String, in assignments: [String: String]) -> Bool? {
+        guard let raw = assignments[key] else { return nil }
+        return parseBoolValue(fromRawValue: raw)
+    }
+
+    private func parseIntValue(for key: String, in assignments: [String: String]) -> Int? {
+        guard let raw = assignments[key] else { return nil }
+        return Int(raw)
+    }
+
+    private func parseStringValue(from line: String) -> String? {
+        guard let rawValue = parseRawAssignmentValue(from: line) else { return nil }
+        return parseStringValue(fromRawValue: rawValue)
+    }
+
+    private func parseStringValue(fromRawValue rawValue: String) -> String? {
         guard rawValue.hasPrefix("\""), rawValue.hasSuffix("\""), rawValue.count >= 2 else { return nil }
         let inner = rawValue.dropFirst().dropLast()
         return inner
@@ -420,8 +593,11 @@ struct CodexStructuredConfigPatchService: Sendable {
     }
 
     private func parseBooleanValue(from line: String) -> Bool? {
-        guard let equalIndex = line.firstIndex(of: "=") else { return nil }
-        let rawValue = line[line.index(after: equalIndex)...].trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let rawValue = parseRawAssignmentValue(from: line) else { return nil }
+        return parseBoolValue(fromRawValue: rawValue)
+    }
+
+    private func parseBoolValue(fromRawValue rawValue: String) -> Bool? {
         switch rawValue {
         case "true": return true
         case "false": return false
@@ -441,6 +617,23 @@ struct CodexStructuredConfigPatchService: Sendable {
         return trimmed.isEmpty ? nil : trimmed
     }
 
+    private func preservedRawValues(
+        keys: [String],
+        assignments: [String: String],
+        typedKeys: Set<String>
+    ) -> [String: String] {
+        Dictionary(uniqueKeysWithValues: keys.compactMap { key -> (String, String)? in
+            guard let rawValue = assignments[key], typedKeys.contains(key) else { return nil }
+            if stringKeys.contains(key), parseStringValue(fromRawValue: rawValue) != nil { return nil }
+            if boolKeys.contains(key), parseBoolValue(fromRawValue: rawValue) != nil { return nil }
+            if intKeys.contains(key), Int(rawValue) != nil { return nil }
+            if historyStringKeys.contains(key), parseStringValue(fromRawValue: rawValue) != nil { return nil }
+            if historyIntKeys.contains(key), Int(rawValue) != nil { return nil }
+            if roleStringKeys.contains(key), parseStringValue(fromRawValue: rawValue) != nil { return nil }
+            return (key, rawValue)
+        })
+    }
+
     private func stringAssignmentLine(key: String, value: String?) -> String? {
         guard let value, !value.isEmpty else { return nil }
         let escaped = value.replacingOccurrences(of: "\\", with: "\\\\")
@@ -455,6 +648,34 @@ struct CodexStructuredConfigPatchService: Sendable {
     private func intAssignmentLine(key: String, value: Int?) -> String? {
         guard let value else { return nil }
         return "\(key) = \(value)"
+    }
+
+    private func compactGeneratedLines(_ lines: [String?]) -> [String] {
+        lines.compactMap { $0 }
+    }
+
+    private func generatedStringLine(key: String, value: String?, preserved: [String: String]) -> String? {
+        if let line = stringAssignmentLine(key: key, value: value) {
+            return line
+        }
+        guard let raw = preserved[key] else { return nil }
+        return "\(key) = \(raw)"
+    }
+
+    private func generatedBoolLine(key: String, value: Bool?, preserved: [String: String]) -> String? {
+        if let value {
+            return boolAssignmentLine(key: key, value: value)
+        }
+        guard let raw = preserved[key] else { return nil }
+        return "\(key) = \(raw)"
+    }
+
+    private func generatedIntLine(key: String, value: Int?, preserved: [String: String]) -> String? {
+        if let value {
+            return intAssignmentLine(key: key, value: value)
+        }
+        guard let raw = preserved[key] else { return nil }
+        return "\(key) = \(raw)"
     }
 }
 
@@ -500,8 +721,13 @@ struct CodexAgentRoleDraft: Identifiable, Equatable, Sendable {
     var configFile: String
     var model: String
     var modelReasoningEffort: String
+    var modelReasoningSummary: String
+    var modelVerbosity: String
     var sandboxMode: String
     var approvalPolicy: String
+    var personality: String
+    var webSearch: String
+    var preservedRawValues: [String: String] = [:]
 }
 
 enum CodexBuiltinAgentRole: String, CaseIterable, Identifiable {
@@ -555,12 +781,20 @@ final class CodexAdvancedConfigViewModel {
     var modelProviderDraft: String = ""
     var profileDraft: String = ""
     var personalityDraft: String = ""
+    var hideAgentReasoningDraft: Bool?
+    var modelAutoCompactTokenLimitDraft: String = ""
+    var compactPromptDraft: String = ""
+    var experimentalCompactPromptFileDraft: String = ""
     var reasoningSummaryDraft: String = ""
     var verbosityDraft: String = ""
+    var historyPersistenceDraft: String = ""
+    var historyMaxBytesDraft: String = ""
     var agentsMaxThreadsDraft: String = ""
     var agentsMaxDepthDraft: String = ""
     var featureValues: [String: Bool] = [:]
     var roleDrafts: [CodexAgentRoleDraft] = []
+    var preservedTopLevelRawValues: [String: String] = [:]
+    var preservedHistoryRawValues: [String: String] = [:]
 
     private var provider: Provider
     private let manager: CodexBinaryManager
@@ -576,9 +810,11 @@ final class CodexAdvancedConfigViewModel {
         .init(key: "undo", maturity: "Stable", description: "Create a ghost commit at each turn.", source: "codex-rs/core/src/features.rs + codex features list"),
         .init(key: "shell_tool", maturity: "Stable", description: "Enable the default shell tool.", source: "codex-rs/core/src/features.rs + codex features list"),
         .init(key: "unified_exec", maturity: "Stable", description: "Use the unified PTY-backed exec tool.", source: "codex-rs/core/src/features.rs + codex features list"),
-        .init(key: "shell_snapshot", maturity: "Experimental", description: "Snapshot shell env for repeated commands.", source: "codex-rs/core/src/features.rs + codex features list"),
+        .init(key: "shell_snapshot", maturity: "Stable", description: "Snapshot shell env for repeated commands.", source: "codex docs + codex features list"),
         .init(key: "web_search_request", maturity: "Deprecated", description: "Legacy live web search toggle.", source: "codex-rs/core/src/features.rs + codex features list"),
         .init(key: "web_search_cached", maturity: "Deprecated", description: "Legacy cached web search toggle.", source: "codex-rs/core/src/features.rs + codex features list"),
+        .init(key: "codex_hooks", maturity: "Under Development", description: "Enable lifecycle hooks loaded from hooks.json.", source: "codex docs"),
+        .init(key: "fast_mode", maturity: "Stable", description: "Enable Fast mode selection and the service_tier fast path.", source: "codex docs"),
         .init(key: "search_tool", maturity: "Under Development", description: "Enable search_tool_bm25 tool discovery.", source: "codex-rs/core/src/features.rs"),
         .init(key: "runtime_metrics", maturity: "Under Development", description: "Show runtime metrics summaries in TUI.", source: "codex-rs/core/src/features.rs + codex features list"),
         .init(key: "sqlite", maturity: "Under Development", description: "Persist rollout metadata to local SQLite.", source: "codex-rs/core/src/features.rs + codex features list"),
@@ -596,6 +832,7 @@ final class CodexAdvancedConfigViewModel {
         .init(key: "enable_request_compression", maturity: "Stable", description: "Enable compressed request bodies.", source: "codex-rs/core/src/features.rs + codex features list"),
         .init(key: "collab", maturity: "Experimental", description: "Enable collab/sub-agent tools.", source: "codex-rs/core/src/features.rs + codex features list"),
         .init(key: "apps", maturity: "Experimental", description: "Enable ChatGPT Apps/connectors support.", source: "codex-rs/core/src/features.rs + codex features list"),
+        .init(key: "smart_approvals", maturity: "Experimental", description: "Route eligible approval requests through the guardian reviewer subagent.", source: "codex docs"),
         .init(key: "skill_mcp_dependency_install", maturity: "Stable", description: "Allow installing missing MCP dependencies for skills.", source: "codex-rs/core/src/features.rs + codex features list"),
         .init(key: "skill_env_var_dependency_prompt", maturity: "Under Development", description: "Prompt for missing skill env var dependencies.", source: "codex-rs/core/src/features.rs + codex features list"),
         .init(key: "steer", maturity: "Stable", description: "Enable steer mode behavior.", source: "codex-rs/core/src/features.rs + codex features list"),
@@ -603,7 +840,7 @@ final class CodexAdvancedConfigViewModel {
         .init(key: "personality", maturity: "Stable", description: "Enable personality selection controls.", source: "codex-rs/core/src/features.rs + codex features list"),
         .init(key: "responses_websockets", maturity: "Under Development", description: "Use Responses API WebSocket transport by default.", source: "codex-rs/core/src/features.rs + codex features list"),
         .init(key: "responses_websockets_v2", maturity: "Under Development", description: "Enable Responses API websocket v2 mode.", source: "codex-rs/core/src/features.rs"),
-        .init(key: "multi_agent", maturity: "Experimental", description: "Enable multi-agent collaboration tools.", source: "codex docs + Nolon config support"),
+        .init(key: "multi_agent", maturity: "Stable", description: "Enable multi-agent collaboration tools.", source: "codex docs + Nolon config support"),
         .init(key: "apps_mcp_gateway", maturity: "Experimental", description: "Use the Apps MCP gateway endpoint.", source: "codex docs + Nolon config support"),
         .init(key: "web_search", maturity: "Deprecated", description: "Legacy web_search feature toggle.", source: "legacy compatibility (Nolon)"),
     ]
@@ -873,8 +1110,12 @@ final class CodexAdvancedConfigViewModel {
             configFile: "",
             model: "",
             modelReasoningEffort: "",
+            modelReasoningSummary: "",
+            modelVerbosity: "",
             sandboxMode: "",
-            approvalPolicy: ""
+            approvalPolicy: "",
+            personality: "",
+            webSearch: ""
         )
     }
 
@@ -885,8 +1126,12 @@ final class CodexAdvancedConfigViewModel {
             configFile: "",
             model: "",
             modelReasoningEffort: "",
+            modelReasoningSummary: "",
+            modelVerbosity: "",
             sandboxMode: "",
-            approvalPolicy: ""
+            approvalPolicy: "",
+            personality: "",
+            webSearch: ""
         )
     }
 
@@ -954,12 +1199,24 @@ final class CodexAdvancedConfigViewModel {
         modelProviderDraft = draft.modelProvider ?? ""
         profileDraft = draft.profile ?? ""
         personalityDraft = draft.personality ?? ""
+        hideAgentReasoningDraft = draft.hideAgentReasoning
+        modelAutoCompactTokenLimitDraft = draft.modelAutoCompactTokenLimit.map(String.init) ?? ""
+        compactPromptDraft = draft.compactPrompt ?? ""
+        experimentalCompactPromptFileDraft = draft.experimentalCompactPromptFile ?? ""
         reasoningSummaryDraft = draft.reasoningSummary ?? ""
         verbosityDraft = draft.verbosity ?? ""
+        historyPersistenceDraft = draft.historyPersistence ?? ""
+        historyMaxBytesDraft = draft.historyMaxBytes.map(String.init) ?? ""
         agentsMaxThreadsDraft = draft.agentsMaxThreads.map(String.init) ?? ""
         agentsMaxDepthDraft = draft.agentsMaxDepth.map(String.init) ?? ""
         featureValues = draft.featureValues
-        roleDrafts = draft.roleDrafts
+        preservedTopLevelRawValues = draft.preservedTopLevelRawValues
+        preservedHistoryRawValues = draft.preservedHistoryRawValues
+        roleDrafts = draft.roleDrafts.map { role in
+            var role = role
+            role.preservedRawValues = draft.preservedRoleRawValues[role.name] ?? [:]
+            return role
+        }
     }
 
     private func loadSelectionsFromConfig() {
@@ -1015,12 +1272,25 @@ final class CodexAdvancedConfigViewModel {
             modelProvider: modelProviderDraft.nonEmpty,
             profile: profileDraft.nonEmpty,
             personality: personalityDraft.nonEmpty,
+            hideAgentReasoning: hideAgentReasoningDraft,
+            modelAutoCompactTokenLimit: Int(modelAutoCompactTokenLimitDraft.trimmingCharacters(in: .whitespacesAndNewlines)),
+            compactPrompt: compactPromptDraft.nonEmpty,
+            experimentalCompactPromptFile: experimentalCompactPromptFileDraft.nonEmpty,
             reasoningSummary: reasoningSummaryDraft.nonEmpty,
             verbosity: verbosityDraft.nonEmpty,
+            historyPersistence: historyPersistenceDraft.nonEmpty,
+            historyMaxBytes: Int(historyMaxBytesDraft.trimmingCharacters(in: .whitespacesAndNewlines)),
             featureValues: featureValues,
             agentsMaxThreads: Int(agentsMaxThreadsDraft.trimmingCharacters(in: .whitespacesAndNewlines)),
             agentsMaxDepth: Int(agentsMaxDepthDraft.trimmingCharacters(in: .whitespacesAndNewlines)),
-            roleDrafts: roleDrafts
+            roleDrafts: roleDrafts,
+            preservedTopLevelRawValues: preservedTopLevelRawValues,
+            preservedHistoryRawValues: preservedHistoryRawValues,
+            preservedRoleRawValues: Dictionary(uniqueKeysWithValues: roleDrafts.compactMap { role in
+                let name = role.name.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !name.isEmpty, !role.preservedRawValues.isEmpty else { return nil }
+                return (name, role.preservedRawValues)
+            })
         )
     }
 }
@@ -1044,6 +1314,19 @@ struct CodexAdvancedConfigView: View {
         }
     }
 
+    private enum FilePickerTarget: String, Identifiable {
+        case experimentalCompactPromptFile
+        case roleConfigFile
+
+        var id: String { rawValue }
+    }
+
+    private enum LargeTextEditorTarget: String, Identifiable {
+        case compactPrompt
+
+        var id: String { rawValue }
+    }
+
     let provider: Provider
     let markerBaseItems: [PageMarkerItem]
     @State private var viewModel: CodexAdvancedConfigViewModel
@@ -1051,6 +1334,8 @@ struct CodexAdvancedConfigView: View {
     @State private var roleEditorTarget: RoleEditorTarget?
     @State private var pendingNewRoleDraft = CodexAdvancedConfigViewModel.makeEmptyRoleDraft()
     @State private var featureSearchText: String = ""
+    @State private var filePickerTarget: FilePickerTarget?
+    @State private var textEditorTarget: LargeTextEditorTarget?
 
     init(provider: Provider, markerBaseItems: [PageMarkerItem] = []) {
         self.provider = provider
@@ -1069,6 +1354,11 @@ struct CodexAdvancedConfigView: View {
                     title: NSLocalizedString("codex.advanced.config.features.title", value: "Feature Flags", comment: "Feature flags")
                 )
                 featureFlagsSection
+
+                NolonUI.CodexAdvancedSectionHeaderView(
+                    title: NSLocalizedString("codex.advanced.config.runtime.title", value: "History & Compaction", comment: "History and compaction")
+                )
+                runtimeControlsSection
 
                 NolonUI.CodexAdvancedSectionHeaderView(
                     title: NSLocalizedString("codex.advanced.config.multi_agent.title", value: "Multi-Agent Roles", comment: "Multi-agent roles")
@@ -1098,6 +1388,19 @@ struct CodexAdvancedConfigView: View {
         }
         .sheet(item: $roleEditorTarget) { target in
             roleEditorSheet(for: target)
+        }
+        .sheet(item: $textEditorTarget) { target in
+            largeTextEditorSheet(for: target)
+        }
+        .fileImporter(
+            isPresented: Binding(
+                get: { filePickerTarget != nil },
+                set: { if !$0 { filePickerTarget = nil } }
+            ),
+            allowedContentTypes: [.item],
+            allowsMultipleSelection: false
+        ) { result in
+            handleFileImport(result)
         }
         .messageAlert(
             title: NSLocalizedString("codex.binary.error.title", value: "Binary Error", comment: "Binary error"),
@@ -1156,42 +1459,77 @@ struct CodexAdvancedConfigView: View {
                 ),
                 options: mergedOptions(
                     current: viewModel.approvalPolicyDraft,
-                    defaults: ["untrusted", "on-failure", "on-request", "never"]
-                )
+                    defaults: ["untrusted", "on-request", "never"]
+                ),
+                quickOptions: ["untrusted", "on-request", "never"]
             )
             commonOptionPickerRow(
                 title: "sandbox_mode",
                 selection: $viewModel.sandboxModeDraft,
+                description: localizedConfigDescription(
+                    key: "sandbox_mode",
+                    fallback: "Controls the filesystem and network sandbox level available to Codex."
+                ),
                 options: mergedOptions(
                     current: viewModel.sandboxModeDraft,
                     defaults: ["read-only", "workspace-write", "danger-full-access"]
-                )
+                ),
+                quickOptions: ["read-only", "workspace-write", "danger-full-access"]
             )
             commonOptionPickerRow(
                 title: "web_search",
                 selection: $viewModel.webSearchDraft,
+                description: localizedConfigDescription(
+                    key: "web_search",
+                    fallback: "Controls whether Codex uses cached or live web results, or disables web search entirely."
+                ),
                 options: mergedOptions(
                     current: viewModel.webSearchDraft,
                     defaults: ["cached", "live", "disabled"]
+                ),
+                quickOptions: ["cached", "live", "disabled"]
+            )
+            commonOptionRow(
+                title: "model_provider",
+                text: $viewModel.modelProviderDraft,
+                description: localizedConfigDescription(
+                    key: "model_provider",
+                    fallback: "Overrides which provider preset supplies model defaults and credentials."
                 )
             )
-            commonOptionRow(title: "model_provider", text: $viewModel.modelProviderDraft)
-            commonOptionRow(title: "profile", text: $viewModel.profileDraft)
+            commonOptionRow(
+                title: "profile",
+                text: $viewModel.profileDraft,
+                description: localizedConfigDescription(
+                    key: "profile",
+                    fallback: "Selects the named profile block to merge into the active configuration."
+                )
+            )
             commonOptionPickerRow(
                 title: "personality",
                 selection: $viewModel.personalityDraft,
+                description: localizedConfigDescription(
+                    key: "personality",
+                    fallback: "Adjusts the default assistant tone for Codex sessions."
+                ),
                 options: mergedOptions(
                     current: viewModel.personalityDraft,
-                    defaults: ["balanced", "concise", "verbose"]
-                )
+                    defaults: ["none", "friendly", "pragmatic"]
+                ),
+                quickOptions: ["none", "friendly", "pragmatic"]
             )
             commonOptionPickerRow(
                 title: "model_reasoning_summary",
                 selection: $viewModel.reasoningSummaryDraft,
+                description: localizedConfigDescription(
+                    key: "model_reasoning_summary",
+                    fallback: "Controls whether Codex shows a reasoning summary in responses."
+                ),
                 options: mergedOptions(
                     current: viewModel.reasoningSummaryDraft,
                     defaults: ["none", "auto", "concise", "detailed"]
-                )
+                ),
+                quickOptions: ["none", "auto", "concise", "detailed"]
             )
             commonOptionPickerRow(
                 title: "model_verbosity",
@@ -1204,7 +1542,8 @@ struct CodexAdvancedConfigView: View {
                 options: mergedOptions(
                     current: viewModel.verbosityDraft,
                     defaults: ["low", "medium", "high"]
-                )
+                ),
+                quickOptions: ["low", "medium", "high"]
             )
 
             Divider()
@@ -1215,6 +1554,8 @@ struct CodexAdvancedConfigView: View {
                     isEditingRawConfig = true
                 }
             )
+
+            docsRow(commonOptionDocs)
         }
         .debugCardLocator(sectionMarkerItems("Common Options"))
     }
@@ -1277,15 +1618,85 @@ struct CodexAdvancedConfigView: View {
             featureRowData(feature: feature, query: query)
         }
 
-        return NolonUI.CodexAdvancedFeatureFlagsSectionView(
-            searchText: $featureSearchText,
-            rows: renderedRows,
-            onToggle: { featureID, newValue in
-                viewModel.setFeature(featureID, enabled: newValue)
-                viewModel.scheduleStructuredSaveIfReady()
-            }
-        )
+        return VStack(spacing: 10) {
+            NolonUI.CodexAdvancedFeatureFlagsSectionView(
+                searchText: $featureSearchText,
+                rows: renderedRows,
+                onToggle: { featureID, newValue in
+                    viewModel.setFeature(featureID, enabled: newValue)
+                    viewModel.scheduleStructuredSaveIfReady()
+                }
+            )
+            docsRow([
+                .init(id: "config-basics-features", title: "Config Basics", url: CodexAdvancedDocs.configBasics),
+                .init(id: "config-reference-features", title: "Config Reference", url: CodexAdvancedDocs.configReference)
+            ])
+        }
         .debugCardLocator(sectionMarkerItems("Feature Flags"))
+    }
+
+    private var runtimeControlsSection: some View {
+        NolonUI.CodexAdvancedSectionCardView {
+            commonOptionPickerRow(
+                title: "history.persistence",
+                selection: $viewModel.historyPersistenceDraft,
+                description: localizedConfigDescription(
+                    key: "history.persistence",
+                    fallback: "Control whether Codex saves transcripts to history.jsonl."
+                ),
+                options: mergedOptions(
+                    current: viewModel.historyPersistenceDraft,
+                    defaults: ["save-all", "none"]
+                ),
+                quickOptions: ["save-all", "none"]
+            )
+            numericInputRow(
+                label: "history.max_bytes",
+                text: $viewModel.historyMaxBytesDraft,
+                description: localizedConfigDescription(
+                    key: "history.max_bytes",
+                    fallback: "Sets the maximum size of the local history file before old entries are trimmed."
+                ),
+                presets: historyMaxBytesPresets
+            )
+            triStateBoolRow(
+                title: "hide_agent_reasoning",
+                description: localizedConfigDescription(
+                    key: "hide_agent_reasoning",
+                    fallback: "Suppress reasoning events in the TUI and codex exec output."
+                ),
+                value: $viewModel.hideAgentReasoningDraft
+            )
+            numericInputRow(
+                label: "model_auto_compact_token_limit",
+                text: $viewModel.modelAutoCompactTokenLimitDraft,
+                description: localizedConfigDescription(
+                    key: "model_auto_compact_token_limit",
+                    fallback: "Automatically compacts conversation history after the token count crosses this threshold."
+                ),
+                presets: autoCompactTokenPresets
+            )
+            largeTextOptionRow(
+                title: "compact_prompt",
+                text: $viewModel.compactPromptDraft,
+                description: localizedConfigDescription(
+                    key: "compact_prompt",
+                    fallback: "Inline override for the history compaction prompt."
+                )
+            )
+            filePathOptionRow(
+                title: "experimental_compact_prompt_file",
+                text: $viewModel.experimentalCompactPromptFileDraft,
+                description: localizedConfigDescription(
+                    key: "experimental_compact_prompt_file",
+                    fallback: "Load the compaction prompt override from a file."
+                ),
+                pickerTarget: .experimentalCompactPromptFile
+            )
+
+            docsRow(runtimeDocs)
+        }
+        .debugCardLocator(sectionMarkerItems("History & Compaction"))
     }
 
     private func featureSortRank(_ maturity: String) -> Int {
@@ -1417,11 +1828,13 @@ struct CodexAdvancedConfigView: View {
 
             numericInputRow(
                 label: "agents.max_threads",
-                text: $viewModel.agentsMaxThreadsDraft
+                text: $viewModel.agentsMaxThreadsDraft,
+                presets: agentThreadPresets
             )
             numericInputRow(
                 label: "agents.max_depth",
-                text: $viewModel.agentsMaxDepthDraft
+                text: $viewModel.agentsMaxDepthDraft,
+                presets: agentDepthPresets
             )
 
             NolonUI.CodexAdvancedRoleListView(
@@ -1478,6 +1891,8 @@ struct CodexAdvancedConfigView: View {
             } onSave: {
                     Task { await viewModel.saveStructuredConfig() }
             }
+
+            docsRow(multiAgentDocs)
         }
         .debugCardLocator(sectionMarkerItems("Multi-Agent Roles"))
     }
@@ -1495,7 +1910,7 @@ struct CodexAdvancedConfigView: View {
                 )
             ) {
                     NolonUI.CodexAdvancedRoleTextFieldRowView(
-                        label: "name",
+                        label: localizedConfigLabel("name"),
                         placeholder: NSLocalizedString(
                             "codex.advanced.config.multi_agent.role_name",
                             value: "role name",
@@ -1504,7 +1919,7 @@ struct CodexAdvancedConfigView: View {
                         text: role.name
                     )
                     NolonUI.CodexAdvancedRoleTextFieldRowView(
-                        label: "description",
+                        label: localizedConfigLabel("description"),
                         placeholder: NSLocalizedString(
                             "codex.advanced.config.multi_agent.description",
                             value: "description",
@@ -1513,7 +1928,7 @@ struct CodexAdvancedConfigView: View {
                         text: role.description
                     )
                     NolonUI.CodexAdvancedRoleTextFieldRowView(
-                        label: "config_file",
+                        label: localizedConfigLabel("config_file"),
                         placeholder: NSLocalizedString(
                             "codex.advanced.config.multi_agent.config_file",
                             value: "config file path",
@@ -1521,8 +1936,22 @@ struct CodexAdvancedConfigView: View {
                         ),
                         text: role.configFile
                     )
+                    HStack {
+                        Spacer()
+                        if !role.wrappedValue.configFile.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                            Button(NSLocalizedString("action.clear", value: "Clear", comment: "Clear")) {
+                                role.wrappedValue.configFile = ""
+                                viewModel.scheduleStructuredSaveIfReady()
+                            }
+                            .buttonStyle(.borderless)
+                        }
+                        Button(NSLocalizedString("codex.advanced.action.choose_file", value: "Choose File", comment: "Choose file")) {
+                            filePickerTarget = .roleConfigFile
+                        }
+                        .buttonStyle(.borderless)
+                    }
                     NolonUI.CodexAdvancedRoleTextFieldRowView(
-                        label: "model",
+                        label: localizedConfigLabel("model"),
                         placeholder: NSLocalizedString(
                             "codex.advanced.config.multi_agent.model",
                             value: "model",
@@ -1531,11 +1960,11 @@ struct CodexAdvancedConfigView: View {
                         text: role.model
                     )
                     NolonUI.CodexAdvancedRolePickerRowView(
-                        label: "model_reasoning_effort",
+                        label: localizedConfigLabel("model_reasoning_effort"),
                         options: [CodexAdvancedPickerOption(
                             id: "",
                             title: localizedOptionLabel(key: "model_reasoning_effort", value: "")
-                        )] + ["minimal", "low", "medium", "high"].map {
+                        )] + ["minimal", "low", "medium", "high", "xhigh"].map {
                             CodexAdvancedPickerOption(
                                 id: $0,
                                 title: localizedOptionLabel(key: "model_reasoning_effort", value: $0)
@@ -1546,8 +1975,43 @@ struct CodexAdvancedConfigView: View {
                             viewModel.scheduleStructuredSaveIfReady()
                         }
                     )
+                    quickOptionButtons(key: "model_reasoning_effort", selection: role.modelReasoningEffort, options: ["minimal", "low", "medium", "high", "xhigh"])
                     NolonUI.CodexAdvancedRolePickerRowView(
-                        label: "sandbox_mode",
+                        label: localizedConfigLabel("model_reasoning_summary"),
+                        options: [CodexAdvancedPickerOption(
+                            id: "",
+                            title: localizedOptionLabel(key: "model_reasoning_summary", value: "")
+                        )] + ["auto", "concise", "detailed", "none"].map {
+                            CodexAdvancedPickerOption(
+                                id: $0,
+                                title: localizedOptionLabel(key: "model_reasoning_summary", value: $0)
+                            )
+                        },
+                        selection: role.modelReasoningSummary,
+                        onSelectionChanged: {
+                            viewModel.scheduleStructuredSaveIfReady()
+                        }
+                    )
+                    quickOptionButtons(key: "model_reasoning_summary", selection: role.modelReasoningSummary, options: ["none", "auto", "concise", "detailed"])
+                    NolonUI.CodexAdvancedRolePickerRowView(
+                        label: localizedConfigLabel("model_verbosity"),
+                        options: [CodexAdvancedPickerOption(
+                            id: "",
+                            title: localizedOptionLabel(key: "model_verbosity", value: "")
+                        )] + ["low", "medium", "high"].map {
+                            CodexAdvancedPickerOption(
+                                id: $0,
+                                title: localizedOptionLabel(key: "model_verbosity", value: $0)
+                            )
+                        },
+                        selection: role.modelVerbosity,
+                        onSelectionChanged: {
+                            viewModel.scheduleStructuredSaveIfReady()
+                        }
+                    )
+                    quickOptionButtons(key: "model_verbosity", selection: role.modelVerbosity, options: ["low", "medium", "high"])
+                    NolonUI.CodexAdvancedRolePickerRowView(
+                        label: localizedConfigLabel("sandbox_mode"),
                         options: [CodexAdvancedPickerOption(
                             id: "",
                             title: localizedOptionLabel(key: "sandbox_mode", value: "")
@@ -1562,12 +2026,13 @@ struct CodexAdvancedConfigView: View {
                             viewModel.scheduleStructuredSaveIfReady()
                         }
                     )
+                    quickOptionButtons(key: "sandbox_mode", selection: role.sandboxMode, options: ["read-only", "workspace-write", "danger-full-access"])
                     NolonUI.CodexAdvancedRolePickerRowView(
-                        label: "approval_policy",
+                        label: localizedConfigLabel("approval_policy"),
                         options: [CodexAdvancedPickerOption(
                             id: "",
                             title: localizedOptionLabel(key: "approval_policy", value: "")
-                        )] + ["untrusted", "on-failure", "on-request", "never"].map {
+                        )] + ["untrusted", "on-request", "never"].map {
                             CodexAdvancedPickerOption(
                                 id: $0,
                                 title: localizedOptionLabel(key: "approval_policy", value: $0)
@@ -1578,6 +2043,41 @@ struct CodexAdvancedConfigView: View {
                             viewModel.scheduleStructuredSaveIfReady()
                         }
                     )
+                    quickOptionButtons(key: "approval_policy", selection: role.approvalPolicy, options: ["untrusted", "on-request", "never"])
+                    NolonUI.CodexAdvancedRolePickerRowView(
+                        label: localizedConfigLabel("personality"),
+                        options: [CodexAdvancedPickerOption(
+                            id: "",
+                            title: localizedOptionLabel(key: "personality", value: "")
+                        )] + ["none", "friendly", "pragmatic"].map {
+                            CodexAdvancedPickerOption(
+                                id: $0,
+                                title: localizedOptionLabel(key: "personality", value: $0)
+                            )
+                        },
+                        selection: role.personality,
+                        onSelectionChanged: {
+                            viewModel.scheduleStructuredSaveIfReady()
+                        }
+                    )
+                    quickOptionButtons(key: "personality", selection: role.personality, options: ["none", "friendly", "pragmatic"])
+                    NolonUI.CodexAdvancedRolePickerRowView(
+                        label: localizedConfigLabel("web_search"),
+                        options: [CodexAdvancedPickerOption(
+                            id: "",
+                            title: localizedOptionLabel(key: "web_search", value: "")
+                        )] + ["cached", "live", "disabled"].map {
+                            CodexAdvancedPickerOption(
+                                id: $0,
+                                title: localizedOptionLabel(key: "web_search", value: $0)
+                            )
+                        },
+                        selection: role.webSearch,
+                        onSelectionChanged: {
+                            viewModel.scheduleStructuredSaveIfReady()
+                        }
+                    )
+                    quickOptionButtons(key: "web_search", selection: role.webSearch, options: ["cached", "live", "disabled"])
 
                     Divider().padding(.top, 4)
 
@@ -1630,26 +2130,178 @@ struct CodexAdvancedConfigView: View {
     }
 
     private func commonOptionRow(title: String, text: Binding<String>, description: String? = nil) -> some View {
-        NolonUI.CodexAdvancedTextFieldRowView(
-            label: title,
-            description: description,
-            placeholder: title,
-            text: text,
-            onTextChanged: {
-                viewModel.scheduleStructuredSaveIfReady()
+        NolonUI.CodexAdvancedAlignedConfigRow(
+            label: localizedConfigLabel(title),
+            description: description
+        ) {
+            HStack(spacing: 8) {
+                TextField(localizedConfigLabel(title), text: text)
+                    .onChange(of: text.wrappedValue) { _, _ in
+                        viewModel.scheduleStructuredSaveIfReady()
+                    }
+                    .textFieldStyle(.roundedBorder)
+                    .multilineTextAlignment(.trailing)
+
+                if !text.wrappedValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    Button(NSLocalizedString("action.clear", value: "Clear", comment: "Clear")) {
+                        text.wrappedValue = ""
+                        viewModel.scheduleStructuredSaveIfReady()
+                    }
+                    .buttonStyle(.borderless)
+                }
             }
-        )
+        }
         .debugCardLocator(itemMarkerItems(title))
     }
 
-    private func numericInputRow(label: String, text: Binding<String>) -> some View {
-        NolonUI.CodexAdvancedNumericFieldRowView(
-            label: label,
-            text: text,
-            onTextChanged: {
-                viewModel.scheduleStructuredSaveIfReady()
+    private func triStateBoolRow(title: String, description: String? = nil, value: Binding<Bool?>) -> some View {
+        NolonUI.CodexAdvancedAlignedConfigRow(
+            label: localizedConfigLabel(title),
+            description: description
+        ) {
+            Picker(
+                "",
+                selection: Binding<String>(
+                    get: {
+                        switch value.wrappedValue {
+                        case true: return "true"
+                        case false: return "false"
+                        case nil: return ""
+                        }
+                    },
+                    set: { newValue in
+                        switch newValue {
+                        case "true": value.wrappedValue = true
+                        case "false": value.wrappedValue = false
+                        default: value.wrappedValue = nil
+                        }
+                        viewModel.scheduleStructuredSaveIfReady()
+                    }
+                )
+            ) {
+                Text(NSLocalizedString("codex.config.option.unset", value: "Unset", comment: "Unset option")).tag("")
+                Text(NSLocalizedString("codex.config.option.boolean.false", value: "Off", comment: "Boolean off")).tag("false")
+                Text(NSLocalizedString("codex.config.option.boolean.true", value: "On", comment: "Boolean on")).tag("true")
             }
-        )
+            .pickerStyle(.segmented)
+            .frame(width: 220)
+        }
+        .debugCardLocator(itemMarkerItems(title))
+    }
+
+    private func filePathOptionRow(
+        title: String,
+        text: Binding<String>,
+        description: String? = nil,
+        pickerTarget: FilePickerTarget
+    ) -> some View {
+        NolonUI.CodexAdvancedAlignedConfigRow(
+            label: localizedConfigLabel(title),
+            description: description
+        ) {
+            HStack(spacing: 8) {
+                TextField(localizedConfigLabel(title), text: text)
+                    .onChange(of: text.wrappedValue) { _, _ in
+                        viewModel.scheduleStructuredSaveIfReady()
+                    }
+                    .textFieldStyle(.roundedBorder)
+                    .multilineTextAlignment(.trailing)
+
+                Button(NSLocalizedString("codex.advanced.action.choose_file", value: "Choose File", comment: "Choose file")) {
+                    filePickerTarget = pickerTarget
+                }
+                .buttonStyle(.borderless)
+
+                if !text.wrappedValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    Button(NSLocalizedString("action.show_in_finder", value: "Show in Finder", comment: "Show in Finder")) {
+                        NSWorkspace.shared.selectFile(text.wrappedValue, inFileViewerRootedAtPath: "")
+                    }
+                    .buttonStyle(.borderless)
+
+                    Button(NSLocalizedString("action.clear", value: "Clear", comment: "Clear")) {
+                        text.wrappedValue = ""
+                        viewModel.scheduleStructuredSaveIfReady()
+                    }
+                    .buttonStyle(.borderless)
+                }
+            }
+        }
+        .debugCardLocator(itemMarkerItems(title))
+    }
+
+    private func largeTextOptionRow(title: String, text: Binding<String>, description: String? = nil) -> some View {
+        NolonUI.CodexAdvancedAlignedConfigRow(
+            label: localizedConfigLabel(title),
+            description: description
+        ) {
+            HStack(spacing: 8) {
+                Text(
+                    text.wrappedValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                        ? NSLocalizedString("codex.advanced.value.empty", value: "Not configured", comment: "Not configured")
+                        : text.wrappedValue
+                )
+                .font(.caption)
+                .foregroundStyle(text.wrappedValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? .secondary : .primary)
+                .lineLimit(2)
+                .multilineTextAlignment(.trailing)
+                .frame(maxWidth: .infinity, alignment: .trailing)
+
+                Button(NSLocalizedString("codex.advanced.action.edit_text", value: "Edit", comment: "Edit text")) {
+                    textEditorTarget = .compactPrompt
+                }
+                .buttonStyle(.borderless)
+
+                if !text.wrappedValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    Button(NSLocalizedString("action.clear", value: "Clear", comment: "Clear")) {
+                        text.wrappedValue = ""
+                        viewModel.scheduleStructuredSaveIfReady()
+                    }
+                    .buttonStyle(.borderless)
+                }
+            }
+        }
+        .debugCardLocator(itemMarkerItems(title))
+    }
+
+    private func numericInputRow(
+        label: String,
+        text: Binding<String>,
+        description: String? = nil,
+        presets: [String] = []
+    ) -> some View {
+        NolonUI.CodexAdvancedAlignedConfigRow(
+            label: localizedConfigLabel(label),
+            description: description
+        ) {
+            VStack(alignment: .trailing, spacing: 6) {
+                HStack(spacing: 8) {
+                    TextField("", text: text)
+                        .onChange(of: text.wrappedValue) { _, newValue in
+                            let filtered = newValue.filter(\.isNumber)
+                            if filtered != newValue {
+                                text.wrappedValue = filtered
+                                return
+                            }
+                            viewModel.scheduleStructuredSaveIfReady()
+                        }
+                        .textFieldStyle(.roundedBorder)
+                        .multilineTextAlignment(.trailing)
+                        .frame(width: 180)
+
+                    if !text.wrappedValue.isEmpty {
+                        Button(NSLocalizedString("action.clear", value: "Clear", comment: "Clear")) {
+                            text.wrappedValue = ""
+                            viewModel.scheduleStructuredSaveIfReady()
+                        }
+                        .buttonStyle(.borderless)
+                    }
+                }
+
+                if !presets.isEmpty {
+                    quickValueButtons(selection: text, options: presets)
+                }
+            }
+        }
         .debugCardLocator(itemMarkerItems(label))
     }
 
@@ -1657,26 +2309,124 @@ struct CodexAdvancedConfigView: View {
         title: String,
         selection: Binding<String>,
         description: String? = nil,
-        options: [String]
+        options: [String],
+        quickOptions: [String] = []
     ) -> some View {
-        NolonUI.CodexAdvancedPickerRowView(
-            label: title,
-            description: description,
-            options: [CodexAdvancedPickerOption(
-                id: "",
-                title: localizedOptionLabel(key: title, value: "")
-            )] + options.map {
-                CodexAdvancedPickerOption(
-                    id: $0,
-                    title: localizedOptionLabel(key: title, value: $0)
+        VStack(alignment: .trailing, spacing: 6) {
+            NolonUI.CodexAdvancedPickerRowView(
+                label: localizedConfigLabel(title),
+                description: description,
+                options: [CodexAdvancedPickerOption(
+                    id: "",
+                    title: localizedOptionLabel(key: title, value: "")
+                )] + options.map {
+                    CodexAdvancedPickerOption(
+                        id: $0,
+                        title: localizedOptionLabel(key: title, value: $0)
+                    )
+                },
+                selection: selection,
+                onSelectionChanged: {
+                    viewModel.scheduleStructuredSaveIfReady()
+                }
+            )
+
+            if !quickOptions.isEmpty {
+                quickOptionButtons(
+                    key: title,
+                    selection: selection,
+                    options: quickOptions
                 )
-            },
-            selection: selection,
-            onSelectionChanged: {
-                viewModel.scheduleStructuredSaveIfReady()
             }
-        )
+        }
         .debugCardLocator(itemMarkerItems(title))
+    }
+
+    @ViewBuilder
+    private func quickOptionButtons(key: String, selection: Binding<String>, options: [String]) -> some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 6) {
+                ForEach(options, id: \.self) { option in
+                    let isSelected = selection.wrappedValue == option
+                    Button(localizedOptionLabel(key: key, value: option)) {
+                        selection.wrappedValue = selection.wrappedValue == option ? "" : option
+                        viewModel.scheduleStructuredSaveIfReady()
+                    }
+                    .buttonStyle(.bordered)
+                    .tint(isSelected ? .accentColor : .secondary)
+                    .controlSize(.small)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .trailing)
+        }
+    }
+
+    @ViewBuilder
+    private func quickValueButtons(selection: Binding<String>, options: [String]) -> some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 6) {
+                ForEach(options, id: \.self) { option in
+                    let isSelected = selection.wrappedValue == option
+                    Button(option) {
+                        selection.wrappedValue = selection.wrappedValue == option ? "" : option
+                        viewModel.scheduleStructuredSaveIfReady()
+                    }
+                    .buttonStyle(.bordered)
+                    .tint(isSelected ? .accentColor : .secondary)
+                    .controlSize(.small)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .trailing)
+        }
+    }
+
+    private var commonOptionDocs: [CodexConfigDocLink] {
+        [
+            .init(id: "config-basics", title: "Config Basics", url: CodexAdvancedDocs.configBasics),
+            .init(id: "config-reference", title: "Config Reference", url: CodexAdvancedDocs.configReference),
+            .init(id: "sandbox", title: "Sandboxing", url: CodexAdvancedDocs.sandboxing),
+            .init(id: "approvals", title: "Approvals", url: CodexAdvancedDocs.approvals),
+            .init(id: "models", title: "Models", url: CodexAdvancedDocs.models)
+        ]
+    }
+
+    private var runtimeDocs: [CodexConfigDocLink] {
+        [
+            .init(id: "config-reference-runtime", title: "Config Reference", url: CodexAdvancedDocs.configReference),
+            .init(id: "config-advanced-runtime", title: "Advanced Config", url: CodexAdvancedDocs.configAdvanced)
+        ]
+    }
+
+    private var multiAgentDocs: [CodexConfigDocLink] {
+        [
+            .init(id: "subagents", title: "Subagents", url: CodexAdvancedDocs.subagents),
+            .init(id: "config-reference-subagents", title: "Config Reference", url: CodexAdvancedDocs.configReference)
+        ]
+    }
+
+    @ViewBuilder
+    private func docsRow(_ links: [CodexConfigDocLink]) -> some View {
+        if !links.isEmpty {
+            Divider().padding(.top, 2)
+            HStack(spacing: 8) {
+                Text(NSLocalizedString("codex.advanced.docs.title", value: "Official Docs", comment: "Official docs"))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                ForEach(links) { link in
+                    Button(link.title) {
+                        openURL(link.url)
+                    }
+                    .buttonStyle(.link)
+                    .font(.caption)
+                }
+                Spacer(minLength: 0)
+            }
+        }
+    }
+
+    private func openURL(_ rawURL: String) {
+        guard let url = URL(string: rawURL) else { return }
+        NSWorkspace.shared.open(url)
     }
 
     private func mergedOptions(current: String, defaults: [String]) -> [String] {
@@ -1688,6 +2438,14 @@ struct CodexAdvancedConfigView: View {
         return options
     }
 
+    private func localizedConfigLabel(_ key: String) -> String {
+        NSLocalizedString("codex.config.label.\(key)", value: key, comment: "Codex config field label")
+    }
+
+    private func localizedConfigDescription(key: String, fallback: String) -> String {
+        NSLocalizedString("codex.config.description.\(key)", value: fallback, comment: "Codex config field description")
+    }
+
     private func localizedOptionLabel(key: String, value: String) -> String {
         let normalized = value.trimmingCharacters(in: .whitespacesAndNewlines)
         if normalized.isEmpty {
@@ -1696,6 +2454,67 @@ struct CodexAdvancedConfigView: View {
         let optionKey = "codex.config.option.\(key).\(normalized)"
         return NSLocalizedString(optionKey, value: normalized, comment: "Codex config option value")
     }
+
+    @ViewBuilder
+    private func largeTextEditorSheet(for target: LargeTextEditorTarget) -> some View {
+        switch target {
+        case .compactPrompt:
+            VStack(alignment: .leading, spacing: 12) {
+                Text(localizedConfigLabel("compact_prompt"))
+                    .font(.headline)
+                Text(localizedConfigDescription(
+                    key: "compact_prompt",
+                    fallback: "Inline override for the history compaction prompt."
+                ))
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                TextEditor(text: $viewModel.compactPromptDraft)
+                    .font(.body.monospaced())
+                    .frame(minWidth: 560, minHeight: 280)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8)
+                            .stroke(Color.secondary.opacity(0.2))
+                    )
+                HStack {
+                    if !viewModel.compactPromptDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        Button(NSLocalizedString("action.clear", value: "Clear", comment: "Clear")) {
+                            viewModel.compactPromptDraft = ""
+                            viewModel.scheduleStructuredSaveIfReady()
+                        }
+                    }
+                    Spacer()
+                    Button(NSLocalizedString("generic.close", value: "Close", comment: "Close")) {
+                        textEditorTarget = nil
+                        viewModel.scheduleStructuredSaveIfReady()
+                    }
+                }
+            }
+            .padding(20)
+        }
+    }
+
+    private func handleFileImport(_ result: Result<[URL], Error>) {
+        guard let target = filePickerTarget else { return }
+        defer { filePickerTarget = nil }
+        guard case .success(let urls) = result, let url = urls.first else { return }
+        let path = url.path
+        switch target {
+        case .experimentalCompactPromptFile:
+            viewModel.experimentalCompactPromptFileDraft = path
+        case .roleConfigFile:
+            pendingNewRoleDraft.configFile = path
+            if case .existing(let roleID) = roleEditorTarget?.mode,
+               let index = viewModel.roleDrafts.firstIndex(where: { $0.id == roleID }) {
+                viewModel.roleDrafts[index].configFile = path
+            }
+        }
+        viewModel.scheduleStructuredSaveIfReady()
+    }
+
+    private var historyMaxBytesPresets: [String] { ["5242880", "20971520", "104857600"] }
+    private var autoCompactTokenPresets: [String] { ["32000", "64000", "128000"] }
+    private var agentThreadPresets: [String] { ["4", "8", "16"] }
+    private var agentDepthPresets: [String] { ["2", "4", "8"] }
 
     private var runtimeOverviewSection: some View {
         NolonUI.CodexAdvancedRuntimeOverviewView(
@@ -1781,7 +2600,10 @@ struct CodexAdvancedConfigView: View {
             )
         )
         let effortOptions = viewModel.availableReasoningEfforts.map {
-            CodexAdvancedPickerOption(id: $0, title: $0)
+            CodexAdvancedPickerOption(
+                id: $0,
+                title: localizedOptionLabel(key: "model_reasoning_effort", value: $0)
+            )
         }
         return [defaultOption] + effortOptions
     }

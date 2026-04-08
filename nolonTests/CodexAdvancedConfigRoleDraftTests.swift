@@ -26,8 +26,12 @@ final class CodexAdvancedConfigRoleDraftTests: XCTestCase {
         XCTAssertEqual(role.configFile, "")
         XCTAssertEqual(role.model, "")
         XCTAssertEqual(role.modelReasoningEffort, "")
+        XCTAssertEqual(role.modelReasoningSummary, "")
+        XCTAssertEqual(role.modelVerbosity, "")
         XCTAssertEqual(role.sandboxMode, "")
         XCTAssertEqual(role.approvalPolicy, "")
+        XCTAssertEqual(role.personality, "")
+        XCTAssertEqual(role.webSearch, "")
     }
 
     func testBDD_GivenMainActorViewModel_WhenReleaseInstance_ThenDeinitDoesNotCrash() throws {
@@ -59,8 +63,12 @@ final class CodexAdvancedConfigRoleDraftTests: XCTestCase {
         XCTAssertEqual(draft.configFile, "")
         XCTAssertEqual(draft.model, "")
         XCTAssertEqual(draft.modelReasoningEffort, "")
+        XCTAssertEqual(draft.modelReasoningSummary, "")
+        XCTAssertEqual(draft.modelVerbosity, "")
         XCTAssertEqual(draft.sandboxMode, "")
         XCTAssertEqual(draft.approvalPolicy, "")
+        XCTAssertEqual(draft.personality, "")
+        XCTAssertEqual(draft.webSearch, "")
     }
 
     func testBDD_GivenRoleDraft_WhenCommitOnSave_ThenAppendsDraftToRoles() throws {
@@ -79,8 +87,12 @@ final class CodexAdvancedConfigRoleDraftTests: XCTestCase {
             configFile: "",
             model: "gpt-5-codex",
             modelReasoningEffort: "medium",
+            modelReasoningSummary: "",
+            modelVerbosity: "",
             sandboxMode: "workspace-write",
-            approvalPolicy: "on-request"
+            approvalPolicy: "on-request",
+            personality: "",
+            webSearch: ""
         )
         XCTAssertEqual(viewModel.roleDrafts.count, 0)
 
@@ -125,8 +137,14 @@ final class CodexAdvancedConfigRoleDraftTests: XCTestCase {
             modelProvider: nil,
             profile: nil,
             personality: nil,
+            hideAgentReasoning: nil,
+            modelAutoCompactTokenLimit: nil,
+            compactPrompt: nil,
+            experimentalCompactPromptFile: nil,
             reasoningSummary: nil,
             verbosity: nil,
+            historyPersistence: nil,
+            historyMaxBytes: nil,
             featureValues: [
                 "undo": false,
                 "legacy_flag": true,
@@ -141,10 +159,17 @@ final class CodexAdvancedConfigRoleDraftTests: XCTestCase {
                     configFile: "",
                     model: "gpt-5.3-codex",
                     modelReasoningEffort: "",
+                    modelReasoningSummary: "",
+                    modelVerbosity: "",
                     sandboxMode: "",
-                    approvalPolicy: ""
+                    approvalPolicy: "",
+                    personality: "",
+                    webSearch: ""
                 )
-            ]
+            ],
+            preservedTopLevelRawValues: [:],
+            preservedHistoryRawValues: [:],
+            preservedRoleRawValues: [:]
         )
 
         // When
@@ -240,6 +265,108 @@ final class CodexAdvancedConfigRoleDraftTests: XCTestCase {
         XCTAssertTrue(saved.contains("max_depth = 6"))
         XCTAssertTrue(saved.contains("multi_agent = true"))
         XCTAssertTrue(saved.contains("description = \"updated\""))
+    }
+
+    func testTDD_GivenOfficialRuntimeControls_WhenSavingStructuredConfig_ThenPersistsHistoryAndCompactionFields() async throws {
+        // Given
+        let provider = try makeTemporaryCodexProvider(config: """
+        model = "gpt-5-codex"
+        hide_agent_reasoning = false
+        model_auto_compact_token_limit = 240000
+        compact_prompt = "Summarize old turns."
+        experimental_compact_prompt_file = ".codex/compact.md"
+
+        [history]
+        persistence = "save-all"
+        max_bytes = 2048
+        """)
+        let configURL = URL(fileURLWithPath: (provider.defaultSkillsPath as NSString).expandingTildeInPath)
+            .deletingLastPathComponent()
+            .appendingPathComponent("config.toml")
+        let viewModel = CodexAdvancedConfigViewModel(provider: provider)
+        await viewModel.load()
+        viewModel.hideAgentReasoningDraft = true
+        viewModel.modelAutoCompactTokenLimitDraft = "320000"
+        viewModel.compactPromptDraft = "Keep recent decisions and compress older turns."
+        viewModel.experimentalCompactPromptFileDraft = ".codex/prompts/compact.md"
+        viewModel.historyPersistenceDraft = "none"
+        viewModel.historyMaxBytesDraft = "8192"
+
+        // When
+        await viewModel.saveStructuredConfig()
+        let saved = try String(contentsOf: configURL, encoding: .utf8)
+
+        // Then
+        XCTAssertTrue(saved.contains("hide_agent_reasoning = true"))
+        XCTAssertTrue(saved.contains("model_auto_compact_token_limit = 320000"))
+        XCTAssertTrue(saved.contains("compact_prompt = \"Keep recent decisions and compress older turns.\""))
+        XCTAssertTrue(saved.contains("experimental_compact_prompt_file = \".codex/prompts/compact.md\""))
+        XCTAssertTrue(saved.contains("[history]"))
+        XCTAssertTrue(saved.contains("persistence = \"none\""))
+        XCTAssertTrue(saved.contains("max_bytes = 8192"))
+    }
+
+    func testTDD_GivenGranularApprovalPolicy_WhenSavingOtherFields_ThenUnsupportedOfficialSyntaxIsPreserved() async throws {
+        // Given
+        let provider = try makeTemporaryCodexProvider(config: """
+        approval_policy = { granular = { sandbox_approval = true, rules = false } }
+        sandbox_mode = "workspace-write"
+        model_verbosity = "medium"
+        """)
+        let configURL = URL(fileURLWithPath: (provider.defaultSkillsPath as NSString).expandingTildeInPath)
+            .deletingLastPathComponent()
+            .appendingPathComponent("config.toml")
+        let viewModel = CodexAdvancedConfigViewModel(provider: provider)
+        await viewModel.load()
+        viewModel.verbosityDraft = "high"
+
+        // When
+        await viewModel.saveStructuredConfig()
+        let saved = try String(contentsOf: configURL, encoding: .utf8)
+
+        // Then
+        XCTAssertTrue(saved.contains("approval_policy = { granular = { sandbox_approval = true, rules = false } }"))
+        XCTAssertTrue(saved.contains("model_verbosity = \"high\""))
+    }
+
+    func testTDD_GivenRoleAdvancedFields_WhenSavingStructuredConfig_ThenPreservesAndUpdatesOfficialRoleOptions() async throws {
+        // Given
+        let provider = try makeTemporaryCodexProvider(config: """
+        [features]
+        multi_agent = true
+
+        [agents.worker]
+        description = "old"
+        model = "gpt-5.3-codex"
+        model_reasoning_effort = "medium"
+        model_reasoning_summary = "concise"
+        model_verbosity = "medium"
+        personality = "pragmatic"
+        web_search = "cached"
+        """)
+        let configURL = URL(fileURLWithPath: (provider.defaultSkillsPath as NSString).expandingTildeInPath)
+            .deletingLastPathComponent()
+            .appendingPathComponent("config.toml")
+        let viewModel = CodexAdvancedConfigViewModel(provider: provider)
+        await viewModel.load()
+        guard let index = viewModel.roleDrafts.firstIndex(where: { $0.name == "worker" }) else {
+            XCTFail("Expected worker role")
+            return
+        }
+        viewModel.roleDrafts[index].modelReasoningSummary = "detailed"
+        viewModel.roleDrafts[index].modelVerbosity = "high"
+        viewModel.roleDrafts[index].personality = "friendly"
+        viewModel.roleDrafts[index].webSearch = "live"
+
+        // When
+        await viewModel.saveStructuredConfig()
+        let saved = try String(contentsOf: configURL, encoding: .utf8)
+
+        // Then
+        XCTAssertTrue(saved.contains("model_reasoning_summary = \"detailed\""))
+        XCTAssertTrue(saved.contains("model_verbosity = \"high\""))
+        XCTAssertTrue(saved.contains("personality = \"friendly\""))
+        XCTAssertTrue(saved.contains("web_search = \"live\""))
     }
 
     private func makeTemporaryCodexProvider(config: String) throws -> Provider {

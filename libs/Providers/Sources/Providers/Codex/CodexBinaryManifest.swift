@@ -91,6 +91,9 @@ public nonisolated struct CodexBinaryManifest: Codable, Sendable {
     public var lastSeenRemoteVersion: String?
     public var lastSeenRemoteTag: String?
     public var lastSeenRemoteAssetURL: String?
+    public var lastSeenRemoteHTMLURL: String?
+    public var lastSeenRemotePublishedAt: Date?
+    public var lastSeenRemoteNotes: String?
     public var includeBetaVersions: Bool
     public var updateState: CodexBinaryUpdateState
 
@@ -106,6 +109,9 @@ public nonisolated struct CodexBinaryManifest: Codable, Sendable {
         case lastSeenRemoteVersion
         case lastSeenRemoteTag
         case lastSeenRemoteAssetURL
+        case lastSeenRemoteHTMLURL
+        case lastSeenRemotePublishedAt
+        case lastSeenRemoteNotes
         case includeBetaVersions
         case updateState
     }
@@ -122,6 +128,9 @@ public nonisolated struct CodexBinaryManifest: Codable, Sendable {
         lastSeenRemoteVersion: String? = nil,
         lastSeenRemoteTag: String? = nil,
         lastSeenRemoteAssetURL: String? = nil,
+        lastSeenRemoteHTMLURL: String? = nil,
+        lastSeenRemotePublishedAt: Date? = nil,
+        lastSeenRemoteNotes: String? = nil,
         includeBetaVersions: Bool = false,
         updateState: CodexBinaryUpdateState = .idle
     ) {
@@ -136,6 +145,9 @@ public nonisolated struct CodexBinaryManifest: Codable, Sendable {
         self.lastSeenRemoteVersion = lastSeenRemoteVersion
         self.lastSeenRemoteTag = lastSeenRemoteTag
         self.lastSeenRemoteAssetURL = lastSeenRemoteAssetURL
+        self.lastSeenRemoteHTMLURL = lastSeenRemoteHTMLURL
+        self.lastSeenRemotePublishedAt = lastSeenRemotePublishedAt
+        self.lastSeenRemoteNotes = lastSeenRemoteNotes
         self.includeBetaVersions = includeBetaVersions
         self.updateState = updateState
     }
@@ -153,6 +165,9 @@ public nonisolated struct CodexBinaryManifest: Codable, Sendable {
         self.lastSeenRemoteVersion = try container.decodeIfPresent(String.self, forKey: .lastSeenRemoteVersion)
         self.lastSeenRemoteTag = try container.decodeIfPresent(String.self, forKey: .lastSeenRemoteTag)
         self.lastSeenRemoteAssetURL = try container.decodeIfPresent(String.self, forKey: .lastSeenRemoteAssetURL)
+        self.lastSeenRemoteHTMLURL = try container.decodeIfPresent(String.self, forKey: .lastSeenRemoteHTMLURL)
+        self.lastSeenRemotePublishedAt = try container.decodeIfPresent(Date.self, forKey: .lastSeenRemotePublishedAt)
+        self.lastSeenRemoteNotes = try container.decodeIfPresent(String.self, forKey: .lastSeenRemoteNotes)
         self.includeBetaVersions = try container.decodeIfPresent(Bool.self, forKey: .includeBetaVersions) ?? false
         self.updateState = try container.decodeIfPresent(CodexBinaryUpdateState.self, forKey: .updateState) ?? .idle
     }

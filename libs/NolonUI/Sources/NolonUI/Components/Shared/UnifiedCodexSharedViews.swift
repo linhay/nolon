@@ -1,3 +1,5 @@
+import AppKit
+import MarkdownUI
 import NolonUIFoundation
 import SwiftUI
 
@@ -2249,6 +2251,7 @@ public struct CodexBinaryVersionsSectionView: View {
     let statusHeaderData: CodexBinaryStatusHeaderData
     let actionBarData: CodexBinaryActionBarData
     let versionTableData: CodexBinaryVersionTableData
+    let releaseNotesData: CodexBinaryReleaseNotesData?
     let onPrimaryAction: () -> Void
     let onCheckUpdates: () -> Void
     let onImportLocal: () -> Void
@@ -2261,6 +2264,7 @@ public struct CodexBinaryVersionsSectionView: View {
         public var statusHeaderData: CodexBinaryStatusHeaderData
         public var actionBarData: CodexBinaryActionBarData
         public var versionTableData: CodexBinaryVersionTableData
+        public var releaseNotesData: CodexBinaryReleaseNotesData?
         public var onPrimaryAction: () -> Void
         public var onCheckUpdates: () -> Void
         public var onImportLocal: () -> Void
@@ -2273,6 +2277,7 @@ public struct CodexBinaryVersionsSectionView: View {
             statusHeaderData: CodexBinaryStatusHeaderData,
             actionBarData: CodexBinaryActionBarData,
             versionTableData: CodexBinaryVersionTableData,
+            releaseNotesData: CodexBinaryReleaseNotesData?,
             onPrimaryAction: @escaping () -> Void,
             onCheckUpdates: @escaping () -> Void,
             onImportLocal: @escaping () -> Void,
@@ -2284,6 +2289,7 @@ public struct CodexBinaryVersionsSectionView: View {
             self.statusHeaderData = statusHeaderData
             self.actionBarData = actionBarData
             self.versionTableData = versionTableData
+            self.releaseNotesData = releaseNotesData
             self.onPrimaryAction = onPrimaryAction
             self.onCheckUpdates = onCheckUpdates
             self.onImportLocal = onImportLocal
@@ -2298,6 +2304,7 @@ public struct CodexBinaryVersionsSectionView: View {
         self.statusHeaderData = config.statusHeaderData
         self.actionBarData = config.actionBarData
         self.versionTableData = config.versionTableData
+        self.releaseNotesData = config.releaseNotesData
         self.onPrimaryAction = config.onPrimaryAction
         self.onCheckUpdates = config.onCheckUpdates
         self.onImportLocal = config.onImportLocal
@@ -2311,6 +2318,7 @@ public struct CodexBinaryVersionsSectionView: View {
         statusHeaderData: CodexBinaryStatusHeaderData,
         actionBarData: CodexBinaryActionBarData,
         versionTableData: CodexBinaryVersionTableData,
+        releaseNotesData: CodexBinaryReleaseNotesData? = nil,
         onPrimaryAction: @escaping () -> Void,
         onCheckUpdates: @escaping () -> Void,
         onImportLocal: @escaping () -> Void,
@@ -2324,6 +2332,7 @@ public struct CodexBinaryVersionsSectionView: View {
                 statusHeaderData: statusHeaderData,
                 actionBarData: actionBarData,
                 versionTableData: versionTableData,
+                releaseNotesData: releaseNotesData,
                 onPrimaryAction: onPrimaryAction,
                 onCheckUpdates: onCheckUpdates,
                 onImportLocal: onImportLocal,
@@ -2353,7 +2362,68 @@ public struct CodexBinaryVersionsSectionView: View {
                 onTapRow: onTapRow,
                 onTapAction: onTapAction
             )
+
+            if let releaseNotesData {
+                CodexBinaryReleaseNotesView(data: releaseNotesData)
+            }
         }
+    }
+}
+
+public struct CodexBinaryReleaseNotesView: View {
+    let data: CodexBinaryReleaseNotesData
+
+    public init(data: CodexBinaryReleaseNotesData) {
+        self.data = data
+    }
+
+    public var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .top, spacing: 12) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(data.title)
+                        .font(.headline)
+                        .foregroundStyle(DesignSystem.Colors.Text.primary)
+                    Text(data.versionText)
+                        .font(.callout.monospaced())
+                        .foregroundStyle(DesignSystem.Colors.Text.secondary)
+                    if let subtitleText = data.subtitleText, !subtitleText.isEmpty {
+                        Text(subtitleText)
+                            .font(.caption)
+                            .foregroundStyle(DesignSystem.Colors.Text.tertiary)
+                    }
+                }
+
+                Spacer(minLength: 0)
+
+                if let actionTitle = data.actionTitle,
+                   let actionURL = data.actionURL {
+                    Button(actionTitle) {
+                        NSWorkspace.shared.open(actionURL)
+                    }
+                    .dsSecondaryButton()
+                }
+            }
+
+            if let notes = data.notesMarkdown,
+               !notes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                Markdown(notes)
+                    .markdownTheme(.nolon)
+                    .markdownSoftBreakMode(.lineBreak)
+                    .textSelection(.enabled)
+            } else {
+                Text(data.emptyText)
+                    .font(.callout)
+                    .foregroundStyle(DesignSystem.Colors.Text.tertiary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding(14)
+        .dsCard(
+            background: DesignSystem.Colors.Background.surface.opacity(0.38),
+            cornerRadius: DesignSystem.Metrics.cornerRadiusS,
+            borderColor: DesignSystem.Colors.Component.border.opacity(0.22)
+        )
     }
 }
 

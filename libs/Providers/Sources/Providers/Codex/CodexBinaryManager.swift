@@ -8,6 +8,7 @@ import ProvidersShared
 public actor CodexBinaryManager {
     public static let shared = CodexBinaryManager()
     public typealias DownloadProgressHandler = @MainActor @Sendable (CodexDownloadProgress) -> Void
+    public typealias ReleaseDataLoader = @Sendable (URLRequest) async throws -> (Data, URLResponse)
 
     private static let logger = Logger(subsystem: "com.nolon", category: "CodexBinaryManager")
     private static let pathMarkerStart = "# >>> Nolon Codex PATH >>>"
@@ -16,16 +17,21 @@ public actor CodexBinaryManager {
     private let fileManager: FileManager
     private let userHomeFolder: STFolder
     private let nolonHomeFolder: STFolder
+    private let releaseDataLoader: ReleaseDataLoader
     private let throttlingInterval: TimeInterval = 24 * 60 * 60
 
     public init(
         fileManager: FileManager = .default,
         homeURL: URL = STFolder(NSHomeDirectory()).url,
         nolonHomeURL: URL? = nil,
-        environment: [String: String] = ProcessInfo.processInfo.environment
+        environment: [String: String] = ProcessInfo.processInfo.environment,
+        releaseDataLoader: ReleaseDataLoader? = nil
     ) {
         self.fileManager = fileManager
         self.userHomeFolder = STFolder(homeURL)
+        self.releaseDataLoader = releaseDataLoader ?? { request in
+            try await URLSession.shared.data(for: request)
+        }
         if let nolonHomeURL {
             self.nolonHomeFolder = STFolder(nolonHomeURL)
         } else {
@@ -251,20 +257,55 @@ public actor CodexBinaryManager {
                 continuation.resume(returning: (url, response))
             }
             box.observation = task.progress.observe(\.fractionCompleted) { progressValue, _ in
-                let total = progressValue.totalUnitCount
-                let fraction = total > 0 ? progressValue.fractionCompleted : nil
-                let totalBytes = total > 0 ? total : nil
-                let completed = progressValue.completedUnitCount > 0 ? progressValue.completedUnitCount : nil
+                let mapped = Self.makeDownloadProgress(
+                    completedUnitCount: progressValue.completedUnitCount,
+                    totalUnitCount: progressValue.totalUnitCount,
+                    receivedBytes: task.countOfBytesReceived,
+                    expectedBytes: task.countOfBytesExpectedToReceive
+                )
                 Task { @MainActor in
-                    progress?(CodexDownloadProgress(
-                        fractionCompleted: fraction,
-                        completedBytes: completed,
-                        totalBytes: totalBytes
-                    ))
+                    progress?(mapped)
                 }
             }
             task.resume()
         }
+    }
+
+    static func makeDownloadProgress(
+        completedUnitCount: Int64,
+        totalUnitCount: Int64,
+        receivedBytes: Int64,
+        expectedBytes: Int64
+    ) -> CodexDownloadProgress {
+        let hasReliableByteTotal = expectedBytes > 0 && expectedBytes != NSURLSessionTransferSizeUnknown
+        let completedBytes = receivedBytes > 0 ? receivedBytes : nil
+
+        if hasReliableByteTotal {
+            let totalBytes = expectedBytes
+            let fractionCompleted: Double? = totalBytes > 0
+                ? min(max(Double(max(receivedBytes, 0)) / Double(totalBytes), 0), 1)
+                : nil
+            return CodexDownloadProgress(
+                fractionCompleted: fractionCompleted,
+                completedBytes: completedBytes,
+                totalBytes: totalBytes
+            )
+        }
+
+        let hasNormalizedProgress = totalUnitCount > 0
+        let normalizedLooksLikePercent = hasNormalizedProgress && totalUnitCount <= 100
+        let fractionCompleted: Double? = hasNormalizedProgress ? progressFraction(completed: completedUnitCount, total: totalUnitCount) : nil
+
+        return CodexDownloadProgress(
+            fractionCompleted: fractionCompleted,
+            completedBytes: normalizedLooksLikePercent ? nil : (completedUnitCount > 0 ? completedUnitCount : completedBytes),
+            totalBytes: normalizedLooksLikePercent ? nil : (totalUnitCount > 0 ? totalUnitCount : nil)
+        )
+    }
+
+    private static func progressFraction(completed: Int64, total: Int64) -> Double? {
+        guard total > 0 else { return nil }
+        return min(max(Double(max(completed, 0)) / Double(total), 0), 1)
     }
 
     private func importDownloadedFile(
@@ -538,6 +579,9 @@ public actor CodexBinaryManager {
             manifest.lastSeenRemoteTag = release.tag
             manifest.lastSeenRemoteVersion = release.version
             manifest.lastSeenRemoteAssetURL = release.assetURL.absoluteString
+            manifest.lastSeenRemoteHTMLURL = release.htmlURL?.absoluteString
+            manifest.lastSeenRemotePublishedAt = release.publishedAt
+            manifest.lastSeenRemoteNotes = release.notes
             manifest.lastUpdateCheckAt = now
 
             let currentVersion = manifest.selectedVersionId
@@ -885,8 +929,13 @@ public actor CodexBinaryManager {
         request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
         request.setValue("Nolon/1.0", forHTTPHeaderField: "User-Agent")
 
-        let (data, _) = try await URLSession.shared.data(for: request)
-        let releases = try JSONDecoder().decode([GitHubRelease].self, from: data)
+        let (data, response) = try await releaseDataLoader(request)
+        if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
+            throw URLError(.badServerResponse)
+        }
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let releases = try decoder.decode([GitHubRelease].self, from: data)
         let archNeedle = Self.currentArchitectureNeedle()
 
         var output: [CodexRemoteRelease] = []
@@ -910,6 +959,9 @@ public actor CodexBinaryManager {
                     tag: release.tagName,
                     version: version,
                     assetURL: asset.browserDownloadURL,
+                    htmlURL: release.htmlURL,
+                    publishedAt: release.publishedAt,
+                    notes: release.body?.trimmingCharacters(in: .whitespacesAndNewlines),
                     isPrerelease: release.prerelease
                 )
             )
@@ -917,10 +969,9 @@ public actor CodexBinaryManager {
         return output
     }
 
-    private func fetchLatestRustRelease(includePrerelease: Bool) async throws -> (tag: String, version: String, assetURL: URL)? {
+    private func fetchLatestRustRelease(includePrerelease: Bool) async throws -> CodexRemoteRelease? {
         let releases = try await fetchRemoteReleases(includePrerelease: includePrerelease)
-        guard let first = releases.first else { return nil }
-        return (first.tag, first.version, first.assetURL)
+        return releases.first
     }
 
     private static func currentArchitectureNeedle() -> String {
@@ -1010,25 +1061,45 @@ public nonisolated struct CodexRemoteRelease: Sendable, Identifiable, Hashable {
     public let tag: String
     public let version: String
     public let assetURL: URL
+    public let htmlURL: URL?
+    public let publishedAt: Date?
+    public let notes: String?
     public let isPrerelease: Bool
 
-    public init(tag: String, version: String, assetURL: URL, isPrerelease: Bool) {
+    public init(
+        tag: String,
+        version: String,
+        assetURL: URL,
+        htmlURL: URL? = nil,
+        publishedAt: Date? = nil,
+        notes: String? = nil,
+        isPrerelease: Bool
+    ) {
         self.id = tag
         self.tag = tag
         self.version = version
         self.assetURL = assetURL
+        self.htmlURL = htmlURL
+        self.publishedAt = publishedAt
+        self.notes = notes
         self.isPrerelease = isPrerelease
     }
 }
 
 private nonisolated struct GitHubRelease: Decodable {
     let tagName: String
+    let htmlURL: URL?
+    let body: String?
+    let publishedAt: Date?
     let draft: Bool
     let prerelease: Bool
     let assets: [GitHubAsset]
 
     enum CodingKeys: String, CodingKey {
         case tagName = "tag_name"
+        case htmlURL = "html_url"
+        case body
+        case publishedAt = "published_at"
         case draft
         case prerelease
         case assets
