@@ -1013,6 +1013,46 @@ struct NolonResourceKitTests {
         #expect(scan.states.first?.state == .installed)
     }
 
+    @Test("ProviderSkillMaintenanceService installs copies into linked global skills root")
+    func providerSkillMaintenanceServiceInstallsCopiesIntoLinkedGlobalRoot() throws {
+        let root = try STFolder(sanbox: .temporary)
+            .folder("nolon-skill-maintenance-linked-install-\(UUID().uuidString)")
+            .create()
+        defer { try? root.deleteIncludingBrokenSymlink() }
+
+        let repositoryRoot = root.folder("repositories").folder("gate").folder("skills")
+        let sourceSkill = repositoryRoot.folder("scale")
+        _ = sourceSkill.createIfNotExists()
+        try """
+        ---
+        name: scale
+        description: scale helper
+        ---
+        """.write(to: sourceSkill.file("SKILL.md").url, atomically: true, encoding: .utf8)
+
+        let globalFolder = root.folder("global-skills")
+        _ = globalFolder.createIfNotExists()
+
+        let providerHome = root.folder("provider-home")
+        _ = providerHome.createIfNotExists()
+        let providerSkillsPath = providerHome.subpath("skills")
+        try providerSkillsPath.createSymbolicLink(to: STPath(globalFolder.url.path))
+
+        let service = ProviderSkillMaintenanceService()
+        let result = try service.installSkill(
+            skillPath: STPath(sourceSkill.url),
+            skillID: nil,
+            providerPath: STFolder(providerSkillsPath.url),
+            installMethod: .symlink
+        )
+
+        let installedSkill = globalFolder.folder("scale")
+        #expect(result.installMethod == .copy)
+        #expect(installedSkill.isExists)
+        #expect(STPath(installedSkill.url).isSymbolicLink == false)
+        #expect(installedSkill.file("SKILL.md").isExists)
+    }
+
     @Test("WorkflowBindingService binds and unbinds workflows for skill and MCP")
     func workflowBindingServiceBindsAndUnbindsWorkflows() throws {
         let root = try STFolder(sanbox: .temporary)

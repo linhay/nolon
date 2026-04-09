@@ -226,6 +226,31 @@ public final class ProviderSkillMaintenanceService: @unchecked Sendable {
 
         _ = providerPath.createIfNotExists()
         let targetPath = providerPath.subpath(resolvedSkillID)
+
+        if installMethod == .symlink,
+           let linkedProviderRoot = resolvedLinkedProviderRoot(providerPath),
+           let finalTarget = linkedProviderTarget(
+               linkedProviderRoot: linkedProviderRoot,
+               skillID: resolvedSkillID
+           ) {
+            let sourcePath = source.url.standardizedFileURL.path
+            let finalTargetPath = finalTarget.url.standardizedFileURL.path
+
+            if sourcePath != finalTargetPath {
+                if finalTarget.isExists || finalTarget.isSymbolicLink {
+                    try finalTarget.deleteIncludingBrokenSymlink()
+                }
+                try SkillContentMaterializer.copyMaterializingSymlinks(from: source, to: finalTarget)
+            }
+
+            return ProviderSkillInstallResult(
+                skillID: resolvedSkillID,
+                sourcePath: source.url.path,
+                targetPath: targetPath.url.path,
+                installMethod: .copy
+            )
+        }
+
         if targetPath.isExists || targetPath.isSymbolicLink {
             try targetPath.deleteIncludingBrokenSymlink()
         }
@@ -234,7 +259,7 @@ public final class ProviderSkillMaintenanceService: @unchecked Sendable {
         case .symlink:
             try targetPath.createSymbolicLink(to: source)
         case .copy:
-            try source.copy(to: targetPath, isOverlay: true)
+            try SkillContentMaterializer.copyMaterializingSymlinks(from: source, to: targetPath)
         }
 
         return ProviderSkillInstallResult(
@@ -243,6 +268,22 @@ public final class ProviderSkillMaintenanceService: @unchecked Sendable {
             targetPath: targetPath.url.path,
             installMethod: installMethod
         )
+    }
+
+    private func resolvedLinkedProviderRoot(_ providerPath: STFolder) -> STFolder? {
+        let path = STPath(providerPath.url)
+        guard path.isSymbolicLink,
+              let destination = try? path.destinationOfSymbolicLink()
+        else {
+            return nil
+        }
+        return STFolder(destination.url)
+    }
+
+    private func linkedProviderTarget(linkedProviderRoot: STFolder, skillID: String) -> STPath? {
+        let trimmed = skillID.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        return linkedProviderRoot.subpath(trimmed)
     }
 
     private func validateSinglePathComponent(_ value: String, field: String) throws -> String {

@@ -142,6 +142,46 @@ struct NolonSkillsRepositoryServiceTests {
         #expect(target.isSymbolicLink)
     }
 
+    @Test("install skill copies into linked global skills root instead of creating nested symlink")
+    func installSkillCopiesIntoLinkedGlobalSkillsRoot() throws {
+        let service = NolonLiveSkillsRepositoryService()
+        let root = try makeTempRoot("nolon-install-linked-root")
+        defer { try? root.delete() }
+
+        let repositoryRoot = root.folder("repositories").folder("gate").folder("skills")
+        let sourceSkill = repositoryRoot.folder("scale")
+        _ = sourceSkill.createIfNotExists()
+        try sourceSkill.file("SKILL.md").overlay(
+            with: """
+            ---
+            name: scale
+            description: scale helper
+            ---
+            """
+        )
+
+        let globalSkillsRoot = root.folder(".nolon").folder("skills")
+        _ = globalSkillsRoot.createIfNotExists()
+
+        let providerHome = root.folder("provider-home")
+        _ = providerHome.createIfNotExists()
+        let providerSkillsPath = providerHome.subpath("skills")
+        try providerSkillsPath.createSymbolicLink(to: STPath(globalSkillsRoot.url.path))
+
+        let result = try service.installSkill(
+            skillPath: STPath(sourceSkill.url),
+            skillID: nil,
+            providerPath: STFolder(providerSkillsPath.url),
+            installMethod: .symlink
+        )
+
+        let installedSkill = globalSkillsRoot.folder("scale")
+        #expect(result.installMethod == .copy)
+        #expect(installedSkill.isExists)
+        #expect(STPath(installedSkill.url).isSymbolicLink == false)
+        #expect(installedSkill.file("SKILL.md").isExists)
+    }
+
     @Test("install skill rejects path-like skill id")
     func installSkillRejectsPathLikeSkillID() throws {
         let service = NolonLiveSkillsRepositoryService()
