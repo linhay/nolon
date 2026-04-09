@@ -796,7 +796,7 @@ final class CodexAccountDisplaySectionsTests: XCTestCase {
         XCTAssertEqual(received?.port, 8080)
     }
 
-    func testBDD_GivenCodexXcodeGatewayCardWithMembers_WhenStartingGatewayFromSelection_ThenFallsBackToCodexProviderID() async {
+    func testBDD_GivenCodexXcodeGatewayCardWithMembers_WhenStartingGatewayFromSelection_ThenUsesCodexXcodeProviderID() async {
         var receivedProviderID: String?
         var provider = Self.makeCodexProvider()
         provider.templateId = ProviderTemplate.codexXcode.rawValue
@@ -813,7 +813,7 @@ final class CodexAccountDisplaySectionsTests: XCTestCase {
 
         await viewModel.startGatewayForCardSelection(cardID: card.id)
 
-        XCTAssertEqual(receivedProviderID, "codex")
+        XCTAssertEqual(receivedProviderID, "codex-xcode")
     }
 
     func testBDD_GivenEmptyGatewayCard_WhenStartingGatewayFromSelection_ThenSkipsGatewayStartAction() async {

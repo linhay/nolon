@@ -124,8 +124,7 @@ final class ProviderUsageEngineDeleteTests: XCTestCase {
         let canonicalAccounts = try await service.loadAccounts()
         let canonicalActive = try XCTUnwrap(canonicalAccounts.first(where: { $0.id == active.id }))
         let canonicalRemovable = try XCTUnwrap(canonicalAccounts.first(where: { $0.id == removable.id }))
-        let activeFileURL = await service.accountAuthFile(canonicalActive).url
-        let before = try Data(contentsOf: activeFileURL)
+        let before = try XCTUnwrap(service.accountAuthData(for: canonicalActive))
 
         let viewModel = ProviderUsageEngine(
             provider: provider,
@@ -146,8 +145,7 @@ final class ProviderUsageEngineDeleteTests: XCTestCase {
 
         let updatedAccounts = try await service.loadAccounts()
         let remaining = try XCTUnwrap(updatedAccounts.first(where: { $0.id == active.id }))
-        let updatedActiveFileURL = await service.accountAuthFile(remaining).url
-        let after = try Data(contentsOf: updatedActiveFileURL)
+        let after = try XCTUnwrap(service.accountAuthData(for: remaining))
         XCTAssertEqual(before, after)
     }
 }
