@@ -5,2141 +5,134 @@ import CodexGatewayKit
 
 @Suite("Nolon Codex CLI Entrypoint")
 struct NolonCodexCLIEntrypointTests {
-    @Test("gemini auth commands route to core cli")
-    func geminiAuthCommandsRouteToCoreCLI() async {
-        let mock = MockCodexCLIService()
-        let result = await NolonCLIEntrypoint.execute(
-            arguments: ["gemini", "auth", "status", "--provider", "gemini", "--json"],
-            codexService: mock
-        )
-
-        #expect(result.exitCode == 0)
-        #expect(result.stderr.isEmpty)
-        #expect(result.stdout.contains("\"command\":\"gemini.auth.status\""))
-        #expect(result.stdout.contains("\"provider\":\"gemini\""))
-    }
-
-    @Test("no arguments prints help instead of JSON error")
-    func noArgumentsPrintsHelp() async {
-        let mock = MockCodexCLIService()
-        let result = await NolonCLIEntrypoint.execute(arguments: [], codexService: mock)
-
-        #expect(result.exitCode == 0)
-        #expect(result.stderr.isEmpty)
-        #expect(result.stdout.contains("USAGE: nolon"))
-        #expect(result.stdout.contains("SUBCOMMANDS"))
-        #expect(result.stdout.contains("skills"))
-        #expect(result.stdout.contains("workflow"))
-        #expect(result.stdout.contains("mcp"))
-        #expect(result.stdout.contains("remote"))
-    }
-
-    @Test("leading help command resolves codex action help")
-    func leadingHelpCommandResolvesCodexActionHelp() async {
-        let mock = MockCodexCLIService()
-        let result = await NolonCLIEntrypoint.execute(
-            arguments: ["help", "codex", "auth", "refresh"],
-            codexService: mock
-        )
-
-        #expect(result.exitCode == 0)
-        #expect(result.stderr.isEmpty)
-        #expect(result.stdout.contains("Usage: nolon codex auth refresh"))
-        #expect(result.stdout.contains("切换为活跃账号"))
-    }
-
-    @Test("codex --help prints codex help")
-    func codexHelpPrintsHelp() async {
-        let mock = MockCodexCLIService()
-        let result = await NolonCLIEntrypoint.execute(
-            arguments: ["codex", "--help"],
-            codexService: mock
-        )
-
-        #expect(result.exitCode == 0)
-        #expect(result.stderr.isEmpty)
-        #expect(result.stdout.contains("Usage: nolon <provider> <group> <action> [options]"))
-        #expect(result.stdout.contains("Groups:"))
-        #expect(result.stdout.contains("auth"))
-        #expect(result.stdout.contains("binary"))
-    }
-
-    @Test("skills --help includes task-oriented examples")
-    func skillsHelpIncludesExamples() async {
-        let mock = MockCodexCLIService()
-        let result = await NolonCLIEntrypoint.execute(
-            arguments: ["skills", "--help"],
-            codexService: mock
-        )
-
-        #expect(result.exitCode == 0)
-        #expect(result.stderr.isEmpty)
-        #expect(result.stdout.contains("场景: 搜索技能"))
-        #expect(result.stdout.contains("场景: 安装技能"))
-        #expect(result.stdout.contains("场景: 修复异常"))
-        #expect(result.stdout.contains("nolon skills search xcode"))
-        #expect(result.stdout.contains("<keyword> | --query <query>"))
-        #expect(result.stdout.contains("--query <query>"))
-        #expect(result.stdout.contains("--pick <index>"))
-        #expect(result.stdout.contains("nolon skills add xcode --provider codex"))
-        #expect(result.stdout.contains("省略 --provider 可能触发多 provider 批量写入/覆盖"))
-    }
-
-    @Test("skills search --help explains install and pick relation")
-    func skillsSearchHelpExplainsInstallPickRelation() async {
-        let mock = MockCodexCLIService()
-        let result = await NolonCLIEntrypoint.execute(
-            arguments: ["skills", "search", "--help"],
-            codexService: mock
-        )
-
-        #expect(result.exitCode == 0)
-        #expect(result.stderr.isEmpty)
-        #expect(result.stdout.contains("Install matched skill(s);"))
-        #expect(result.stdout.contains("Pick one search result by 1-based index"))
-        #expect(result.stdout.contains("Target provider ID. Omit to distribute to all"))
-        #expect(result.stdout.contains("nolon skills search \"swiftui\" --install --pick 1 --provider codex --dry-run"))
-    }
-
-    @Test("skills add --help warns about provider omission scope")
-    func skillsAddHelpWarnsAboutProviderOmissionScope() async {
-        let mock = MockCodexCLIService()
-        let result = await NolonCLIEntrypoint.execute(
-            arguments: ["skills", "add", "--help"],
-            codexService: mock
-        )
-
-        #expect(result.exitCode == 0)
-        #expect(result.stderr.isEmpty)
-        #expect(result.stdout.contains("Target provider ID. Omit to distribute to all"))
-        #expect(result.stdout.contains("nolon skills add swift-concurrency-expert --provider codex --dry-run"))
-    }
-
-    @Test("skills remove --help shows safety note and example")
-    func skillsRemoveHelpShowsSafetyNoteAndExample() async {
-        let mock = MockCodexCLIService()
-        let result = await NolonCLIEntrypoint.execute(
-            arguments: ["skills", "remove", "--help"],
-            codexService: mock
-        )
-
-        #expect(result.exitCode == 0)
-        #expect(result.stderr.isEmpty)
-        #expect(result.stdout.contains("该操作会直接移除 provider 下的技能链接/目录"))
-        #expect(result.stdout.contains("nolon skills list --provider <id>"))
-        #expect(result.stdout.contains("nolon skills remove --skill-id xcode --provider codex"))
-    }
-
-    @Test("codex without group action prints codex help")
-    func codexWithoutActionPrintsHelp() async {
-        let mock = MockCodexCLIService()
-        let result = await NolonCLIEntrypoint.execute(
-            arguments: ["codex"],
-            codexService: mock
-        )
-
-        #expect(result.exitCode == 0)
-        #expect(result.stderr.isEmpty)
-        #expect(result.stdout.contains("Usage: nolon <provider> <group> <action> [options]"))
-        #expect(result.stdout.contains("Groups:"))
-    }
-
-    @Test("codex auth --help prints auth help")
-    func codexAuthHelpPrintsHelp() async {
-        let mock = MockCodexCLIService()
-        let result = await NolonCLIEntrypoint.execute(
-            arguments: ["codex", "auth", "--help"],
-            codexService: mock
-        )
-
-        #expect(result.exitCode == 0)
-        #expect(result.stderr.isEmpty)
-        #expect(result.stdout.contains("Usage: nolon codex auth"))
-        #expect(result.stdout.contains("Actions:"))
-    }
-
-    @Test("codex auth without action prints auth help")
-    func codexAuthWithoutActionPrintsHelp() async {
-        let mock = MockCodexCLIService()
-        let result = await NolonCLIEntrypoint.execute(
-            arguments: ["codex", "auth"],
-            codexService: mock
-        )
-
-        #expect(result.exitCode == 0)
-        #expect(result.stderr.isEmpty)
-        #expect(result.stdout.contains("Usage: nolon codex auth"))
-        #expect(result.stdout.contains("Actions:"))
-    }
-
-    @Test("codex binary --help prints binary help")
-    func codexBinaryHelpPrintsHelp() async {
-        let mock = MockCodexCLIService()
-        let result = await NolonCLIEntrypoint.execute(
-            arguments: ["codex", "binary", "--help"],
-            codexService: mock
-        )
-
-        #expect(result.exitCode == 0)
-        #expect(result.stderr.isEmpty)
-        #expect(result.stdout.contains("Usage: nolon codex binary"))
-        #expect(result.stdout.contains("Actions:"))
-        #expect(result.stdout.contains("install"))
-        #expect(result.stdout.contains("available"))
-    }
-
-    @Test("codex binary without action prints binary help")
-    func codexBinaryWithoutActionPrintsHelp() async {
-        let mock = MockCodexCLIService()
-        let result = await NolonCLIEntrypoint.execute(
-            arguments: ["codex", "binary"],
-            codexService: mock
-        )
-
-        #expect(result.exitCode == 0)
-        #expect(result.stderr.isEmpty)
-        #expect(result.stdout.contains("Usage: nolon codex binary"))
-        #expect(result.stdout.contains("Actions:"))
-    }
-
-    @Test("codex status --help prints status help")
-    func codexStatusHelpPrintsHelp() async {
-        let mock = MockCodexCLIService()
-        let result = await NolonCLIEntrypoint.execute(
-            arguments: ["codex", "status", "--help"],
-            codexService: mock
-        )
-
-        #expect(result.exitCode == 0)
-        #expect(result.stderr.isEmpty)
-        #expect(result.stdout.contains("Usage: nolon codex status"))
-        #expect(result.stdout.contains("Actions:"))
-        #expect(result.stdout.contains("probe"))
-        #expect(result.stdout.contains("doctor"))
-    }
-
-    @Test("codex status without action prints status help")
-    func codexStatusWithoutActionPrintsHelp() async {
-        let mock = MockCodexCLIService()
-        let result = await NolonCLIEntrypoint.execute(
-            arguments: ["codex", "status"],
-            codexService: mock
-        )
-
-        #expect(result.exitCode == 0)
-        #expect(result.stderr.isEmpty)
-        #expect(result.stdout.contains("Usage: nolon codex status"))
-        #expect(result.stdout.contains("Actions:"))
-    }
-
-    @Test("codex runtime --help prints runtime help")
-    func codexRuntimeHelpPrintsHelp() async {
-        let mock = MockCodexCLIService()
-        let result = await NolonCLIEntrypoint.execute(
-            arguments: ["codex", "runtime", "--help"],
-            codexService: mock
-        )
-
-        #expect(result.exitCode == 0)
-        #expect(result.stderr.isEmpty)
-        #expect(result.stdout.contains("Usage: nolon codex runtime"))
-        #expect(result.stdout.contains("Actions:"))
-        #expect(result.stdout.contains("list"))
-        #expect(result.stdout.contains("stop"))
-    }
-
-    @Test("codex provider --help prints provider help")
-    func codexProviderHelpPrintsHelp() async {
-        let mock = MockCodexCLIService()
-        let result = await NolonCLIEntrypoint.execute(
-            arguments: ["codex", "provider", "--help"],
-            codexService: mock
-        )
-
-        #expect(result.exitCode == 0)
-        #expect(result.stderr.isEmpty)
-        #expect(result.stdout.contains("Usage: nolon codex provider"))
-        #expect(result.stdout.contains("Actions:"))
-        #expect(result.stdout.contains("discover"))
-    }
-
-    @Test("codex gateway --help prints gateway help")
-    func codexGatewayHelpPrintsHelp() async {
-        let mock = MockCodexCLIService()
-        let result = await NolonCLIEntrypoint.execute(
-            arguments: ["codex", "gateway", "--help"],
-            codexService: mock
-        )
-
-        #expect(result.exitCode == 0)
-        #expect(result.stderr.isEmpty)
-        #expect(result.stdout.contains("USAGE: nolon codex gateway"))
-        #expect(result.stdout.contains("status"))
-        #expect(result.stdout.contains("start"))
-        #expect(result.stdout.contains("stop"))
-        #expect(result.stdout.contains("serve"))
-    }
-
-    @Test("codex gateway status routes successfully")
-    func codexGatewayStatusRoutesSuccessfully() async {
-        let mock = MockCodexCLIService()
-        let result = await NolonCLIEntrypoint.execute(
-            arguments: ["codex", "gateway", "status", "--json"],
-            codexService: mock
-        )
-
-        #expect(result.exitCode == 0)
-        #expect(result.stderr.isEmpty)
-        #expect(result.stdout.contains("\"command\":\"codex.gateway.status\""))
-        #expect(result.stdout.contains("\"status\":\"stopped\""))
-        #expect(await mock.lastCall() == "gatewayStatus")
-    }
-
-    @Test("codex gateway start routes successfully")
-    func codexGatewayStartRoutesSuccessfully() async {
-        let mock = MockCodexCLIService()
-        let result = await NolonCLIEntrypoint.execute(
-            arguments: ["codex", "gateway", "start", "--host", "127.0.0.1", "--port", "9090", "--json"],
-            codexService: mock
-        )
-
-        #expect(result.exitCode == 0)
-        #expect(result.stderr.isEmpty)
-        #expect(result.stdout.contains("\"command\":\"codex.gateway.start\""))
-        #expect(result.stdout.contains("\"status\":\"running\""))
-        #expect(result.stdout.contains("\"port\":9090"))
-        #expect(await mock.lastCall() == "gatewayStart:127.0.0.1:9090")
-    }
-
-    @Test("codex gateway stop routes successfully")
-    func codexGatewayStopRoutesSuccessfully() async {
-        let mock = MockCodexCLIService()
-        let result = await NolonCLIEntrypoint.execute(
-            arguments: ["codex", "gateway", "stop", "--json"],
-            codexService: mock
-        )
-
-        #expect(result.exitCode == 0)
-        #expect(result.stderr.isEmpty)
-        #expect(result.stdout.contains("\"command\":\"codex.gateway.stop\""))
-        #expect(result.stdout.contains("\"status\":\"stopped\""))
-        #expect(await mock.lastCall() == "gatewayStop")
-    }
-
-    @Test("codex runtime list --help prints action help")
-    func codexRuntimeListHelpPrintsHelp() async {
-        let mock = MockCodexCLIService()
-        let result = await NolonCLIEntrypoint.execute(
-            arguments: ["codex", "runtime", "list", "--help"],
-            codexService: mock
-        )
-
-        #expect(result.exitCode == 0)
-        #expect(result.stderr.isEmpty)
-        #expect(result.stdout.contains("Usage: nolon codex runtime list"))
-    }
-
-    @Test("codex runtime stop --help prints action help")
-    func codexRuntimeStopHelpPrintsHelp() async {
-        let mock = MockCodexCLIService()
-        let result = await NolonCLIEntrypoint.execute(
-            arguments: ["codex", "runtime", "stop", "--help"],
-            codexService: mock
-        )
-
-        #expect(result.exitCode == 0)
-        #expect(result.stderr.isEmpty)
-        #expect(result.stdout.contains("Usage: nolon codex runtime stop"))
-        #expect(result.stdout.contains("--pid"))
-    }
-
-    @Test("codex provider discover --help prints action help")
-    func codexProviderDiscoverHelpPrintsHelp() async {
-        let mock = MockCodexCLIService()
-        let result = await NolonCLIEntrypoint.execute(
-            arguments: ["codex", "provider", "discover", "--help"],
-            codexService: mock
-        )
-
-        #expect(result.exitCode == 0)
-        #expect(result.stderr.isEmpty)
-        #expect(result.stdout.contains("Usage: nolon codex provider discover"))
-    }
-
-    @Test("provider --help prints provider root help")
-    func providerHelpPrintsHelp() async {
-        let mock = MockCodexCLIService()
-        let result = await NolonCLIEntrypoint.execute(
-            arguments: ["provider", "--help"],
-            codexService: mock
-        )
-
-        #expect(result.exitCode == 0)
-        #expect(result.stderr.isEmpty)
-        #expect(result.stdout.contains("Usage: nolon provider"))
-        #expect(result.stdout.contains("Actions:"))
-        #expect(result.stdout.contains("list"))
-        #expect(result.stdout.contains("discover"))
-    }
-
-    @Test("provider discover --help prints action help")
-    func providerDiscoverHelpPrintsHelp() async {
-        let mock = MockCodexCLIService()
-        let result = await NolonCLIEntrypoint.execute(
-            arguments: ["provider", "discover", "--help"],
-            codexService: mock
-        )
-
-        #expect(result.exitCode == 0)
-        #expect(result.stderr.isEmpty)
-        #expect(result.stdout.contains("Usage: nolon provider discover"))
-    }
-
-    @Test("skills --help prints skills help")
-    func skillsHelpPrintsHelp() async {
-        let mock = MockCodexCLIService()
-        let result = await NolonCLIEntrypoint.execute(
-            arguments: ["skills", "--help"],
-            codexService: mock
-        )
-
-        #expect(result.exitCode == 0)
-        #expect(result.stderr.isEmpty)
-        #expect(result.stdout.contains("Usage: nolon skills"))
-        #expect(result.stdout.contains("Subcommands:"))
-        #expect(result.stdout.contains("list"))
-        #expect(result.stdout.contains("sync"))
-        #expect(result.stdout.contains("remove"))
-    }
-
-    @Test("skills repo without action returns missing subcommand error")
-    func skillsRepoWithoutActionReturnsMissingSubcommandError() async {
-        let mock = MockCodexCLIService()
-        let result = await NolonCLIEntrypoint.execute(
-            arguments: ["skills", "repo"],
-            codexService: mock
-        )
-
-        #expect(result.exitCode == 2)
-        #expect(result.stdout.isEmpty)
-        #expect(result.stderr.contains("\"code\":\"invalid_arguments\""))
-        #expect(result.stderr.contains("Missing command. Expected: skills repo <action> ..."))
-    }
-
-    @Test("skills migrate without action returns missing subcommand error")
-    func skillsMigrateWithoutActionReturnsMissingSubcommandError() async {
-        let mock = MockCodexCLIService()
-        let result = await NolonCLIEntrypoint.execute(
-            arguments: ["skills", "migrate"],
-            codexService: mock
-        )
-
-        #expect(result.exitCode == 2)
-        #expect(result.stdout.isEmpty)
-        #expect(result.stderr.contains("\"code\":\"invalid_arguments\""))
-        #expect(result.stderr.contains("Missing command. Expected: skills migrate <action> ..."))
-    }
-
-    @Test("workflow --help prints workflow help")
-    func workflowHelpPrintsHelp() async {
-        let mock = MockCodexCLIService()
-        let result = await NolonCLIEntrypoint.execute(
-            arguments: ["workflow", "--help"],
-            codexService: mock
-        )
-
-        #expect(result.exitCode == 0)
-        #expect(result.stderr.isEmpty)
-        #expect(result.stdout.contains("Usage: nolon workflow"))
-        #expect(result.stdout.contains("Subcommands:"))
-        #expect(result.stdout.contains("list"))
-    }
-
-    @Test("mcp --help prints mcp help")
-    func mcpHelpPrintsHelp() async {
-        let mock = MockCodexCLIService()
-        let result = await NolonCLIEntrypoint.execute(
-            arguments: ["mcp", "--help"],
-            codexService: mock
-        )
-
-        #expect(result.exitCode == 0)
-        #expect(result.stderr.isEmpty)
-        #expect(result.stdout.contains("Usage: nolon mcp"))
-        #expect(result.stdout.contains("Subcommands:"))
-        #expect(result.stdout.contains("list"))
-    }
-
-    @Test("remote --help prints remote help")
-    func remoteHelpPrintsHelp() async {
-        let mock = MockCodexCLIService()
-        let result = await NolonCLIEntrypoint.execute(
-            arguments: ["remote", "--help"],
-            codexService: mock
-        )
-
-        #expect(result.exitCode == 0)
-        #expect(result.stderr.isEmpty)
-        #expect(result.stdout.contains("Usage: nolon remote"))
-        #expect(result.stdout.contains("Actions:"))
-        #expect(result.stdout.contains("download"))
-        #expect(result.stdout.contains("install"))
-    }
-
-    @Test("provider list routes successfully")
-    func providerListRoutesSuccessfully() async {
-        let mock = MockCodexCLIService()
-        let result = await NolonCLIEntrypoint.execute(
-            arguments: ["provider", "list"],
-            codexService: mock
-        )
-
-        #expect(result.exitCode == 0)
-        #expect(result.stderr.isEmpty)
-        #expect(result.stdout.contains("provider"))
-        #expect(result.stdout.contains("installed"))
-        #expect(await mock.lastCall() == "providerList")
-    }
-
-    @Test("provider discover routes successfully")
-    func providerDiscoverRoutesSuccessfully() async {
-        let mock = MockCodexCLIService()
-        let result = await NolonCLIEntrypoint.execute(
-            arguments: ["provider", "discover"],
-            codexService: mock
-        )
-
-        #expect(result.exitCode == 0)
-        #expect(result.stderr.isEmpty)
-        #expect(result.stdout.contains("provider"))
-        #expect(result.stdout.contains("installed"))
-        #expect(await mock.lastCall() == "providerList")
-    }
-
-    @Test("remote root routes through core runner parser")
-    func remoteRoutesThroughCoreRunnerParser() async {
-        let mock = MockCodexCLIService()
-        let result = await NolonCLIEntrypoint.execute(
-            arguments: [
-                "remote", "list",
-            ],
-            codexService: mock
-        )
-
-        #expect(result.exitCode == 2)
-        #expect(result.stderr.contains("\"code\":\"invalid_arguments\""))
-        #expect(result.stderr.contains("--kind"))
-        #expect(await mock.lastCall() == nil)
-    }
-
-    @Test("skills repo plan routes through core runner")
-    func skillsRepoPlanRoutesThroughCoreRunner() async {
-        let mock = MockCodexCLIService()
-        let result = await NolonCLIEntrypoint.execute(
-            arguments: [
-                "skills", "repo", "plan",
-                "--source", "vercel/agent-skills",
-                "--repositories-root", "/tmp/repos",
-            ],
-            codexService: mock
-        )
-
-        #expect(result.exitCode == 0)
-        #expect(result.stderr.isEmpty)
-        #expect(result.stdout.contains("\"command\":\"skills.repo.plan\""))
-        #expect(await mock.lastCall() == nil)
-    }
-
-    @Test("skills search positional query is parsed by core runner")
-    func skillsSearchPositionalQueryParsedByCoreRunner() async {
-        let mock = MockCodexCLIService()
-        let result = await NolonCLIEntrypoint.execute(
-            arguments: [
-                "skills", "search", "xcode",
-                "--limit", "0",
-            ],
-            codexService: mock
-        )
-
-        #expect(result.exitCode == 2)
-        #expect(result.stderr.contains("\"code\":\"invalid_arguments\""))
-        #expect(result.stderr.contains("--limit"))
-        #expect(await mock.lastCall() == nil)
-    }
-
-    @Test("skills add routes through core runner parser")
-    func skillsAddRoutesThroughCoreRunnerParser() async {
-        let mock = MockCodexCLIService()
-        let result = await NolonCLIEntrypoint.execute(
-            arguments: [
-                "skills", "add", "xcode",
-                "--provider", "codex",
-                "--provider-id", "opencode",
-            ],
-            codexService: mock
-        )
-
-        #expect(result.exitCode == 2)
-        #expect(result.stderr.contains("\"code\":\"invalid_arguments\""))
-        #expect(result.stderr.contains("--provider"))
-        #expect(await mock.lastCall() == nil)
-    }
-
-    @Test("skills list defaults to text output")
-    func skillsListDefaultsToTextOutput() async throws {
-        let mock = MockCodexCLIService()
-        let result = await NolonCLIEntrypoint.execute(
-            arguments: [
-                "skills", "list",
-                "--provider", "codex",
-            ],
-            codexService: mock
-        )
-
-        #expect(result.exitCode == 0)
-        #expect(result.stderr.isEmpty)
-        #expect(result.stdout.contains("providers_scanned:"))
-        #expect(result.stdout.contains("skills_total:"))
-        #expect(await mock.lastCall() == nil)
-    }
-
-    @Test("skills list without provider does not fail")
-    func skillsListWithoutProviderDoesNotFail() async throws {
-        let mock = MockCodexCLIService()
-        let result = await NolonCLIEntrypoint.execute(
-            arguments: [
-                "skills", "list",
-            ],
-            codexService: mock
-        )
-
-        #expect(result.exitCode == 0)
-        #expect(result.stderr.isEmpty)
-        #expect(result.stdout.contains("providers_scanned:"))
-        #expect(result.stdout.contains("skills_total:"))
-        #expect(await mock.lastCall() == nil)
-    }
-
-    @Test("skills list supports json output")
-    func skillsListSupportsJSONOutput() async throws {
-        let mock = MockCodexCLIService()
-        let result = await NolonCLIEntrypoint.execute(
-            arguments: [
-                "skills", "list",
-                "--provider", "codex",
-                "--json",
-            ],
-            codexService: mock
-        )
-
-        #expect(result.exitCode == 0)
-        #expect(result.stderr.isEmpty)
-        #expect(result.stdout.contains("\"command\":\"skills.list\""))
-        #expect(await mock.lastCall() == nil)
-    }
-
-    @Test("skills list supports state filter")
-    func skillsListSupportsStateFilter() async throws {
-        let mock = MockCodexCLIService()
-        let result = await NolonCLIEntrypoint.execute(
-            arguments: [
-                "skills", "list",
-                "--provider", "codex",
-                "--state", "orphaned",
-            ],
-            codexService: mock
-        )
-
-        #expect(result.exitCode == 0)
-        #expect(result.stderr.isEmpty)
-        #expect(result.stdout.contains("筛选-状态: 失效链接"))
-        #expect(await mock.lastCall() == nil)
-    }
-
-    @Test("skills remove supports provider selector")
-    func skillsRemoveSupportsProviderSelector() async throws {
-        let mock = MockCodexCLIService()
-        let result = await NolonCLIEntrypoint.execute(
-            arguments: [
-                "skills", "remove",
-                "--skill-id", "react-best-practices",
-                "--provider", "codex",
-                "--json",
-            ],
-            codexService: mock
-        )
-
-        #expect(result.exitCode == 0)
-        #expect(result.stderr.isEmpty)
-        #expect(result.stdout.contains("\"command\":\"skills.uninstall\""))
-        #expect(result.stdout.contains("\"skill_id\":\"react-best-practices\""))
-        #expect(await mock.lastCall() == nil)
-    }
-
-    @Test("codex auth list --help prints action help")
-    func codexAuthListHelpPrintsHelp() async {
-        let mock = MockCodexCLIService()
-        let result = await NolonCLIEntrypoint.execute(
-            arguments: ["codex", "auth", "list", "--help"],
-            codexService: mock
-        )
-
-        #expect(result.exitCode == 0)
-        #expect(result.stderr.isEmpty)
-        #expect(result.stdout.contains("Usage: nolon codex auth list"))
-        #expect(result.stdout.contains("--provider"))
-    }
-
-    @Test("codex auth status --help prints action help")
-    func codexAuthStatusHelpPrintsHelp() async {
-        let mock = MockCodexCLIService()
-        let result = await NolonCLIEntrypoint.execute(
-            arguments: ["codex", "auth", "status", "--help"],
-            codexService: mock
-        )
-
-        #expect(result.exitCode == 0)
-        #expect(result.stderr.isEmpty)
-        #expect(result.stdout.contains("Usage: nolon codex auth status"))
-        #expect(result.stdout.contains("--provider"))
-    }
-
-    @Test("codex auth usage --help uses expanded custom help template")
-    func codexAuthUsageHelpUsesExpandedCustomHelpTemplate() async {
-        let mock = MockCodexCLIService()
-        let result = await NolonCLIEntrypoint.execute(
-            arguments: ["codex", "auth", "usage", "--help"],
-            codexService: mock
-        )
-
-        #expect(result.exitCode == 0)
-        #expect(result.stderr.isEmpty)
-        #expect(result.stdout.contains("Usage: nolon codex auth usage [options]"))
-        #expect(result.stdout.contains("--provider <id>                             # 指定 provider（可选"))
-        #expect(result.stdout.contains("Options:") == false)
-    }
-
-    @Test("codex auth usage-trend --help prints action help")
-    func codexAuthUsageTrendHelpPrintsHelp() async {
-        let mock = MockCodexCLIService()
-        let result = await NolonCLIEntrypoint.execute(
-            arguments: ["codex", "auth", "usage-trend", "--help"],
-            codexService: mock
-        )
-
-        #expect(result.exitCode == 0)
-        #expect(result.stderr.isEmpty)
-        #expect(result.stdout.contains("Usage: nolon codex auth usage-trend [options]"))
-        #expect(result.stdout.contains("--range 7d|30d|all"))
-    }
-
-    @Test("codex auth refresh --help prints action help")
-    func codexAuthRefreshHelpPrintsHelp() async {
-        let mock = MockCodexCLIService()
-        let result = await NolonCLIEntrypoint.execute(
-            arguments: ["codex", "auth", "refresh", "--help"],
-            codexService: mock
-        )
-
-        #expect(result.exitCode == 0)
-        #expect(result.stderr.isEmpty)
-        #expect(result.stdout.contains("Usage: nolon codex auth refresh"))
-        #expect(result.stdout.contains("--account-id"))
-        #expect(result.stdout.contains("切换为活跃账号"))
-        #expect(result.stdout.contains("保持当前活跃账号不变"))
-    }
-
-    @Test("codex auth activate --help prints action help")
-    func codexAuthActivateHelpPrintsHelp() async {
-        let mock = MockCodexCLIService()
-        let result = await NolonCLIEntrypoint.execute(
-            arguments: ["codex", "auth", "activate", "--help"],
-            codexService: mock
-        )
-
-        #expect(result.exitCode == 0)
-        #expect(result.stderr.isEmpty)
-        #expect(result.stdout.contains("Usage: nolon codex auth activate"))
-        #expect(result.stdout.contains("--account-id"))
-    }
-
-    @Test("codex auth login --help prints action help")
-    func codexAuthLoginHelpPrintsHelp() async {
-        let mock = MockCodexCLIService()
-        let result = await NolonCLIEntrypoint.execute(
-            arguments: ["codex", "auth", "login", "--help"],
-            codexService: mock
-        )
-
-        #expect(result.exitCode == 0)
-        #expect(result.stderr.isEmpty)
-        #expect(result.stdout.contains("Usage: nolon codex auth login"))
-        #expect(result.stdout.contains("--preferred-account-id"))
-    }
-
-    @Test("codex auth delete --help prints action help")
-    func codexAuthDeleteHelpPrintsHelp() async {
-        let mock = MockCodexCLIService()
-        let result = await NolonCLIEntrypoint.execute(
-            arguments: ["codex", "auth", "delete", "--help"],
-            codexService: mock
-        )
-
-        #expect(result.exitCode == 0)
-        #expect(result.stderr.isEmpty)
-        #expect(result.stdout.contains("Usage: nolon codex auth delete"))
-        #expect(result.stdout.contains("--account-id"))
-    }
-
-    @Test("codex binary install --help prints action help")
-    func codexBinaryInstallHelpPrintsHelp() async {
-        let mock = MockCodexCLIService()
-        let result = await NolonCLIEntrypoint.execute(
-            arguments: ["codex", "binary", "install", "--help"],
-            codexService: mock
-        )
-
-        #expect(result.exitCode == 0)
-        #expect(result.stderr.isEmpty)
-        #expect(result.stdout.contains("Usage: nolon codex binary install"))
-        #expect(result.stdout.contains("--set-default"))
-    }
-
-    @Test("codex binary use --help prints action help")
-    func codexBinaryUseHelpPrintsHelp() async {
-        let mock = MockCodexCLIService()
-        let result = await NolonCLIEntrypoint.execute(
-            arguments: ["codex", "binary", "use", "--help"],
-            codexService: mock
-        )
-
-        #expect(result.exitCode == 0)
-        #expect(result.stderr.isEmpty)
-        #expect(result.stdout.contains("Usage: nolon codex binary use"))
-        #expect(result.stdout.contains("--version"))
-    }
-
-    @Test("codex binary list --help prints action help")
-    func codexBinaryListHelpPrintsHelp() async {
-        let mock = MockCodexCLIService()
-        let result = await NolonCLIEntrypoint.execute(
-            arguments: ["codex", "binary", "list", "--help"],
-            codexService: mock
-        )
-
-        #expect(result.exitCode == 0)
-        #expect(result.stderr.isEmpty)
-        #expect(result.stdout.contains("Usage: nolon codex binary list"))
-    }
-
-    @Test("codex binary available --help prints action help")
-    func codexBinaryAvailableHelpPrintsHelp() async {
-        let mock = MockCodexCLIService()
-        let result = await NolonCLIEntrypoint.execute(
-            arguments: ["codex", "binary", "available", "--help"],
-            codexService: mock
-        )
-
-        #expect(result.exitCode == 0)
-        #expect(result.stderr.isEmpty)
-        #expect(result.stdout.contains("Usage: nolon codex binary available"))
-    }
-
-    @Test("codex binary switch --help prints action help")
-    func codexBinarySwitchHelpPrintsHelp() async {
-        let mock = MockCodexCLIService()
-        let result = await NolonCLIEntrypoint.execute(
-            arguments: ["codex", "binary", "switch", "--help"],
-            codexService: mock
-        )
-
-        #expect(result.exitCode == 0)
-        #expect(result.stderr.isEmpty)
-        #expect(result.stdout.contains("Usage: nolon codex binary switch"))
-    }
-
-    @Test("codex binary current --help prints action help")
-    func codexBinaryCurrentHelpPrintsHelp() async {
-        let mock = MockCodexCLIService()
-        let result = await NolonCLIEntrypoint.execute(
-            arguments: ["codex", "binary", "current", "--help"],
-            codexService: mock
-        )
-
-        #expect(result.exitCode == 0)
-        #expect(result.stderr.isEmpty)
-        #expect(result.stdout.contains("Usage: nolon codex binary current"))
-    }
-
-    @Test("codex binary doctor --help prints action help")
-    func codexBinaryDoctorHelpPrintsHelp() async {
-        let mock = MockCodexCLIService()
-        let result = await NolonCLIEntrypoint.execute(
-            arguments: ["codex", "binary", "doctor", "--help"],
-            codexService: mock
-        )
-
-        #expect(result.exitCode == 0)
-        #expect(result.stderr.isEmpty)
-        #expect(result.stdout.contains("Usage: nolon codex binary doctor"))
-    }
-
-    @Test("codex status probe --help prints action help")
-    func codexStatusProbeHelpPrintsHelp() async {
-        let mock = MockCodexCLIService()
-        let result = await NolonCLIEntrypoint.execute(
-            arguments: ["codex", "status", "probe", "--help"],
-            codexService: mock
-        )
-
-        #expect(result.exitCode == 0)
-        #expect(result.stderr.isEmpty)
-        #expect(result.stdout.contains("Usage: nolon codex status probe"))
-        #expect(result.stdout.contains("--provider"))
-    }
-
-    @Test("codex status doctor --help prints action help")
-    func codexStatusDoctorHelpPrintsHelp() async {
-        let mock = MockCodexCLIService()
-        let result = await NolonCLIEntrypoint.execute(
-            arguments: ["codex", "status", "doctor", "--help"],
-            codexService: mock
-        )
-
-        #expect(result.exitCode == 0)
-        #expect(result.stderr.isEmpty)
-        #expect(result.stdout.contains("Usage: nolon codex status doctor"))
-    }
-
-    @Test("routes auth list")
-    func routesAuthList() async {
-        let mock = MockCodexCLIService()
-        let result = await NolonCLIEntrypoint.execute(
-            arguments: [
-                "codex", "auth", "list",
-                "--provider", "codex",
-            ],
-            codexService: mock
-        )
-
-        #expect(result.exitCode == 0)
-        #expect(result.stdout.contains("[账号]"))
-        #expect(result.stdout.contains("[用量]"))
-        #expect(result.stdout.contains("[状态]"))
-        #expect(result.stdout.contains("邮箱"))
-        #expect(result.stdout.contains("状态"))
-        #expect(result.stdout.contains("令牌健康"))
-        #expect(result.stdout.contains("5h剩余"))
-    }
-
-    @Test("routes auth usage per-account table")
-    func routesAuthUsage() async {
-        let mock = MockCodexCLIService()
-        let result = await NolonCLIEntrypoint.execute(
-            arguments: [
-                "codex", "auth", "usage",
-                "--provider", "codex",
-            ],
-            codexService: mock
-        )
-
-        #expect(result.exitCode == 0)
-        #expect(result.stdout.contains("[账号]"))
-        #expect(result.stdout.contains("[用量]"))
-        #expect(result.stdout.contains("[状态]"))
-        #expect(result.stdout.contains("5h剩余"))
-        #expect(result.stdout.contains("7d剩余"))
-        #expect(result.stdout.contains("Tokens汇总 | 1d"))
-        #expect(result.stdout.contains("| all"))
-        #expect(result.stdout.contains("Access:"))
-        #expect(result.stdout.contains("Refresh:"))
-    }
-
-    @Test("routes auth usage refresh with summary")
-    func routesAuthUsageRefreshSummary() async {
-        let mock = MockCodexCLIService()
-        let result = await NolonCLIEntrypoint.execute(
-            arguments: [
-                "codex", "auth", "usage",
-                "--provider", "codex",
-                "--summary",
-                "--refresh",
-                "--account-id", "11111111-1111-1111-1111-111111111111",
-            ],
-            codexService: mock
-        )
-
-        #expect(result.exitCode == 0)
-        #expect(result.stdout.contains("账号总数"))
-        #expect(await mock.lastCall() == "authUsageRefresh")
-    }
-
-    @Test("routes auth usage-trend table")
-    func routesAuthUsageTrendTable() async {
-        let mock = MockCodexCLIService()
-        let result = await NolonCLIEntrypoint.execute(
-            arguments: [
-                "codex", "auth", "usage-trend",
-                "--provider", "codex",
-                "--range", "7d",
-            ],
-            codexService: mock
-        )
-
-        #expect(result.exitCode == 0)
-        #expect(result.stderr.isEmpty)
-        #expect(result.stdout.contains("provider | codex"))
-        #expect(result.stdout.contains("range | 7d"))
-        #expect(result.stdout.contains("summary.today | 1.2亿"))
-        #expect(result.stdout.contains("date | total | input | output | cache"))
-        #expect(result.stdout.contains("2026-02-26 |"))
-        #expect(await mock.lastCall() == "authUsageTrend")
-    }
-
-    @Test("auth usage-trend rejects invalid range")
-    func authUsageTrendRejectsInvalidRange() async {
-        let mock = MockCodexCLIService()
-        let result = await NolonCLIEntrypoint.execute(
-            arguments: [
-                "codex", "auth", "usage-trend",
-                "--provider", "codex",
-                "--range", "2d",
-            ],
-            codexService: mock
-        )
-
-        #expect(result.exitCode == 2)
-        #expect(result.stderr.contains("\"code\":\"invalid_arguments\""))
-        #expect(result.stderr.contains("Supported values: 7d, 30d, all"))
-    }
-
-    @Test("auth usage target requires refresh flag")
-    func authUsageTargetRequiresRefreshFlag() async {
-        let mock = MockCodexCLIService()
-        let result = await NolonCLIEntrypoint.execute(
-            arguments: [
-                "codex", "auth", "usage",
-                "--provider", "codex",
-                "--account-id", "11111111-1111-1111-1111-111111111111",
-            ],
-            codexService: mock
-        )
-
-        #expect(result.exitCode == 2)
-        #expect(result.stderr.contains("\"code\":\"invalid_arguments\""))
-        #expect(result.stderr.contains("requires --refresh"))
-    }
-
-    @Test("auth usage summary renders aggregated rows")
-    func authUsageSummaryRenders() async {
-        let mock = MockCodexCLIService()
-        let result = await NolonCLIEntrypoint.execute(
-            arguments: [
-                "codex", "auth", "usage",
-                "--provider", "codex",
-                "--summary",
-            ],
-            codexService: mock
-        )
-
-        #expect(result.exitCode == 0)
-        #expect(result.stdout.contains("账号总数"))
-        #expect(result.stdout.contains("已缓存用量"))
-        #expect(result.stdout.contains("5h平均剩余"))
-        #expect(result.stdout.contains("Tokens | 1d"))
-        #expect(result.stdout.contains("| all"))
-    }
-
-    @Test("auth usage expiry shows relative remaining and expired labels")
-    func authUsageExpiryShowsRelativeLabels() async {
-        let service = AuthUsageExpiryLabelCodexCLIService()
-        let result = await NolonCLIEntrypoint.execute(
-            arguments: ["codex", "auth", "usage", "--provider", "codex"],
-            codexService: service
-        )
-
-        #expect(result.exitCode == 0)
-        #expect(result.stderr.isEmpty)
-        #expect(result.stdout.contains("剩余"))
-        #expect(result.stdout.contains("已过期"))
-        #expect(result.stdout.contains("Refresh:可用"))
-    }
-
-    @Test("auth usage shows fallback hint when all token sources are global")
-    func authUsageShowsGlobalFallbackHint() async {
-        let service = AuthUsageGlobalFallbackCodexCLIService()
-        let result = await NolonCLIEntrypoint.execute(
-            arguments: ["codex", "auth", "usage", "--provider", "codex"],
-            codexService: service
-        )
-
-        #expect(result.exitCode == 0)
-        #expect(result.stderr.isEmpty)
-        #expect(result.stdout.contains("提示: 当前 Tokens 来自全局回退"))
-    }
-
-    @Test("auth usage hides per-account tokens when source is not distinguishable")
-    func authUsageHidesPerAccountTokensWhenNotDistinguishable() async {
-        let service = AuthUsageUndistinguishableTokensCodexCLIService()
-        let result = await NolonCLIEntrypoint.execute(
-            arguments: ["codex", "auth", "usage", "--provider", "codex"],
-            codexService: service
-        )
-
-        #expect(result.exitCode == 0)
-        #expect(result.stderr.isEmpty)
-        #expect(result.stdout.contains("Tokens汇总 | 1d"))
-        #expect(!result.stdout.contains("Tokens 当前无法按账号区分"))
-    }
-
-    @Test("auth usage renders per-account refresh failure section")
-    func authUsageRendersRefreshFailureSection() async {
-        let service = AuthUsageRefreshFailureCodexCLIService()
-        let result = await NolonCLIEntrypoint.execute(
-            arguments: ["codex", "auth", "usage", "--provider", "codex"],
-            codexService: service
-        )
-
-        #expect(result.exitCode == 0)
-        #expect(result.stderr.isEmpty)
-        #expect(result.stdout.contains("broken@example.com"))
-        #expect(result.stdout.contains("failed"))
-        #expect(result.stdout.contains("other"))
-    }
-
-    @Test("auth usage overview resolves active account consistently by status")
-    func authUsageOverviewResolvesActiveAccountByStatus() async {
-        let service = AuthUsageActiveConsistencyCodexCLIService()
-        let result = await NolonCLIEntrypoint.execute(
-            arguments: ["codex", "auth", "usage", "--provider", "codex"],
-            codexService: service
-        )
-
-        #expect(result.exitCode == 0)
-        #expect(result.stderr.isEmpty)
-        #expect(result.stdout.contains("激活账号"))
-        #expect(result.stdout.contains("BBBBBBBB-BBBB-BBBB-BBBB-BBBBBBBBBBBB"))
-        #expect(result.stdout.contains("* second@example.com"))
-        #expect(!result.stdout.contains("* first@example.com"))
-    }
-
-    @Test("auth list prints aligned table rows")
-    func authListPrintsAlignedTableRows() async {
-        let service = AuthListTableCodexCLIService()
-        let result = await NolonCLIEntrypoint.execute(
-            arguments: ["codex", "auth", "list", "--provider", "codex"],
-            codexService: service
-        )
-
-        #expect(result.exitCode == 0)
-        #expect(result.stderr.isEmpty)
-        let lines = result.stdout.split(separator: "\n").map(String.init)
-        let headerIndex = lines.firstIndex { $0.contains("邮箱") && $0.contains("状态") && $0.contains("令牌健康") }
-        #expect(headerIndex != nil)
-        let rows = lines
-            .dropFirst((headerIndex ?? 0) + 1)
-            .prefix { !$0.hasPrefix("[用量]") && !$0.hasPrefix("[状态]") }
-            .filter { $0.hasPrefix("* ") || ($0.hasPrefix("  ") && $0.contains(" | ")) }
-        #expect(rows.count == 2)
-        let firstPipeIndices = rows[0].indicesOfPipes()
-        #expect(firstPipeIndices.count == 2)
-        #expect(rows[1].indicesOfPipes() == firstPipeIndices)
-    }
-
-    @Test("auth list shows dash when email usage refresh are missing")
-    func authListShowsDashForMissingFields() async {
-        let service = AuthListMissingFieldsCodexCLIService()
-        let result = await NolonCLIEntrypoint.execute(
-            arguments: ["codex", "auth", "list", "--provider", "codex"],
-            codexService: service
-        )
-
-        #expect(result.exitCode == 0)
-        #expect(result.stderr.isEmpty)
-        #expect(result.stdout.contains("| -"))
-    }
-
-    @Test("normalizes codexxcode provider alias")
-    func normalizesCodexXcodeProviderAlias() async {
-        let mock = MockCodexCLIService()
-        let result = await NolonCLIEntrypoint.execute(
-            arguments: [
-                "codex", "auth", "list",
-                "--provider", "codexxcode",
-            ],
-            codexService: mock
-        )
-
-        #expect(result.exitCode == 0)
-        #expect(result.stdout.contains("邮箱"))
-    }
-
-    @Test("auth list rejects unsupported provider")
-    func authListRejectsUnsupportedProvider() async {
-        let mock = MockCodexCLIService()
-        let result = await NolonCLIEntrypoint.execute(
-            arguments: [
-                "codex", "auth", "list",
-                "--provider", "claude",
-            ],
-            codexService: mock
-        )
-
-        #expect(result.exitCode == 2)
-        #expect(result.stderr.contains("\"code\":\"invalid_arguments\""))
-    }
-
-    @Test("routes auth status")
-    func routesAuthStatus() async {
-        let mock = MockCodexCLIService()
-        let result = await NolonCLIEntrypoint.execute(
-            arguments: [
-                "codex", "auth", "status",
-                "--provider", "codex",
-            ],
-            codexService: mock
-        )
-
-        #expect(result.exitCode == 0)
-        #expect(result.stdout.contains("[账号]"))
-        #expect(result.stdout.contains("[用量]"))
-        #expect(result.stdout.contains("[状态]"))
-        #expect(result.stdout.contains("账号总数"))
-        #expect(result.stdout.contains("已缓存用量"))
-    }
-
-    @Test("auth status rejects unsupported provider")
-    func authStatusRejectsUnsupportedProvider() async {
-        let mock = MockCodexCLIService()
-        let result = await NolonCLIEntrypoint.execute(
-            arguments: [
-                "codex", "auth", "status",
-                "--provider", "cursor",
-            ],
-            codexService: mock
-        )
-
-        #expect(result.exitCode == 2)
-        #expect(result.stderr.contains("\"code\":\"invalid_arguments\""))
-    }
-
-    @Test("routes auth activate via argument parser")
-    func routesAuthActivate() async {
-        let mock = MockCodexCLIService()
-        let result = await NolonCLIEntrypoint.execute(
-            arguments: [
-                "codex", "auth", "activate",
-                "--provider", "codex",
-                "--account-id", "11111111-1111-1111-1111-111111111111",
-            ],
-            codexService: mock
-        )
-
-        #expect(result.exitCode == 0)
-        #expect(result.stdout.contains("runtime_switched: true"))
-        #expect(result.stderr.isEmpty)
-        #expect(await mock.lastCall() == "authActivate")
-    }
-
-    @Test("routes auth refresh via account id")
-    func routesAuthRefresh() async {
-        let mock = MockCodexCLIService()
-        let result = await NolonCLIEntrypoint.execute(
-            arguments: [
-                "codex", "auth", "refresh",
-                "--provider", "codex",
-                "--account-id", "11111111-1111-1111-1111-111111111111",
-            ],
-            codexService: mock
-        )
-
-        #expect(result.exitCode == 0)
-        #expect(result.stdout.contains("* mock@example.com"))
-        #expect(result.stdout.contains("| 已激活 | 成功"))
-        #expect(result.stdout.contains("运行时切换"))
-        #expect(result.stdout.contains("汇总-总数: 1"))
-        #expect(await mock.lastCall() == "authRefresh")
-    }
-
-    @Test("auth activate supports tui selection by index")
-    func authActivateSupportsTUISelection() async throws {
-        let accounts: [NolonCodexAuthAccountView] = [
-            NolonCodexAuthAccountView(
-                id: UUID(uuidString: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")!,
-                name: "A",
-                createdAt: .distantPast,
-                relativeAuthPath: "a/auth.json",
-                isActive: true,
-                email: "a@example.com",
-                usageDisplay: nil,
-                refreshedAt: nil
-            ),
-            NolonCodexAuthAccountView(
-                id: UUID(uuidString: "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb")!,
-                name: "B",
-                createdAt: .distantPast,
-                relativeAuthPath: "b/auth.json",
-                isActive: false,
-                email: "b@example.com",
-                usageDisplay: nil,
-                refreshedAt: nil
-            ),
-        ]
-
-        let selected = try NolonCodexCLIExecutor.parseActivateSelection(
-            input: "2",
-            accounts: accounts
-        )
-        #expect(selected == UUID(uuidString: "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb")!)
-    }
-
-    @Test("auth activate supports tui selection by email")
-    func authActivateSupportsTUISelectionByEmail() throws {
-        let accounts: [NolonCodexAuthAccountView] = [
-            NolonCodexAuthAccountView(
-                id: UUID(uuidString: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")!,
-                name: "A",
-                createdAt: .distantPast,
-                relativeAuthPath: "a/auth.json",
-                isActive: true,
-                email: "a@example.com",
-                usageDisplay: nil,
-                refreshedAt: nil
-            ),
-            NolonCodexAuthAccountView(
-                id: UUID(uuidString: "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb")!,
-                name: "B",
-                createdAt: .distantPast,
-                relativeAuthPath: "b/auth.json",
-                isActive: false,
-                email: "b@example.com",
-                usageDisplay: nil,
-                refreshedAt: nil
-            ),
-        ]
-
-        let selected = try NolonCodexCLIExecutor.parseActivateSelection(
-            input: "B@Example.com",
-            accounts: accounts
-        )
-        #expect(selected == UUID(uuidString: "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb")!)
-    }
-
-    @Test("auth activate picker shows usage in table rows")
-    func authActivatePickerShowsUsage() {
-        let accounts: [NolonCodexAuthAccountView] = [
-            NolonCodexAuthAccountView(
-                id: UUID(uuidString: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")!,
-                name: "A",
-                createdAt: .distantPast,
-                relativeAuthPath: "a/auth.json",
-                isActive: true,
-                email: "a@example.com",
-                usageDisplay: "5h 80% / 7d 50%",
-                refreshedAt: nil
-            ),
-        ]
-
-        let text = NolonCodexCLIExecutor.renderActivatePicker(accounts: accounts)
-        #expect(text.contains("编号 | 状态 | 邮箱"))
-        #expect(text.contains("5h 80% / 7d 50%"))
-        #expect(text.contains("AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA"))
-    }
-
-    @Test("auth activate tui selection rejects invalid index")
-    func authActivateTUISelectionRejectsInvalidIndex() {
-        let accounts: [NolonCodexAuthAccountView] = [
-            NolonCodexAuthAccountView(
-                id: UUID(uuidString: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")!,
-                name: "A",
-                createdAt: .distantPast,
-                relativeAuthPath: "a/auth.json",
-                isActive: true,
-                email: "a@example.com",
-                usageDisplay: nil,
-                refreshedAt: nil
-            ),
-        ]
-
-        #expect(throws: NolonCoreCLIError.invalidArguments("Invalid selection")) {
-            _ = try NolonCodexCLIExecutor.parseActivateSelection(input: "3", accounts: accounts)
-        }
-    }
-
-    @Test("invalid UUID returns structured error")
-    func invalidUUIDError() async {
-        let mock = MockCodexCLIService()
-        let result = await NolonCLIEntrypoint.execute(
-            arguments: [
-                "codex", "auth", "activate",
-                "--account-id", "not-a-uuid",
-            ],
-            codexService: mock
-        )
-
-        #expect(result.exitCode == 2)
-        #expect(result.stdout.isEmpty)
-        #expect(result.stderr.contains("\"code\":\"invalid_arguments\""))
-    }
-
-    @Test("auth activate without account id defaults to interactive flow")
-    func authActivateDefaultsToInteractiveFlow() async {
-        let mock = MockCodexCLIService()
-        let result = await NolonCLIEntrypoint.execute(
-            arguments: [
-                "codex", "auth", "activate",
-                "--provider", "codex",
-            ],
-            codexService: mock
-        )
-
-        #expect(result.exitCode == 2)
-        #expect(result.stderr.contains("Interactive selection requires a TTY terminal. Use --account-id <uuid> or --email <email>."))
-    }
-
-    @Test("auth activate supports email option for non-interactive usage")
-    func authActivateSupportsEmailOption() async {
-        let mock = EmailActivateCodexCLIService()
-        let result = await NolonCLIEntrypoint.execute(
-            arguments: [
-                "codex", "auth", "activate",
-                "--provider", "codex",
-                "--email", "a@example.com",
-            ],
-            codexService: mock
-        )
-
-        #expect(result.exitCode == 0)
-        #expect(result.stderr.isEmpty)
-        #expect(result.stdout.contains("account_id: AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA"))
-    }
-
-    @Test("invalid preferred account UUID returns structured error")
-    func invalidPreferredUUIDError() async {
-        let mock = MockCodexCLIService()
-        let result = await NolonCLIEntrypoint.execute(
-            arguments: [
-                "codex", "auth", "login",
-                "--preferred-account-id", "bad-uuid",
-            ],
-            codexService: mock
-        )
-
-        #expect(result.exitCode == 2)
-        #expect(result.stderr.contains("\"code\":\"invalid_arguments\""))
-    }
-
-    @Test("routes auth login")
-    func routesAuthLogin() async {
-        let mock = MockCodexCLIService()
-        let result = await NolonCLIEntrypoint.execute(
-            arguments: [
-                "codex", "auth", "login",
-                "--provider", "codex",
-                "--preferred-account-id", "11111111-1111-1111-1111-111111111111",
-            ],
-            codexService: mock
-        )
-
-        #expect(result.exitCode == 0)
-        #expect(result.stdout.contains("account_name: mock"))
-        #expect(result.stdout.contains("login_url: https://auth.example.com/device"))
-        #expect(await mock.lastCall() == "authLogin")
-    }
-
-    @Test("routes auth delete")
-    func routesAuthDelete() async {
-        let mock = MockCodexCLIService()
-        let result = await NolonCLIEntrypoint.execute(
-            arguments: [
-                "codex", "auth", "delete",
-                "--provider", "codex",
-                "--account-id", "11111111-1111-1111-1111-111111111111",
-            ],
-            codexService: mock
-        )
-
-        #expect(result.exitCode == 0)
-        #expect(result.stdout.contains("was_active: false"))
-        #expect(await mock.lastCall() == "authDelete")
-    }
-
-    @Test("routes binary install set-default")
-    func routesBinaryInstall() async {
-        let mock = MockCodexCLIService()
-        let result = await NolonCLIEntrypoint.execute(
-            arguments: [
-                "codex", "binary", "install",
-                "0.26.0",
-                "--set-default",
-            ],
-            codexService: mock
-        )
-
-        #expect(result.exitCode == 0)
-        #expect(result.stdout.contains("requested_version: 0.26.0"))
-        #expect(await mock.lastCall() == "binaryInstall")
-    }
-
-    @Test("binary install rejects empty version")
-    func binaryInstallRejectsEmptyVersion() async {
-        let mock = MockCodexCLIService()
-        let result = await NolonCLIEntrypoint.execute(
-            arguments: [
-                "codex", "binary", "install",
-                "   ",
-            ],
-            codexService: mock
-        )
-
-        #expect(result.exitCode == 2)
-        #expect(result.stderr.contains("\"code\":\"invalid_arguments\""))
-    }
-
-    @Test("routes binary current")
-    func routesBinaryCurrent() async {
-        let mock = MockCodexCLIService()
-        let result = await NolonCLIEntrypoint.execute(
-            arguments: [
-                "codex", "binary", "current",
-            ],
-            codexService: mock
-        )
-
-        #expect(result.exitCode == 0)
-        #expect(result.stdout.contains("current_version: -"))
-        #expect(await mock.lastCall() == "binaryCurrent")
-    }
-
-    @Test("routes binary available")
-    func routesBinaryAvailable() async {
-        let mock = MockCodexCLIService()
-        let result = await NolonCLIEntrypoint.execute(
-            arguments: [
-                "codex", "binary", "available",
-            ],
-            codexService: mock
-        )
-
-        #expect(result.exitCode == 0)
-        #expect(await mock.lastCall() == "binaryAvailable")
-    }
-
-    @Test("routes binary use")
-    func routesBinaryUse() async {
-        let mock = MockCodexCLIService()
-        let result = await NolonCLIEntrypoint.execute(
-            arguments: [
-                "codex", "binary", "use",
-                "--version", "0.26.0",
-            ],
-            codexService: mock
-        )
-
-        #expect(result.exitCode == 0)
-        #expect(result.stdout.contains("selected_version_id: 0.26.0"))
-        #expect(await mock.lastCall() == "binaryUse")
-    }
-
-    @Test("binary use rejects empty version")
-    func binaryUseRejectsEmptyVersion() async {
-        let mock = MockCodexCLIService()
-        let result = await NolonCLIEntrypoint.execute(
-            arguments: [
-                "codex", "binary", "use",
-                "--version", "\t",
-            ],
-            codexService: mock
-        )
-
-        #expect(result.exitCode == 2)
-        #expect(result.stderr.contains("\"code\":\"invalid_arguments\""))
-    }
-
-    @Test("binary switch rejects non-tty")
-    func binarySwitchRejectsNonTTY() async {
-        let service = BinarySwitchCodexCLIService(
-            installed: NolonCodexBinaryListPayload(selectedVersionID: nil, versions: []),
-            available: NolonCodexBinaryAvailablePayload(versions: [])
-        )
-        let overrides = NolonCodexCLIExecutor.IOOverrides(
-            isTTY: { false },
-            readInputLine: { "1" },
-            writePrompt: { _ in }
-        )
-
-        let result = await NolonCodexCLIExecutor.withIOOverrides(overrides) {
-            await NolonCLIEntrypoint.execute(
-                arguments: ["codex", "binary", "switch"],
-                codexService: service
-            )
-        }
-
-        #expect(result.exitCode == 2)
-        #expect(result.stderr.contains("\"code\":\"invalid_arguments\""))
-        #expect(result.stderr.contains("Interactive selection requires a TTY"))
-    }
-
-    @Test("binary switch activates installed version")
-    func binarySwitchActivatesInstalledVersion() async {
-        let service = BinarySwitchCodexCLIService(
-            installed: NolonCodexBinaryListPayload(
-                selectedVersionID: "v0.26.0",
-                versions: [
-                    NolonCodexManagedVersionView(
-                        id: "v0.26.0",
-                        displayName: "Codex 0.26.0",
-                        detectedVersion: "0.26.0",
-                        source: "release",
-                        importedAt: .distantPast,
-                        isSelected: true
-                    )
-                ]
-            ),
-            available: NolonCodexBinaryAvailablePayload(versions: [])
-        )
-        let overrides = NolonCodexCLIExecutor.IOOverrides(
-            isTTY: { true },
-            readInputLine: { "1" },
-            writePrompt: { _ in }
-        )
-
-        let result = await NolonCodexCLIExecutor.withIOOverrides(overrides) {
-            await NolonCLIEntrypoint.execute(
-                arguments: ["codex", "binary", "switch"],
-                codexService: service
-            )
-        }
-
-        #expect(result.exitCode == 0)
-        #expect(result.stdout.contains("action: activate"))
-        #expect(result.stdout.contains("selected_version_id: v0.26.0"))
-        #expect(await service.lastCall() == "binaryUse")
-    }
-
-    @Test("binary switch installs available version")
-    func binarySwitchInstallsAvailableVersion() async {
-        let service = BinarySwitchCodexCLIService(
-            installed: NolonCodexBinaryListPayload(selectedVersionID: nil, versions: []),
-            available: NolonCodexBinaryAvailablePayload(
-                versions: [
-                    NolonCodexRemoteVersionView(
-                        version: "0.100.0",
-                        tag: "rust-v0.100.0",
-                        downloadURL: "https://example.com/codex.tar.gz",
-                        isPrerelease: false
-                    )
-                ]
-            )
-        )
-        let overrides = NolonCodexCLIExecutor.IOOverrides(
-            isTTY: { true },
-            readInputLine: { "1" },
-            writePrompt: { _ in }
-        )
-
-        let result = await NolonCodexCLIExecutor.withIOOverrides(overrides) {
-            await NolonCLIEntrypoint.execute(
-                arguments: ["codex", "binary", "switch"],
-                codexService: service
-            )
-        }
-
-        #expect(result.exitCode == 0)
-        #expect(result.stdout.contains("action: install"))
-        #expect(result.stdout.contains("requested_version: 0.100.0"))
-        #expect(await service.lastCall() == "binaryInstall")
-    }
-
-    @Test("routes binary doctor")
-    func routesBinaryDoctor() async {
-        let mock = MockCodexCLIService()
-        let result = await NolonCLIEntrypoint.execute(
-            arguments: [
-                "codex", "binary", "doctor",
-            ],
-            codexService: mock
-        )
-
-        #expect(result.exitCode == 0)
-        #expect(result.stdout.contains("profile_path: ~/.zshrc"))
-        #expect(await mock.lastCall() == "binaryDoctor")
-    }
-
-    @Test("binary list prints concise one-line items instead of json")
-    func binaryListPrintsConciseOneLineItems() async {
-        let service = BinaryListPlainTextCodexCLIService()
-        let result = await NolonCLIEntrypoint.execute(
-            arguments: ["codex", "binary", "list"],
-            codexService: service
-        )
-
-        #expect(result.exitCode == 0)
-        #expect(result.stderr.isEmpty)
-        let lines = result.stdout.split(separator: "\n").map(String.init)
-        #expect(lines.count == 2)
-        #expect(lines[0].contains("* 0.26.0"))
-        #expect(lines[1].contains("  0.9.0"))
-        #expect(lines[0].contains("Codex 0.26.0"))
-        #expect(lines[1].contains("X"))
-        #expect(lines[0].contains("v0.26.0"))
-        #expect(lines[1].contains("v0.9.0"))
-        #expect(!result.stdout.contains("\"command\":\"codex.binary.list\""))
-        #expect(!result.stdout.contains("\"ok\":true"))
-
-        let firstPipeIndices = lines[0].indicesOfPipes()
-        #expect(firstPipeIndices.count == 3)
-        #expect(lines[1].indicesOfPipes() == firstPipeIndices)
-    }
-
-    @Test("routes status probe")
-    func routesStatusProbe() async {
-        let mock = MockCodexCLIService()
-        let result = await NolonCLIEntrypoint.execute(
-            arguments: [
-                "codex", "status", "probe",
-                "--provider", "codex",
-            ],
-            codexService: mock
-        )
-
-        #expect(result.exitCode == 0)
-        #expect(result.stdout.contains("resolved_executable"))
-        #expect(result.stdout.contains("| /opt/homebrew/bin/codex"))
-        #expect(await mock.lastCall() == "statusProbe")
-    }
-
-    @Test("status probe degrades parse errors to warning output")
-    func statusProbeDegradesParseErrorsToWarning() async {
-        let mock = StatusProbeParseErrorCodexCLIService()
-        let result = await NolonCLIEntrypoint.execute(
-            arguments: ["codex", "status", "probe", "--provider", "codex"],
-            codexService: mock
-        )
-
-        #expect(result.exitCode == 0)
-        #expect(result.stderr.isEmpty)
-        #expect(result.stdout.contains("probe_warning"))
-        #expect(result.stdout.contains("Could not parse Codex status"))
-        #expect(result.stdout.contains("probe_hint"))
-        #expect(result.stdout.contains("nolon codex status doctor --json"))
-    }
-
-    @Test("routes runtime list")
-    func routesRuntimeList() async {
-        let mock = MockCodexCLIService()
-        let result = await NolonCLIEntrypoint.execute(
-            arguments: ["codex", "runtime", "list"],
-            codexService: mock
-        )
-
-        #expect(result.exitCode == 0)
-        #expect(result.stdout.contains("PID"))
-        #expect(result.stdout.contains("运行时长"))
-        #expect(await mock.lastCall() == "runtimeList")
-    }
-
-    @Test("routes runtime stop")
-    func routesRuntimeStop() async {
-        let mock = MockCodexCLIService()
-        let result = await NolonCLIEntrypoint.execute(
-            arguments: ["codex", "runtime", "stop", "--pid", "12345"],
-            codexService: mock
-        )
-
-        #expect(result.exitCode == 0)
-        #expect(result.stdout.contains("pid: 12345"))
-        #expect(result.stdout.contains("signal: term"))
-        #expect(await mock.lastCall() == "runtimeStop")
-    }
-
-    @Test("routes provider discover")
-    func routesProviderDiscover() async {
-        let mock = MockCodexCLIService()
-        let result = await NolonCLIEntrypoint.execute(
-            arguments: ["codex", "provider", "discover"],
-            codexService: mock
-        )
-
-        #expect(result.exitCode == 0)
-        #expect(result.stdout.contains("provider"))
-        #expect(result.stdout.contains("auth_state"))
-        #expect(await mock.lastCall() == "providerDiscover")
-    }
-
-    @Test("runtime stop rejects invalid pid")
-    func runtimeStopRejectsInvalidPID() async {
-        let mock = MockCodexCLIService()
-        let result = await NolonCLIEntrypoint.execute(
-            arguments: ["codex", "runtime", "stop", "--pid", "0"],
-            codexService: mock
-        )
-
-        #expect(result.exitCode == 2)
-        #expect(result.stderr.contains("\"code\":\"invalid_arguments\""))
-    }
-
-    @Test("status probe prints aligned table rows")
-    func statusProbePrintsAlignedTableRows() async {
-        let mock = MockCodexCLIService()
-        let result = await NolonCLIEntrypoint.execute(
-            arguments: [
-                "codex", "status", "probe",
-                "--provider", "codex",
-            ],
-            codexService: mock
-        )
-
-        #expect(result.exitCode == 0)
-        #expect(result.stderr.isEmpty)
-        let rows = result.stdout.split(separator: "\n").map(String.init)
-        #expect(rows.count >= 6)
-        let firstPipeIndex = rows[0].firstIndex(of: "|")
-        #expect(firstPipeIndex != nil)
-        for row in rows {
-            #expect(row.firstIndex(of: "|") == firstPipeIndex)
-        }
-    }
-
-    @Test("normalizes provider alias in status probe")
-    func normalizesProviderAliasInStatusProbe() async {
-        let mock = MockCodexCLIService()
-        let result = await NolonCLIEntrypoint.execute(
-            arguments: [
-                "codex", "status", "probe",
-                "--provider", "codexxcode",
-            ],
-            codexService: mock
-        )
-
-        #expect(result.exitCode == 0)
-        #expect(result.stdout.contains("| codex-xcode"))
-    }
-
-    @Test("routes status doctor")
-    func routesStatusDoctor() async {
-        let mock = MockCodexCLIService()
-        let result = await NolonCLIEntrypoint.execute(
-            arguments: ["codex", "status", "doctor"],
-            codexService: mock
-        )
-
-        #expect(result.exitCode == 0)
-        #expect(result.stderr.isEmpty)
-        #expect(result.stdout.contains("检查项"))
-        #expect(result.stdout.contains("status_probe"))
-    }
-
-    @Test("status probe rejects unsupported provider")
-    func statusProbeRejectsUnsupportedProvider() async {
-        let mock = MockCodexCLIService()
-        let result = await NolonCLIEntrypoint.execute(
-            arguments: [
-                "codex", "status", "probe",
-                "--provider", "claude",
-            ],
-            codexService: mock
-        )
-
-        #expect(result.exitCode == 2)
-        #expect(result.stderr.contains("\"code\":\"invalid_arguments\""))
-    }
-
-    @Test("unsupported command returns invalid arguments")
-    func unsupportedCommandError() async {
-        let mock = MockCodexCLIService()
-        let result = await NolonCLIEntrypoint.execute(
-            arguments: [
-                "codex", "status", "unknown",
-            ],
-            codexService: mock
-        )
-
-        #expect(result.exitCode == 2)
-        #expect(result.stderr.contains("\"code\":\"unsupported_command\""))
-        #expect(result.stderr.contains("Available actions for status"))
-    }
-
-    @Test("unsupported runtime command returns invalid arguments")
-    func unsupportedRuntimeCommandError() async {
-        let mock = MockCodexCLIService()
-        let result = await NolonCLIEntrypoint.execute(
-            arguments: ["codex", "runtime", "unknown"],
-            codexService: mock
-        )
-
-        #expect(result.exitCode == 2)
-        #expect(result.stderr.contains("\"code\":\"unsupported_command\""))
-        #expect(result.stderr.contains("Available actions for runtime"))
-    }
-
-    @Test("unknown codex group returns actionable error")
-    func unknownCodexGroupReturnsActionableError() async {
-        let mock = MockCodexCLIService()
-        let result = await NolonCLIEntrypoint.execute(
-            arguments: ["codex", "unknown", "list"],
-            codexService: mock
-        )
-
-        #expect(result.exitCode == 2)
-        #expect(result.stderr.contains("\"code\":\"invalid_arguments\""))
-        #expect(result.stderr.contains("Unknown group 'unknown'"))
-        #expect(result.stderr.contains("Available groups"))
-    }
-
-    @Test("json flag returns structured payload")
-    func jsonFlagReturnsStructuredPayload() async {
-        let service = BinaryListPlainTextCodexCLIService()
-        let result = await NolonCLIEntrypoint.execute(
-            arguments: ["codex", "binary", "list", "--json"],
-            codexService: service
-        )
-
-        #expect(result.exitCode == 0)
-        #expect(result.stderr.isEmpty)
-        #expect(result.stdout.contains("\"ok\":true"))
-        #expect(result.stdout.contains("\"command\":\"codex.binary.list\""))
-        #expect(result.stdout.contains("\"versions\""))
-    }
-
-    @Test("json flag before plugin command routes to core CLI")
-    func jsonFlagBeforePluginCommandRoutesToCoreCLI() async {
-        let result = await NolonCLIEntrypoint.execute(
-            arguments: ["--json", "plugin", "status", "--name", "xcodemcpkit"]
-        )
-
-        #expect(result.exitCode == 0)
-        #expect(result.stderr.isEmpty)
-        #expect(result.stdout.contains("\"ok\":true"))
-        #expect(result.stdout.contains("\"command\":\"plugin.status\""))
-    }
-
-    @Test("json flag after plugin command routes to core CLI")
-    func jsonFlagAfterPluginCommandRoutesToCoreCLI() async {
-        let result = await NolonCLIEntrypoint.execute(
-            arguments: ["plugin", "status", "--name", "xcodemcpkit", "--json"]
-        )
-
-        #expect(result.exitCode == 0)
-        #expect(result.stderr.isEmpty)
-        #expect(result.stdout.contains("\"ok\":true"))
-        #expect(result.stdout.contains("\"command\":\"plugin.status\""))
-    }
-
-    @Test("json contract snapshot for codex binary list success")
-    func jsonContractSnapshotBinaryListSuccess() async throws {
-        let service = JSONContractCodexCLIService()
-        let result = await NolonCLIEntrypoint.execute(
-            arguments: ["codex", "binary", "list", "--json"],
-            codexService: service
-        )
-
-        #expect(result.exitCode == 0)
-        #expect(result.stderr.isEmpty)
-
-        let expected = #"{"command":"codex.binary.list","data":{"selectedVersionID":"v1","versions":[{"detectedVersion":"1.0.0","displayName":"Codex 1.0.0","id":"v1","importedAt":"1970-01-01T00:00:00Z","isSelected":true,"source":"download"}]},"ok":true}"#
-        #expect(try canonicalJSON(result.stdout) == expected)
-    }
-
-    @Test("json contract snapshot for codex auth list success")
-    func jsonContractSnapshotAuthListSuccess() async throws {
-        let service = JSONContractCodexCLIService()
-        let result = await NolonCLIEntrypoint.execute(
-            arguments: ["codex", "auth", "list", "--provider", "codex", "--json"],
-            codexService: service
-        )
-
-        #expect(result.exitCode == 0)
-        #expect(result.stderr.isEmpty)
-
-        let expected = #"{"command":"codex.auth.list","data":{"accounts":[{"createdAt":"1970-01-01T00:00:00Z","email":"json@example.com","id":"11111111-1111-1111-1111-111111111111","isActive":true,"name":"json-account","refreshedAt":"1970-01-01T00:01:00Z","relativeAuthPath":"accounts\/json\/auth.json","usageDisplay":"5h 80% \/ 7d 60%"}],"activeAccountID":"11111111-1111-1111-1111-111111111111","providerID":"codex"},"ok":true}"#
-        #expect(try canonicalJSON(result.stdout) == expected)
-    }
-
-    @Test("json contract snapshot for codex auth usage success")
-    func jsonContractSnapshotAuthUsageSuccess() async throws {
-        let service = JSONContractCodexCLIService()
-        let result = await NolonCLIEntrypoint.execute(
-            arguments: ["codex", "auth", "usage", "--provider", "codex", "--json"],
-            codexService: service
-        )
-
-        #expect(result.exitCode == 0)
-        #expect(result.stderr.isEmpty)
-
-        let expected = #"{"command":"codex.auth.usage","data":{"accounts":[{"email":"json@example.com","expiresAt":"2026-12-31T08:00:00Z","fiveHourRemainingPercent":80,"id":"11111111-1111-1111-1111-111111111111","isActive":true,"isSkipped":false,"refreshedAt":"1970-01-01T00:00:00Z","status":"healthy","token1dCount":1200000,"token30dCount":24000000,"tokenAllCount":50000000,"weeklyRemainingPercent":60}],"providerID":"codex","refreshOrder":[],"skippedAccounts":[],"summary":{"accountCount":1,"avgFiveHourRemainingPercent":80,"avgWeeklyRemainingPercent":60,"cachedCount":1,"earliestExpiresAt":"2026-12-31T08:00:00Z","latestRefreshedAt":"1970-01-01T00:00:00Z","totalToken1dCount":1200000,"totalToken30dCount":24000000,"totalTokenAllCount":50000000}},"ok":true}"#
-        #expect(try canonicalJSON(result.stdout) == expected)
-    }
-
-    @Test("json contract snapshot for codex auth usage-trend success")
-    func jsonContractSnapshotAuthUsageTrendSuccess() async throws {
-        let service = JSONContractCodexCLIService()
-        let result = await NolonCLIEntrypoint.execute(
-            arguments: ["codex", "auth", "usage-trend", "--provider", "codex", "--range", "7d", "--json"],
-            codexService: service
-        )
-
-        #expect(result.exitCode == 0)
-        #expect(result.stderr.isEmpty)
-        let data = try #require(result.stdout.data(using: .utf8))
-        let object = try JSONSerialization.jsonObject(with: data)
-        let root = try #require(object as? [String: Any])
-        #expect((root["ok"] as? Bool) == true)
-        #expect((root["command"] as? String) == "codex.auth.usage-trend")
-        let payload = try #require(root["data"] as? [String: Any])
-        #expect((payload["providerID"] as? String) == "codex")
-        #expect((payload["range"] as? String) == "7d")
-        #expect((payload["sourceLabel"] as? String) == "global")
-        let points = try #require(payload["points"] as? [[String: Any]])
-        #expect(points.count == 2)
-        #expect((points.first?["date"] as? String) == "2026-02-26")
-        let summary = try #require(payload["summary"] as? [String: Any])
-        #expect((summary["todayTokens"] as? Int) == 2_500_000)
-        #expect((summary["last7DaysTokens"] as? Int) == 4_450_000)
-        #expect((summary["last30DaysTokens"] as? Int) == 4_450_000)
-    }
-
-    @Test("json contract snapshot for codex auth status success")
-    func jsonContractSnapshotAuthStatusSuccess() async throws {
-        let service = JSONContractCodexCLIService()
-        let result = await NolonCLIEntrypoint.execute(
-            arguments: ["codex", "auth", "status", "--provider", "codex", "--json"],
-            codexService: service
-        )
-
-        #expect(result.exitCode == 0)
-        #expect(result.stderr.isEmpty)
-
-        let expected = #"{"command":"codex.auth.status","data":{"accountCount":2,"activeAccountID":"22222222-2222-2222-2222-222222222222","authHashHex":"abc123","providerID":"codex","usageAvgFiveHourRemainingPercent":70,"usageAvgWeeklyRemainingPercent":55,"usageCachedAccountCount":2,"usageLatestRefreshedAt":"1970-01-01T00:01:00Z"},"ok":true}"#
-        #expect(try canonicalJSON(result.stdout) == expected)
-    }
-
-    @Test("json contract snapshot for codex auth activate success")
-    func jsonContractSnapshotAuthActivateSuccess() async throws {
-        let service = JSONContractCodexCLIService()
-        let result = await NolonCLIEntrypoint.execute(
-            arguments: [
-                "codex", "auth", "activate",
-                "--provider", "codex",
-                "--account-id", "33333333-3333-3333-3333-333333333333",
-                "--json",
-            ],
-            codexService: service
-        )
-
-        #expect(result.exitCode == 0)
-        #expect(result.stderr.isEmpty)
-
-        let expected = #"{"command":"codex.auth.activate","data":{"accountID":"33333333-3333-3333-3333-333333333333","providerID":"codex","runtimeErrorDescription":"runtime restarted","runtimeSwitched":false},"ok":true}"#
-        #expect(try canonicalJSON(result.stdout) == expected)
-    }
-
-    @Test("json contract snapshot for codex auth login success")
-    func jsonContractSnapshotAuthLoginSuccess() async throws {
-        let service = JSONContractCodexCLIService()
-        let result = await NolonCLIEntrypoint.execute(
-            arguments: [
-                "codex", "auth", "login",
-                "--provider", "codex",
-                "--preferred-account-id", "44444444-4444-4444-4444-444444444444",
-                "--json",
-            ],
-            codexService: service
-        )
-
-        #expect(result.exitCode == 0)
-        #expect(result.stderr.isEmpty)
-
-        let expected = #"{"command":"codex.auth.login","data":{"accountID":"44444444-4444-4444-4444-444444444444","accountName":"json-login","loginURL":"https:\/\/auth.example.com\/device","providerID":"codex","runtimeSwitched":true},"ok":true}"#
-        #expect(try canonicalJSON(result.stdout) == expected)
-    }
-
-    @Test("json contract snapshot for codex auth refresh success")
-    func jsonContractSnapshotAuthRefreshSuccess() async throws {
-        let service = JSONContractCodexCLIService()
-        let result = await NolonCLIEntrypoint.execute(
-            arguments: [
-                "codex", "auth", "refresh",
-                "--provider", "codex",
-                "--account-id", "44444444-4444-4444-4444-444444444444",
-                "--json",
-            ],
-            codexService: service
-        )
-
-        #expect(result.exitCode == 0)
-        #expect(result.stderr.isEmpty)
-
-        let expected = #"{"command":"codex.auth.refresh","data":{"items":[{"accountID":"44444444-4444-4444-4444-444444444444","accountName":"json-refresh","email":"json@example.com","isActive":true,"runtimeSwitched":true,"success":true}],"providerID":"codex","summary":{"failureCount":0,"successCount":1,"totalCount":1}},"ok":true}"#
-        #expect(try canonicalJSON(result.stdout) == expected)
-    }
-
-    @Test("json contract snapshot for codex auth delete success")
-    func jsonContractSnapshotAuthDeleteSuccess() async throws {
-        let service = JSONContractCodexCLIService()
-        let result = await NolonCLIEntrypoint.execute(
-            arguments: [
-                "codex", "auth", "delete",
-                "--provider", "codex",
-                "--account-id", "55555555-5555-5555-5555-555555555555",
-                "--json",
-            ],
-            codexService: service
-        )
-
-        #expect(result.exitCode == 0)
-        #expect(result.stderr.isEmpty)
-
-        let expected = #"{"command":"codex.auth.delete","data":{"accountID":"55555555-5555-5555-5555-555555555555","providerID":"codex","wasActive":true},"ok":true}"#
-        #expect(try canonicalJSON(result.stdout) == expected)
-    }
-
-    @Test("json contract snapshot for unknown codex group error")
-    func jsonContractSnapshotUnknownGroupError() async throws {
-        let service = JSONContractCodexCLIService()
-        let result = await NolonCLIEntrypoint.execute(
-            arguments: ["codex", "oops", "list"],
-            codexService: service
-        )
-
-        #expect(result.exitCode == 2)
-        #expect(result.stdout.isEmpty)
-
-        let expected = #"{"error":{"code":"invalid_arguments","message":"Unknown group 'oops'. Available groups: auth, binary, gateway, provider, runtime, status."},"ok":false}"#
-        #expect(try canonicalJSON(result.stderr) == expected)
-    }
-
-    @Test("domain error keeps structured code")
-    func domainErrorCode() async {
-        let mock = DomainErrorCodexCLIService()
-        let result = await NolonCLIEntrypoint.execute(
-            arguments: [
-                "codex", "binary", "use",
-                "--version", "missing",
-            ],
-            codexService: mock
-        )
-
-        #expect(result.exitCode == 2)
-        #expect(result.stderr.contains("\"code\":\"codex_binary_not_found\""))
-    }
-
-    @Test("cancellation maps to interrupted structured error")
-    func cancellationMapsToInterruptedError() async {
-        let mock = CancellationErrorCodexCLIService()
-        let result = await NolonCLIEntrypoint.execute(
-            arguments: [
-                "codex", "binary", "use",
-                "--version", "v0.1.0",
-            ],
-            codexService: mock
-        )
-
-        #expect(result.exitCode == 130)
-        #expect(result.stdout.isEmpty)
-        #expect(result.stderr.contains("\"code\":\"interrupted\""))
-        #expect(result.stderr.contains("Operation cancelled"))
-    }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 }
 
 private extension String {
@@ -3385,5 +1378,290 @@ private actor AuthListMissingFieldsCodexCLIService: NolonCodexCLIServing {
 
     private func unsupported() -> NolonCoreCLIError {
         .invalidArguments("unsupported")
+    }    @Test("gemini auth commands route to core cli")
+    func geminiAuthCommandsRouteToCoreCLI() async {
+        let mock = MockCodexCLIService()
+        let result = await NolonCLIEntrypoint.execute(
+            arguments: ["gemini", "auth", "status", "--provider", "gemini", "--json"],
+            codexService: mock
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stderr.isEmpty)
+        #expect(result.stdout.contains("\"command\":\"gemini.auth.status\""))
+        #expect(result.stdout.contains("\"provider\":\"gemini\""))
+    }
+    @Test("no arguments prints help instead of JSON error")
+    func noArgumentsPrintsHelp() async {
+        let mock = MockCodexCLIService()
+        let result = await NolonCLIEntrypoint.execute(arguments: [], codexService: mock)
+
+        #expect(result.exitCode == 0)
+        #expect(result.stderr.isEmpty)
+        #expect(result.stdout.contains("USAGE: nolon"))
+        #expect(result.stdout.contains("SUBCOMMANDS"))
+        #expect(result.stdout.contains("skills"))
+        #expect(result.stdout.contains("workflow"))
+        #expect(result.stdout.contains("mcp"))
+        #expect(result.stdout.contains("remote"))
+    }
+    @Test("leading help command resolves codex action help")
+    func leadingHelpCommandResolvesCodexActionHelp() async {
+        let mock = MockCodexCLIService()
+        let result = await NolonCLIEntrypoint.execute(
+            arguments: ["help", "codex", "auth", "refresh"],
+            codexService: mock
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stderr.isEmpty)
+        #expect(result.stdout.contains("Usage: nolon codex auth refresh"))
+        #expect(result.stdout.contains("切换为活跃账号"))
+    }
+    @Test("codex --help prints codex help")
+    func codexHelpPrintsHelp() async {
+        let mock = MockCodexCLIService()
+        let result = await NolonCLIEntrypoint.execute(
+            arguments: ["codex", "--help"],
+            codexService: mock
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stderr.isEmpty)
+        #expect(result.stdout.contains("Usage: nolon <provider> <group> <action> [options]"))
+        #expect(result.stdout.contains("Groups:"))
+        #expect(result.stdout.contains("auth"))
+        #expect(result.stdout.contains("binary"))
+    }
+    @Test("skills --help includes task-oriented examples")
+    func skillsHelpIncludesExamples() async {
+        let mock = MockCodexCLIService()
+        let result = await NolonCLIEntrypoint.execute(
+            arguments: ["skills", "--help"],
+            codexService: mock
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stderr.isEmpty)
+        #expect(result.stdout.contains("场景: 搜索技能"))
+        #expect(result.stdout.contains("场景: 安装技能"))
+        #expect(result.stdout.contains("场景: 修复异常"))
+        #expect(result.stdout.contains("nolon skills search xcode"))
+        #expect(result.stdout.contains("<keyword> | --query <query>"))
+        #expect(result.stdout.contains("--query <query>"))
+        #expect(result.stdout.contains("--pick <index>"))
+        #expect(result.stdout.contains("nolon skills add xcode --provider codex"))
+        #expect(result.stdout.contains("省略 --provider 可能触发多 provider 批量写入/覆盖"))
+    }
+    @Test("skills search --help explains install and pick relation")
+    func skillsSearchHelpExplainsInstallPickRelation() async {
+        let mock = MockCodexCLIService()
+        let result = await NolonCLIEntrypoint.execute(
+            arguments: ["skills", "search", "--help"],
+            codexService: mock
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stderr.isEmpty)
+        #expect(result.stdout.contains("Install matched skill(s);"))
+        #expect(result.stdout.contains("Pick one search result by 1-based index"))
+        #expect(result.stdout.contains("Target provider ID. Omit to distribute to all"))
+        #expect(result.stdout.contains("nolon skills search \"swiftui\" --install --pick 1 --provider codex --dry-run"))
+    }
+    @Test("skills add --help warns about provider omission scope")
+    func skillsAddHelpWarnsAboutProviderOmissionScope() async {
+        let mock = MockCodexCLIService()
+        let result = await NolonCLIEntrypoint.execute(
+            arguments: ["skills", "add", "--help"],
+            codexService: mock
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stderr.isEmpty)
+        #expect(result.stdout.contains("Target provider ID. Omit to distribute to all"))
+        #expect(result.stdout.contains("nolon skills add swift-concurrency-expert --provider codex --dry-run"))
+    }
+    @Test("skills remove --help shows safety note and example")
+    func skillsRemoveHelpShowsSafetyNoteAndExample() async {
+        let mock = MockCodexCLIService()
+        let result = await NolonCLIEntrypoint.execute(
+            arguments: ["skills", "remove", "--help"],
+            codexService: mock
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stderr.isEmpty)
+        #expect(result.stdout.contains("该操作会直接移除 provider 下的技能链接/目录"))
+        #expect(result.stdout.contains("nolon skills list --provider <id>"))
+        #expect(result.stdout.contains("nolon skills remove --skill-id xcode --provider codex"))
+    }
+    @Test("codex without group action prints codex help")
+    func codexWithoutActionPrintsHelp() async {
+        let mock = MockCodexCLIService()
+        let result = await NolonCLIEntrypoint.execute(
+            arguments: ["codex"],
+            codexService: mock
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stderr.isEmpty)
+        #expect(result.stdout.contains("Usage: nolon <provider> <group> <action> [options]"))
+        #expect(result.stdout.contains("Groups:"))
+    }
+    @Test("codex auth --help prints auth help")
+    func codexAuthHelpPrintsHelp() async {
+        let mock = MockCodexCLIService()
+        let result = await NolonCLIEntrypoint.execute(
+            arguments: ["codex", "auth", "--help"],
+            codexService: mock
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stderr.isEmpty)
+        #expect(result.stdout.contains("Usage: nolon codex auth"))
+        #expect(result.stdout.contains("Actions:"))
+    }
+    @Test("codex auth without action prints auth help")
+    func codexAuthWithoutActionPrintsHelp() async {
+        let mock = MockCodexCLIService()
+        let result = await NolonCLIEntrypoint.execute(
+            arguments: ["codex", "auth"],
+            codexService: mock
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stderr.isEmpty)
+        #expect(result.stdout.contains("Usage: nolon codex auth"))
+        #expect(result.stdout.contains("Actions:"))
+    }
+    @Test("codex binary --help prints binary help")
+    func codexBinaryHelpPrintsHelp() async {
+        let mock = MockCodexCLIService()
+        let result = await NolonCLIEntrypoint.execute(
+            arguments: ["codex", "binary", "--help"],
+            codexService: mock
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stderr.isEmpty)
+        #expect(result.stdout.contains("Usage: nolon codex binary"))
+        #expect(result.stdout.contains("Actions:"))
+        #expect(result.stdout.contains("install"))
+        #expect(result.stdout.contains("available"))
+    }
+    @Test("codex binary without action prints binary help")
+    func codexBinaryWithoutActionPrintsHelp() async {
+        let mock = MockCodexCLIService()
+        let result = await NolonCLIEntrypoint.execute(
+            arguments: ["codex", "binary"],
+            codexService: mock
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stderr.isEmpty)
+        #expect(result.stdout.contains("Usage: nolon codex binary"))
+        #expect(result.stdout.contains("Actions:"))
+    }
+    @Test("codex status --help prints status help")
+    func codexStatusHelpPrintsHelp() async {
+        let mock = MockCodexCLIService()
+        let result = await NolonCLIEntrypoint.execute(
+            arguments: ["codex", "status", "--help"],
+            codexService: mock
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stderr.isEmpty)
+        #expect(result.stdout.contains("Usage: nolon codex status"))
+        #expect(result.stdout.contains("Actions:"))
+        #expect(result.stdout.contains("probe"))
+        #expect(result.stdout.contains("doctor"))
+    }
+    @Test("codex status without action prints status help")
+    func codexStatusWithoutActionPrintsHelp() async {
+        let mock = MockCodexCLIService()
+        let result = await NolonCLIEntrypoint.execute(
+            arguments: ["codex", "status"],
+            codexService: mock
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stderr.isEmpty)
+        #expect(result.stdout.contains("Usage: nolon codex status"))
+        #expect(result.stdout.contains("Actions:"))
+    }
+    @Test("codex runtime --help prints runtime help")
+    func codexRuntimeHelpPrintsHelp() async {
+        let mock = MockCodexCLIService()
+        let result = await NolonCLIEntrypoint.execute(
+            arguments: ["codex", "runtime", "--help"],
+            codexService: mock
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stderr.isEmpty)
+        #expect(result.stdout.contains("Usage: nolon codex runtime"))
+        #expect(result.stdout.contains("Actions:"))
+        #expect(result.stdout.contains("list"))
+        #expect(result.stdout.contains("stop"))
+    }
+    @Test("codex provider --help prints provider help")
+    func codexProviderHelpPrintsHelp() async {
+        let mock = MockCodexCLIService()
+        let result = await NolonCLIEntrypoint.execute(
+            arguments: ["codex", "provider", "--help"],
+            codexService: mock
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stderr.isEmpty)
+        #expect(result.stdout.contains("Usage: nolon codex provider"))
+        #expect(result.stdout.contains("Actions:"))
+        #expect(result.stdout.contains("discover"))
+    }
+    @Test("codex gateway --help prints gateway help")
+    func codexGatewayHelpPrintsHelp() async {
+        let mock = MockCodexCLIService()
+        let result = await NolonCLIEntrypoint.execute(
+            arguments: ["codex", "gateway", "--help"],
+            codexService: mock
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stderr.isEmpty)
+        #expect(result.stdout.contains("USAGE: nolon codex gateway"))
+        #expect(result.stdout.contains("status"))
+        #expect(result.stdout.contains("start"))
+        #expect(result.stdout.contains("stop"))
+        #expect(result.stdout.contains("serve"))
+    }
+    @Test("codex gateway status routes successfully")
+    func codexGatewayStatusRoutesSuccessfully() async {
+        let mock = MockCodexCLIService()
+        let result = await NolonCLIEntrypoint.execute(
+            arguments: ["codex", "gateway", "status", "--json"],
+            codexService: mock
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stderr.isEmpty)
+        #expect(result.stdout.contains("\"command\":\"codex.gateway.status\""))
+        #expect(result.stdout.contains("\"status\":\"stopped\""))
+        #expect(await mock.lastCall() == "gatewayStatus")
+    }
+    @Test("codex gateway start routes successfully")
+    func codexGatewayStartRoutesSuccessfully() async {
+        let mock = MockCodexCLIService()
+        let result = await NolonCLIEntrypoint.execute(
+            arguments: ["codex", "gateway", "start", "--host", "127.0.0.1", "--port", "9090", "--json"],
+            codexService: mock
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stderr.isEmpty)
+        #expect(result.stdout.contains("\"command\":\"codex.gateway.start\""))
+        #expect(result.stdout.contains("\"status\":\"running\""))
+        #expect(result.stdout.contains("\"port\":9090"))
+        #expect(await mock.lastCall() == "gatewayStart:127.0.0.1:9090")
     }
 }
