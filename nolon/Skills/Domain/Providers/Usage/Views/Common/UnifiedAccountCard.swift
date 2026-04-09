@@ -337,11 +337,10 @@ struct UnifiedAccountCard: View, DebugCardLocatable {
     }
 
     private func rowMarkerTitle(_ row: AccountCardRowViewData) -> String {
-        if let title = row.title?.trimmingCharacters(in: .whitespacesAndNewlines), !title.isEmpty {
+        if let title = TextNormalizationSupport.trimmed(row.title) {
             return title
         }
-        let value = row.value.trimmingCharacters(in: .whitespacesAndNewlines)
-        return value.isEmpty ? "Row" : value
+        return TextNormalizationSupport.trimmed(row.value) ?? "Row"
     }
 
     private func actionMarkerItems(_ action: AccountCardActionViewData) -> [PageMarkerItem] {
@@ -349,15 +348,10 @@ struct UnifiedAccountCard: View, DebugCardLocatable {
     }
 
     private func footerMarkerItems(_ footer: AccountCardFooterViewData) -> [PageMarkerItem] {
-        let label = [
-            footer.leadingTag?.trimmingCharacters(in: .whitespacesAndNewlines),
-            footer.trailingText?.trimmingCharacters(in: .whitespacesAndNewlines),
-        ]
-        .compactMap { value in
-            guard let value, !value.isEmpty else { return nil }
-            return value
-        }
-        .joined(separator: " • ")
+        let label = TextNormalizationSupport.joinedNonEmpty([
+            footer.leadingTag,
+            footer.trailingText,
+        ]) ?? ""
 
         return debugCardMarkerItems + [PageMarkerItem(title: label.isEmpty ? "Footer" : label)]
     }

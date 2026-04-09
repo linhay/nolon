@@ -212,15 +212,9 @@ extension GeminiAuthAccount: ProviderAccountRecordConvertible {
     func accountSource() -> AccountRecordSource { .local }
 
     func accountIdentity() -> AccountIdentity {
-        let subtitle = [email, project]
-            .compactMap { value -> String? in
-                guard let value, !value.isEmpty else { return nil }
-                return value
-            }
-            .joined(separator: " • ")
         return .init(
             displayName: name,
-            subtitle: subtitle.isEmpty ? nil : subtitle,
+            subtitle: AccountDisplayTextSupport.subtitle(email, project),
             meta: (lastLoginAt ?? createdAt).formatted(date: .abbreviated, time: .shortened)
         )
     }
@@ -279,7 +273,10 @@ enum AccountRecordBuilder {
 
         func accountIdentity() -> AccountIdentity {
             .init(
-                displayName: summary.accountEmail ?? summary.accountLabel,
+                displayName: AccountDisplayTextSupport.title(
+                    primary: summary.accountEmail,
+                    fallback: summary.accountLabel
+                ),
                 subtitle: summary.plan,
                 meta: summary.latestUpdatedAt?.formatted(date: .abbreviated, time: .shortened)
             )
@@ -370,7 +367,10 @@ enum AccountRecordBuilder {
             isActive: isActive,
             quota: .init(
                 provider: usageProvider,
-                accountTitle: summary.accountEmail ?? summary.accountLabel,
+                accountTitle: AccountDisplayTextSupport.title(
+                    primary: summary.accountEmail,
+                    fallback: summary.accountLabel
+                ),
                 usage: snapshot,
                 credits: nil,
                 creditsRefreshedAt: nil,
@@ -392,47 +392,29 @@ enum AccountRecordBuilder {
         isRefreshing: Bool,
         canRelogin: Bool
     ) -> AccountRecord {
+        let liveFailureError: Error? = {
+            if case let .failure(error) = outcome.outcome.result { return error }
+            return nil
+        }()
+        let failurePresentation = CodexAccountFailurePresentationBuilder.build(
+            liveFailureError: liveFailureError,
+            persistedFailureMessage: summary?.lastSyncFailureMessage,
+            canRelogin: canRelogin
+        )
         let displayState: AccountHealthState = {
             if presentation.selectionStyle == .pending {
                 return .loading
             }
-            if case let .failure(error) = outcome.outcome.result,
-               CodexAuthFailureClassifier.isAuthFailure(errorText: providerUsageErrorDetailText(error: error)) {
+            if failurePresentation.hasFailure, failurePresentation.isAuthFailure {
                 return .warning
             }
-            if summary?.lastSyncFailureMessage?.isEmpty == false && canRelogin {
+            if failurePresentation.hasPersistedFailure && canRelogin {
                 return .warning
             }
             if case .failure = outcome.outcome.result {
                 return .failed
             }
             return .healthy
-        }()
-        let liveFailureError: Error? = {
-            if case let .failure(error) = outcome.outcome.result { return error }
-            return nil
-        }()
-        let persistedFailureDetail = summary?.lastSyncFailureMessage?.trimmingCharacters(in: .whitespacesAndNewlines)
-        let failureDetailRaw: String? = {
-            if let persistedFailureDetail, !persistedFailureDetail.isEmpty { return persistedFailureDetail }
-            if let liveFailureError { return providerUsageErrorDetailText(error: liveFailureError) }
-            return nil
-        }()
-        let failureDetail: String? = failureDetailRaw.map {
-            ProviderUsageErrorTextFormatter.displayText(errorDetail: $0)
-        }
-        let failureSummary: String? = {
-            if let liveFailureError {
-                return providerUsageErrorSummaryText(error: liveFailureError)
-            }
-            if let failureDetailRaw, canRelogin, CodexAuthFailureClassifier.isAuthFailure(errorText: failureDetailRaw) {
-                return NSLocalizedString(
-                    "codex.accounts.error.auth_expired",
-                    value: "Authentication expired. Please sign in again.",
-                    comment: "Codex auth expired summary"
-                )
-            }
-            return failureDetail
         }()
 
         let quota: AccountRecordQuota = {
@@ -461,13 +443,13 @@ enum AccountRecordBuilder {
                     syncedAt: nil,
                     isLoading: isRefreshing,
                     showsEmptyState: false,
-                    errorMessage: failureDetail
+                    errorMessage: failurePresentation.detail
                 )
             }
         }()
 
         let detailFields: [AccountRecordField] = {
-            guard let failureSummary else { return [] }
+            guard let failureSummary = failurePresentation.summary else { return [] }
             var fields: [AccountRecordField] = [
                 .init(
                     id: "failureSummary",
@@ -478,7 +460,7 @@ enum AccountRecordBuilder {
                     tone: displayState == .warning ? .warning : .neutral
                 ),
             ]
-            if let failureDetail,
+            if let failureDetail = failurePresentation.detail,
                failureDetail != failureSummary
             {
                 fields.append(
@@ -555,32 +537,8 @@ enum AccountRecordBuilder {
     }
 
     static func codexSubtitleText(title: String, email: String?, plan: String?) -> String? {
-        let trimmedEmail = email?.trimmingCharacters(in: .whitespacesAndNewlines)
-        let trimmedPlan = plan?.trimmingCharacters(in: .whitespacesAndNewlines)
-
-        let parts = [
-            (trimmedEmail?.isEmpty == false && trimmedEmail != title) ? trimmedEmail : nil,
-            (trimmedPlan?.isEmpty == false) ? trimmedPlan : nil,
-        ].compactMap { $0 }
-
-        return parts.isEmpty ? nil : parts.joined(separator: " • ")
+        AccountDisplayTextSupport.codexSubtitle(title: title, email: email, plan: plan)
     }
-}
-
-private func providerUsageErrorDetailText(error: Error) -> String {
-    ProviderUsageErrorTextFormatter.detailText(
-        localizedDescription: error.localizedDescription,
-        fallbackDescription: String(describing: error)
-    )
-}
-
-private func providerUsageErrorSummaryText(error: Error, maxLength: Int = 140) -> String {
-    let detail = providerUsageErrorDetailText(error: error)
-    return ProviderUsageErrorTextFormatter.summaryText(
-        errorDetail: detail,
-        isAuthFailure: CodexAuthFailureClassifier.isAuthFailure(errorText: detail),
-        maxLength: maxLength
-    )
 }
 
 enum AccountCardRowStyle: Equatable {

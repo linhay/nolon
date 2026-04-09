@@ -48,33 +48,15 @@ extension ProviderUsageAccountsViewModel.ClaudeState {
         let data = AccountCardViewDataMapper.map(
             record: record,
             primaryActions: isActive ? [] : [
-                .init(
-                    id: "activate",
-                    actionID: .activate,
-                    title: NSLocalizedString("claude.accounts.action.activate", value: "激活", comment: "Activate Claude account"),
-                    systemImage: nil,
-                    role: nil,
-                    prominence: .primary,
-                    isEnabled: true
+                AccountCardActionFactory.primaryActivateAction(
+                    title: NSLocalizedString("claude.accounts.action.activate", value: "激活", comment: "Activate Claude account")
                 )
             ],
             menuActions: [
-                .init(
-                    id: "edit",
-                    actionID: .edit,
-                    title: NSLocalizedString("claude.accounts.action.edit", value: "编辑", comment: "Edit Claude account"),
-                    systemImage: "pencil",
-                    role: nil,
-                    isEnabled: true
+                AccountCardActionFactory.menuEditAction(
+                    title: NSLocalizedString("claude.accounts.action.edit", value: "编辑", comment: "Edit Claude account")
                 ),
-                .init(
-                    id: "refresh",
-                    actionID: .refresh,
-                    title: NSLocalizedString("usage.monitor.refresh", value: "Refresh", comment: "Refresh"),
-                    systemImage: "arrow.clockwise",
-                    role: nil,
-                    isEnabled: true
-                )
+                AccountCardActionFactory.menuRefreshAction(isEnabled: true)
             ],
             tapBehavior: isActive ? .none : .activate
         )
@@ -279,7 +261,10 @@ extension ProviderUsageAccountsViewModel.GeminiState {
                 }()
                 return .init(
                     provider: liveOutcome.provider,
-                    accountTitle: account.email ?? account.name,
+                    accountTitle: AccountDisplayTextSupport.title(
+                        primary: account.email,
+                        fallback: account.name
+                    ),
                     usage: result.usage,
                     modelUsages: modelUsages,
                     credits: result.credits,
@@ -291,13 +276,12 @@ extension ProviderUsageAccountsViewModel.GeminiState {
                     errorMessage: nil
                 )
             case let .failure(error):
-                let rawDetail = ProviderUsageErrorTextFormatter.detailText(
-                    localizedDescription: error.localizedDescription,
-                    fallbackDescription: String(describing: error)
-                )
                 return .init(
                     provider: liveOutcome.provider,
-                    accountTitle: account.email ?? account.name,
+                    accountTitle: AccountDisplayTextSupport.title(
+                        primary: account.email,
+                        fallback: account.name
+                    ),
                     usage: nil,
                     modelUsages: nil,
                     credits: nil,
@@ -306,7 +290,7 @@ extension ProviderUsageAccountsViewModel.GeminiState {
                     syncedAt: nil,
                     isLoading: isLoading,
                     showsEmptyState: false,
-                    errorMessage: ProviderUsageErrorTextFormatter.displayText(errorDetail: rawDetail)
+                    errorMessage: ProviderUsageErrorPresentationSupport.displayText(error: error)
                 )
             }
         }()
@@ -320,33 +304,13 @@ extension ProviderUsageAccountsViewModel.GeminiState {
         let data = AccountCardViewDataMapper.map(
             record: record,
             primaryActions: isActive ? [] : [
-                .init(
-                    id: "activate",
-                    actionID: .activate,
+                AccountCardActionFactory.primaryActivateAction(
                     title: NSLocalizedString("codex.accounts.action.activate", value: "Activate", comment: "Activate account"),
-                    systemImage: nil,
-                    role: nil,
-                    prominence: .primary,
-                    isEnabled: true
                 )
             ],
             menuActions: [
-                .init(
-                    id: "refresh",
-                    actionID: .refresh,
-                    title: NSLocalizedString("usage.monitor.refresh", value: "Refresh", comment: "Refresh"),
-                    systemImage: "arrow.clockwise",
-                    role: nil,
-                    isEnabled: !isLoading
-                ),
-                .init(
-                    id: "delete",
-                    actionID: .delete,
-                    title: NSLocalizedString("codex.accounts.delete.title", value: "Delete Account", comment: "Delete account title"),
-                    systemImage: "trash",
-                    role: .destructive,
-                    isEnabled: true
-                )
+                AccountCardActionFactory.menuRefreshAction(isEnabled: !isLoading),
+                AccountCardActionFactory.menuDeleteAction()
             ],
             quotaRefreshActionID: nil,
             tapBehavior: isActive ? .none : .activate
@@ -402,54 +366,23 @@ extension ProviderUsageAccountsViewModel.CodexState {
             if case let .failure(error) = outcome.outcome.result { return error }
             return nil
         }()
-        let persistedFailureDetail = summary?.lastSyncFailureMessage?.trimmingCharacters(in: .whitespacesAndNewlines)
-        let failureDetailRaw: String? = {
-            if let persistedFailureDetail, !persistedFailureDetail.isEmpty { return persistedFailureDetail }
-            if let liveFailureError {
-                return ProviderUsageErrorTextFormatter.detailText(
-                    localizedDescription: liveFailureError.localizedDescription,
-                    fallbackDescription: String(describing: liveFailureError)
-                )
-            }
-            return nil
-        }()
-        let title = ProviderUsageAccountDisplayNameResolver.resolve(
-            email: summary?.email,
-            summaryAccountID: summary?.accountID,
-            cardKind: summary.map { "\($0.cardKind)" },
-            apiKeySuffix: summary?.apiKeySuffix,
-            relayModelProvider: summary?.relayModelProvider,
-            relayBaseURL: summary?.relayBaseURL,
+        let failurePresentation = CodexAccountFailurePresentationBuilder.build(
+            liveFailureError: liveFailureError,
+            persistedFailureMessage: summary?.lastSyncFailureMessage,
+            canRelogin: canLogin
+        )
+        let title = AccountDisplayTextSupport.codexTitle(
+            summary: summary,
             relativeAuthPath: accountID.flatMap { id in accounts.first(where: { $0.id == id })?.relativeAuthPath },
             defaultName: outcome.displayName,
             accountID: accountID
         )
 
         let primaryActions: [AccountCardActionViewData] = {
-            guard let failureDetailRaw else { return [] }
-            var actions: [AccountCardActionViewData] = [
-                .init(
-                    id: "copyError",
-                    actionID: .copyError,
-                    title: NSLocalizedString("codex.accounts.copy_error", value: "Copy error", comment: "Copy account error"),
-                    systemImage: nil,
-                    role: nil,
-                    prominence: canLogin ? .secondary : .primary,
-                    isEnabled: true
-                )
-            ]
+            guard let failureDetailRaw = failurePresentation.rawDetail else { return [] }
+            var actions: [AccountCardActionViewData] = [CodexAccountActionFactory.primaryCopyErrorAction(canRelogin: canLogin)]
             if canLogin {
-                actions.append(
-                    .init(
-                        id: "relogin",
-                        actionID: .relogin,
-                        title: NSLocalizedString("codex.accounts.relogin", value: "Re-login", comment: "Re-login account"),
-                        systemImage: nil,
-                        role: nil,
-                        prominence: .primary,
-                        isEnabled: !isLoggingIn
-                    )
-                )
+                actions.append(CodexAccountActionFactory.primaryReloginAction(isEnabled: !isLoggingIn))
             } else if !failureDetailRaw.isEmpty {
                 _ = failureDetailRaw
             }
@@ -459,46 +392,19 @@ extension ProviderUsageAccountsViewModel.CodexState {
         let menuActions: [AccountCardMenuActionViewData] = {
             var items: [AccountCardMenuActionViewData] = []
             if accountID != nil {
-                items.append(
-                    .init(
-                        id: "refresh",
-                        actionID: .refresh,
-                        title: NSLocalizedString("usage.monitor.refresh", value: "Refresh", comment: "Refresh"),
-                        systemImage: "arrow.clockwise",
-                        role: nil,
-                        isEnabled: !isRefreshing
-                    )
-                )
+                items.append(CodexAccountActionFactory.menuRefreshAction(isEnabled: !isRefreshing))
             }
             if canLogin {
-                items.append(
-                    .init(
-                        id: "relogin-menu",
-                        actionID: .relogin,
-                        title: NSLocalizedString("codex.accounts.relogin", value: "Re-login", comment: "Re-login account"),
-                        systemImage: "person.badge.key",
-                        role: nil,
-                        isEnabled: !isLoggingIn
-                    )
-                )
+                items.append(CodexAccountActionFactory.menuReloginAction(isEnabled: !isLoggingIn))
             }
             if accountID != nil {
                 if !isActivePresentation {
-                    items.append(
-                        .init(
-                            id: "activate",
-                            actionID: .activate,
-                            title: NSLocalizedString("codex.accounts.action.activate", value: "Activate", comment: "Activate account"),
-                            systemImage: "checkmark.circle",
-                            role: nil,
-                            isEnabled: true
-                        )
-                    )
+                    items.append(CodexAccountActionFactory.menuActivateAction())
                 }
-                items.append(.init(id: "copy-auth-json", actionID: .copyAuthJSON, title: NSLocalizedString("codex.accounts.menu.copy_auth_json", value: "Copy auth.json", comment: "Copy auth json"), systemImage: "doc.on.doc.fill", role: nil, isEnabled: true))
-                items.append(.init(id: "edit-auth-json", actionID: .editAuthJSON, title: NSLocalizedString("codex.accounts.menu.edit_auth_json", value: "Edit auth.json", comment: "Edit auth json"), systemImage: "pencil", role: nil, isEnabled: true))
-                items.append(.init(id: "reveal", actionID: .revealInFinder, title: NSLocalizedString("action.show_in_finder", comment: "Show in Finder"), systemImage: "folder", role: nil, isEnabled: true))
-                items.append(.init(id: "delete", actionID: .delete, title: NSLocalizedString("codex.accounts.delete.title", value: "Delete Account", comment: "Delete account title"), systemImage: "trash", role: .destructive, isEnabled: true))
+                items.append(CodexAccountActionFactory.menuCopyAuthJSONAction())
+                items.append(CodexAccountActionFactory.menuEditAuthJSONAction())
+                items.append(CodexAccountActionFactory.menuRevealInFinderAction())
+                items.append(CodexAccountActionFactory.menuDeleteAction())
             }
             return items
         }()
@@ -529,7 +435,7 @@ extension ProviderUsageAccountsViewModel.CodexState {
             accountID: accountID,
             data: data,
             presentation: presentation,
-            failureDetail: failureDetailRaw,
+            failureDetail: failurePresentation.rawDetail,
             canRefresh: accountID != nil,
             canLogin: canLogin
         )

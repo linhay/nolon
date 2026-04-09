@@ -57,12 +57,11 @@ struct ProviderQuotaSection: View {
     }
 
     private func makeQuotaData() -> ProviderQuotaSectionData {
-        ProviderQuotaSectionData(
-            accountTitle: resolvedAccountTitle,
-            statusPercent: usage?.primary?.remainingPercent ?? 100,
-            rows: makeRows(),
-            creditsText: makeCreditsText(),
-            planText: usage?.identity?.plan,
+        ProviderQuotaSectionDataBuilder.build(
+            provider: provider,
+            accountTitle: accountTitle,
+            usage: usage,
+            credits: credits,
             syncText: ProviderQuotaSectionBuilders.syncText(loginAt: loginAt, syncedAt: syncedAt),
             isLoading: isLoading,
             errorMessage: errorMessage,
@@ -72,64 +71,27 @@ struct ProviderQuotaSection: View {
         )
     }
 
+    static func displayWindows(for usage: UsageSnapshot, provider: UsageProvider) -> [UsageWindow] {
+        ProviderQuotaSectionDataBuilder.displayWindows(for: usage, provider: provider)
+    }
+
     private func makeRows() -> [ProviderQuotaSectionData.WindowRow] {
-        guard let usage else { return [] }
-        return Self.displayWindows(for: usage, provider: provider).map { item in
-            let percent = item.window.remainingPercent
-            return .init(
-                id: item.id,
-                title: localizedTitle(item),
-                remainingPercent: percent,
-                percentText: percentText(percent),
-                resetText: item.window.resetsAt.map { ProviderQuotaSectionBuilders.resetText(resetsAt: $0) }
-            )
-        }
+        ProviderQuotaSectionDataBuilder.rows(provider: provider, usage: usage)
     }
 
     private func makeCreditsText() -> String? {
-        guard let credits, !credits.remaining.isNaN else { return nil }
-        if credits.remaining.isInfinite { return "∞" }
-        return String(format: "%.0f", credits.remaining)
+        ProviderQuotaSectionDataBuilder.creditsText(credits)
     }
 
     private var resolvedAccountTitle: String {
-        let explicitTitle = accountTitle?.trimmingCharacters(in: .whitespacesAndNewlines)
-        if let explicitTitle, !explicitTitle.isEmpty {
-            return explicitTitle
-        }
-        let email = usage?.identity?.accountEmail?.trimmingCharacters(in: .whitespacesAndNewlines)
-        if let email, !email.isEmpty {
-            return email
-        }
-        return NSLocalizedString("usage.account.unknown", value: "Unknown Account", comment: "Unknown account")
+        ProviderQuotaSectionDataBuilder.resolvedAccountTitle(accountTitle: accountTitle, usage: usage)
     }
 
     private func percentText(_ percent: Double) -> String {
-        if percent.isInfinite { return "∞" }
-        return String(format: "%.0f%%", percent)
+        ProviderQuotaSectionDataBuilder.percentText(percent)
     }
 
     private func localizedTitle(_ item: UsageWindow) -> String {
-        let metadata = ProviderUsageRegistry.metadata(for: provider)
-        return switch item.id {
-        case "primary":
-            metadata?.sessionLabel ?? "Session"
-        case "secondary":
-            metadata?.weeklyLabel ?? "Weekly"
-        default:
-            item.title
-        }
-    }
-
-    static func displayWindows(for usage: UsageSnapshot, provider _: UsageProvider) -> [UsageWindow] {
-        if !usage.windows.isEmpty { return usage.windows }
-        var items: [UsageWindow] = []
-        if let primary = usage.primary {
-            items.append(UsageWindow(id: "primary", title: "Session", window: primary))
-        }
-        if let secondary = usage.secondary {
-            items.append(UsageWindow(id: "secondary", title: "Weekly", window: secondary))
-        }
-        return items
+        ProviderQuotaSectionDataBuilder.localizedTitle(item, provider: provider)
     }
 }

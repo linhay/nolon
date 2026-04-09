@@ -6,6 +6,10 @@ import ProviderUsage
 import CodexBarProviderCatalog
 @testable import nolon
 
+private final class BoolSink: @unchecked Sendable {
+    var value = false
+}
+
 @MainActor
 struct ProviderUsageUnifiedAccountsPipelineTests {
     @Test("BDD: Given Claude provider account state when building unified cards then emits Claude card models")
@@ -106,17 +110,17 @@ struct ProviderUsageUnifiedAccountsPipelineTests {
         )
         root.state.claudeEngine.claudeAccounts = [account]
 
-        var didObserveChange = false
+        let didObserveChange = BoolSink()
         withObservationTracking {
             _ = root.accountsViewModel.claude.isShowingEditor
             _ = root.accountsViewModel.claude.editorDraft
         } onChange: {
-            didObserveChange = true
+            didObserveChange.value = true
         }
 
         root.accountsViewModel.claude.beginEditAccount(id: account.id)
 
-        #expect(didObserveChange == true)
+        #expect(didObserveChange.value == true)
         #expect(root.accountsViewModel.claude.isShowingEditor == true)
         #expect(root.accountsViewModel.claude.editorDraft?.accountID == account.id)
     }
@@ -250,6 +254,60 @@ struct ProviderUsageUnifiedAccountsPipelineTests {
         #expect(quota.modelUsages?.count == 2)
         #expect(quota.modelUsages?.map(\.title) == ["gemini-2.5-flash", "gemini-3.1-pro-preview"])
         #expect(quota.modelUsages?.map(\.remainingPercent) == [80.0, 65.0])
+    }
+
+    @Test("BDD: Given Gemini live failure when building unified card then exposes shared error text and standard actions")
+    func testBDD_GivenGeminiLiveFailure_WhenBuildingUnifiedCard_ThenUsesSharedPresentationAndActionFactory() {
+        let provider = Provider(
+            id: "gemini",
+            kind: .vendor,
+            name: "Gemini",
+            defaultSkillsPath: "/tmp/gemini/skills",
+            workflowPath: "/tmp/gemini/prompts",
+            vendorCategory: .original,
+            templateId: ProviderTemplate.gemini.rawValue
+        )
+        let root = ProviderUsageRootViewModel(provider: provider)
+        let account = GeminiAuthAccount(
+            id: UUID(uuidString: "44444444-4444-4444-4444-444444444444")!,
+            providerID: .gemini,
+            name: "Gemini Failed",
+            method: .oauthPersonal,
+            createdAt: Date(),
+            lastUsedAt: nil,
+            lastLoginAt: Date(),
+            email: "failed@gemini.dev",
+            project: nil,
+            location: nil,
+            runtimeHomeRelativePath: ".gemini"
+        )
+        root.state.geminiEngine.geminiAccounts = [account]
+        root.state.geminiEngine.activeGeminiAccountId = account.id
+
+        let liveOutcome = ProviderAccountUsageOutcome(
+            provider: .gemini,
+            account: .default,
+            outcome: .init(
+                fetchKind: .oauth,
+                result: .failure(ProviderUsageError.missingAccount(.gemini))
+            )
+        )
+
+        let cards = root.accountsViewModel.unifiedAccountCards(
+            providerName: provider.name,
+            liveOutcome: liveOutcome,
+            isLoading: true
+        )
+
+        let card = try! #require(cards.first)
+        #expect(card.isActive == true)
+        #expect(card.data.primaryActions.isEmpty)
+        #expect(card.data.menuActions.map(\.actionID) == [.refresh, .delete])
+        guard case let .quota(quota) = card.data.body else {
+            Issue.record("Expected quota body for Gemini failure account card")
+            return
+        }
+        #expect(quota.errorMessage?.isEmpty == false)
     }
 
     @Test("BDD: Given mixed outcomes when selecting unified card live outcome then prefers success result")

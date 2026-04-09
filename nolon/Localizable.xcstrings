@@ -588,6 +588,18 @@
         }
       }
     },
+    "action.clear" : {
+      "comment" : "Clear",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Clear"
+          }
+        }
+      }
+    },
     "action.delete" : {
       "comment" : "Delete action",
       "extractionState" : "extracted_with_value",
@@ -3902,6 +3914,42 @@
         }
       }
     },
+    "codex.advanced.action.choose_file" : {
+      "comment" : "Choose file button",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Choose File"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "选择文件"
+          }
+        }
+      }
+    },
+    "codex.advanced.action.edit_text" : {
+      "comment" : "Edit text button",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Edit"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "编辑"
+          }
+        }
+      }
+    },
     "codex.advanced.config.edit_raw" : {
       "comment" : "Edit raw TOML",
       "extractionState" : "extracted_with_value",
@@ -4204,60 +4252,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "官方文档"
-          }
-        }
-      }
-    },
-    "codex.advanced.action.choose_file" : {
-      "comment" : "Choose file button",
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Choose File"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "选择文件"
-          }
-        }
-      }
-    },
-    "codex.advanced.action.edit_text" : {
-      "comment" : "Edit text button",
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Edit"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "编辑"
-          }
-        }
-      }
-    },
-    "codex.advanced.value.empty" : {
-      "comment" : "Not configured value",
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Not configured"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "未配置"
           }
         }
       }
@@ -4918,6 +4912,24 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "可见"
+          }
+        }
+      }
+    },
+    "codex.advanced.value.empty" : {
+      "comment" : "Not configured value",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Not configured"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未配置"
           }
         }
       }
@@ -6649,42 +6661,6 @@
         }
       }
     },
-    "codex.config.option.boolean.false" : {
-      "comment" : "Boolean false option",
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Off"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "关闭"
-          }
-        }
-      }
-    },
-    "codex.config.option.boolean.true" : {
-      "comment" : "Boolean true option",
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "On"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "开启"
-          }
-        }
-      }
-    },
     "codex.config.option.approval_policy.granular" : {
       "comment" : "Codex approval_policy value",
       "extractionState" : "manual",
@@ -6771,6 +6747,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "不受信任"
+          }
+        }
+      }
+    },
+    "codex.config.option.boolean.false" : {
+      "comment" : "Boolean false option",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Off"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "关闭"
+          }
+        }
+      }
+    },
+    "codex.config.option.boolean.true" : {
+      "comment" : "Boolean true option",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "On"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "开启"
           }
         }
       }

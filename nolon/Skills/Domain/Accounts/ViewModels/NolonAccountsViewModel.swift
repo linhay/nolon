@@ -9,10 +9,11 @@ import STFilePath
 import NolonResourceKit
 import Shimmer
 import OSLog
+import NolonUIFoundation
 
 @MainActor
 @Observable
-final class NolonAccountsViewModel {
+final class NolonAccountsViewModel: CopyToastPresenting {
     private static let logger = Logger(subsystem: "com.nolon", category: "NolonAccountsViewModel")
     typealias CodexActivateAction = @Sendable (CodexAuthAccount, Provider) async throws -> Void
     typealias CodexGatewayStopAction = @Sendable (String) async throws -> Void
@@ -70,8 +71,8 @@ final class NolonAccountsViewModel {
     var activeGeminiAccountIDByProviderID: [Provider.ID: UUID] = [:]
     var isRefreshing = false
     var isShowingCopyToast = false
-    var copyToastMessage = NSLocalizedString("remote.error.copied", value: "Copied", comment: "Copied tooltip")
-    @ObservationIgnored private var copyToastGeneration = 0
+    var copyToastMessage = CopyToastSupport.message
+    @ObservationIgnored var copyToastTask: Task<Void, Never>?
 
     init(
         settings: ProviderSettings,
@@ -264,15 +265,7 @@ final class NolonAccountsViewModel {
     }
 
     private static func gatewayProviderID(for provider: Provider) -> String? {
-        let normalizedTemplateID = provider.templateId?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        switch normalizedTemplateID {
-        case ProviderTemplate.codex.rawValue.lowercased():
-            return "codex"
-        case ProviderTemplate.codexXcode.rawValue.lowercased(), "codex-xcode":
-            return "codex-xcode"
-        default:
-            return nil
-        }
+        CodexGatewayProviderIDResolver.resolve(provider: provider)
     }
 
     func copyCodexAccountID(_ id: UUID) {
@@ -292,9 +285,8 @@ final class NolonAccountsViewModel {
         guard let accounts = try? await codexAuthManager.loadAccounts(),
               let account = accounts.first(where: { $0.id == id })
         else { return }
-        guard let data = await codexAuthManager.accountAuthDataWithoutMaterialization(for: account),
-              let raw = String(data: data, encoding: .utf8),
-              !raw.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        guard let data = codexAuthManager.accountAuthDataWithoutMaterialization(for: account),
+              let raw = CodexAuthInspectionSupport.rawJSONString(from: data)
         else { return }
         copyTextAction(raw)
         showCopyToast()
@@ -304,35 +296,10 @@ final class NolonAccountsViewModel {
         guard let accounts = try? await codexAuthManager.loadAccounts(),
               let account = accounts.first(where: { $0.id == id })
         else { return }
-        guard let data = await codexAuthManager.accountAuthData(for: account),
-              let url = Self.writeAuthInspectionFile(accountID: account.id, data: data)
+        guard let data = codexAuthManager.accountAuthData(for: account),
+              let url = CodexAuthInspectionSupport.writeInspectionFile(accountID: account.id, data: data)
         else { return }
         openURLAction(url)
-    }
-
-    private static func writeAuthInspectionFile(accountID: UUID, data: Data) -> URL? {
-        let folderURL = FileManager.default.temporaryDirectory
-            .appendingPathComponent("nolon-auth-inspect", isDirectory: true)
-        do {
-            try FileManager.default.createDirectory(at: folderURL, withIntermediateDirectories: true)
-            let fileURL = folderURL.appendingPathComponent("\(accountID.uuidString.lowercased()).json")
-            try data.write(to: fileURL, options: .atomic)
-            return fileURL
-        } catch {
-            return nil
-        }
-    }
-
-    private func showCopyToast() {
-        copyToastGeneration += 1
-        let currentGeneration = copyToastGeneration
-        copyToastMessage = NSLocalizedString("remote.error.copied", value: "Copied", comment: "Copied tooltip")
-        isShowingCopyToast = true
-        Task { @MainActor [weak self] in
-            try? await Task.sleep(nanoseconds: 1_200_000_000)
-            guard let self, self.copyToastGeneration == currentGeneration else { return }
-            self.isShowingCopyToast = false
-        }
     }
 
     private func providerUsageAccountsViewModel(for provider: Provider) -> ProviderUsageAccountsViewModel {
@@ -413,49 +380,13 @@ extension NolonAccountsViewModel {
             return AccountCardViewDataMapper.map(
                 record: record,
                 primaryActions: !isActive && canOperateOnSnapshot ? [
-                    .init(
-                        id: "activate",
-                        actionID: .activate,
-                        title: NSLocalizedString("codex.accounts.action.activate", value: "Activate", comment: "Activate account"),
-                        systemImage: nil,
-                        role: nil,
-                        prominence: .primary,
-                        isEnabled: true
-                    )
+                    CodexAccountActionFactory.primaryActivateAction()
                 ] : [],
                 menuActions: canOperateOnSnapshot ? [
-                    .init(
-                        id: "copy-account-id",
-                        actionID: .copyAccountID,
-                        title: NSLocalizedString("codex.accounts.menu.copy_account_id", value: "Copy Account ID", comment: "Copy account id"),
-                        systemImage: "number",
-                        role: nil,
-                        isEnabled: true
-                    ),
-                    .init(
-                        id: "copy-auth-path",
-                        actionID: .copyAuthPath,
-                        title: NSLocalizedString("codex.accounts.menu.copy_auth_path", value: "Copy Auth Path", comment: "Copy auth path"),
-                        systemImage: "doc.on.doc",
-                        role: nil,
-                        isEnabled: true
-                    ),
-                    .init(
-                        id: "copy-auth-json",
-                        actionID: .copyAuthJSON,
-                        title: NSLocalizedString("codex.accounts.menu.copy_auth_json", value: "Copy auth.json", comment: "Copy auth json"),
-                        systemImage: "doc.on.doc.fill",
-                        role: nil,
-                        isEnabled: true
-                    ),
-                    .init(
-                        id: "edit-auth-json",
-                        actionID: .editAuthJSON,
-                        title: NSLocalizedString("codex.accounts.menu.edit_auth_json", value: "Edit auth.json", comment: "Edit auth json"),
-                        systemImage: "pencil",
-                        role: nil,
-                        isEnabled: true
-                    )
+                    CodexAccountActionFactory.menuCopyAccountIDAction(),
+                    CodexAccountActionFactory.menuCopyAuthPathAction(),
+                    CodexAccountActionFactory.menuCopyAuthJSONAction(),
+                    CodexAccountActionFactory.menuEditAuthJSONAction()
                 ] : [],
                 tapBehavior: !isActive && canOperateOnSnapshot ? .activate : .openProvider
             )
@@ -574,9 +505,7 @@ extension NolonAccountsViewModel {
             return result
         }.first
 
-        let rawAccountEmail = firstSuccess?.usage.identity?.accountEmail
-        let trimmedAccountEmail = rawAccountEmail?.trimmingCharacters(in: .whitespacesAndNewlines)
-        let accountEmail = (trimmedAccountEmail?.isEmpty == false) ? trimmedAccountEmail : nil
+        let accountEmail = TextNormalizationSupport.trimmed(firstSuccess?.usage.identity?.accountEmail)
 
         return UsageSummary(
             provider: usageProvider,
@@ -602,8 +531,7 @@ extension NolonAccountsViewModel {
 
             switch outcome.outcome.result {
             case let .success(result):
-                let rawEmail = result.usage.identity?.accountEmail?.trimmingCharacters(in: .whitespacesAndNewlines)
-                let accountEmail = (rawEmail?.isEmpty == false) ? rawEmail : nil
+                let accountEmail = TextNormalizationSupport.trimmed(result.usage.identity?.accountEmail)
                 return AccountUsageSummary(
                     id: outcome.id,
                     accountLabel: accountLabel,
@@ -647,8 +575,7 @@ extension NolonAccountsViewModel {
 
         let snapshotAccounts: [AccountUsageSummary] = accounts.map { account in
             let summary = summaries[account.id]
-            let fallbackStem = URL(fileURLWithPath: account.relativeAuthPath).deletingPathExtension().lastPathComponent
-            let displayName = summary?.preferredDisplayName(fallbackFileStem: fallbackStem) ?? account.name
+            let displayName = AccountDisplayTextSupport.codexSnapshotLabel(summary: summary, account: account)
             let activeLiveSummary = (account.id == activeAccountID) ? liveDefault : nil
             let latestSnapshotDate = summary?.lastSyncSucceededAt ?? summary?.lastLoginAt
             let failureMessage = activeLiveSummary?.errorMessage ?? summary?.lastSyncFailureMessage
@@ -675,7 +602,12 @@ extension NolonAccountsViewModel {
             return [
                 AccountUsageSummary(
                     id: liveDefault.id,
-                    accountLabel: providerAuthSummary.preferredDisplayName(fallbackFileStem: "auth"),
+                    accountLabel: AccountDisplayTextSupport.codexTitle(
+                        summary: providerAuthSummary,
+                        relativeAuthPath: "auth.json",
+                        defaultName: "auth",
+                        accountID: nil
+                    ),
                     accountEmail: providerAuthSummary.email ?? liveDefault.accountEmail,
                     plan: providerAuthSummary.plan ?? liveDefault.plan,
                     totalCount: liveDefault.totalCount,
@@ -756,7 +688,10 @@ extension NolonAccountsViewModel {
                 guard isActive, let liveSummary else { return nil }
                 return .init(
                     provider: usageProvider,
-                    accountTitle: account.email ?? account.name,
+                    accountTitle: AccountDisplayTextSupport.title(
+                        primary: account.email,
+                        fallback: account.name
+                    ),
                     usage: UsageSnapshot(
                         identity: UsageIdentity(
                             accountEmail: liveSummary.accountEmail ?? account.email,

@@ -190,8 +190,12 @@ final class NolonAgentsManagementViewModel {
 
     private let service: NolonAgentsProfilesService
 
-    init(service: NolonAgentsProfilesService = NolonAgentsProfilesService()) {
+    init(service: NolonAgentsProfilesService) {
         self.service = service
+    }
+
+    init() {
+        self.service = NolonAgentsProfilesService()
     }
 
     var filteredProfiles: [NolonAgentsProfile] {

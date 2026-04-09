@@ -15,6 +15,10 @@ private final class UUIDSink: @unchecked Sendable {
     var value: UUID?
 }
 
+private final class StringSink: @unchecked Sendable {
+    var value: String?
+}
+
 private final class URLSink: @unchecked Sendable {
     var value: URL?
 }
@@ -275,6 +279,33 @@ final class NolonAccountsViewModelTests: XCTestCase {
         XCTAssertTrue(merged[1].isSnapshotOnly)
     }
 
+    func testBDD_GivenAPIKeySnapshotAccount_WhenMergingWithLiveUsage_ThenUsesStableResolverDisplayName() {
+        let id = UUID(uuidString: "AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE")!
+        let account = CodexAuthAccount(
+            id: id,
+            name: "Legacy Name",
+            createdAt: Date(timeIntervalSince1970: 1_700_300_000),
+            relativeAuthPath: "auth/legacy.json"
+        )
+        let summary = CodexAuthSummary(
+            email: nil,
+            apiKeySuffix: "abcd",
+            cardKind: .officialAPIKey
+        )
+
+        let merged = NolonAccountsViewModel.mergeCodexSnapshotAccounts(
+            liveSummaries: [],
+            accounts: [account],
+            summaries: [id: summary],
+            activeAccountID: nil,
+            providerAuthSummary: nil
+        )
+
+        XCTAssertEqual(merged.count, 1)
+        XCTAssertEqual(merged[0].accountLabel, "key-abcd")
+        XCTAssertTrue(merged[0].isSnapshotOnly)
+    }
+
     func testBDD_GivenInactiveCodexSnapshotCard_WhenBuildingAccountCards_ThenIncludesActivateAndAuthJSONMenus() {
         let provider = Provider(
             id: "codex",
@@ -499,8 +530,7 @@ final class NolonAccountsViewModelTests: XCTestCase {
 
         await viewModel.copyCodexAccountPath(account.id)
 
-        let expected = service.accountAuthFile(relativeAuthPath: account.relativeAuthPath).url.path
-        XCTAssertEqual(sink.value, expected)
+        XCTAssertEqual(sink.value, account.relativeAuthPath)
     }
 
     func testBDD_GivenCodexSnapshotID_WhenCopyingAuthJSON_ThenPasteboardWriterReceivesRawJSON() async throws {
@@ -526,8 +556,9 @@ final class NolonAccountsViewModelTests: XCTestCase {
 
         await viewModel.copyCodexAccountAuthJSON(account.id)
 
-        let file = service.accountAuthFile(relativeAuthPath: account.relativeAuthPath)
-        let expected = try file.read()
+        let expectedDataCandidate = service.accountAuthDataWithoutMaterialization(for: account)
+        let expectedData = try XCTUnwrap(expectedDataCandidate)
+        let expected = try XCTUnwrap(String(data: expectedData, encoding: .utf8))
         XCTAssertEqual(sink.value, expected)
         XCTAssertTrue(viewModel.isShowingCopyToast)
         XCTAssertFalse(viewModel.copyToastMessage.isEmpty)
@@ -556,8 +587,13 @@ final class NolonAccountsViewModelTests: XCTestCase {
 
         await viewModel.editCodexAccountAuthJSON(account.id)
 
-        let expected = service.accountAuthFile(relativeAuthPath: account.relativeAuthPath).url
-        XCTAssertEqual(sink.value, expected)
+        let openedURL = try XCTUnwrap(sink.value)
+        XCTAssertEqual(openedURL.lastPathComponent, "\(account.id.uuidString.lowercased()).json")
+        XCTAssertEqual(openedURL.deletingLastPathComponent().lastPathComponent, "nolon-auth-inspect")
+        let openedData = try Data(contentsOf: openedURL)
+        let expectedDataCandidate = service.accountAuthData(for: account)
+        let expectedData = try XCTUnwrap(expectedDataCandidate)
+        XCTAssertEqual(openedData, expectedData)
     }
 
     func testBDD_GivenCodexSnapshotID_WhenActivatingFromAccountsPage_ThenUsesActivationCoordinatorClosure() async throws {
@@ -581,7 +617,7 @@ final class NolonAccountsViewModelTests: XCTestCase {
             templateId: ProviderTemplate.codex.rawValue
         )
         let sink = UUIDSink()
-        var stoppedProviderID: String?
+        let stoppedProviderIDSink = StringSink()
         let viewModel = NolonAccountsViewModel(
             settings: ProviderSettings(),
             codexAuthManager: service,
@@ -589,14 +625,49 @@ final class NolonAccountsViewModelTests: XCTestCase {
                 sink.value = account.id
             },
             codexGatewayStopAction: { providerID in
-                stoppedProviderID = providerID
+                stoppedProviderIDSink.value = providerID
             }
         )
 
         await viewModel.activateCodexAccount(id: account.id, for: provider)
 
         XCTAssertEqual(sink.value, account.id)
-        XCTAssertEqual(stoppedProviderID, "codex")
+        XCTAssertEqual(stoppedProviderIDSink.value, "codex")
+    }
+
+    func testBDD_GivenCodexXcodeProvider_WhenActivatingFromAccountsPage_ThenStopsCodexXcodeGateway() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("nolon-accounts-activate-codex-xcode-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let service = CodexAuthManager(rootURL: root)
+        let account = try await service.addAccount(
+            name: "work",
+            authJSONString: #"{"tokens":{"id_token":"id","access_token":"access"}}"#
+        )
+        let provider = Provider(
+            id: "codex-xcode-provider",
+            kind: .vendor,
+            name: "Codex (Xcode)",
+            defaultSkillsPath: root.appendingPathComponent("provider/skills").path,
+            workflowPath: root.appendingPathComponent("provider/prompts").path,
+            vendorCategory: .original,
+            templateId: ProviderTemplate.codexXcode.rawValue
+        )
+        let stoppedProviderIDSink = StringSink()
+        let viewModel = NolonAccountsViewModel(
+            settings: ProviderSettings(),
+            codexAuthManager: service,
+            codexActivateAction: { _, _ in },
+            codexGatewayStopAction: { providerID in
+                stoppedProviderIDSink.value = providerID
+            }
+        )
+
+        await viewModel.activateCodexAccount(id: account.id, for: provider)
+
+        XCTAssertEqual(stoppedProviderIDSink.value, "codex-xcode")
     }
 
     func testBDD_GivenPiAuthPayloadWithRootEmail_WhenParsing_ThenReturnsAvailableStatusWithEmail() throws {
