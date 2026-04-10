@@ -1,23 +1,8 @@
 import Foundation
 import Testing
-import CodexGatewayKit
 @testable import NolonCoreCLIKit
 
 extension NolonCodexCLIEntrypointTests {
-    @Test("codex gateway stop routes successfully")
-    func codexGatewayStopRoutesSuccessfully() async {
-        let mock = MockCodexCLIService()
-        let result = await NolonCLIEntrypoint.execute(
-            arguments: ["codex", "gateway", "stop", "--json"],
-            codexService: mock
-        )
-
-        #expect(result.exitCode == 0)
-        #expect(result.stderr.isEmpty)
-        #expect(result.stdout.contains("\"command\":\"codex.gateway.stop\""))
-        #expect(result.stdout.contains("\"status\":\"stopped\""))
-        #expect(await mock.lastCall() == "gatewayStop")
-    }
     @Test("codex runtime list --help prints action help")
     func codexRuntimeListHelpPrintsHelp() async {
         let mock = MockCodexCLIService()
@@ -29,6 +14,33 @@ extension NolonCodexCLIEntrypointTests {
         #expect(result.exitCode == 0)
         #expect(result.stderr.isEmpty)
         #expect(result.stdout.contains("Usage: nolon codex runtime list"))
+    }
+    @Test("codex session --help prints session group help")
+    func codexSessionHelpPrintsHelp() async {
+        let mock = MockCodexCLIService()
+        let result = await NolonCLIEntrypoint.execute(
+            arguments: ["codex", "session", "--help"],
+            codexService: mock
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stderr.isEmpty)
+        #expect(result.stdout.contains("Usage: nolon codex session"))
+        #expect(result.stdout.contains("preview-rewrite"))
+        #expect(result.stdout.contains("rewrite"))
+    }
+    @Test("codex session rewrite --help prints action help")
+    func codexSessionRewriteHelpPrintsHelp() async {
+        let mock = MockCodexCLIService()
+        let result = await NolonCLIEntrypoint.execute(
+            arguments: ["codex", "session", "rewrite", "--help"],
+            codexService: mock
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stderr.isEmpty)
+        #expect(result.stdout.contains("Usage: nolon codex session rewrite"))
+        #expect(result.stdout.contains("--target-provider"))
     }
     @Test("codex runtime stop --help prints action help")
     func codexRuntimeStopHelpPrintsHelp() async {
@@ -194,6 +206,73 @@ extension NolonCodexCLIEntrypointTests {
         #expect(result.stdout.contains("provider"))
         #expect(result.stdout.contains("installed"))
         #expect(await mock.lastCall() == "providerList")
+    }
+    @Test("codex session list routes successfully")
+    func codexSessionListRoutesSuccessfully() async {
+        let mock = MockCodexCLIService()
+        let result = await NolonCLIEntrypoint.execute(
+            arguments: ["codex", "session", "list"],
+            codexService: mock
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stderr.isEmpty)
+        #expect(result.stdout.contains("provider: codex"))
+        #expect(result.stdout.contains("[openai]"))
+        #expect(await mock.lastCall() == "sessionList")
+    }
+    @Test("codex session preview rewrite routes successfully")
+    func codexSessionPreviewRewriteRoutesSuccessfully() async {
+        let mock = MockCodexCLIService()
+        let result = await NolonCLIEntrypoint.execute(
+            arguments: ["codex", "session", "preview-rewrite", "--thread-id", "thread-1", "--target-provider", "azure"],
+            codexService: mock
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stderr.isEmpty)
+        #expect(result.stdout.contains("target: azure"))
+        #expect(await mock.lastCall() == "sessionPreviewRewrite")
+    }
+    @Test("codex session rewrite routes successfully")
+    func codexSessionRewriteRoutesSuccessfully() async {
+        let mock = MockCodexCLIService()
+        let result = await NolonCLIEntrypoint.execute(
+            arguments: ["codex", "session", "rewrite", "--source-provider", "openai", "--target-provider", "azure"],
+            codexService: mock
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stderr.isEmpty)
+        #expect(result.stdout.contains("status: success"))
+        #expect(await mock.lastCall() == "sessionRewrite")
+        #expect(await mock.lastSessionRequestSource() == .modelProvider("openai"))
+    }
+    @Test("codex session without action prints session help")
+    func codexSessionWithoutActionPrintsHelp() async {
+        let mock = MockCodexCLIService()
+        let result = await NolonCLIEntrypoint.execute(
+            arguments: ["codex", "session"],
+            codexService: mock
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stderr.isEmpty)
+        #expect(result.stdout.contains("Usage: nolon codex session"))
+        #expect(result.stdout.contains("preview-rewrite"))
+    }
+    @Test("codex session preview rewrite rejects mixed selectors")
+    func codexSessionPreviewRewriteRejectsMixedSelectors() async {
+        let mock = MockCodexCLIService()
+        let result = await NolonCLIEntrypoint.execute(
+            arguments: ["codex", "session", "preview-rewrite", "--thread-id", "thread-1", "--source-provider", "openai", "--target-provider", "azure"],
+            codexService: mock
+        )
+
+        #expect(result.exitCode == 2)
+        #expect(result.stdout.isEmpty)
+        #expect(result.stderr.contains("Use either --thread-id <id>... or --source-provider <id>, but not both."))
+        #expect(await mock.lastCall() == nil)
     }
     @Test("remote root routes through core runner parser")
     func remoteRoutesThroughCoreRunnerParser() async {

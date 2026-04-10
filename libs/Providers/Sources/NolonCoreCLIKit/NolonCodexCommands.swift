@@ -23,9 +23,9 @@ struct NolonCodexRootCommand: ParsableCommand {
             NolonCodexAuthGroupCommand.self,
             NolonCodexBinaryGroupCommand.self,
             NolonCodexStatusGroupCommand.self,
+            NolonCodexSessionGroupCommand.self,
             NolonCodexRuntimeGroupCommand.self,
             NolonCodexProviderGroupCommand.self,
-            NolonCodexGatewayGroupCommand.self,
         ]
     )
 }
@@ -78,63 +78,22 @@ struct NolonCodexRuntimeGroupCommand: ParsableCommand {
     )
 }
 
+struct NolonCodexSessionGroupCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "session",
+        subcommands: [
+            NolonCodexSessionListCommand.self,
+            NolonCodexSessionPreviewRewriteCommand.self,
+            NolonCodexSessionRewriteCommand.self,
+        ]
+    )
+}
+
 struct NolonCodexProviderGroupCommand: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "provider",
         subcommands: [NolonCodexProviderDiscoverCommand.self]
     )
-}
-
-struct NolonCodexGatewayGroupCommand: ParsableCommand {
-    static let configuration = CommandConfiguration(
-        commandName: "gateway",
-        subcommands: [
-            NolonCodexGatewayStatusCommand.self,
-            NolonCodexGatewayStartCommand.self,
-            NolonCodexGatewayStopCommand.self,
-            NolonCodexGatewayServeCommand.self,
-        ]
-    )
-}
-
-struct NolonCodexGatewayStatusCommand: ParsableCommand {
-    static let configuration = CommandConfiguration(commandName: "status")
-
-    @Option(name: .long, help: "Provider id, default is codex.")
-    var provider: String = "codex"
-}
-
-struct NolonCodexGatewayStartCommand: ParsableCommand {
-    static let configuration = CommandConfiguration(commandName: "start")
-
-    @Option(name: .long, help: "Provider id, default is codex.")
-    var provider: String = "codex"
-
-    @Option(name: .long, help: "Gateway bind host, default is 127.0.0.1.")
-    var host: String = "127.0.0.1"
-
-    @Option(name: .long, help: "Gateway port, default is 8080.")
-    var port: Int = 8080
-}
-
-struct NolonCodexGatewayStopCommand: ParsableCommand {
-    static let configuration = CommandConfiguration(commandName: "stop")
-
-    @Option(name: .long, help: "Provider id, default is codex.")
-    var provider: String = "codex"
-}
-
-struct NolonCodexGatewayServeCommand: ParsableCommand {
-    static let configuration = CommandConfiguration(commandName: "serve")
-
-    @Option(name: .long, help: "Provider id, default is codex.")
-    var provider: String = "codex"
-
-    @Option(name: .long, help: "Gateway bind host, default is 127.0.0.1.")
-    var host: String = "127.0.0.1"
-
-    @Option(name: .long, help: "Gateway port, default is 8080.")
-    var port: Int = 8080
 }
 
 struct NolonCodexAuthListCommand: ParsableCommand {
@@ -278,6 +237,45 @@ struct NolonCodexStatusProbeCommand: ParsableCommand {
 
 struct NolonCodexStatusDoctorCommand: ParsableCommand {
     static let configuration = CommandConfiguration(commandName: "doctor")
+}
+
+struct NolonCodexSessionListCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(commandName: "list")
+
+    @Option(name: .long, help: "Provider id, default is codex.")
+    var provider: String = "codex"
+}
+
+struct NolonCodexSessionPreviewRewriteCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(commandName: "preview-rewrite")
+
+    @Option(name: .long, help: "Provider id, default is codex.")
+    var provider: String = "codex"
+
+    @Option(name: .long, help: "Thread id. Repeat for multiple sessions.")
+    var threadID: [String] = []
+
+    @Option(name: .long, help: "Rewrite all editable sessions in the source provider group.")
+    var sourceProvider: String?
+
+    @Option(name: .long, help: "Target provider id.")
+    var targetProvider: String
+}
+
+struct NolonCodexSessionRewriteCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(commandName: "rewrite")
+
+    @Option(name: .long, help: "Provider id, default is codex.")
+    var provider: String = "codex"
+
+    @Option(name: .long, help: "Thread id. Repeat for multiple sessions.")
+    var threadID: [String] = []
+
+    @Option(name: .long, help: "Rewrite all editable sessions in the source provider group.")
+    var sourceProvider: String?
+
+    @Option(name: .long, help: "Target provider id.")
+    var targetProvider: String
 }
 
 struct NolonCodexRuntimeListCommand: ParsableCommand {

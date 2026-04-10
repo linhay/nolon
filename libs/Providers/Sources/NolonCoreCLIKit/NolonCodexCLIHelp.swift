@@ -20,6 +20,8 @@ enum NolonCodexCLIHelpResolver {
             return codexBinaryHelpText()
         case .codexStatus:
             return codexStatusHelpText()
+        case .codexSession:
+            return codexSessionHelpText()
         case .codexRuntime:
             return codexRuntimeHelpText()
         case .codexProvider:
@@ -58,6 +60,12 @@ enum NolonCodexCLIHelpResolver {
             return codexStatusProbeHelpText()
         case .codexStatusDoctor:
             return codexStatusDoctorHelpText()
+        case .codexSessionList:
+            return codexSessionListHelpText()
+        case .codexSessionPreviewRewrite:
+            return codexSessionPreviewRewriteHelpText()
+        case .codexSessionRewrite:
+            return codexSessionRewriteHelpText()
         case .codexRuntimeList:
             return codexRuntimeListHelpText()
         case .codexRuntimeStop:
@@ -103,6 +111,7 @@ enum NolonCodexCLIHelpResolver {
           auth      list | usage | usage-trend | status | refresh | activate | login | delete
           binary    list | current | install | use | available | switch | doctor
           status    probe | doctor
+          session   list | preview-rewrite | rewrite
           runtime   list | stop
           provider  discover
 
@@ -202,6 +211,26 @@ enum NolonCodexCLIHelpResolver {
             --pid <pid>                                 # 进程 PID（必填）
             --force                                     # 立即强制结束（可选）
             --timeout-seconds <n>                       # 温和结束超时阈值（可选）
+        """
+    }
+
+    private static func codexSessionHelpText() -> String {
+        """
+        Usage: nolon codex session <action> [options]
+
+        Actions:
+          list
+            --provider codex|codex-xcode                # 指定 provider（可选）
+          preview-rewrite
+            --provider codex|codex-xcode                # 指定 provider（可选）
+            --thread-id <id>                            # 指定 thread id，可重复
+            --source-provider <id>                      # 指定源 provider 分组
+            --target-provider <id>                      # 指定目标 provider（必填）
+          rewrite
+            --provider codex|codex-xcode                # 指定 provider（可选）
+            --thread-id <id>                            # 指定 thread id，可重复
+            --source-provider <id>                      # 指定源 provider 分组
+            --target-provider <id>                      # 指定目标 provider（必填）
         """
     }
 
@@ -352,6 +381,36 @@ enum NolonCodexCLIHelpResolver {
         """
     }
 
+    private static func codexSessionListHelpText() -> String {
+        """
+        Usage: nolon codex session list [options]
+
+          --provider <id>                             # 指定 provider（可选，默认 codex）
+        """
+    }
+
+    private static func codexSessionPreviewRewriteHelpText() -> String {
+        """
+        Usage: nolon codex session preview-rewrite [options]
+
+          --provider <id>                             # 指定 provider（可选，默认 codex）
+          --thread-id <id>                            # 指定 thread id，可重复
+          --source-provider <id>                      # 指定源 provider 分组
+          --target-provider <id>                      # 指定目标 provider（必填）
+        """
+    }
+
+    private static func codexSessionRewriteHelpText() -> String {
+        """
+        Usage: nolon codex session rewrite [options]
+
+          --provider <id>                             # 指定 provider（可选，默认 codex）
+          --thread-id <id>                            # 指定 thread id，可重复
+          --source-provider <id>                      # 指定源 provider 分组
+          --target-provider <id>                      # 指定目标 provider（必填）
+        """
+    }
+
     private static func codexRuntimeListHelpText() -> String {
         """
         Usage: nolon codex runtime list
@@ -393,6 +452,7 @@ private struct NolonCLIHelpPath: RawRepresentable, ExpressibleByStringLiteral, E
     static let codexAuth: Self = "help.codex.auth"
     static let codexBinary: Self = "help.codex.binary"
     static let codexStatus: Self = "help.codex.status"
+    static let codexSession: Self = "help.codex.session"
     static let codexRuntime: Self = "help.codex.runtime"
     static let codexProvider: Self = "help.codex.provider"
     static let provider: Self = "help.provider"
@@ -413,6 +473,9 @@ private struct NolonCLIHelpPath: RawRepresentable, ExpressibleByStringLiteral, E
     static let codexBinaryUse: Self = "help.codex.binary.use"
     static let codexStatusProbe: Self = "help.codex.status.probe"
     static let codexStatusDoctor: Self = "help.codex.status.doctor"
+    static let codexSessionList: Self = "help.codex.session.list"
+    static let codexSessionPreviewRewrite: Self = "help.codex.session.preview-rewrite"
+    static let codexSessionRewrite: Self = "help.codex.session.rewrite"
     static let codexRuntimeList: Self = "help.codex.runtime.list"
     static let codexRuntimeStop: Self = "help.codex.runtime.stop"
     static let codexProviderDiscover: Self = "help.codex.provider.discover"
@@ -453,6 +516,9 @@ private struct NolonCLIHelpPath: RawRepresentable, ExpressibleByStringLiteral, E
         case ["codex", "status"]:
             self = .codexStatus
             return
+        case ["codex", "session"]:
+            self = .codexSession
+            return
         case ["codex", "runtime"]:
             self = .codexRuntime
             return
@@ -480,6 +546,8 @@ private struct NolonCLIHelpPath: RawRepresentable, ExpressibleByStringLiteral, E
             self = .codexBinary
         case ["codex", "status", "help"], ["codex", "status", "-h"], ["codex", "status", "--help"]:
             self = .codexStatus
+        case ["codex", "session", "help"], ["codex", "session", "-h"], ["codex", "session", "--help"]:
+            self = .codexSession
         case ["codex", "runtime", "help"], ["codex", "runtime", "-h"], ["codex", "runtime", "--help"]:
             self = .codexRuntime
         case ["codex", "provider", "help"], ["codex", "provider", "-h"], ["codex", "provider", "--help"]:
@@ -518,6 +586,12 @@ private struct NolonCLIHelpPath: RawRepresentable, ExpressibleByStringLiteral, E
             self = .codexStatusProbe
         case ["codex", "status", "doctor", "help"], ["codex", "status", "doctor", "-h"], ["codex", "status", "doctor", "--help"]:
             self = .codexStatusDoctor
+        case ["codex", "session", "list", "help"], ["codex", "session", "list", "-h"], ["codex", "session", "list", "--help"]:
+            self = .codexSessionList
+        case ["codex", "session", "preview-rewrite", "help"], ["codex", "session", "preview-rewrite", "-h"], ["codex", "session", "preview-rewrite", "--help"]:
+            self = .codexSessionPreviewRewrite
+        case ["codex", "session", "rewrite", "help"], ["codex", "session", "rewrite", "-h"], ["codex", "session", "rewrite", "--help"]:
+            self = .codexSessionRewrite
         case ["codex", "runtime", "list", "help"], ["codex", "runtime", "list", "-h"], ["codex", "runtime", "list", "--help"]:
             self = .codexRuntimeList
         case ["codex", "runtime", "stop", "help"], ["codex", "runtime", "stop", "-h"], ["codex", "runtime", "stop", "--help"]:

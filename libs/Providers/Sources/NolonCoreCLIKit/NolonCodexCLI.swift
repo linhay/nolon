@@ -1,14 +1,12 @@
 import ArgumentParser
 import CodexAppServerKit
 import CodexCLIKit
-import CodexGatewayKit
 import CodexProvider
 import Foundation
 import ProviderCatalog
 import ProviderUsage
 import SKProcessRunner
 import STFilePath
-import Vapor
 #if canImport(Darwin)
 import Darwin
 #elseif canImport(Glibc)
@@ -19,9 +17,6 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
     typealias AuthActivator = @Sendable (CodexAuthAccount, Provider) async throws -> CodexAuthActivationResult
     typealias AuthRefreshRunner = @Sendable (_ providerID: String, _ accountID: UUID, _ environment: [String: String]) async throws -> Void
     typealias UsageOutcomeFetcher = @Sendable (_ environment: [String: String]) async -> ProviderFetchOutcome
-    typealias GatewayDetachedProcessStarter = @Sendable (_ executablePath: String, _ arguments: [String]) throws -> Int32
-    typealias GatewayHealthChecker = @Sendable (_ host: String, _ port: Int) async -> Bool
-    typealias GatewayExecutablePathProvider = @Sendable () -> String?
 
     private let authManager: CodexAuthManager
     private let binaryManager: CodexBinaryManager
@@ -34,14 +29,6 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
     private let runtimeSignalController: any NolonCodexRuntimeSignalControlling
     private let currentPIDProvider: @Sendable () -> Int32
     private let sleep: @Sendable (UInt64) async throws -> Void
-    private let gatewayControlService: CodexGatewayControlService
-    private let gatewayConfigManager: any CodexGatewayConfigManaging
-    private let gatewayPIDStore: any CodexGatewayPIDStoring
-    private let gatewayConfigFileResolver: @Sendable (Provider) -> STFile?
-    private let gatewayDetachedProcessStarter: GatewayDetachedProcessStarter
-    private let gatewayHealthChecker: GatewayHealthChecker
-    private let gatewayExecutablePathProvider: GatewayExecutablePathProvider
-    private let gatewayVirtualAccountStateStore: any CodexGatewayVirtualAccountStateStoring
 
     private struct UsageRefreshReport: Sendable {
         var refreshOrder: [UUID] = []
@@ -50,60 +37,12 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
         var failedAccountIDs: Set<UUID> = []
     }
 
-    private static let gatewayVirtualMarkerKey = "nolon_gateway_virtual"
-    private static let gatewayVirtualNamePrefix = "__gateway_reply__"
-    private static let gatewayVirtualAPIKey = "nolon-gateway-virtual-api-key"
-    private static let gatewayHealthCheckMaxAttempts = 120
-    private static let gatewayHealthCheckSleepNanoseconds: UInt64 = 100_000_000
-    private static let gatewayHealthCheckRequestTimeout: TimeInterval = 1.0
-    private static let embeddedGatewayRuntime = EmbeddedGatewayRuntime()
-
-    enum GatewayDaemonLaunchMode: Equatable {
-        case detached(executablePath: String)
-        case embedded
-    }
-
-    private struct EmbeddedGatewayHandle: Sendable {
-        let token: UUID
+    private struct SessionRewriteContext: Sendable {
         let providerID: String
-        let task: Task<Void, Never>
-    }
-
-    private actor EmbeddedGatewayRuntime {
-        private var handle: EmbeddedGatewayHandle?
-
-        func start(providerID: String, operation: @escaping @Sendable () async -> Void) -> Bool {
-            if let handle, !handle.task.isCancelled {
-                return false
-            }
-            let token = UUID()
-            let task = Task.detached(priority: .utility) {
-                await operation()
-                await NolonLiveCodexCLIService.embeddedGatewayRuntime.clearIfCurrent(token: token)
-            }
-            handle = EmbeddedGatewayHandle(token: token, providerID: providerID, task: task)
-            return true
-        }
-
-        func stop(providerID: String) async {
-            guard let handle, handle.providerID == providerID else { return }
-            handle.task.cancel()
-            _ = await handle.task.result
-            if self.handle?.token == handle.token {
-                self.handle = nil
-            }
-        }
-
-        func isRunning(providerID: String) -> Bool {
-            guard let handle, handle.providerID == providerID else { return false }
-            return !handle.task.isCancelled
-        }
-
-        private func clearIfCurrent(token: UUID) {
-            if handle?.token == token {
-                handle = nil
-            }
-        }
+        let provider: Provider
+        let store: CodexSessionStore
+        let sourceLabel: String
+        let request: CodexSessionProviderRewriteRequest
     }
 
     public init(
@@ -127,21 +66,7 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
             currentPIDProvider: { getpid() },
             sleep: { nanoseconds in
                 try await Task.sleep(nanoseconds: nanoseconds)
-            },
-            gatewayControlService: CodexGatewayControlService(
-                statusStore: CodexGatewayStateStore(authManager: authManager)
-            ),
-            gatewayConfigManager: CodexGatewayConfigManager(
-                stateStore: CodexGatewayManagedConfigStateStore(authManager: authManager)
-            ),
-            gatewayPIDStore: CodexGatewayPIDStore(authManager: authManager),
-            gatewayConfigFileResolver: { provider in
-                Self.defaultGatewayConfigFile(for: provider, environment: environment)
-            },
-            gatewayDetachedProcessStarter: Self.startDetachedProcess,
-            gatewayHealthChecker: Self.healthCheck,
-            gatewayExecutablePathProvider: Self.resolveCurrentExecutablePath,
-            gatewayVirtualAccountStateStore: CodexGatewayVirtualAccountStateStore(authManager: authManager)
+            }
         )
     }
 
@@ -166,21 +91,7 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
             currentPIDProvider: { getpid() },
             sleep: { nanoseconds in
                 try await Task.sleep(nanoseconds: nanoseconds)
-            },
-            gatewayControlService: CodexGatewayControlService(
-                statusStore: CodexGatewayStateStore(authManager: authManager)
-            ),
-            gatewayConfigManager: CodexGatewayConfigManager(
-                stateStore: CodexGatewayManagedConfigStateStore(authManager: authManager)
-            ),
-            gatewayPIDStore: CodexGatewayPIDStore(authManager: authManager),
-            gatewayConfigFileResolver: { provider in
-                Self.defaultGatewayConfigFile(for: provider, environment: environment)
-            },
-            gatewayDetachedProcessStarter: Self.startDetachedProcess,
-            gatewayHealthChecker: Self.healthCheck,
-            gatewayExecutablePathProvider: Self.resolveCurrentExecutablePath,
-            gatewayVirtualAccountStateStore: CodexGatewayVirtualAccountStateStore(authManager: authManager)
+            }
         )
     }
 
@@ -197,15 +108,7 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
         runtimeProcessInspector: any NolonCodexRuntimeProcessInspecting,
         runtimeSignalController: any NolonCodexRuntimeSignalControlling,
         currentPIDProvider: @escaping @Sendable () -> Int32,
-        sleep: @escaping @Sendable (UInt64) async throws -> Void,
-        gatewayControlService: CodexGatewayControlService = CodexGatewayControlService(),
-        gatewayConfigManager: any CodexGatewayConfigManaging = CodexGatewayConfigManager(),
-        gatewayPIDStore: any CodexGatewayPIDStoring = CodexGatewayPIDStore(),
-        gatewayConfigFileResolver: @escaping @Sendable (Provider) -> STFile? = { _ in nil },
-        gatewayDetachedProcessStarter: @escaping GatewayDetachedProcessStarter = Self.startDetachedProcess,
-        gatewayHealthChecker: @escaping GatewayHealthChecker = Self.healthCheck,
-        gatewayExecutablePathProvider: @escaping GatewayExecutablePathProvider = Self.resolveCurrentExecutablePath,
-        gatewayVirtualAccountStateStore: any CodexGatewayVirtualAccountStateStoring = CodexGatewayVirtualAccountStateStore()
+        sleep: @escaping @Sendable (UInt64) async throws -> Void
     ) {
         self.authManager = authManager
         self.binaryManager = binaryManager
@@ -218,14 +121,6 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
         self.runtimeSignalController = runtimeSignalController
         self.currentPIDProvider = currentPIDProvider
         self.sleep = sleep
-        self.gatewayControlService = gatewayControlService
-        self.gatewayConfigManager = gatewayConfigManager
-        self.gatewayPIDStore = gatewayPIDStore
-        self.gatewayConfigFileResolver = gatewayConfigFileResolver
-        self.gatewayDetachedProcessStarter = gatewayDetachedProcessStarter
-        self.gatewayHealthChecker = gatewayHealthChecker
-        self.gatewayExecutablePathProvider = gatewayExecutablePathProvider
-        self.gatewayVirtualAccountStateStore = gatewayVirtualAccountStateStore
     }
 
     public func authList(providerID: String) async throws -> NolonCodexAuthListPayload {
@@ -866,6 +761,120 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
         )
     }
 
+    public func sessionList(providerID: String) async throws -> NolonCodexSessionListPayload {
+        let canonicalProviderID = try Self.canonicalProviderID(providerID)
+        let provider = try Self.provider(for: canonicalProviderID)
+        let snapshot = try CodexSessionStore().loadSnapshot(codexHome: provider.codexHomeFolder.url)
+
+        let sections = Dictionary(grouping: snapshot.sessions, by: \.modelProvider)
+            .map { modelProvider, sessions in
+                NolonCodexSessionSectionView(
+                    modelProvider: modelProvider,
+                    sessions: sessions.map { session in
+                        NolonCodexSessionRowView(
+                            id: session.id,
+                            threadID: session.threadID,
+                            title: session.title ?? Self.fallbackSessionTitle(for: session),
+                            summary: session.summary,
+                            modelProvider: session.modelProvider,
+                            archived: session.archived,
+                            rolloutPath: session.rolloutPath,
+                            cwd: session.cwd,
+                            updatedAt: session.updatedAt,
+                            stateRowCount: session.stateRowCount,
+                            editable: session.editable
+                        )
+                    },
+                    totalSessionCount: sessions.count,
+                    editableThreadIDs: sessions.compactMap { session in
+                        guard session.editable else { return nil }
+                        return session.threadID
+                    },
+                    liveCount: sessions.filter { !$0.archived }.count,
+                    archivedCount: sessions.filter(\.archived).count
+                )
+            }
+            .sorted { lhs, rhs in
+                if lhs.modelProvider != rhs.modelProvider {
+                    return lhs.modelProvider < rhs.modelProvider
+                }
+                let leftDate = lhs.sessions.first?.updatedAt ?? .distantPast
+                let rightDate = rhs.sessions.first?.updatedAt ?? .distantPast
+                return leftDate > rightDate
+            }
+
+        return NolonCodexSessionListPayload(
+            providerID: canonicalProviderID,
+            availableTargetProviderIDs: snapshot.availableProviderIDs,
+            sections: sections,
+            totalSessionCount: snapshot.sessions.count,
+            totalLiveCount: snapshot.sessions.filter { !$0.archived }.count,
+            totalArchivedCount: snapshot.sessions.filter(\.archived).count
+        )
+    }
+
+    public func sessionPreviewRewrite(
+        providerID: String,
+        requestSource: NolonCodexSessionSelectionSource,
+        targetProviderID: String
+    ) async throws -> NolonCodexSessionRewritePreviewPayload {
+        let context = try resolveSessionRewriteContext(
+            providerID: providerID,
+            requestSource: requestSource,
+            targetProviderID: targetProviderID
+        )
+        let preview = try context.store.previewRewrite(
+            codexHome: context.provider.codexHomeFolder.url,
+            request: context.request
+        )
+        guard preview.sessionCount > 0 else {
+            throw NolonCoreCLIError.domainFailed(
+                code: "codex_session_not_found",
+                message: "No matching sessions were found for this rewrite."
+            )
+        }
+        return NolonCodexSessionRewritePreviewPayload(
+            providerID: context.providerID,
+            sourceLabel: context.sourceLabel,
+            targetProviderID: context.request.targetProviderID,
+            threadIDs: context.request.threadIDs,
+            preview: Self.makeSessionRewritePreviewView(preview)
+        )
+    }
+
+    public func sessionRewrite(
+        providerID: String,
+        requestSource: NolonCodexSessionSelectionSource,
+        targetProviderID: String
+    ) async throws -> NolonCodexSessionRewritePayload {
+        let context = try resolveSessionRewriteContext(
+            providerID: providerID,
+            requestSource: requestSource,
+            targetProviderID: targetProviderID
+        )
+        let preview = try context.store.previewRewrite(
+            codexHome: context.provider.codexHomeFolder.url,
+            request: context.request
+        )
+        guard preview.sessionCount > 0 else {
+            throw NolonCoreCLIError.domainFailed(
+                code: "codex_session_not_found",
+                message: "No matching sessions were found for this rewrite."
+            )
+        }
+        let result = try context.store.rewriteProviders(
+            codexHome: context.provider.codexHomeFolder.url,
+            request: context.request
+        )
+        return NolonCodexSessionRewritePayload(
+            providerID: context.providerID,
+            sourceLabel: context.sourceLabel,
+            targetProviderID: context.request.targetProviderID,
+            threadIDs: context.request.threadIDs,
+            result: Self.makeSessionRewriteResultView(result)
+        )
+    }
+
     public func providerList() async throws -> NolonProviderListPayload {
         let templates = ProviderTemplate.allCases.sorted {
             $0.displayName.localizedCaseInsensitiveCompare($1.displayName) == .orderedAscending
@@ -992,261 +1001,54 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
         )
     }
 
-    public func gatewayStatus(providerID: String) async throws -> NolonCodexGatewayStatusPayload {
-        let canonicalProviderID = try Self.canonicalProviderID(providerID)
-        var snapshot = await gatewayControlService.status()
-        if snapshot.status == .running {
-            if await Self.embeddedGatewayRuntime.isRunning(providerID: canonicalProviderID) {
-                // Embedded daemon is alive in current app process.
-            } else if let pid = await gatewayPIDStore.load() {
-                if !runtimeSignalController.isRunning(pid: pid) {
-                    snapshot = try await gatewayControlService.stop(config: CodexGatewayConfig(host: snapshot.host, port: snapshot.port))
-                    try? await gatewayPIDStore.clear()
-                }
-            } else {
-                let healthy = await gatewayHealthChecker(snapshot.host, snapshot.port)
-                if !healthy {
-                    snapshot = try await gatewayControlService.stop(config: CodexGatewayConfig(host: snapshot.host, port: snapshot.port))
-                }
-            }
-        }
-        return NolonCodexGatewayStatusPayload(
-            providerID: canonicalProviderID,
-            status: snapshot.status,
-            host: snapshot.host,
-            port: snapshot.port,
-            startedAt: snapshot.startedAt
-        )
-    }
-
-    public func gatewayStart(providerID: String, host: String, port: Int) async throws -> NolonCodexGatewaySetPayload {
+    private func resolveSessionRewriteContext(
+        providerID: String,
+        requestSource: NolonCodexSessionSelectionSource,
+        targetProviderID: String
+    ) throws -> SessionRewriteContext {
         let canonicalProviderID = try Self.canonicalProviderID(providerID)
         let provider = try Self.provider(for: canonicalProviderID)
-        let trimmedHost = host.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedHost.isEmpty else {
-            throw NolonCoreCLIError.invalidArguments("Invalid --host: value cannot be empty")
-        }
-        guard (1...65535).contains(port) else {
-            throw NolonCoreCLIError.invalidArguments("Invalid --port: \(port)")
-        }
-        let config = CodexGatewayConfig(host: trimmedHost, port: port)
-        guard let configFile = gatewayConfigFileResolver(provider) else {
-            throw NolonCoreCLIError.domainFailed(
-                code: "codex_gateway_config_unavailable",
-                message: "Codex config.toml is unavailable for provider: \(canonicalProviderID)"
+        let store = CodexSessionStore()
+        let snapshot = try store.loadSnapshot(codexHome: provider.codexHomeFolder.url)
+
+        let request: CodexSessionProviderRewriteRequest
+        let sourceLabel: String
+
+        switch requestSource {
+        case let .threadIDs(threadIDs):
+            let resolvedThreadIDs = Self.uniqueThreadIDs(threadIDs)
+            request = CodexSessionProviderRewriteRequest(
+                threadIDs: resolvedThreadIDs,
+                targetProviderID: targetProviderID
             )
-        }
-        let gatewayAuthProvider = Self.gatewayAuthProvider(from: provider, configFile: configFile)
-        if await Self.embeddedGatewayRuntime.isRunning(providerID: canonicalProviderID) {
-            throw NolonCoreCLIError.domainFailed(
-                code: "codex_gateway_already_running",
-                message: "Codex gateway is already running. Stop it before starting again."
-            )
-        }
-        if let existingPID = await gatewayPIDStore.load(),
-           runtimeSignalController.isRunning(pid: existingPID) {
-            throw NolonCoreCLIError.domainFailed(
-                code: "codex_gateway_already_running",
-                message: "Codex gateway is already running (pid=\(existingPID)). Stop it before starting again."
-            )
-        }
-        guard let launchMode = Self.resolveGatewayDaemonLaunchMode(
-            currentExecutablePath: gatewayExecutablePathProvider()
-        ) else {
-            throw NolonCoreCLIError.domainFailed(
-                code: "codex_gateway_executable_unavailable",
-                message: "Unable to resolve nolon executable path for gateway daemon startup."
-            )
-        }
-        try await gatewayConfigManager.patchGatewayConfig(configFile: configFile, config: config)
-        let detachedPID: Int32?
-        do {
-            switch launchMode {
-            case .detached(let executablePath):
-                let arguments = [
-                    "codex", "gateway", "serve",
-                    "--provider", canonicalProviderID,
-                    "--host", trimmedHost,
-                    "--port", "\(port)",
-                ]
-                let pid = try gatewayDetachedProcessStarter(executablePath, arguments)
-                try await gatewayPIDStore.save(pid)
-                detachedPID = pid
-            case .embedded:
-                let started = await Self.embeddedGatewayRuntime.start(providerID: canonicalProviderID) {
-                    try? await self.gatewayServe(providerID: canonicalProviderID, host: trimmedHost, port: port)
-                }
-                guard started else {
-                    throw NolonCoreCLIError.domainFailed(
-                        code: "codex_gateway_already_running",
-                        message: "Codex gateway is already running. Stop it before starting again."
-                    )
-                }
-                try? await gatewayPIDStore.clear()
-                detachedPID = nil
+            if resolvedThreadIDs.count == 1,
+               let session = snapshot.sessions.first(where: { $0.threadID == resolvedThreadIDs[0] })
+            {
+                sourceLabel = session.title ?? Self.fallbackSessionTitle(for: session)
+            } else {
+                sourceLabel = "thread_ids[\(resolvedThreadIDs.count)]"
             }
-        } catch {
-            try? await gatewayConfigManager.restoreGatewayConfig(configFile: configFile)
-            throw error
+
+        case let .modelProvider(modelProvider):
+            let normalizedProviderID = modelProvider.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            let editableThreadIDs = snapshot.sessions.compactMap { session -> String? in
+                guard session.modelProvider == normalizedProviderID, session.editable else { return nil }
+                return session.threadID
+            }
+            request = CodexSessionProviderRewriteRequest(
+                threadIDs: Self.uniqueThreadIDs(editableThreadIDs),
+                targetProviderID: targetProviderID
+            )
+            sourceLabel = normalizedProviderID
         }
 
-        let healthy = await Self.waitForGatewayHealthy(
-            host: trimmedHost,
-            port: port,
-            checker: gatewayHealthChecker,
-            sleep: sleep
-        )
-        guard healthy else {
-            if let detachedPID {
-                _ = try? await stopGatewayProcess(pid: detachedPID)
-            } else {
-                await Self.embeddedGatewayRuntime.stop(providerID: canonicalProviderID)
-            }
-            try? await gatewayPIDStore.clear()
-            try? await gatewayConfigManager.restoreGatewayConfig(configFile: configFile)
-            throw NolonCoreCLIError.domainFailed(
-                code: "codex_gateway_start_failed",
-                message: "Codex gateway failed to become healthy at http://\(trimmedHost):\(port)/healthz"
-            )
-        }
-
-        let previousActiveAccountID = await resolveGatewayPreviousActiveAccountID(provider: gatewayAuthProvider)
-        do {
-            let virtualAccount = try await upsertGatewayVirtualReplyAccount(
-                providerID: canonicalProviderID,
-                host: trimmedHost,
-                port: port
-            )
-            try await authManager.activateAccountAndMarkActive(virtualAccount, for: gatewayAuthProvider)
-            try await gatewayVirtualAccountStateStore.save(
-                CodexGatewayVirtualAccountState(
-                    providerID: canonicalProviderID,
-                    previousActiveAccountID: previousActiveAccountID,
-                    virtualAccountID: virtualAccount.id
-                )
-            )
-        } catch {
-            if let detachedPID {
-                _ = try? await stopGatewayProcess(pid: detachedPID)
-            } else {
-                await Self.embeddedGatewayRuntime.stop(providerID: canonicalProviderID)
-            }
-            try? await gatewayPIDStore.clear()
-            try? await gatewayConfigManager.restoreGatewayConfig(configFile: configFile)
-            _ = try? await gatewayControlService.stop(config: config)
-            if let previousActiveAccountID {
-                try? await restoreGatewayActiveAccount(
-                    provider: gatewayAuthProvider,
-                    targetAccountID: previousActiveAccountID
-                )
-            } else {
-                try? await authManager.clearActiveAccount(for: gatewayAuthProvider)
-            }
-            throw NolonCoreCLIError.domainFailed(
-                code: "codex_gateway_virtual_account_failed",
-                message: "Codex gateway failed to switch active account to gateway virtual reply account."
-            )
-        }
-
-        var snapshot = await gatewayControlService.status(config: config)
-        if snapshot.status != .running {
-            snapshot = try await gatewayControlService.start(config: config)
-        }
-        return NolonCodexGatewaySetPayload(
+        return SessionRewriteContext(
             providerID: canonicalProviderID,
-            status: snapshot.status,
-            host: snapshot.host,
-            port: snapshot.port,
-            startedAt: snapshot.startedAt
+            provider: provider,
+            store: store,
+            sourceLabel: sourceLabel,
+            request: request
         )
-    }
-
-    public func gatewayStop(providerID: String) async throws -> NolonCodexGatewaySetPayload {
-        let canonicalProviderID = try Self.canonicalProviderID(providerID)
-        let provider = try Self.provider(for: canonicalProviderID)
-        guard let configFile = gatewayConfigFileResolver(provider) else {
-            throw NolonCoreCLIError.domainFailed(
-                code: "codex_gateway_config_unavailable",
-                message: "Codex config.toml is unavailable for provider: \(canonicalProviderID)"
-            )
-        }
-        let gatewayAuthProvider = Self.gatewayAuthProvider(from: provider, configFile: configFile)
-        await Self.embeddedGatewayRuntime.stop(providerID: canonicalProviderID)
-        if let pid = await gatewayPIDStore.load() {
-            _ = try? await stopGatewayProcess(pid: pid)
-            try? await gatewayPIDStore.clear()
-        }
-        try await gatewayConfigManager.restoreGatewayConfig(configFile: configFile)
-        if let state = await gatewayVirtualAccountStateStore.load(providerID: canonicalProviderID) {
-            if let previousActiveAccountID = state.previousActiveAccountID {
-                try? await restoreGatewayActiveAccount(provider: gatewayAuthProvider, targetAccountID: previousActiveAccountID)
-            } else {
-                try? await authManager.clearActiveAccount(for: gatewayAuthProvider)
-                try? await removeProviderAuthLinkIfPresent(for: gatewayAuthProvider)
-            }
-            try? await gatewayVirtualAccountStateStore.remove(providerID: canonicalProviderID)
-        }
-        let snapshot = try await gatewayControlService.stop()
-        return NolonCodexGatewaySetPayload(
-            providerID: canonicalProviderID,
-            status: snapshot.status,
-            host: snapshot.host,
-            port: snapshot.port,
-            startedAt: snapshot.startedAt
-        )
-    }
-
-    public func gatewayServe(providerID: String, host: String, port: Int) async throws {
-        let canonicalProviderID = try Self.canonicalProviderID(providerID)
-        _ = try Self.provider(for: canonicalProviderID)
-        let trimmedHost = host.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedHost.isEmpty else {
-            throw NolonCoreCLIError.invalidArguments("Invalid --host: value cannot be empty")
-        }
-        guard (1...65535).contains(port) else {
-            throw NolonCoreCLIError.invalidArguments("Invalid --port: \(port)")
-        }
-
-        let app = try await Application.make(.production)
-        defer {
-            Task {
-                try? await app.asyncShutdown()
-            }
-        }
-        app.http.server.configuration.hostname = trimmedHost
-        app.http.server.configuration.port = port
-
-        let config = CodexGatewayConfig(host: trimmedHost, port: port)
-        let accountSource = CodexGatewayAccountSource(authManager: authManager)
-        let routingService = CodexGatewayResponsesRoutingService(accountSource: accountSource)
-        let statusSnapshot = CodexGatewayStatusSnapshot(
-            status: .running,
-            host: trimmedHost,
-            port: port,
-            startedAt: Date()
-        )
-        try CodexGatewayServer.configure(
-            app: app,
-            statusProvider: { statusSnapshot },
-            responsesHandler: { context in
-                try await routingService.handle(context)
-            }
-        )
-        try await app.asyncBoot()
-        try await app.server.start(address: .hostname(trimmedHost, port: port))
-        _ = try await gatewayControlService.start(config: config)
-        do {
-            while !Task.isCancelled {
-                try await sleep(250_000_000)
-            }
-        } catch is CancellationError {
-        } catch {
-            await app.server.shutdown()
-            _ = try? await gatewayControlService.stop(config: config)
-            throw error
-        }
-        await app.server.shutdown()
-        _ = try? await gatewayControlService.stop(config: config)
     }
 
     private static func liveAuthRefreshRunner(providerID: String, accountID: UUID, environment: [String: String]) async throws {
@@ -1264,311 +1066,6 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
         defer { Task { await service.shutdown() } }
         try await service.initialize(clientName: "nolon", clientVersion: "1.0.0")
         _ = try await service.readAccount(refreshToken: true)
-    }
-
-    private func stopGatewayProcess(pid: Int32) async throws -> Bool {
-        try runtimeSignalController.send(signal: SIGTERM, to: pid)
-        for _ in 0..<20 {
-            if !runtimeSignalController.isRunning(pid: pid) {
-                return true
-            }
-            try await sleep(100_000_000)
-        }
-        try runtimeSignalController.send(signal: SIGKILL, to: pid)
-        for _ in 0..<20 {
-            if !runtimeSignalController.isRunning(pid: pid) {
-                return true
-            }
-            try await sleep(100_000_000)
-        }
-        return !runtimeSignalController.isRunning(pid: pid)
-    }
-
-    private func upsertGatewayVirtualReplyAccount(
-        providerID: String,
-        host: String,
-        port: Int
-    ) async throws -> CodexAuthAccount {
-        let relay = CodexAuthManager.ConfiguredRelay(
-            baseURL: "http://\(host):\(port)",
-            modelProvider: "openai",
-            queryParams: [
-                Self.gatewayVirtualMarkerKey: "1",
-                "provider_id": providerID,
-            ]
-        )
-        let name = "\(Self.gatewayVirtualNamePrefix)-\(providerID)"
-        return try await authManager.upsertGatewayVirtualAccount(
-            providerID: providerID,
-            name: name,
-            apiKey: Self.gatewayVirtualAPIKey,
-            relay: relay
-        )
-    }
-
-    private func resolveGatewayPreviousActiveAccountID(provider: Provider) async -> UUID? {
-        if let linkedSnapshot = await resolveSnapshotBackedActiveAccountIDFromProviderAuth(provider: provider) {
-            return linkedSnapshot
-        }
-
-        guard let candidateID = await authManager.activeAccountId(for: provider) else {
-            return nil
-        }
-        let accounts = (try? await authManager.loadAccounts()) ?? []
-        guard let candidate = accounts.first(where: { $0.id == candidateID }) else {
-            return nil
-        }
-        return await isGatewayVirtualMarkedAccount(candidate) ? nil : candidateID
-    }
-
-    private func resolveSnapshotBackedActiveAccountIDFromProviderAuth(provider: Provider) async -> UUID? {
-        guard let providerAuthFile = await authManager.authFile(for: provider),
-              providerAuthFile.isExists,
-              providerAuthFile.isSymbolicLink,
-              let destinationURL = Self.symlinkDestinationURL(for: providerAuthFile.url),
-              let payloadData = try? Data(contentsOf: destinationURL),
-              !payloadData.isEmpty
-        else {
-            return nil
-        }
-
-        let standardizedDestination = destinationURL.standardizedFileURL.path
-        if Self.looksLikeGatewayVirtualPath(standardizedDestination) {
-            return nil
-        }
-
-        if let accountID = Self.accountID(fromAuthPayloadData: payloadData) {
-            let accounts = (try? await authManager.loadAccounts()) ?? []
-            if let matched = accounts.first(where: { $0.id == accountID }) {
-                return await isGatewayVirtualMarkedAccount(matched) ? nil : matched.id
-            }
-        }
-
-        let accounts = (try? await authManager.loadAccounts()) ?? []
-        for account in accounts where !(await isGatewayVirtualMarkedAccount(account)) {
-            guard let data = authManager.accountAuthData(for: account),
-                  data == payloadData
-            else { continue }
-            return account.id
-        }
-        return nil
-    }
-
-    private static func accountID(fromAuthPayloadData data: Data) -> UUID? {
-        guard let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let nolon = object["nolon"] as? [String: Any],
-              let account = nolon["account"] as? [String: Any],
-              let accountIDRaw = account["id"] as? String
-        else {
-            return nil
-        }
-        return UUID(uuidString: accountIDRaw.trimmingCharacters(in: .whitespacesAndNewlines))
-    }
-
-    private static func symlinkDestinationURL(for fileURL: URL) -> URL? {
-        guard let destination = try? FileManager.default.destinationOfSymbolicLink(atPath: fileURL.path) else {
-            return nil
-        }
-        if destination.hasPrefix("/") {
-            return URL(fileURLWithPath: destination)
-        }
-        return fileURL
-            .deletingLastPathComponent()
-            .appendingPathComponent(destination)
-            .standardizedFileURL
-    }
-
-    private static func looksLikeGatewayVirtualPath(_ path: String) -> Bool {
-        let lowered = path.lowercased()
-        return lowered.contains("/gateway/virtual-auth/")
-            || lowered.contains("/__gateway_reply__-")
-    }
-
-    private func isGatewayVirtualMarkedAccount(_ account: CodexAuthAccount) async -> Bool {
-        if Self.looksLikeGatewayVirtualPath(account.relativeAuthPath) {
-            return true
-        }
-        guard let data = authManager.accountAuthData(for: account),
-              let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let nolon = object["nolon"] as? [String: Any],
-              let relay = nolon["relay"] as? [String: Any],
-              let queryParams = relay["query_params"] as? [String: Any]
-        else {
-            return false
-        }
-        return (queryParams[Self.gatewayVirtualMarkerKey] as? String) == "1"
-    }
-
-    private func removeProviderAuthLinkIfPresent(for provider: Provider) async throws {
-        guard let providerAuthFile = await authManager.authFile(for: provider),
-              providerAuthFile.isExists || providerAuthFile.isSymbolicLink
-        else {
-            return
-        }
-        do {
-            try FileManager.default.removeItem(at: providerAuthFile.url)
-        } catch let error as NSError where error.domain == NSCocoaErrorDomain && error.code == NSFileNoSuchFileError {
-            return
-        } catch let error as NSError where error.domain == NSPOSIXErrorDomain && error.code == ENOENT {
-            return
-        }
-    }
-
-    private func restoreGatewayActiveAccount(provider: Provider, targetAccountID: UUID) async throws {
-        let accounts = try await authManager.loadAccounts()
-        guard let account = accounts.first(where: { $0.id == targetAccountID }) else { return }
-        try await authManager.activateAccountAndMarkActive(account, for: provider)
-    }
-
-    private static func waitForGatewayHealthy(
-        host: String,
-        port: Int,
-        checker: @escaping GatewayHealthChecker,
-        sleep: @escaping @Sendable (UInt64) async throws -> Void
-    ) async -> Bool {
-        for _ in 0..<Self.gatewayHealthCheckMaxAttempts {
-            if await checker(host, port) {
-                return true
-            }
-            do {
-                try await sleep(Self.gatewayHealthCheckSleepNanoseconds)
-            } catch {
-                return false
-            }
-        }
-        return false
-    }
-
-    private static func healthCheck(host: String, port: Int) async -> Bool {
-        guard let url = URL(string: "http://\(host):\(port)/healthz") else {
-            return false
-        }
-        var request = URLRequest(url: url)
-        request.timeoutInterval = Self.gatewayHealthCheckRequestTimeout
-        do {
-            let (_, response) = try await URLSession.shared.data(for: request)
-            guard let httpResponse = response as? HTTPURLResponse else {
-                return false
-            }
-            return httpResponse.statusCode == 200
-        } catch {
-            return false
-        }
-    }
-
-    private static func startDetachedProcess(executablePath: String, arguments: [String]) throws -> Int32 {
-        let commandLine = ([executablePath] + arguments)
-            .map(shellEscaped)
-            .joined(separator: " ")
-        let script = "nohup \(commandLine) >/dev/null 2>&1 & echo $!"
-
-        var payload = SKProcessPayload.executableURL(STPath("/bin/sh").url)
-        payload.arguments = ["-lc", script]
-        payload.throwOnNonZeroExit = false
-        payload.timeoutMs = 5_000
-
-        let result = try SKProcessRunner.runSync(payload)
-        guard result.exitCode == 0 else {
-            let stderr = result.stderr.trimmingCharacters(in: .whitespacesAndNewlines)
-            throw NolonCoreCLIError.executionFailed(stderr.isEmpty ? "failed to start detached process" : stderr)
-        }
-        let output = result.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard let line = output.split(separator: "\n").last,
-              let pid = Int32(line) else {
-            throw NolonCoreCLIError.executionFailed("failed to parse detached process pid")
-        }
-        return pid
-    }
-
-    private static func shellEscaped(_ value: String) -> String {
-        if value.isEmpty { return "''" }
-        if value.range(of: #"^[A-Za-z0-9_@%+=:,./-]+$"#, options: .regularExpression) != nil {
-            return value
-        }
-        return "'" + value.replacingOccurrences(of: "'", with: "'\\''") + "'"
-    }
-
-    static func resolveGatewayDaemonLaunchMode(
-        currentExecutablePath: String?,
-        fileManager: FileManager = .default
-    ) -> GatewayDaemonLaunchMode? {
-        guard let path = currentExecutablePath?
-            .trimmingCharacters(in: .whitespacesAndNewlines),
-            !path.isEmpty else {
-            return nil
-        }
-        if isAppBundleExecutablePath(path) {
-            if let companion = resolveCompanionCLIExecutablePath(
-                forAppExecutablePath: path,
-                fileManager: fileManager
-            ) {
-                return .detached(executablePath: companion)
-            }
-            return .embedded
-        }
-        return .detached(executablePath: path)
-    }
-
-    private static func isAppBundleExecutablePath(_ path: String) -> Bool {
-        path.contains(".app/Contents/MacOS/")
-    }
-
-    private static func resolveCompanionCLIExecutablePath(
-        forAppExecutablePath appExecutablePath: String,
-        fileManager: FileManager
-    ) -> String? {
-        let appExecutableURL = URL(fileURLWithPath: appExecutablePath).standardizedFileURL
-        let executableName = appExecutableURL.lastPathComponent
-        let appRootURL = appExecutableURL
-            .deletingLastPathComponent() // MacOS
-            .deletingLastPathComponent() // Contents
-            .deletingLastPathComponent() // *.app
-        let siblingCandidates: [URL] = [
-            appRootURL.deletingLastPathComponent().appendingPathComponent(executableName),
-            appExecutableURL.deletingLastPathComponent().appendingPathComponent("\(executableName)-cli"),
-            appExecutableURL
-                .deletingLastPathComponent()
-                .deletingLastPathComponent()
-                .appendingPathComponent("Resources")
-                .appendingPathComponent("\(executableName)-cli")
-        ]
-        for candidate in siblingCandidates {
-            let candidatePath = candidate.standardizedFileURL.path
-            if candidatePath == appExecutablePath { continue }
-            if fileManager.isExecutableFile(atPath: candidatePath) {
-                return candidatePath
-            }
-        }
-        return nil
-    }
-
-    private static func resolveCurrentExecutablePath() -> String? {
-        guard let rawExecutable = CommandLine.arguments.first?
-            .trimmingCharacters(in: .whitespacesAndNewlines),
-            !rawExecutable.isEmpty else {
-            return nil
-        }
-        let fileManager = FileManager.default
-        if rawExecutable.contains("/") {
-            let path = rawExecutable.hasPrefix("/")
-                ? rawExecutable
-                : URL(fileURLWithPath: fileManager.currentDirectoryPath)
-                    .appendingPathComponent(rawExecutable)
-                    .standardizedFileURL
-                    .path
-            return fileManager.isExecutableFile(atPath: path) ? path : nil
-        }
-
-        let pathEnv = ProcessInfo.processInfo.environment["PATH"] ?? ""
-        for rawPath in pathEnv.split(separator: ":") {
-            let candidate = URL(fileURLWithPath: String(rawPath), isDirectory: true)
-                .appendingPathComponent(rawExecutable)
-                .path
-            if fileManager.isExecutableFile(atPath: candidate) {
-                return candidate
-            }
-        }
-        return nil
     }
 
     private static func loginViaAppServer(
@@ -1698,49 +1195,6 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
         )
     }
 
-    static func defaultGatewayConfigFile(for provider: Provider, environment: [String: String]) -> STFile? {
-        let rawSkillsPath = provider.defaultSkillsPath.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !rawSkillsPath.isEmpty else { return nil }
-
-        let processHome = NSHomeDirectory()
-        let environmentHome = environment["HOME"]?.trimmingCharacters(in: .whitespacesAndNewlines)
-        let resolvedSkillsPath: String
-        if let environmentHome, !environmentHome.isEmpty,
-           rawSkillsPath == processHome || rawSkillsPath.hasPrefix(processHome + "/") {
-            resolvedSkillsPath = environmentHome + rawSkillsPath.dropFirst(processHome.count)
-        } else {
-            resolvedSkillsPath = rawSkillsPath
-        }
-
-        let skillsURL = URL(fileURLWithPath: resolvedSkillsPath, isDirectory: true)
-        let configURL = skillsURL.deletingLastPathComponent().appendingPathComponent("config.toml")
-        return STFile(configURL)
-    }
-
-    private static func gatewayAuthProvider(from provider: Provider, configFile: STFile) -> Provider {
-        let codexHomePath = configFile
-            .url
-            .deletingLastPathComponent()
-            .standardizedFileURL
-            .path
-        return Provider(
-            id: provider.id,
-            kind: provider.kind,
-            name: provider.name,
-            projectRootPath: provider.projectRootPath,
-            defaultSkillsPath: URL(fileURLWithPath: codexHomePath, isDirectory: true)
-                .appendingPathComponent("skills", isDirectory: true)
-                .path,
-            workflowPath: provider.workflowPath,
-            commandPath: provider.commandPath,
-            iconName: provider.iconName,
-            installMethod: provider.installMethod,
-            templateId: provider.templateId,
-            additionalSkillsPaths: provider.additionalSkillsPaths,
-            documentationURL: provider.documentationURL
-        )
-    }
-
     private static func canonicalProviderID(_ providerID: String) throws -> String {
         let normalized = providerID.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         switch normalized {
@@ -1751,6 +1205,50 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
         default:
             throw NolonCoreCLIError.invalidArguments("Unsupported --provider: \(providerID)")
         }
+    }
+
+    private static func uniqueThreadIDs(_ rawValues: [String]) -> [String] {
+        var seen: Set<String> = []
+        return rawValues.compactMap { rawValue in
+            let trimmed = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else { return nil }
+            guard seen.insert(trimmed).inserted else { return nil }
+            return trimmed
+        }
+    }
+
+    private static func fallbackSessionTitle(for session: CodexSessionRecord) -> String {
+        if let lastPathComponent = session.rolloutPath.split(separator: "/").last, !lastPathComponent.isEmpty {
+            return String(lastPathComponent)
+        }
+        return NSLocalizedString(
+            "codex.sessions.untitled",
+            value: "Untitled Session",
+            comment: "Fallback codex session title"
+        )
+    }
+
+    private static func makeSessionRewritePreviewView(
+        _ preview: CodexSessionRewritePreview
+    ) -> NolonCodexSessionRewritePreviewView {
+        NolonCodexSessionRewritePreviewView(
+            sessionCount: preview.sessionCount,
+            liveSessionCount: preview.liveSessionCount,
+            archivedSessionCount: preview.archivedSessionCount,
+            stateRowCount: preview.stateRowCount
+        )
+    }
+
+    private static func makeSessionRewriteResultView(
+        _ result: CodexSessionRewriteResult
+    ) -> NolonCodexSessionRewriteResultView {
+        NolonCodexSessionRewriteResultView(
+            preview: makeSessionRewritePreviewView(result.preview),
+            liveRolloutFilesUpdated: result.liveRolloutFilesUpdated,
+            archivedRolloutFilesUpdated: result.archivedRolloutFilesUpdated,
+            stateRowsUpdated: result.stateRowsUpdated,
+            failures: result.failures
+        )
     }
 
     private static func loadEmail(for account: CodexAuthAccount, authManager: CodexAuthManager) -> String? {

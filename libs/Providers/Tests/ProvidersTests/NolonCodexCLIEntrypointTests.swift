@@ -1,7 +1,7 @@
 import Foundation
 import Testing
-import CodexGatewayKit
 @testable import NolonCoreCLIKit
+@testable import CodexProvider
 
 @Suite("Nolon Codex CLI Entrypoint")
 struct NolonCodexCLIEntrypointTests {
@@ -135,26 +135,18 @@ struct NolonCodexCLIEntrypointTests {
 
 }
 
-private extension String {
+extension String {
     func indicesOfPipes() -> [Int] {
         enumerated().compactMap { index, char in char == "|" ? index : nil }
     }
 }
 
-private func canonicalJSON(_ raw: String) throws -> String {
-    let data = Data(raw.utf8)
-    let object = try JSONSerialization.jsonObject(with: data)
-    let normalized = try JSONSerialization.data(withJSONObject: object, options: [.sortedKeys])
-    guard let string = String(data: normalized, encoding: .utf8) else {
-        throw NolonCoreCLIError.domainFailed(code: "json_encoding_failed", message: "Failed to encode canonical JSON")
-    }
-    return string
-}
-
-private actor MockCodexCLIService: NolonCodexCLIServing {
+actor MockCodexCLIService: NolonCodexCLIServing {
     private var call: String?
+    private var sessionRequestSource: NolonCodexSessionSelectionSource?
 
     func lastCall() -> String? { call }
+    func lastSessionRequestSource() -> NolonCodexSessionSelectionSource? { sessionRequestSource }
 
     func authList(providerID: String) async throws -> NolonCodexAuthListPayload {
         call = "authList"
@@ -388,6 +380,89 @@ private actor MockCodexCLIService: NolonCodexCLIServing {
         )
     }
 
+    func sessionList(providerID: String) async throws -> NolonCodexSessionListPayload {
+        call = "sessionList"
+        return NolonCodexSessionListPayload(
+            providerID: providerID,
+            availableTargetProviderIDs: ["openai", "azure"],
+            sections: [
+                NolonCodexSessionSectionView(
+                    modelProvider: "openai",
+                    sessions: [
+                        NolonCodexSessionRowView(
+                            id: "sessions/live.jsonl",
+                            threadID: "thread-1",
+                            title: "Live Session",
+                            summary: "hello",
+                            modelProvider: "openai",
+                            archived: false,
+                            rolloutPath: "sessions/live.jsonl",
+                            cwd: "/tmp/demo",
+                            updatedAt: Date(timeIntervalSince1970: 0),
+                            stateRowCount: 1,
+                            editable: true
+                        )
+                    ],
+                    totalSessionCount: 1,
+                    editableThreadIDs: ["thread-1"],
+                    liveCount: 1,
+                    archivedCount: 0
+                )
+            ],
+            totalSessionCount: 1,
+            totalLiveCount: 1,
+            totalArchivedCount: 0
+        )
+    }
+
+    func sessionPreviewRewrite(
+        providerID: String,
+        requestSource: NolonCodexSessionSelectionSource,
+        targetProviderID: String
+    ) async throws -> NolonCodexSessionRewritePreviewPayload {
+        sessionRequestSource = requestSource
+        call = "sessionPreviewRewrite"
+        return NolonCodexSessionRewritePreviewPayload(
+            providerID: providerID,
+            sourceLabel: "Live Session",
+            targetProviderID: targetProviderID,
+            threadIDs: ["thread-1"],
+            preview: NolonCodexSessionRewritePreviewView(
+                sessionCount: 1,
+                liveSessionCount: 1,
+                archivedSessionCount: 0,
+                stateRowCount: 1
+            )
+        )
+    }
+
+    func sessionRewrite(
+        providerID: String,
+        requestSource: NolonCodexSessionSelectionSource,
+        targetProviderID: String
+    ) async throws -> NolonCodexSessionRewritePayload {
+        sessionRequestSource = requestSource
+        call = "sessionRewrite"
+        return NolonCodexSessionRewritePayload(
+            providerID: providerID,
+            sourceLabel: "Live Session",
+            targetProviderID: targetProviderID,
+            threadIDs: ["thread-1"],
+            result: NolonCodexSessionRewriteResultView(
+                preview: NolonCodexSessionRewritePreviewView(
+                    sessionCount: 1,
+                    liveSessionCount: 1,
+                    archivedSessionCount: 0,
+                    stateRowCount: 1
+                ),
+                liveRolloutFilesUpdated: 1,
+                archivedRolloutFilesUpdated: 0,
+                stateRowsUpdated: 1,
+                failures: []
+            )
+        )
+    }
+
     func runtimeList(providerID: String?) async throws -> NolonCodexRuntimeListPayload {
         call = "runtimeList"
         return NolonCodexRuntimeListPayload(
@@ -446,46 +521,9 @@ private actor MockCodexCLIService: NolonCodexCLIServing {
         )
     }
 
-    func gatewayStatus(providerID: String) async throws -> NolonCodexGatewayStatusPayload {
-        call = "gatewayStatus"
-        return NolonCodexGatewayStatusPayload(
-            providerID: providerID,
-            status: .stopped,
-            host: "127.0.0.1",
-            port: 8080,
-            startedAt: nil
-        )
-    }
-
-    func gatewayStart(providerID: String, host: String, port: Int) async throws -> NolonCodexGatewaySetPayload {
-        call = "gatewayStart:\(host):\(port)"
-        return NolonCodexGatewaySetPayload(
-            providerID: providerID,
-            status: .running,
-            host: host,
-            port: port,
-            startedAt: Date(timeIntervalSince1970: 1_700_000_000)
-        )
-    }
-
-    func gatewayStop(providerID: String) async throws -> NolonCodexGatewaySetPayload {
-        call = "gatewayStop"
-        return NolonCodexGatewaySetPayload(
-            providerID: providerID,
-            status: .stopped,
-            host: "127.0.0.1",
-            port: 8080,
-            startedAt: nil
-        )
-    }
-
-    func gatewayServe(providerID: String, host: String, port: Int) async throws {
-        call = "gatewayServe:\(host):\(port)"
-    }
-
 }
 
-private actor DomainErrorCodexCLIService: NolonCodexCLIServing {
+actor DomainErrorCodexCLIService: NolonCodexCLIServing {
     func authList(providerID: String) async throws -> NolonCodexAuthListPayload { throw makeError() }
     func authStatus(providerID: String) async throws -> NolonCodexAuthStatusPayload { throw makeError() }
     func authActivate(providerID: String, accountID: UUID) async throws -> NolonCodexAuthActivatePayload { throw makeError() }
@@ -498,6 +536,9 @@ private actor DomainErrorCodexCLIService: NolonCodexCLIServing {
     func binaryUse(version: String) async throws -> NolonCodexBinaryUsePayload { throw makeError() }
     func binaryDoctor() async throws -> NolonCodexBinaryDoctorPayload { throw makeError() }
     func statusProbe(providerID: String?) async throws -> NolonCodexStatusProbePayload { throw makeError() }
+    func sessionList(providerID: String) async throws -> NolonCodexSessionListPayload { throw makeError() }
+    func sessionPreviewRewrite(providerID: String, requestSource: NolonCodexSessionSelectionSource, targetProviderID: String) async throws -> NolonCodexSessionRewritePreviewPayload { throw makeError() }
+    func sessionRewrite(providerID: String, requestSource: NolonCodexSessionSelectionSource, targetProviderID: String) async throws -> NolonCodexSessionRewritePayload { throw makeError() }
     func runtimeList(providerID: String?) async throws -> NolonCodexRuntimeListPayload { throw makeError() }
     func runtimeStop(pid: Int32, force: Bool, timeoutSeconds: Int) async throws -> NolonCodexRuntimeStopPayload { throw makeError() }
     func providerList() async throws -> NolonProviderListPayload { throw makeError() }
@@ -508,7 +549,7 @@ private actor DomainErrorCodexCLIService: NolonCodexCLIServing {
     }
 }
 
-private actor CancellationErrorCodexCLIService: NolonCodexCLIServing {
+actor CancellationErrorCodexCLIService: NolonCodexCLIServing {
     func authList(providerID: String) async throws -> NolonCodexAuthListPayload { throw CancellationError() }
     func authStatus(providerID: String) async throws -> NolonCodexAuthStatusPayload { throw CancellationError() }
     func authActivate(providerID: String, accountID: UUID) async throws -> NolonCodexAuthActivatePayload { throw CancellationError() }
@@ -521,13 +562,16 @@ private actor CancellationErrorCodexCLIService: NolonCodexCLIServing {
     func binaryUse(version: String) async throws -> NolonCodexBinaryUsePayload { throw CancellationError() }
     func binaryDoctor() async throws -> NolonCodexBinaryDoctorPayload { throw CancellationError() }
     func statusProbe(providerID: String?) async throws -> NolonCodexStatusProbePayload { throw CancellationError() }
+    func sessionList(providerID: String) async throws -> NolonCodexSessionListPayload { throw CancellationError() }
+    func sessionPreviewRewrite(providerID: String, requestSource: NolonCodexSessionSelectionSource, targetProviderID: String) async throws -> NolonCodexSessionRewritePreviewPayload { throw CancellationError() }
+    func sessionRewrite(providerID: String, requestSource: NolonCodexSessionSelectionSource, targetProviderID: String) async throws -> NolonCodexSessionRewritePayload { throw CancellationError() }
     func runtimeList(providerID: String?) async throws -> NolonCodexRuntimeListPayload { throw CancellationError() }
     func runtimeStop(pid: Int32, force: Bool, timeoutSeconds: Int) async throws -> NolonCodexRuntimeStopPayload { throw CancellationError() }
     func providerList() async throws -> NolonProviderListPayload { throw CancellationError() }
     func providerDiscover() async throws -> NolonCodexProviderDiscoverPayload { throw CancellationError() }
 }
 
-private actor EmailActivateCodexCLIService: NolonCodexCLIServing {
+actor EmailActivateCodexCLIService: NolonCodexCLIServing {
     private let accountID = UUID(uuidString: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")!
 
     func authList(providerID: String) async throws -> NolonCodexAuthListPayload {
@@ -610,7 +654,7 @@ private actor EmailActivateCodexCLIService: NolonCodexCLIServing {
     }
 }
 
-private actor StatusProbeParseErrorCodexCLIService: NolonCodexCLIServing {
+actor StatusProbeParseErrorCodexCLIService: NolonCodexCLIServing {
     func authList(providerID: String) async throws -> NolonCodexAuthListPayload { NolonCodexAuthListPayload(providerID: providerID, activeAccountID: nil, accounts: []) }
     func authStatus(providerID: String) async throws -> NolonCodexAuthStatusPayload { NolonCodexAuthStatusPayload(providerID: providerID, activeAccountID: nil, accountCount: 0, authHashHex: nil) }
     func authActivate(providerID: String, accountID: UUID) async throws -> NolonCodexAuthActivatePayload { NolonCodexAuthActivatePayload(providerID: providerID, accountID: accountID, runtimeSwitched: false, runtimeErrorDescription: nil) }
@@ -631,7 +675,7 @@ private actor StatusProbeParseErrorCodexCLIService: NolonCodexCLIServing {
     func providerDiscover() async throws -> NolonCodexProviderDiscoverPayload { NolonCodexProviderDiscoverPayload(providers: []) }
 }
 
-private actor BinarySwitchCodexCLIService: NolonCodexCLIServing {
+actor BinarySwitchCodexCLIService: NolonCodexCLIServing {
     private let installed: NolonCodexBinaryListPayload
     private let available: NolonCodexBinaryAvailablePayload
     private var call: String?
@@ -676,7 +720,7 @@ private actor BinarySwitchCodexCLIService: NolonCodexCLIServing {
     }
 }
 
-private actor BinaryListPlainTextCodexCLIService: NolonCodexCLIServing {
+actor BinaryListPlainTextCodexCLIService: NolonCodexCLIServing {
     func authList(providerID: String) async throws -> NolonCodexAuthListPayload { throw unsupported() }
     func authStatus(providerID: String) async throws -> NolonCodexAuthStatusPayload { throw unsupported() }
     func authActivate(providerID: String, accountID: UUID) async throws -> NolonCodexAuthActivatePayload { throw unsupported() }
@@ -722,7 +766,7 @@ private actor BinaryListPlainTextCodexCLIService: NolonCodexCLIServing {
     }
 }
 
-private actor JSONContractCodexCLIService: NolonCodexCLIServing {
+actor JSONContractCodexCLIService: NolonCodexCLIServing {
     func authList(providerID: String) async throws -> NolonCodexAuthListPayload {
         NolonCodexAuthListPayload(
             providerID: providerID,
@@ -891,7 +935,7 @@ private actor JSONContractCodexCLIService: NolonCodexCLIServing {
     }
 }
 
-private actor AuthListTableCodexCLIService: NolonCodexCLIServing {
+actor AuthListTableCodexCLIService: NolonCodexCLIServing {
     func authStatus(providerID: String) async throws -> NolonCodexAuthStatusPayload {
         NolonCodexAuthStatusPayload(
             providerID: providerID,
@@ -967,7 +1011,7 @@ private actor AuthListTableCodexCLIService: NolonCodexCLIServing {
     }
 }
 
-private actor AuthUsageExpiryLabelCodexCLIService: NolonCodexCLIServing {
+actor AuthUsageExpiryLabelCodexCLIService: NolonCodexCLIServing {
     func authList(providerID: String) async throws -> NolonCodexAuthListPayload {
         NolonCodexAuthListPayload(providerID: providerID, activeAccountID: nil, accounts: [])
     }
@@ -1038,7 +1082,7 @@ private actor AuthUsageExpiryLabelCodexCLIService: NolonCodexCLIServing {
     }
 }
 
-private actor AuthUsageGlobalFallbackCodexCLIService: NolonCodexCLIServing {
+actor AuthUsageGlobalFallbackCodexCLIService: NolonCodexCLIServing {
     func authList(providerID: String) async throws -> NolonCodexAuthListPayload {
         NolonCodexAuthListPayload(providerID: providerID, activeAccountID: nil, accounts: [])
     }
@@ -1098,7 +1142,7 @@ private actor AuthUsageGlobalFallbackCodexCLIService: NolonCodexCLIServing {
     }
 }
 
-private actor AuthUsageUndistinguishableTokensCodexCLIService: NolonCodexCLIServing {
+actor AuthUsageUndistinguishableTokensCodexCLIService: NolonCodexCLIServing {
     func authList(providerID: String) async throws -> NolonCodexAuthListPayload {
         NolonCodexAuthListPayload(providerID: providerID, activeAccountID: nil, accounts: [])
     }
@@ -1167,7 +1211,7 @@ private actor AuthUsageUndistinguishableTokensCodexCLIService: NolonCodexCLIServ
     }
 }
 
-private actor AuthUsageRefreshFailureCodexCLIService: NolonCodexCLIServing {
+actor AuthUsageRefreshFailureCodexCLIService: NolonCodexCLIServing {
     func authList(providerID: String) async throws -> NolonCodexAuthListPayload {
         NolonCodexAuthListPayload(providerID: providerID, activeAccountID: nil, accounts: [])
     }
@@ -1221,7 +1265,7 @@ private actor AuthUsageRefreshFailureCodexCLIService: NolonCodexCLIServing {
     }
 }
 
-private actor AuthUsageActiveConsistencyCodexCLIService: NolonCodexCLIServing {
+actor AuthUsageActiveConsistencyCodexCLIService: NolonCodexCLIServing {
     func authList(providerID: String) async throws -> NolonCodexAuthListPayload {
         NolonCodexAuthListPayload(
             providerID: providerID,
@@ -1320,7 +1364,7 @@ private actor AuthUsageActiveConsistencyCodexCLIService: NolonCodexCLIServing {
     }
 }
 
-private actor AuthListMissingFieldsCodexCLIService: NolonCodexCLIServing {
+actor AuthListMissingFieldsCodexCLIService: NolonCodexCLIServing {
     func authStatus(providerID: String) async throws -> NolonCodexAuthStatusPayload {
         NolonCodexAuthStatusPayload(providerID: providerID, activeAccountID: nil, accountCount: 1, authHashHex: nil)
     }
@@ -1378,7 +1422,10 @@ private actor AuthListMissingFieldsCodexCLIService: NolonCodexCLIServing {
 
     private func unsupported() -> NolonCoreCLIError {
         .invalidArguments("unsupported")
-    }    @Test("gemini auth commands route to core cli")
+    }
+}
+
+    @Test("gemini auth commands route to core cli")
     func geminiAuthCommandsRouteToCoreCLI() async {
         let mock = MockCodexCLIService()
         let result = await NolonCLIEntrypoint.execute(
@@ -1619,49 +1666,3 @@ private actor AuthListMissingFieldsCodexCLIService: NolonCodexCLIServing {
         #expect(result.stdout.contains("Actions:"))
         #expect(result.stdout.contains("discover"))
     }
-    @Test("codex gateway --help prints gateway help")
-    func codexGatewayHelpPrintsHelp() async {
-        let mock = MockCodexCLIService()
-        let result = await NolonCLIEntrypoint.execute(
-            arguments: ["codex", "gateway", "--help"],
-            codexService: mock
-        )
-
-        #expect(result.exitCode == 0)
-        #expect(result.stderr.isEmpty)
-        #expect(result.stdout.contains("USAGE: nolon codex gateway"))
-        #expect(result.stdout.contains("status"))
-        #expect(result.stdout.contains("start"))
-        #expect(result.stdout.contains("stop"))
-        #expect(result.stdout.contains("serve"))
-    }
-    @Test("codex gateway status routes successfully")
-    func codexGatewayStatusRoutesSuccessfully() async {
-        let mock = MockCodexCLIService()
-        let result = await NolonCLIEntrypoint.execute(
-            arguments: ["codex", "gateway", "status", "--json"],
-            codexService: mock
-        )
-
-        #expect(result.exitCode == 0)
-        #expect(result.stderr.isEmpty)
-        #expect(result.stdout.contains("\"command\":\"codex.gateway.status\""))
-        #expect(result.stdout.contains("\"status\":\"stopped\""))
-        #expect(await mock.lastCall() == "gatewayStatus")
-    }
-    @Test("codex gateway start routes successfully")
-    func codexGatewayStartRoutesSuccessfully() async {
-        let mock = MockCodexCLIService()
-        let result = await NolonCLIEntrypoint.execute(
-            arguments: ["codex", "gateway", "start", "--host", "127.0.0.1", "--port", "9090", "--json"],
-            codexService: mock
-        )
-
-        #expect(result.exitCode == 0)
-        #expect(result.stderr.isEmpty)
-        #expect(result.stdout.contains("\"command\":\"codex.gateway.start\""))
-        #expect(result.stdout.contains("\"status\":\"running\""))
-        #expect(result.stdout.contains("\"port\":9090"))
-        #expect(await mock.lastCall() == "gatewayStart:127.0.0.1:9090")
-    }
-}

@@ -76,7 +76,7 @@ public enum NolonCLIEntrypoint {
         }
         let root = normalized[0].lowercased()
         let groupsNeedingHelp: [String: Set<String>] = [
-            "codex": ["auth", "binary", "status", "runtime", "provider", "gateway"],
+            "codex": ["auth", "binary", "status", "session", "runtime", "provider"],
             "skills": [],
         ]
         let rootCommands = Set(["codex", "provider", "skills", "workflow", "mcp", "plugin", "remote"])
@@ -131,15 +131,15 @@ public enum NolonCLIEntrypoint {
             case "status":
                 guard arguments.count >= 3 else { return NolonCodexStatusGroupCommand.self }
                 return codexStatusCommandType(action: arguments[2])
+            case "session":
+                guard arguments.count >= 3 else { return NolonCodexSessionGroupCommand.self }
+                return codexSessionCommandType(action: arguments[2])
             case "runtime":
                 guard arguments.count >= 3 else { return NolonCodexRuntimeGroupCommand.self }
                 return codexRuntimeCommandType(action: arguments[2])
             case "provider":
                 guard arguments.count >= 3 else { return NolonCodexProviderGroupCommand.self }
                 return codexProviderCommandType(action: arguments[2])
-            case "gateway":
-                guard arguments.count >= 3 else { return NolonCodexGatewayGroupCommand.self }
-                return codexGatewayCommandType(action: arguments[2])
             default:
                 return NolonCodexRootCommand.self
             }
@@ -268,27 +268,25 @@ public enum NolonCLIEntrypoint {
         }
     }
 
+    private static func codexSessionCommandType(action: String) -> ParsableCommand.Type? {
+        switch action.lowercased() {
+        case "list":
+            return NolonCodexSessionListCommand.self
+        case "preview-rewrite":
+            return NolonCodexSessionPreviewRewriteCommand.self
+        case "rewrite":
+            return NolonCodexSessionRewriteCommand.self
+        default:
+            return NolonCodexSessionGroupCommand.self
+        }
+    }
+
     private static func codexProviderCommandType(action: String) -> ParsableCommand.Type? {
         switch action.lowercased() {
         case "discover":
             return NolonCodexProviderDiscoverCommand.self
         default:
             return NolonCodexProviderGroupCommand.self
-        }
-    }
-
-    private static func codexGatewayCommandType(action: String) -> ParsableCommand.Type? {
-        switch action.lowercased() {
-        case "status":
-            return NolonCodexGatewayStatusCommand.self
-        case "start":
-            return NolonCodexGatewayStartCommand.self
-        case "stop":
-            return NolonCodexGatewayStopCommand.self
-        case "serve":
-            return NolonCodexGatewayServeCommand.self
-        default:
-            return NolonCodexGatewayGroupCommand.self
         }
     }
 

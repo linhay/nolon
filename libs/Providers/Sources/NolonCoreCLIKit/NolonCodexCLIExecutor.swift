@@ -83,20 +83,18 @@ enum NolonCodexCLIExecutor {
             return try await executeStatusProbe(command: command, context: context, outputMode: outputMode)
         case _ as NolonCodexStatusDoctorCommand:
             return try await executeStatusDoctor(context: context, outputMode: outputMode)
+        case let command as NolonCodexSessionListCommand:
+            return try await executeSessionList(command: command, context: context, outputMode: outputMode)
+        case let command as NolonCodexSessionPreviewRewriteCommand:
+            return try await executeSessionPreviewRewrite(command: command, context: context, outputMode: outputMode)
+        case let command as NolonCodexSessionRewriteCommand:
+            return try await executeSessionRewrite(command: command, context: context, outputMode: outputMode)
         case _ as NolonCodexRuntimeListCommand:
             return try await executeRuntimeList(context: context, outputMode: outputMode)
         case let command as NolonCodexRuntimeStopCommand:
             return try await executeRuntimeStop(command: command, context: context, outputMode: outputMode)
         case _ as NolonCodexProviderDiscoverCommand:
             return try await executeProviderDiscover(context: context, outputMode: outputMode)
-        case let command as NolonCodexGatewayStatusCommand:
-            return try await executeGatewayStatus(command: command, context: context, outputMode: outputMode)
-        case let command as NolonCodexGatewayStartCommand:
-            return try await executeGatewayStart(command: command, context: context, outputMode: outputMode)
-        case let command as NolonCodexGatewayStopCommand:
-            return try await executeGatewayStop(command: command, context: context, outputMode: outputMode)
-        case let command as NolonCodexGatewayServeCommand:
-            return try await executeGatewayServe(command: command, context: context)
         case _ as NolonProviderListCommand:
             return try await executeProviderList(context: context, outputMode: outputMode)
         case _ as NolonProviderDiscoverCommand:
@@ -229,6 +227,64 @@ enum NolonCodexCLIExecutor {
 
         let payload = try await context.codexService().authRefresh(providerID: providerID, accountID: targetAccountID)
         return try renderOutput(command: .authRefresh, payload: payload, outputMode: outputMode, textFormatter: formatAuthRefresh)
+    }
+
+    private static func executeSessionList(
+        command: NolonCodexSessionListCommand,
+        context: NolonCLIExecutionContext,
+        outputMode: OutputMode
+    ) async throws -> String {
+        let providerID = try parseCodexProviderID(command.provider)
+        let payload = try await context.codexService().sessionList(providerID: providerID)
+        return try renderOutput(command: .sessionList, payload: payload, outputMode: outputMode, textFormatter: formatSessionList)
+    }
+
+    private static func executeSessionPreviewRewrite(
+        command: NolonCodexSessionPreviewRewriteCommand,
+        context: NolonCLIExecutionContext,
+        outputMode: OutputMode
+    ) async throws -> String {
+        let providerID = try parseCodexProviderID(command.provider)
+        let requestSource = try parseSessionSelectionSource(
+            threadIDs: command.threadID,
+            sourceProvider: command.sourceProvider
+        )
+        let targetProviderID = try parseNonEmptyValue(command.targetProvider, option: "--target-provider")
+        let payload = try await context.codexService().sessionPreviewRewrite(
+            providerID: providerID,
+            requestSource: requestSource,
+            targetProviderID: targetProviderID
+        )
+        return try renderOutput(
+            command: .sessionPreviewRewrite,
+            payload: payload,
+            outputMode: outputMode,
+            textFormatter: formatSessionRewritePreview
+        )
+    }
+
+    private static func executeSessionRewrite(
+        command: NolonCodexSessionRewriteCommand,
+        context: NolonCLIExecutionContext,
+        outputMode: OutputMode
+    ) async throws -> String {
+        let providerID = try parseCodexProviderID(command.provider)
+        let requestSource = try parseSessionSelectionSource(
+            threadIDs: command.threadID,
+            sourceProvider: command.sourceProvider
+        )
+        let targetProviderID = try parseNonEmptyValue(command.targetProvider, option: "--target-provider")
+        let payload = try await context.codexService().sessionRewrite(
+            providerID: providerID,
+            requestSource: requestSource,
+            targetProviderID: targetProviderID
+        )
+        return try renderOutput(
+            command: .sessionRewrite,
+            payload: payload,
+            outputMode: outputMode,
+            textFormatter: formatSessionRewrite
+        )
     }
 
     private static func renderAuthOverview(
@@ -466,53 +522,6 @@ enum NolonCodexCLIExecutor {
         return try renderOutput(command: .providerList, payload: payload, outputMode: outputMode, textFormatter: formatProviderList)
     }
 
-    private static func executeGatewayStatus(
-        command: NolonCodexGatewayStatusCommand,
-        context: NolonCLIExecutionContext,
-        outputMode: OutputMode
-    ) async throws -> String {
-        let providerID = try parseCodexProviderID(command.provider)
-        let payload = try await context.codexService().gatewayStatus(providerID: providerID)
-        return try renderOutput(command: .gatewayStatus, payload: payload, outputMode: outputMode, textFormatter: formatGatewayStatus)
-    }
-
-    private static func executeGatewayStart(
-        command: NolonCodexGatewayStartCommand,
-        context: NolonCLIExecutionContext,
-        outputMode: OutputMode
-    ) async throws -> String {
-        let providerID = try parseCodexProviderID(command.provider)
-        let payload = try await context.codexService().gatewayStart(
-            providerID: providerID,
-            host: command.host,
-            port: command.port
-        )
-        return try renderOutput(command: .gatewayStart, payload: payload, outputMode: outputMode, textFormatter: formatGatewaySet)
-    }
-
-    private static func executeGatewayStop(
-        command: NolonCodexGatewayStopCommand,
-        context: NolonCLIExecutionContext,
-        outputMode: OutputMode
-    ) async throws -> String {
-        let providerID = try parseCodexProviderID(command.provider)
-        let payload = try await context.codexService().gatewayStop(providerID: providerID)
-        return try renderOutput(command: .gatewayStop, payload: payload, outputMode: outputMode, textFormatter: formatGatewaySet)
-    }
-
-    private static func executeGatewayServe(
-        command: NolonCodexGatewayServeCommand,
-        context: NolonCLIExecutionContext
-    ) async throws -> String {
-        let providerID = try parseCodexProviderID(command.provider)
-        try await context.codexService().gatewayServe(
-            providerID: providerID,
-            host: command.host,
-            port: command.port
-        )
-        return ""
-    }
-
     private static func shouldDowngradeStatusProbeError(_ error: Error) -> Bool {
         let message: String
         if let cliError = error as? NolonCoreCLIError {
@@ -601,9 +610,9 @@ enum NolonCodexCLIExecutor {
             "auth": ["list", "usage", "usage-trend", "status", "refresh", "activate", "login", "delete"],
             "binary": ["list", "current", "install", "use", "available", "switch", "doctor"],
             "status": ["probe", "doctor"],
+            "session": ["list", "preview-rewrite", "rewrite"],
             "runtime": ["list", "stop"],
             "provider": ["discover"],
-            "gateway": ["status", "start", "stop", "serve"],
         ]
         guard let actions = supportedByGroup[group] else {
             throw NolonCoreCLIError.invalidArguments(
@@ -630,6 +639,41 @@ enum NolonCodexCLIExecutor {
             throw NolonCoreCLIError.invalidArguments("Invalid \(option): value cannot be empty")
         }
         return trimmed
+    }
+
+    private static func parseNonEmptyValue(_ raw: String, option: String) throws -> String {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            throw NolonCoreCLIError.invalidArguments("Invalid \(option): value cannot be empty")
+        }
+        return trimmed
+    }
+
+    private static func parseSessionSelectionSource(
+        threadIDs: [String],
+        sourceProvider: String?
+    ) throws -> NolonCodexSessionSelectionSource {
+        let trimmedThreadIDs = threadIDs.compactMap { rawValue -> String? in
+            let trimmed = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
+            return trimmed.isEmpty ? nil : trimmed
+        }
+        let trimmedSourceProvider = sourceProvider?.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        let hasThreadIDs = !trimmedThreadIDs.isEmpty
+        let hasSourceProvider = (trimmedSourceProvider?.isEmpty == false)
+        guard hasThreadIDs != hasSourceProvider else {
+            throw NolonCoreCLIError.invalidArguments(
+                "Use either --thread-id <id>... or --source-provider <id>, but not both."
+            )
+        }
+
+        if hasThreadIDs {
+            return .threadIDs(trimmedThreadIDs)
+        }
+        guard let trimmedSourceProvider, !trimmedSourceProvider.isEmpty else {
+            throw NolonCoreCLIError.invalidArguments("Missing session selection source.")
+        }
+        return .modelProvider(trimmedSourceProvider)
     }
 
     private static func canonicalCodexProviderID(_ providerID: String) throws -> String {
@@ -1229,6 +1273,63 @@ enum NolonCodexCLIExecutor {
         ].joined(separator: "\n")
     }
 
+    private static func formatSessionList(_ payload: NolonCodexSessionListPayload) -> String {
+        var lines = [
+            "provider: \(payload.providerID)",
+            "total: \(payload.totalSessionCount)",
+            "live: \(payload.totalLiveCount)",
+            "archived: \(payload.totalArchivedCount)",
+            "targets: \(payload.availableTargetProviderIDs.joined(separator: ", "))",
+        ]
+
+        for section in payload.sections {
+            lines.append("")
+            lines.append("[\(section.modelProvider)] live=\(section.liveCount) archived=\(section.archivedCount) total=\(section.totalSessionCount)")
+            for session in section.sessions {
+                let mode = session.archived ? "archived" : "live"
+                let editable = session.editable ? "editable" : "read-only"
+                let threadID = session.threadID ?? "-"
+                let rowCount = session.stateRowCount
+                lines.append("- \(threadID) | \(session.title) | \(mode) | rows=\(rowCount) | \(editable) | \(session.rolloutPath)")
+            }
+        }
+
+        return lines.joined(separator: "\n")
+    }
+
+    private static func formatSessionRewritePreview(_ payload: NolonCodexSessionRewritePreviewPayload) -> String {
+        [
+            "provider: \(payload.providerID)",
+            "source: \(payload.sourceLabel)",
+            "target: \(payload.targetProviderID)",
+            "threads: \(payload.threadIDs.joined(separator: ", "))",
+            "sessions: \(payload.preview.sessionCount)",
+            "live: \(payload.preview.liveSessionCount)",
+            "archived: \(payload.preview.archivedSessionCount)",
+            "db_rows: \(payload.preview.stateRowCount)",
+        ].joined(separator: "\n")
+    }
+
+    private static func formatSessionRewrite(_ payload: NolonCodexSessionRewritePayload) -> String {
+        var lines = [
+            "provider: \(payload.providerID)",
+            "source: \(payload.sourceLabel)",
+            "target: \(payload.targetProviderID)",
+            "threads: \(payload.threadIDs.joined(separator: ", "))",
+            "sessions: \(payload.result.preview.sessionCount)",
+            "live_files_updated: \(payload.result.liveRolloutFilesUpdated)",
+            "archived_files_updated: \(payload.result.archivedRolloutFilesUpdated)",
+            "db_rows_updated: \(payload.result.stateRowsUpdated)",
+        ]
+        if !payload.result.failures.isEmpty {
+            lines.insert("status: partial_failure", at: 0)
+            lines.append("failures: \(payload.result.failures.joined(separator: " | "))")
+        } else {
+            lines.insert("status: success", at: 0)
+        }
+        return lines.joined(separator: "\n")
+    }
+
     private static func formatProviderDiscover(_ payload: NolonCodexProviderDiscoverPayload) -> String {
         guard !payload.providers.isEmpty else { return "No codex providers discovered." }
         let rows = payload.providers.map { provider in
@@ -1278,26 +1379,6 @@ enum NolonCodexCLIExecutor {
             "\(padRight(row.providerID, to: providerWidth)) | \(padRight(row.name, to: nameWidth)) | \(padRight(row.cli, to: cliWidth)) | \(padRight(row.installed, to: installedWidth)) | \(row.path)"
         }.joined(separator: "\n")
         return "\(header)\n\(body)"
-    }
-
-    private static func formatGatewayStatus(_ payload: NolonCodexGatewayStatusPayload) -> String {
-        """
-        provider: \(payload.providerID)
-        status: \(payload.status.rawValue)
-        host: \(payload.host)
-        port: \(payload.port)
-        started_at: \(payload.startedAt.map(Self.formatDate) ?? "-")
-        """
-    }
-
-    private static func formatGatewaySet(_ payload: NolonCodexGatewaySetPayload) -> String {
-        """
-        provider: \(payload.providerID)
-        gateway: \(payload.status.rawValue)
-        host: \(payload.host)
-        port: \(payload.port)
-        started_at: \(payload.startedAt.map(Self.formatDate) ?? "-")
-        """
     }
 
     private static func formatPercent(_ value: Double) -> String {
@@ -1383,12 +1464,12 @@ private struct NolonCodexCommandPath: RawRepresentable, ExpressibleByStringLiter
     static let binaryDoctor: Self = "codex.binary.doctor"
     static let statusProbe: Self = "codex.status.probe"
     static let statusDoctor: Self = "codex.status.doctor"
+    static let sessionList: Self = "codex.session.list"
+    static let sessionPreviewRewrite: Self = "codex.session.preview-rewrite"
+    static let sessionRewrite: Self = "codex.session.rewrite"
     static let runtimeList: Self = "codex.runtime.list"
     static let runtimeStop: Self = "codex.runtime.stop"
     static let providerDiscover: Self = "codex.provider.discover"
-    static let gatewayStatus: Self = "codex.gateway.status"
-    static let gatewayStart: Self = "codex.gateway.start"
-    static let gatewayStop: Self = "codex.gateway.stop"
     static let providerList: Self = "provider.list"
 
     let rawValue: String
