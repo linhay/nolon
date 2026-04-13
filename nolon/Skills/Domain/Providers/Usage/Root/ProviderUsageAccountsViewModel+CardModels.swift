@@ -323,7 +323,6 @@ extension ProviderUsageAccountsViewModel.GeminiState {
 extension ProviderUsageAccountsViewModel.CodexState {
     func makeUsageCardModel(
         outcome: ProviderAccountUsageOutcome,
-        hasActiveGatewayCardSelection: Bool,
         isRunningCLILogin: Bool
     ) -> ProviderUsageCodexCardModel {
         let accountID: UUID? = {
@@ -335,26 +334,16 @@ extension ProviderUsageAccountsViewModel.CodexState {
             }
         }()
 
-        let isPending: Bool = {
-            guard let accountID else { return false }
-            return pendingActivateAccount?.id == accountID
-        }()
-
-        let isActive: Bool = {
-            guard let accountID else { return false }
-            guard let saved = accounts.first(where: { $0.id == accountID }) else { return false }
-            return isActiveAccount(saved)
-        }()
-        let isActivePresentation = isActive && !hasActiveGatewayCardSelection
+        let interactionState = interactionState(accountID: accountID)
         let isBatchSelected = isAccountSelected(id: accountID)
-
         let presentation = AccountCardPresentation.codex(
-            isActive: isActivePresentation,
-            isPending: isPending,
-            isBatchSelected: isBatchSelected,
-            selectableAccountCount: accounts.count
+            state: interactionState.presentationState(
+                isBatchSelected: isBatchSelected,
+                selectableAccountCount: accounts.count
+            )
         )
         let summary = accountID.flatMap { accountSummaries[$0] }
+        let isSelfManagedConfiguredAccount = summary?.cardKind?.isSelfManagedConfiguredAccount == true
         let isRefreshing = accountID.map { refreshingAccountIds.contains($0) } ?? false
         let canLogin = accountSupportsLogin(accountID: accountID)
         let isLoggingIn = accountID != nil
@@ -367,9 +356,9 @@ extension ProviderUsageAccountsViewModel.CodexState {
             return nil
         }()
         let failurePresentation = CodexAccountFailurePresentationBuilder.build(
-            liveFailureError: liveFailureError,
-            persistedFailureMessage: summary?.lastSyncFailureMessage,
-            canRelogin: canLogin
+            liveFailureError: isSelfManagedConfiguredAccount ? nil : liveFailureError,
+            persistedFailureMessage: isSelfManagedConfiguredAccount ? nil : summary?.lastSyncFailureMessage,
+            canRelogin: isSelfManagedConfiguredAccount ? false : canLogin
         )
         let title = AccountDisplayTextSupport.codexTitle(
             summary: summary,
@@ -379,6 +368,7 @@ extension ProviderUsageAccountsViewModel.CodexState {
         )
 
         let primaryActions: [AccountCardActionViewData] = {
+            guard !isSelfManagedConfiguredAccount else { return [] }
             guard let failureDetailRaw = failurePresentation.rawDetail else { return [] }
             var actions: [AccountCardActionViewData] = [CodexAccountActionFactory.primaryCopyErrorAction(canRelogin: canLogin)]
             if canLogin {
@@ -398,7 +388,7 @@ extension ProviderUsageAccountsViewModel.CodexState {
                 items.append(CodexAccountActionFactory.menuReloginAction(isEnabled: !isLoggingIn))
             }
             if accountID != nil {
-                if !isActivePresentation {
+                if interactionState.allowsActivationRequest {
                     items.append(CodexAccountActionFactory.menuActivateAction())
                 }
                 items.append(CodexAccountActionFactory.menuCopyAuthJSONAction())
@@ -454,7 +444,7 @@ extension ProviderUsageAccountsViewModel.CodexState {
             requestLoginForAccount(id: accountID)
         case .activate:
             if let accountID = model.accountID {
-                Task { await activateAccountImmediately(id: accountID) }
+                requestActivateAccount(id: accountID)
             }
         case .copyError:
             if let detail = model.failureDetail {

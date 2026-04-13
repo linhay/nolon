@@ -57,6 +57,10 @@ extension ProviderUsageEngine {
     }
 
     func editCodexAccountAuthJSON(id: UUID) {
+        if codexAccountSupportsEditing(accountID: id) {
+            beginEditCodexConfiguredAccount(id: id)
+            return
+        }
         guard let account = codexAccounts.first(where: { $0.id == id }) else { return }
         guard let data = codexAuthManager.accountAuthDataWithoutMaterialization(for: account),
               let fileURL = CodexAuthInspectionSupport.writeInspectionFile(accountID: account.id, data: data)
@@ -197,11 +201,11 @@ extension ProviderUsageEngine {
         codexScheduledRefreshLastAt = [:]
         codexScheduledRefreshFailureStreak = [:]
         pendingActivateCodexAccount = nil
+        activatingCodexAccountId = nil
         pendingDeleteCodexAccount = nil
         isShowingDeleteConfirm = false
         isCodexMultiSelectionEnabled = false
         selectedCodexAccountIDs = []
-        dismissGatewayCardPicker()
         dismissCodexImportSheet()
     }
 
@@ -229,7 +233,6 @@ extension ProviderUsageEngine {
             finalizeCLILoginSessionIfNeeded(sessionId: sessionId)
         }
         do {
-            try await prepareGatewayModeForCLILoginIfNeeded()
             try await runAppServerLoginFlow(sessionId: sessionId)
             return
         } catch {
@@ -237,27 +240,6 @@ extension ProviderUsageEngine {
             Self.logger.error("App-server login failed. Falling back to direct CLI login. error=\(String(describing: error), privacy: .public)")
             await runCLILoginFlow(sessionId: sessionId, shouldFinalizeSession: false)
         }
-    }
-
-    func prepareGatewayModeForCLILoginIfNeeded() async throws {
-        guard usageProvider == .codex else { return }
-        guard gatewayCardsState.lastUsedCardID != nil else { return }
-        clearActiveGatewayCardSelection()
-        guard let gatewayProviderID = resolvedGatewayProviderIDForCLI() else { return }
-
-        var capturedStopError: Error?
-        await withGatewaySwitchInProgress {
-            do {
-                try await codexGatewayStopAction(gatewayProviderID)
-            } catch {
-                capturedStopError = error
-            }
-        }
-
-        if let capturedStopError {
-            throw capturedStopError
-        }
-        codexAuthReloadSignal.send()
     }
 
     func handleAppServerLoginFailure(_ error: Error) {
@@ -299,6 +281,7 @@ extension ProviderUsageEngine {
             preferredAccountID: cliLoginPreferredAccountId,
             loginAt: Date()
         )
+        try await activateCodexAccountAfterLoginIfNeeded(account)
         schedulePostLoginReload(preferredBackfillAccount: account)
     }
 
@@ -390,7 +373,8 @@ extension ProviderUsageEngine {
                 preferredAccountID: cliLoginPreferredAccountId,
                 loginAt: Date()
             )
-            Self.logger.info("CLI login completed; account updated without activation. accountId=\(account.id.uuidString, privacy: .public)")
+            try await activateCodexAccountAfterLoginIfNeeded(account)
+            Self.logger.info("CLI login completed; account persisted. accountId=\(account.id.uuidString, privacy: .public)")
 
             cliLoginHandle?.cancel()
             cliLoginHandle = nil
@@ -408,13 +392,22 @@ extension ProviderUsageEngine {
         }
     }
 
+    func activateCodexAccountAfterLoginIfNeeded(_ account: CodexAuthAccount) async throws {
+        guard cliLoginPreferredAccountId != nil else { return }
+        try await codexActivateAction(account, provider)
+    }
+
     func schedulePostLoginReload(preferredBackfillAccount account: CodexAuthAccount? = nil) {
         Task { [weak self] in
             guard let self else { return }
             if let account {
                 _ = await self.probeLoginSnapshotUsageAndBackfillEmailIfMissing(account: account)
             }
-            await self.load()
+            if self.cliLoginPreferredAccountId != nil {
+                await self.reloadCodexFromDisk(refreshUsage: false)
+            } else {
+                await self.load()
+            }
             guard let accountID = account?.id,
                   let refreshedAccount = self.codexAccounts.first(where: { $0.id == accountID })
             else { return }
@@ -440,21 +433,31 @@ extension ProviderUsageEngine {
 
     func requestActivateCodexAccount(id: UUID) {
         guard let account = codexAccounts.first(where: { $0.id == id }) else { return }
+        activatingCodexAccountId = nil
         pendingActivateCodexAccount = account
         isShowingActivateConfirm = true
     }
 
     func activateCodexAccountImmediately(id: UUID) async {
-        guard let account = codexAccounts.first(where: { $0.id == id }) else { return }
-        pendingActivateCodexAccount = nil
-        isShowingActivateConfirm = false
-        await performCodexActivation(account)
+        requestActivateCodexAccount(id: id)
     }
 
-    func shouldActivateCodexAccountOnTap(id: UUID, hasActiveGatewayCardSelection: Bool) -> Bool {
-        guard let account = codexAccounts.first(where: { $0.id == id }) else { return false }
-        if hasActiveGatewayCardSelection { return true }
-        return !isActiveCodexAccount(account)
+    func codexInteractionState(accountID: UUID?) -> CodexAccountInteractionState {
+        guard let accountID else { return .inactive }
+        if activatingCodexAccountId != nil {
+            return activatingCodexAccountId == accountID ? .switching : .inactive
+        }
+        if pendingActivateCodexAccount?.id == accountID {
+            return .awaitingConfirmation
+        }
+        guard let account = codexAccounts.first(where: { $0.id == accountID }) else {
+            return .inactive
+        }
+        return isActiveCodexAccount(account) ? .active : .inactive
+    }
+
+    func shouldActivateCodexAccountOnTap(id: UUID) -> Bool {
+        codexInteractionState(accountID: id).allowsActivationRequest
     }
 
     func codexCardKind(accountID: UUID?) -> CodexAuthSummary.CardKind? {
@@ -534,25 +537,6 @@ extension ProviderUsageEngine {
             .filter { selectedCodexAccountIDs.contains($0) }
     }
 
-    func updateGatewayCardsState(_ state: CodexGatewayCardsState) {
-        let validAccountIDs = Set(codexAccounts.map(\.id))
-        let normalized = codexGatewayCardsStore.normalized(state, validAccountIDs: validAccountIDs)
-        gatewayCardsState = normalized
-        codexGatewayCardsStore.save(normalized, for: provider, validAccountIDs: validAccountIDs)
-    }
-
-    func reconcileGatewayCardsWithCurrentAccounts() {
-        let validAccountIDs = Set(codexAccounts.map(\.id))
-        let normalized = codexGatewayCardsStore.normalized(
-            gatewayCardsState,
-            validAccountIDs: validAccountIDs
-        )
-        if gatewayCardsState != normalized {
-            gatewayCardsState = normalized
-            codexGatewayCardsStore.save(normalized, for: provider, validAccountIDs: validAccountIDs)
-        }
-    }
-
     func isCodexSectionCollapsed(_ sectionID: String) -> Bool {
         collapsedCodexSectionIDs.contains(sectionID)
     }
@@ -561,12 +545,6 @@ extension ProviderUsageEngine {
         collapsedCodexSectionIDs = GenericSelectionStateResolver.resolveMultiSelection(
             current: collapsedCodexSectionIDs,
             tapped: sectionID
-        )
-    }
-
-    func toggleGatewayCardsSectionCollapsed() {
-        isGatewayCardsSectionCollapsed = GenericSelectionStateResolver.resolveBooleanToggle(
-            current: isGatewayCardsSectionCollapsed
         )
     }
 
@@ -625,34 +603,29 @@ extension ProviderUsageEngine {
 
     func confirmActivate() async {
         guard let account = pendingActivateCodexAccount else { return }
+        pendingActivateCodexAccount = nil
+        isShowingActivateConfirm = false
+        activatingCodexAccountId = account.id
         await performCodexActivation(account)
     }
 
     func performCodexActivation(_ account: CodexAuthAccount) async {
         do {
-            clearActiveGatewayCardSelection()
-            if let gatewayProviderID = resolvedGatewayProviderIDForCLI() {
-                try await codexGatewayStopAction(gatewayProviderID)
-            }
-            let activation = try await codexActivateAction(account, provider)
-            if let runtimeError = activation.runtimeErrorDescription {
-                Self.logger.error("Codex runtime switch after activation failed: \(runtimeError, privacy: .public)")
-            }
+            try await codexActivateAction(account, provider)
             pendingActivateCodexAccount = nil
+            activeCodexAccountId = account.id
             if let postActivationLoadAction {
                 await postActivationLoadAction()
             } else {
                 await load()
             }
+            activatingCodexAccountId = nil
         } catch {
+            activatingCodexAccountId = nil
+            pendingActivateCodexAccount = nil
             alertTitle = NSLocalizedString("codex.accounts.title", value: "Accounts", comment: "Codex accounts title")
             alertMessage = NSLocalizedString("codex.accounts.error.activate", value: "Failed to activate this account.", comment: "Error message")
         }
-    }
-
-    func resolvedGatewayProviderIDForCLI() -> String? {
-        guard usageProvider == .codex else { return nil }
-        return CodexGatewayProviderIDResolver.resolve(provider: provider)
     }
 
     func confirmDeleteCodexAccount() async {

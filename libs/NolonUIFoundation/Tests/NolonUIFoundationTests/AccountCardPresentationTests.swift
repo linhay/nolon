@@ -3,38 +3,30 @@ import XCTest
 
 final class AccountCardPresentationTests: XCTestCase {
     func testCodexPresentation_GivenActiveAccount_PrioritizesActiveStyle() {
-        let presentation = AccountCardPresentation.codex(
-            isActive: true,
-            isPending: true,
-            isBatchSelected: true,
-            selectableAccountCount: 3
-        )
+        let presentation = AccountCardPresentation.codex(state: .active)
 
         XCTAssertEqual(presentation.selectionStyle, .active)
         XCTAssertFalse(presentation.showsSelectionBadge)
     }
 
+    func testCodexPresentation_GivenInactiveAccount_UsesNeutralStyle() {
+        let presentation = AccountCardPresentation.codex(state: .inactive)
+
+        XCTAssertEqual(presentation.selectionStyle, .neutral)
+        XCTAssertFalse(presentation.showsSelectionBadge)
+    }
+
     func testCodexPresentation_GivenBatchSelectedAndMultiSelectable_ShowsSelectionBadge() {
-        let presentation = AccountCardPresentation.codex(
-            isActive: false,
-            isPending: false,
-            isBatchSelected: true,
-            selectableAccountCount: 2
-        )
+        let presentation = AccountCardPresentation.codex(state: .selected)
 
         XCTAssertEqual(presentation.selectionStyle, .selected)
         XCTAssertTrue(presentation.showsSelectionBadge)
     }
 
-    func testCodexPresentation_GivenSingleSelectableAccount_HidesSelectionBadge() {
-        let presentation = AccountCardPresentation.codex(
-            isActive: false,
-            isPending: false,
-            isBatchSelected: true,
-            selectableAccountCount: 1
-        )
+    func testCodexPresentation_GivenTransitioningAccount_UsesTransitioningStyle() {
+        let presentation = AccountCardPresentation.codex(state: .switching)
 
-        XCTAssertEqual(presentation.selectionStyle, .neutral)
+        XCTAssertEqual(presentation.selectionStyle, .transitioning)
         XCTAssertFalse(presentation.showsSelectionBadge)
     }
 }

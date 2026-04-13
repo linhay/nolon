@@ -356,7 +356,7 @@ final class NolonAccountsViewModelTests: XCTestCase {
         let record = AccountRecordBuilder.codexUsage(
             outcome: outcome,
             summary: CodexAuthSummary(cardKind: .chatgptAccount),
-            presentation: .codex(isActive: false, isPending: false, isBatchSelected: false, selectableAccountCount: 1),
+            presentation: .codex(state: .inactive),
             title: "Work",
             creditsRefreshedAt: nil,
             isRefreshing: false,
@@ -373,6 +373,127 @@ final class NolonAccountsViewModelTests: XCTestCase {
             )
         )
         XCTAssertEqual(record.detailFields.last?.value, "Codex protocol error: 401 Unauthorized; token expired")
+    }
+
+    func testBDD_GivenOfficialAPIKeyFailure_WhenBuildingRecord_ThenDoesNotShowErrorPresentation() {
+        let outcome = ProviderAccountUsageOutcome(
+            provider: .codex,
+            account: .default,
+            outcome: ProviderFetchOutcome(
+                fetchKind: .cli,
+                result: .failure(CodexCardTestError.message("OpenAI API key rejected"))
+            )
+        )
+
+        let record = AccountRecordBuilder.codexUsage(
+            outcome: outcome,
+            summary: CodexAuthSummary(cardKind: .officialAPIKey),
+            presentation: .codex(state: .inactive),
+            title: "Configured",
+            creditsRefreshedAt: nil,
+            isRefreshing: false,
+            canRelogin: false
+        )
+
+        XCTAssertEqual(record.healthState, .healthy)
+        XCTAssertTrue(record.detailFields.isEmpty)
+        XCTAssertNil(record.quota)
+    }
+
+    func testBDD_GivenOfficialAPIKeyWithoutVisibleUsage_WhenBuildingRecord_ThenUsageSectionIsHidden() {
+        let outcome = ProviderAccountUsageOutcome(
+            provider: .codex,
+            account: .default,
+            outcome: ProviderFetchOutcome(
+                fetchKind: .cli,
+                result: .success(
+                    ProviderFetchResult(
+                        usage: UsageSnapshot(
+                            identity: UsageIdentity(
+                                accountEmail: "api@example.com",
+                                accountOrganization: nil,
+                                loginMethod: nil,
+                                plan: nil
+                            ),
+                            primary: nil,
+                            secondary: nil,
+                            tertiary: nil,
+                            updatedAt: Date(timeIntervalSince1970: 123)
+                        ),
+                        credits: nil,
+                        cost: nil,
+                        sourceLabel: "CLI",
+                        fetchKind: .cli,
+                        strategyKind: .direct
+                    )
+                )
+            )
+        )
+
+        let record = AccountRecordBuilder.codexUsage(
+            outcome: outcome,
+            summary: CodexAuthSummary(cardKind: .officialAPIKey),
+            presentation: .codex(state: .inactive),
+            title: "Configured",
+            creditsRefreshedAt: nil,
+            isRefreshing: false,
+            canRelogin: false
+        )
+
+        XCTAssertEqual(record.healthState, .healthy)
+        XCTAssertNil(record.quota)
+    }
+
+    func testBDD_GivenOfficialAPIKeySnapshotFailure_WhenMergingCodexSnapshotAccounts_ThenDropsErrorMessage() {
+        let account = CodexAuthAccount(
+            id: UUID(uuidString: "99999999-8888-7777-6666-555555555555")!,
+            name: "Configured",
+            createdAt: Date(timeIntervalSince1970: 1_700_000_000),
+            relativeAuthPath: "auth/configured.json"
+        )
+        let merged = NolonAccountsViewModel.mergeCodexSnapshotAccounts(
+            liveSummaries: [],
+            accounts: [account],
+            summaries: [
+                account.id: CodexAuthSummary(
+                    email: "api@example.com",
+                    cardKind: .officialAPIKey,
+                    lastSyncFailedAt: Date(timeIntervalSince1970: 1_700_100_000),
+                    lastSyncFailureMessage: "OpenAI API key rejected"
+                )
+            ],
+            activeAccountID: nil,
+            providerAuthSummary: nil
+        )
+
+        XCTAssertEqual(merged.count, 1)
+        XCTAssertNil(merged.first?.errorMessage)
+    }
+
+    func testBDD_GivenRelayProfileSnapshotFailure_WhenMergingCodexSnapshotAccounts_ThenDropsErrorMessage() {
+        let account = CodexAuthAccount(
+            id: UUID(uuidString: "88888888-7777-6666-5555-444444444444")!,
+            name: "Relay",
+            createdAt: Date(timeIntervalSince1970: 1_700_000_000),
+            relativeAuthPath: "auth/relay.json"
+        )
+        let merged = NolonAccountsViewModel.mergeCodexSnapshotAccounts(
+            liveSummaries: [],
+            accounts: [account],
+            summaries: [
+                account.id: CodexAuthSummary(
+                    cardKind: .relayProfile,
+                    relayModelProvider: "nolon",
+                    lastSyncFailedAt: Date(timeIntervalSince1970: 1_700_100_000),
+                    lastSyncFailureMessage: "Codex protocol error: -32600: chatgpt authentication required to read rate limits"
+                )
+            ],
+            activeAccountID: nil,
+            providerAuthSummary: nil
+        )
+
+        XCTAssertEqual(merged.count, 1)
+        XCTAssertNil(merged.first?.errorMessage)
     }
 
     func testBDD_GivenActiveCodexSnapshotCard_WhenBuildingAccountCards_ThenShowsActiveStateWithoutActivateAction() {
@@ -617,57 +738,17 @@ final class NolonAccountsViewModelTests: XCTestCase {
             templateId: ProviderTemplate.codex.rawValue
         )
         let sink = UUIDSink()
-        let stoppedProviderIDSink = StringSink()
         let viewModel = NolonAccountsViewModel(
             settings: ProviderSettings(),
             codexAuthManager: service,
             codexActivateAction: { account, _ in
                 sink.value = account.id
-            },
-            codexGatewayStopAction: { providerID in
-                stoppedProviderIDSink.value = providerID
             }
         )
 
         await viewModel.activateCodexAccount(id: account.id, for: provider)
 
         XCTAssertEqual(sink.value, account.id)
-        XCTAssertEqual(stoppedProviderIDSink.value, "codex")
-    }
-
-    func testBDD_GivenCodexXcodeProvider_WhenActivatingFromAccountsPage_ThenStopsCodexXcodeGateway() async throws {
-        let root = FileManager.default.temporaryDirectory
-            .appendingPathComponent("nolon-accounts-activate-codex-xcode-\(UUID().uuidString)", isDirectory: true)
-        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: root) }
-
-        let service = CodexAuthManager(rootURL: root)
-        let account = try await service.addAccount(
-            name: "work",
-            authJSONString: #"{"tokens":{"id_token":"id","access_token":"access"}}"#
-        )
-        let provider = Provider(
-            id: "codex-xcode-provider",
-            kind: .vendor,
-            name: "Codex (Xcode)",
-            defaultSkillsPath: root.appendingPathComponent("provider/skills").path,
-            workflowPath: root.appendingPathComponent("provider/prompts").path,
-            vendorCategory: .original,
-            templateId: ProviderTemplate.codexXcode.rawValue
-        )
-        let stoppedProviderIDSink = StringSink()
-        let viewModel = NolonAccountsViewModel(
-            settings: ProviderSettings(),
-            codexAuthManager: service,
-            codexActivateAction: { _, _ in },
-            codexGatewayStopAction: { providerID in
-                stoppedProviderIDSink.value = providerID
-            }
-        )
-
-        await viewModel.activateCodexAccount(id: account.id, for: provider)
-
-        XCTAssertEqual(stoppedProviderIDSink.value, "codex-xcode")
     }
 
     func testBDD_GivenPiAuthPayloadWithRootEmail_WhenParsing_ThenReturnsAvailableStatusWithEmail() throws {

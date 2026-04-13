@@ -4,6 +4,14 @@ public enum AccountCardSelectionStyle: String, Codable, Hashable, Sendable {
     case neutral
     case active
     case pending
+    case transitioning
+    case selected
+}
+
+public enum CodexAccountCardPresentationState: String, Codable, Hashable, Sendable {
+    case inactive
+    case active
+    case switching
     case selected
 }
 
@@ -19,7 +27,8 @@ public struct AccountCardPresentation: Codable, Hashable, Sendable {
     public static let neutral = AccountCardPresentation(selectionStyle: .neutral, showsSelectionBadge: false)
     public static let active = AccountCardPresentation(selectionStyle: .active, showsSelectionBadge: false)
     public static let pending = AccountCardPresentation(selectionStyle: .pending, showsSelectionBadge: false)
-    public static let selected = AccountCardPresentation(selectionStyle: .selected, showsSelectionBadge: false)
+    public static let transitioning = AccountCardPresentation(selectionStyle: .transitioning, showsSelectionBadge: false)
+    public static let selected = AccountCardPresentation(selectionStyle: .selected, showsSelectionBadge: true)
 
     public static func claude(isActive: Bool) -> AccountCardPresentation {
         AccountCardPresentation(
@@ -28,22 +37,17 @@ public struct AccountCardPresentation: Codable, Hashable, Sendable {
         )
     }
 
-    public static func codex(
-        isActive: Bool,
-        isPending: Bool,
-        isBatchSelected: Bool,
-        selectableAccountCount: Int
-    ) -> AccountCardPresentation {
-        if isActive {
+    public static func codex(state: CodexAccountCardPresentationState) -> AccountCardPresentation {
+        switch state {
+        case .inactive:
+            return .neutral
+        case .active:
             return .active
+        case .switching:
+            return .transitioning
+        case .selected:
+            return .selected
         }
-        if isPending {
-            return .pending
-        }
-        if isBatchSelected, selectableAccountCount > 1 {
-            return AccountCardPresentation(selectionStyle: .selected, showsSelectionBadge: true)
-        }
-        return .neutral
     }
 }
 

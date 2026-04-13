@@ -4,6 +4,7 @@ import Testing
 import ProviderCatalog
 import ProviderUsage
 import CodexBarProviderCatalog
+import NolonUIFoundation
 @testable import nolon
 
 private final class BoolSink: @unchecked Sendable {
@@ -308,6 +309,283 @@ struct ProviderUsageUnifiedAccountsPipelineTests {
             return
         }
         #expect(quota.errorMessage?.isEmpty == false)
+    }
+
+    @Test("BDD: Given official API key Codex failure when building usage card then omits relogin and error actions")
+    func testBDD_GivenOfficialAPIKeyCodexFailure_WhenBuildingUsageCard_ThenOmitsFailureActions() {
+        let provider = Provider(
+            id: "codex",
+            kind: .vendor,
+            name: "Codex",
+            defaultSkillsPath: "/tmp/codex/skills",
+            workflowPath: "/tmp/codex/prompts",
+            vendorCategory: .original,
+            templateId: ProviderTemplate.codex.rawValue
+        )
+        let root = ProviderUsageRootViewModel(provider: provider)
+        let account = CodexAuthAccount(
+            id: UUID(uuidString: "55555555-4444-3333-2222-111111111111")!,
+            name: "Configured",
+            createdAt: Date(timeIntervalSince1970: 1_700_000_000),
+            relativeAuthPath: "auth/configured.json"
+        )
+        root.state.codexEngine.codexAccounts = [account]
+        root.state.codexEngine.codexAccountSummaries = [
+            account.id: CodexAuthSummary(
+                email: "api@example.com",
+                cardKind: .officialAPIKey,
+                lastSyncFailureMessage: "OpenAI API key rejected"
+            )
+        ]
+
+        let outcome = ProviderAccountUsageOutcome(
+            provider: .codex,
+            account: .tokenAccount(
+                .init(
+                    id: account.id,
+                    label: account.name,
+                    token: "",
+                    addedAt: account.createdAt.timeIntervalSince1970,
+                    lastUsed: nil
+                )
+            ),
+            outcome: .init(
+                fetchKind: .web,
+                result: .failure(
+                    NSError(
+                        domain: "ProviderUsageUnifiedAccountsPipelineTests",
+                        code: 1,
+                        userInfo: [NSLocalizedDescriptionKey: "OpenAI API key rejected"]
+                    )
+                )
+            )
+        )
+
+        let model = root.accountsViewModel.codex.makeUsageCardModel(
+            outcome: outcome,
+            isRunningCLILogin: false
+        )
+
+        #expect(model.data.primaryActions.isEmpty)
+        #expect(model.data.menuActions.contains(where: { $0.actionID == .relogin }) == false)
+        #expect(model.data.menuActions.contains(where: { $0.actionID == .refresh }) == true)
+        #expect(model.data.detailRows.isEmpty)
+    }
+
+    @Test("BDD: Given relay profile Codex failure when building usage card then omits relogin and error actions")
+    func testBDD_GivenRelayProfileCodexFailure_WhenBuildingUsageCard_ThenOmitsFailureActions() {
+        let provider = Provider(
+            id: "codex",
+            kind: .vendor,
+            name: "Codex",
+            defaultSkillsPath: "/tmp/codex/skills",
+            workflowPath: "/tmp/codex/prompts",
+            vendorCategory: .original,
+            templateId: ProviderTemplate.codex.rawValue
+        )
+        let root = ProviderUsageRootViewModel(provider: provider)
+        let account = CodexAuthAccount(
+            id: UUID(uuidString: "66666666-5555-4444-3333-222222222222")!,
+            name: "Relay",
+            createdAt: Date(timeIntervalSince1970: 1_700_000_000),
+            relativeAuthPath: "auth/relay.json"
+        )
+        root.state.codexEngine.codexAccounts = [account]
+        root.state.codexEngine.codexAccountSummaries = [
+            account.id: CodexAuthSummary(
+                cardKind: .relayProfile,
+                relayModelProvider: "nolon",
+                lastSyncFailureMessage: "Codex protocol error: -32600: chatgpt authentication required to read rate limits"
+            )
+        ]
+
+        let outcome = ProviderAccountUsageOutcome(
+            provider: .codex,
+            account: .tokenAccount(
+                .init(
+                    id: account.id,
+                    label: account.name,
+                    token: "",
+                    addedAt: account.createdAt.timeIntervalSince1970,
+                    lastUsed: nil
+                )
+            ),
+            outcome: .init(
+                fetchKind: .web,
+                result: .failure(
+                    NSError(
+                        domain: "ProviderUsageUnifiedAccountsPipelineTests",
+                        code: 1,
+                        userInfo: [NSLocalizedDescriptionKey: "Codex protocol error: -32600: chatgpt authentication required to read rate limits"]
+                    )
+                )
+            )
+        )
+
+        let model = root.accountsViewModel.codex.makeUsageCardModel(
+            outcome: outcome,
+            isRunningCLILogin: false
+        )
+
+        #expect(model.data.primaryActions.isEmpty)
+        #expect(model.data.menuActions.contains(where: { $0.actionID == .relogin }) == false)
+        #expect(model.data.menuActions.contains(where: { $0.actionID == .refresh }) == true)
+        #expect(model.data.detailRows.isEmpty)
+    }
+
+    @Test("BDD: Given pending Codex activation confirmation when building usage card then keeps card neutral until confirmed")
+    func testBDD_GivenPendingCodexActivationConfirmation_WhenBuildingUsageCard_ThenKeepsNeutralPresentation() {
+        let provider = Provider(
+            id: "codex",
+            kind: .vendor,
+            name: "Codex",
+            defaultSkillsPath: "/tmp/codex/skills",
+            workflowPath: "/tmp/codex/prompts",
+            vendorCategory: .original,
+            templateId: ProviderTemplate.codex.rawValue
+        )
+        let root = ProviderUsageRootViewModel(provider: provider)
+        let account = CodexAuthAccount(
+            id: UUID(uuidString: "99999999-8888-7777-6666-555555555555")!,
+            name: "API Key",
+            createdAt: Date(timeIntervalSince1970: 1_700_000_000),
+            relativeAuthPath: "auth/apikey.json"
+        )
+        root.state.codexEngine.codexAccounts = [account]
+        root.state.codexEngine.pendingActivateCodexAccount = account
+
+        let outcome = ProviderAccountUsageOutcome(
+            provider: .codex,
+            account: .tokenAccount(
+                .init(
+                    id: account.id,
+                    label: account.name,
+                    token: "",
+                    addedAt: account.createdAt.timeIntervalSince1970,
+                    lastUsed: nil
+                )
+            ),
+            outcome: .init(fetchKind: .web, result: .failure(ProviderUsageError.missingAccount(.codex)))
+        )
+
+        let model = root.accountsViewModel.codex.makeUsageCardModel(
+            outcome: outcome,
+            isRunningCLILogin: false
+        )
+
+        #expect(model.presentation.selectionStyle == .neutral)
+    }
+
+    @Test("BDD: Given Codex account switch in progress when building usage cards then only transitioning target stays highlighted")
+    func testBDD_GivenCodexSwitchInProgress_WhenBuildingUsageCards_ThenOnlyTransitioningTargetIsHighlighted() {
+        let provider = Provider(
+            id: "codex",
+            kind: .vendor,
+            name: "Codex",
+            defaultSkillsPath: "/tmp/codex/skills",
+            workflowPath: "/tmp/codex/prompts",
+            vendorCategory: .original,
+            templateId: ProviderTemplate.codex.rawValue
+        )
+        let root = ProviderUsageRootViewModel(provider: provider)
+        let activeAccount = CodexAuthAccount(
+            id: UUID(uuidString: "11111111-2222-3333-4444-555555555555")!,
+            name: "OAuth",
+            createdAt: Date(timeIntervalSince1970: 1_700_000_000),
+            relativeAuthPath: "auth/oauth.json"
+        )
+        let targetAccount = CodexAuthAccount(
+            id: UUID(uuidString: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")!,
+            name: "API Key",
+            createdAt: Date(timeIntervalSince1970: 1_700_000_100),
+            relativeAuthPath: "auth/apikey.json"
+        )
+        root.state.codexEngine.codexAccounts = [activeAccount, targetAccount]
+        root.state.codexEngine.activeCodexAccountId = activeAccount.id
+        root.state.codexEngine.activatingCodexAccountId = targetAccount.id
+
+        let activeOutcome = ProviderAccountUsageOutcome(
+            provider: .codex,
+            account: .tokenAccount(
+                .init(
+                    id: activeAccount.id,
+                    label: activeAccount.name,
+                    token: "",
+                    addedAt: activeAccount.createdAt.timeIntervalSince1970,
+                    lastUsed: nil
+                )
+            ),
+            outcome: .init(fetchKind: .oauth, result: .failure(ProviderUsageError.missingAccount(.codex)))
+        )
+        let targetOutcome = ProviderAccountUsageOutcome(
+            provider: .codex,
+            account: .tokenAccount(
+                .init(
+                    id: targetAccount.id,
+                    label: targetAccount.name,
+                    token: "",
+                    addedAt: targetAccount.createdAt.timeIntervalSince1970,
+                    lastUsed: nil
+                )
+            ),
+            outcome: .init(fetchKind: .web, result: .failure(ProviderUsageError.missingAccount(.codex)))
+        )
+
+        let activeModel = root.accountsViewModel.codex.makeUsageCardModel(
+            outcome: activeOutcome,
+            isRunningCLILogin: false
+        )
+        let targetModel = root.accountsViewModel.codex.makeUsageCardModel(
+            outcome: targetOutcome,
+            isRunningCLILogin: false
+        )
+
+        #expect(activeModel.presentation.selectionStyle == .neutral)
+        #expect(targetModel.presentation.selectionStyle == .transitioning)
+    }
+
+    @Test("BDD: Given Codex account switch in progress when building usage card then does not show switching badge")
+    func testBDD_GivenCodexSwitchInProgress_WhenBuildingUsageCard_ThenDoesNotShowSwitchingBadge() {
+        let provider = Provider(
+            id: "codex",
+            kind: .vendor,
+            name: "Codex",
+            defaultSkillsPath: "/tmp/codex/skills",
+            workflowPath: "/tmp/codex/prompts",
+            vendorCategory: .original,
+            templateId: ProviderTemplate.codex.rawValue
+        )
+        let root = ProviderUsageRootViewModel(provider: provider)
+        let account = CodexAuthAccount(
+            id: UUID(uuidString: "12121212-3434-5656-7878-909090909090")!,
+            name: "API Key",
+            createdAt: Date(timeIntervalSince1970: 1_700_000_100),
+            relativeAuthPath: "auth/apikey.json"
+        )
+        root.state.codexEngine.codexAccounts = [account]
+        root.state.codexEngine.activatingCodexAccountId = account.id
+
+        let outcome = ProviderAccountUsageOutcome(
+            provider: .codex,
+            account: .tokenAccount(
+                .init(
+                    id: account.id,
+                    label: account.name,
+                    token: "",
+                    addedAt: account.createdAt.timeIntervalSince1970,
+                    lastUsed: nil
+                )
+            ),
+            outcome: .init(fetchKind: .web, result: .failure(ProviderUsageError.missingAccount(.codex)))
+        )
+
+        let model = root.accountsViewModel.codex.makeUsageCardModel(
+            outcome: outcome,
+            isRunningCLILogin: false
+        )
+
+        #expect(model.presentation.selectionStyle == .transitioning)
+        #expect(model.data.header.badge == nil)
     }
 
     @Test("BDD: Given mixed outcomes when selecting unified card live outcome then prefers success result")
