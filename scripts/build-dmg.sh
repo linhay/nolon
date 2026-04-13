@@ -22,6 +22,9 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
+TIMESTAMP_RETRIES="${TIMESTAMP_RETRIES:-5}"
+TIMESTAMP_RETRY_SLEEP="${TIMESTAMP_RETRY_SLEEP:-10}"
+
 # Load .env if exists
 if [ -f ".env" ]; then
     echo -e "${YELLOW}📂 Loading .env configuration...${NC}"
@@ -46,6 +49,27 @@ ARCH="${1:-}"
 # Ensure release directory exists
 mkdir -p "$RELEASE_DIR"
 
+run_codesign_with_timestamp() {
+    local target_path="$1"
+    shift
+
+    local attempt=1
+    while [ "$attempt" -le "$TIMESTAMP_RETRIES" ]; do
+        if codesign "$@" --timestamp "$target_path"; then
+            return 0
+        fi
+
+        if [ "$attempt" -ge "$TIMESTAMP_RETRIES" ]; then
+            echo -e "${RED}❌ Failed to sign with secure timestamp: ${target_path}${NC}"
+            return 1
+        fi
+
+        echo -e "${YELLOW}⚠️  Timestamp service unavailable, retrying in ${TIMESTAMP_RETRY_SLEEP}s (${attempt}/${TIMESTAMP_RETRIES})${NC}"
+        sleep "$TIMESTAMP_RETRY_SLEEP"
+        attempt=$((attempt + 1))
+    done
+}
+
 # Function to sign the app
 sign_app() {
     local app_path="$1"
@@ -61,27 +85,20 @@ sign_app() {
         echo -e "${YELLOW}🔐 Signing embedded git binaries...${NC}"
         while IFS= read -r -d '' file_path; do
             if file "$file_path" | grep -q "Mach-O"; then
-                codesign --force --options runtime --timestamp \
-                    --sign "$SIGNING_IDENTITY" \
-                    "$file_path" || {
-                    echo -e "${YELLOW}⚠️  Timestamp service unavailable, retrying without timestamp for $file_path${NC}"
-                    codesign --force --options runtime --timestamp=none \
-                        --sign "$SIGNING_IDENTITY" \
-                        "$file_path"
-                }
+                run_codesign_with_timestamp "$file_path" \
+                    --force \
+                    --options runtime \
+                    --sign "$SIGNING_IDENTITY"
             fi
         done < <(find "$git_bundle_path" -type f -print0)
     fi
     
     echo -e "${YELLOW}🔏 Signing app with: ${SIGNING_IDENTITY}${NC}"
-    codesign --force --deep --options runtime --timestamp \
-        --sign "$SIGNING_IDENTITY" \
-        "$app_path" || {
-        echo -e "${YELLOW}⚠️  Timestamp service unavailable, retrying without timestamp for app bundle${NC}"
-        codesign --force --deep --options runtime --timestamp=none \
-            --sign "$SIGNING_IDENTITY" \
-            "$app_path"
-    }
+    run_codesign_with_timestamp "$app_path" \
+        --force \
+        --deep \
+        --options runtime \
+        --sign "$SIGNING_IDENTITY"
     
     echo -e "${GREEN}✅ App signed${NC}"
 }
