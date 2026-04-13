@@ -21,7 +21,6 @@ final class ProviderUsageRootViewModel {
     let tokenTrendViewModel: ProviderTokenTrendViewModel
     let importExportViewModel: CodexImportExportViewModel
     let loginFlowViewModel: ProviderLoginFlowViewModel
-    let gatewayCardsViewModel: CodexGatewayCardsViewModel
 
     var provider: Provider { state.provider }
     var usageProvider: UsageProvider? { state.usageProvider }
@@ -44,17 +43,6 @@ final class ProviderUsageRootViewModel {
                     "usage.token_trend.title",
                     value: "历史 Token 消耗",
                     comment: "Token trend section title"
-                )
-            )
-        ]
-    }
-    var gatewayCardsDebugPageMarkerItems: [PageMarkerItem] {
-        debugPageMarkerItems + [
-            PageMarkerItem(
-                title: NSLocalizedString(
-                    "codex.gateway.cards.title",
-                    value: "网关卡片",
-                    comment: "Gateway cards section title"
                 )
             )
         ]
@@ -109,7 +97,6 @@ final class ProviderUsageRootViewModel {
         self.tokenTrendViewModel = ProviderTokenTrendViewModel(state: state)
         self.importExportViewModel = CodexImportExportViewModel(state: state)
         self.loginFlowViewModel = ProviderLoginFlowViewModel(state: state)
-        self.gatewayCardsViewModel = CodexGatewayCardsViewModel(state: state)
     }
 
     init(state: ProviderUsageStateStore) {
@@ -118,7 +105,6 @@ final class ProviderUsageRootViewModel {
         self.tokenTrendViewModel = ProviderTokenTrendViewModel(state: state)
         self.importExportViewModel = CodexImportExportViewModel(state: state)
         self.loginFlowViewModel = ProviderLoginFlowViewModel(state: state)
-        self.gatewayCardsViewModel = CodexGatewayCardsViewModel(state: state)
     }
 
     func load() async {

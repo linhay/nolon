@@ -16,7 +16,6 @@ import NolonUIFoundation
 final class NolonAccountsViewModel: CopyToastPresenting {
     private static let logger = Logger(subsystem: "com.nolon", category: "NolonAccountsViewModel")
     typealias CodexActivateAction = @Sendable (CodexAuthAccount, Provider) async throws -> Void
-    typealias CodexGatewayStopAction = @Sendable (String) async throws -> Void
     typealias CopyTextAction = @Sendable (String) -> Void
     typealias OpenURLAction = @Sendable (URL) -> Void
     typealias ProviderUsageAccountsViewModelFactory = @MainActor @Sendable (Provider) -> ProviderUsageAccountsViewModel
@@ -55,7 +54,6 @@ final class NolonAccountsViewModel: CopyToastPresenting {
     private let usageSettingsStore: UsageMonitorSettingsStore
     private let codexAuthManager: CodexAuthManager
     private let codexActivateAction: CodexActivateAction
-    private let codexGatewayStopAction: CodexGatewayStopAction
     private let copyTextAction: CopyTextAction
     private let openURLAction: OpenURLAction
     private let providerUsageAccountsViewModelFactory: ProviderUsageAccountsViewModelFactory
@@ -80,7 +78,6 @@ final class NolonAccountsViewModel: CopyToastPresenting {
         usageSettingsStore: UsageMonitorSettingsStore? = nil,
         codexAuthManager: CodexAuthManager = .shared,
         codexActivateAction: CodexActivateAction? = nil,
-        codexGatewayStopAction: CodexGatewayStopAction? = nil,
         copyTextAction: CopyTextAction? = nil,
         openURLAction: OpenURLAction? = nil,
         providerUsageViewModelFactory: ProviderUsageAccountsViewModelFactory? = nil
@@ -89,10 +86,7 @@ final class NolonAccountsViewModel: CopyToastPresenting {
         let tokenStore = FileTokenAccountStore(fileURL: ProviderUsagePaths.defaultTokenAccountsFileURL())
         let resolvedUsageMonitor = usageMonitor ?? ProviderUsageMonitorService(tokenAccountStore: tokenStore)
         let resolvedCodexActivateAction = codexActivateAction ?? { account, provider in
-            _ = try await CodexAuthActivationCoordinator.shared.activate(account: account, provider: provider)
-        }
-        let resolvedCodexGatewayStopAction = codexGatewayStopAction ?? { providerID in
-            _ = try await NolonLiveCodexCLIService().gatewayStop(providerID: providerID)
+            try await CodexAuthActivationCoordinator.shared.activate(account: account, provider: provider)
         }
 
         self.settings = settings
@@ -100,7 +94,6 @@ final class NolonAccountsViewModel: CopyToastPresenting {
         self.usageSettingsStore = usageSettingsStore ?? .shared
         self.codexAuthManager = codexAuthManager
         self.codexActivateAction = resolvedCodexActivateAction
-        self.codexGatewayStopAction = resolvedCodexGatewayStopAction
         self.copyTextAction = copyTextAction ?? { text in
             NSPasteboard.general.clearContents()
             NSPasteboard.general.setString(text, forType: .string)
@@ -115,10 +108,7 @@ final class NolonAccountsViewModel: CopyToastPresenting {
                 ProviderUsageRootViewModel(
                     provider: provider,
                     usageMonitor: resolvedUsageMonitor,
-                    codexActivateAction: { account, provider in
-                        try await resolvedCodexActivateAction(account, provider)
-                        return CodexAuthActivationResult(runtimeSwitched: false, runtimeErrorDescription: nil)
-                    }
+                    codexActivateAction: resolvedCodexActivateAction
                 ).accountsViewModel
             }
         } else {
@@ -248,9 +238,6 @@ final class NolonAccountsViewModel: CopyToastPresenting {
     func activateCodexAccount(id: UUID, for provider: Provider) async {
         do {
             let accountsViewModel = providerUsageAccountsViewModel(for: provider)
-            if let gatewayProviderID = Self.gatewayProviderID(for: provider) {
-                try? await codexGatewayStopAction(gatewayProviderID)
-            }
             _ = await accountsViewModel.loadIfNeeded()
             if await accountsViewModel.codex.activateAccount(id: id) {
                 await refreshAsync()
@@ -262,10 +249,6 @@ final class NolonAccountsViewModel: CopyToastPresenting {
             }
         } catch {
         }
-    }
-
-    private static func gatewayProviderID(for provider: Provider) -> String? {
-        CodexGatewayProviderIDResolver.resolve(provider: provider)
     }
 
     func copyCodexAccountID(_ id: UUID) {
@@ -578,7 +561,12 @@ extension NolonAccountsViewModel {
             let displayName = AccountDisplayTextSupport.codexSnapshotLabel(summary: summary, account: account)
             let activeLiveSummary = (account.id == activeAccountID) ? liveDefault : nil
             let latestSnapshotDate = summary?.lastSyncSucceededAt ?? summary?.lastLoginAt
-            let failureMessage = activeLiveSummary?.errorMessage ?? summary?.lastSyncFailureMessage
+            let failureMessage: String? = {
+                if summary?.cardKind?.isSelfManagedConfiguredAccount == true {
+                    return nil
+                }
+                return activeLiveSummary?.errorMessage ?? summary?.lastSyncFailureMessage
+            }()
 
             return AccountUsageSummary(
                 id: account.id.uuidString,
@@ -599,6 +587,12 @@ extension NolonAccountsViewModel {
            snapshotAccounts.isEmpty,
            let liveDefault
         {
+            let failureMessage: String? = {
+                if providerAuthSummary.cardKind?.isSelfManagedConfiguredAccount == true {
+                    return nil
+                }
+                return liveDefault.errorMessage ?? providerAuthSummary.lastSyncFailureMessage
+            }()
             return [
                 AccountUsageSummary(
                     id: liveDefault.id,
@@ -615,7 +609,7 @@ extension NolonAccountsViewModel {
                     failureCount: liveDefault.failureCount,
                     latestUpdatedAt: liveDefault.latestUpdatedAt,
                     primaryUsedPercent: liveDefault.primaryUsedPercent,
-                    errorMessage: liveDefault.errorMessage ?? providerAuthSummary.lastSyncFailureMessage,
+                    errorMessage: failureMessage,
                     isSnapshotOnly: false
                 )
             ] + extraLiveAccounts

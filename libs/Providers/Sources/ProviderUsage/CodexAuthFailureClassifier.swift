@@ -19,7 +19,7 @@ public enum CodexAuthFailureClassifier {
     }
 
     public static func shouldSkipRefresh(summary: CodexAuthSummary) -> Bool {
-        if summary.cardKind == .chatgptAccount {
+        if summary.cardKind == .chatgptAccount || summary.cardKind?.isSelfManagedConfiguredAccount == true {
             return false
         }
         if summary.lastSyncFailedAt != nil {

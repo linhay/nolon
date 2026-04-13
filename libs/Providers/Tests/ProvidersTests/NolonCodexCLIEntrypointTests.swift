@@ -144,9 +144,11 @@ extension String {
 actor MockCodexCLIService: NolonCodexCLIServing {
     private var call: String?
     private var sessionRequestSource: NolonCodexSessionSelectionSource?
+    private var sessionListGrouping: NolonCodexSessionListGrouping?
 
     func lastCall() -> String? { call }
     func lastSessionRequestSource() -> NolonCodexSessionSelectionSource? { sessionRequestSource }
+    func lastSessionListGrouping() -> NolonCodexSessionListGrouping? { sessionListGrouping }
 
     func authList(providerID: String) async throws -> NolonCodexAuthListPayload {
         call = "authList"
@@ -273,9 +275,7 @@ actor MockCodexCLIService: NolonCodexCLIServing {
         call = "authActivate"
         return NolonCodexAuthActivatePayload(
             providerID: providerID,
-            accountID: accountID,
-            runtimeSwitched: true,
-            runtimeErrorDescription: nil
+            accountID: accountID
         )
     }
 
@@ -285,8 +285,6 @@ actor MockCodexCLIService: NolonCodexCLIServing {
             providerID: providerID,
             accountID: UUID(uuidString: "11111111-1111-1111-1111-111111111111")!,
             accountName: "mock",
-            runtimeSwitched: true,
-            runtimeErrorDescription: nil,
             loginURL: "https://auth.example.com/device"
         )
     }
@@ -303,8 +301,6 @@ actor MockCodexCLIService: NolonCodexCLIServing {
                     email: "mock@example.com",
                     isActive: true,
                     success: true,
-                    runtimeSwitched: true,
-                    runtimeErrorDescription: nil,
                     errorCode: nil,
                     errorMessage: nil
                 ),
@@ -380,35 +376,70 @@ actor MockCodexCLIService: NolonCodexCLIServing {
         )
     }
 
-    func sessionList(providerID: String) async throws -> NolonCodexSessionListPayload {
+    func sessionList(
+        providerID: String,
+        groupBy: NolonCodexSessionListGrouping
+    ) async throws -> NolonCodexSessionListPayload {
         call = "sessionList"
+        sessionListGrouping = groupBy
+        let section: NolonCodexSessionSectionView
+        switch groupBy {
+        case .provider:
+            section = NolonCodexSessionSectionView(
+                modelProvider: "openai",
+                sessions: [
+                    NolonCodexSessionRowView(
+                        id: "sessions/live.jsonl",
+                        threadID: "thread-1",
+                        title: "Live Session",
+                        summary: "hello",
+                        modelProvider: "openai",
+                        archived: false,
+                        rolloutPath: "sessions/live.jsonl",
+                        cwd: "/tmp/demo",
+                        updatedAt: Date(timeIntervalSince1970: 0),
+                        stateRowCount: 1,
+                        editable: true
+                    )
+                ],
+                totalSessionCount: 1,
+                editableThreadIDs: ["thread-1"],
+                liveCount: 1,
+                archivedCount: 0
+            )
+        case .timeProject:
+            section = NolonCodexSessionSectionView(
+                id: "time-project:2026-04-11|/tmp/demo",
+                modelProvider: "openai",
+                title: "2026-04-11 · demo",
+                sourceProviderID: "openai",
+                providerIDs: ["openai"],
+                sessions: [
+                    NolonCodexSessionRowView(
+                        id: "sessions/live.jsonl",
+                        threadID: "thread-1",
+                        title: "Live Session",
+                        summary: "hello",
+                        modelProvider: "openai",
+                        archived: false,
+                        rolloutPath: "sessions/live.jsonl",
+                        cwd: "/tmp/demo",
+                        updatedAt: Date(timeIntervalSince1970: 0),
+                        stateRowCount: 1,
+                        editable: true
+                    )
+                ],
+                totalSessionCount: 1,
+                editableThreadIDs: ["thread-1"],
+                liveCount: 1,
+                archivedCount: 0
+            )
+        }
         return NolonCodexSessionListPayload(
             providerID: providerID,
+            groupBy: groupBy,
             availableTargetProviderIDs: ["openai", "azure"],
-            sections: [
-                NolonCodexSessionSectionView(
-                    modelProvider: "openai",
-                    sessions: [
-                        NolonCodexSessionRowView(
-                            id: "sessions/live.jsonl",
-                            threadID: "thread-1",
-                            title: "Live Session",
-                            summary: "hello",
-                            modelProvider: "openai",
-                            archived: false,
-                            rolloutPath: "sessions/live.jsonl",
-                            cwd: "/tmp/demo",
-                            updatedAt: Date(timeIntervalSince1970: 0),
-                            stateRowCount: 1,
-                            editable: true
-                        )
-                    ],
-                    totalSessionCount: 1,
-                    editableThreadIDs: ["thread-1"],
-                    liveCount: 1,
-                    archivedCount: 0
-                )
-            ],
+            sections: [section],
             totalSessionCount: 1,
             totalLiveCount: 1,
             totalArchivedCount: 0
@@ -536,7 +567,14 @@ actor DomainErrorCodexCLIService: NolonCodexCLIServing {
     func binaryUse(version: String) async throws -> NolonCodexBinaryUsePayload { throw makeError() }
     func binaryDoctor() async throws -> NolonCodexBinaryDoctorPayload { throw makeError() }
     func statusProbe(providerID: String?) async throws -> NolonCodexStatusProbePayload { throw makeError() }
-    func sessionList(providerID: String) async throws -> NolonCodexSessionListPayload { throw makeError() }
+    func sessionList(
+        providerID: String,
+        groupBy: NolonCodexSessionListGrouping
+    ) async throws -> NolonCodexSessionListPayload {
+        _ = providerID
+        _ = groupBy
+        throw makeError()
+    }
     func sessionPreviewRewrite(providerID: String, requestSource: NolonCodexSessionSelectionSource, targetProviderID: String) async throws -> NolonCodexSessionRewritePreviewPayload { throw makeError() }
     func sessionRewrite(providerID: String, requestSource: NolonCodexSessionSelectionSource, targetProviderID: String) async throws -> NolonCodexSessionRewritePayload { throw makeError() }
     func runtimeList(providerID: String?) async throws -> NolonCodexRuntimeListPayload { throw makeError() }
@@ -562,7 +600,14 @@ actor CancellationErrorCodexCLIService: NolonCodexCLIServing {
     func binaryUse(version: String) async throws -> NolonCodexBinaryUsePayload { throw CancellationError() }
     func binaryDoctor() async throws -> NolonCodexBinaryDoctorPayload { throw CancellationError() }
     func statusProbe(providerID: String?) async throws -> NolonCodexStatusProbePayload { throw CancellationError() }
-    func sessionList(providerID: String) async throws -> NolonCodexSessionListPayload { throw CancellationError() }
+    func sessionList(
+        providerID: String,
+        groupBy: NolonCodexSessionListGrouping
+    ) async throws -> NolonCodexSessionListPayload {
+        _ = providerID
+        _ = groupBy
+        throw CancellationError()
+    }
     func sessionPreviewRewrite(providerID: String, requestSource: NolonCodexSessionSelectionSource, targetProviderID: String) async throws -> NolonCodexSessionRewritePreviewPayload { throw CancellationError() }
     func sessionRewrite(providerID: String, requestSource: NolonCodexSessionSelectionSource, targetProviderID: String) async throws -> NolonCodexSessionRewritePayload { throw CancellationError() }
     func runtimeList(providerID: String?) async throws -> NolonCodexRuntimeListPayload { throw CancellationError() }
@@ -598,11 +643,11 @@ actor EmailActivateCodexCLIService: NolonCodexCLIServing {
     }
 
     func authActivate(providerID: String, accountID: UUID) async throws -> NolonCodexAuthActivatePayload {
-        NolonCodexAuthActivatePayload(providerID: providerID, accountID: accountID, runtimeSwitched: true, runtimeErrorDescription: nil)
+        NolonCodexAuthActivatePayload(providerID: providerID, accountID: accountID)
     }
 
     func authLogin(providerID: String, preferredAccountID: UUID?) async throws -> NolonCodexAuthLoginPayload {
-        NolonCodexAuthLoginPayload(providerID: providerID, accountID: accountID, accountName: "A", runtimeSwitched: false, runtimeErrorDescription: nil, loginURL: nil)
+        NolonCodexAuthLoginPayload(providerID: providerID, accountID: accountID, accountName: "A", loginURL: nil)
     }
 
     func authDelete(providerID: String, accountID: UUID) async throws -> NolonCodexAuthDeletePayload {
@@ -657,8 +702,8 @@ actor EmailActivateCodexCLIService: NolonCodexCLIServing {
 actor StatusProbeParseErrorCodexCLIService: NolonCodexCLIServing {
     func authList(providerID: String) async throws -> NolonCodexAuthListPayload { NolonCodexAuthListPayload(providerID: providerID, activeAccountID: nil, accounts: []) }
     func authStatus(providerID: String) async throws -> NolonCodexAuthStatusPayload { NolonCodexAuthStatusPayload(providerID: providerID, activeAccountID: nil, accountCount: 0, authHashHex: nil) }
-    func authActivate(providerID: String, accountID: UUID) async throws -> NolonCodexAuthActivatePayload { NolonCodexAuthActivatePayload(providerID: providerID, accountID: accountID, runtimeSwitched: false, runtimeErrorDescription: nil) }
-    func authLogin(providerID: String, preferredAccountID: UUID?) async throws -> NolonCodexAuthLoginPayload { NolonCodexAuthLoginPayload(providerID: providerID, accountID: UUID(), accountName: "-", runtimeSwitched: false, runtimeErrorDescription: nil, loginURL: nil) }
+    func authActivate(providerID: String, accountID: UUID) async throws -> NolonCodexAuthActivatePayload { NolonCodexAuthActivatePayload(providerID: providerID, accountID: accountID) }
+    func authLogin(providerID: String, preferredAccountID: UUID?) async throws -> NolonCodexAuthLoginPayload { NolonCodexAuthLoginPayload(providerID: providerID, accountID: UUID(), accountName: "-", loginURL: nil) }
     func authDelete(providerID: String, accountID: UUID) async throws -> NolonCodexAuthDeletePayload { NolonCodexAuthDeletePayload(providerID: providerID, accountID: accountID, wasActive: false) }
     func binaryList() async throws -> NolonCodexBinaryListPayload { NolonCodexBinaryListPayload(selectedVersionID: nil, versions: []) }
     func binaryAvailable() async throws -> NolonCodexBinaryAvailablePayload { NolonCodexBinaryAvailablePayload(versions: []) }
@@ -800,9 +845,7 @@ actor JSONContractCodexCLIService: NolonCodexCLIServing {
     func authActivate(providerID: String, accountID: UUID) async throws -> NolonCodexAuthActivatePayload {
         NolonCodexAuthActivatePayload(
             providerID: providerID,
-            accountID: accountID,
-            runtimeSwitched: false,
-            runtimeErrorDescription: "runtime restarted"
+            accountID: accountID
         )
     }
     func authLogin(providerID: String, preferredAccountID: UUID?) async throws -> NolonCodexAuthLoginPayload {
@@ -810,8 +853,6 @@ actor JSONContractCodexCLIService: NolonCodexCLIServing {
             providerID: providerID,
             accountID: preferredAccountID ?? UUID(uuidString: "44444444-4444-4444-4444-444444444444")!,
             accountName: "json-login",
-            runtimeSwitched: true,
-            runtimeErrorDescription: nil,
             loginURL: "https://auth.example.com/device"
         )
     }
@@ -825,8 +866,6 @@ actor JSONContractCodexCLIService: NolonCodexCLIServing {
                     email: "json@example.com",
                     isActive: true,
                     success: true,
-                    runtimeSwitched: true,
-                    runtimeErrorDescription: nil,
                     errorCode: nil,
                     errorMessage: nil
                 ),

@@ -428,7 +428,7 @@ public struct CodexConfigEditorSheetView: View {
                                 Label(
                                     NSLocalizedString(
                                         "codex.accounts.config.model_provider.suggested",
-                                        value: "Suggested from models cache",
+                                        value: "Suggested from current config",
                                         comment: "Model provider suggested options"
                                     ),
                                     systemImage: "list.bullet"

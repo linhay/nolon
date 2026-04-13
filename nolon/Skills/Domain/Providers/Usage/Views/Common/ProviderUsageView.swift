@@ -6,13 +6,152 @@ import CodexProvider
 import NolonUIFoundation
 import NolonUI
 
+private struct ClaudeAccountEditorSheet: View {
+    typealias Draft = ProviderUsageAccountsViewModel.ClaudeState.AccountEditorDraft
+
+    @Binding var draft: Draft?
+    let errorMessage: String?
+    let onCancel: () -> Void
+    let onSave: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text(titleText)
+                .font(.title3.weight(.semibold))
+
+            if let errorMessage, !errorMessage.isEmpty {
+                Text(errorMessage)
+                    .font(.footnote)
+                    .foregroundStyle(.red)
+            }
+
+            Form {
+                TextField(
+                    NSLocalizedString("claude.accounts.editor.name", value: "Name", comment: "Claude account name"),
+                    text: stringBinding(\.name)
+                )
+
+                Picker(
+                    NSLocalizedString("claude.accounts.editor.credential_type", value: "Credential Type", comment: "Claude credential type"),
+                    selection: credentialTypeBinding
+                ) {
+                    Text("Auth Token").tag(ClaudeCredentialType.authToken)
+                    Text("API Key").tag(ClaudeCredentialType.apiKey)
+                }
+
+                SecureField(
+                    NSLocalizedString("claude.accounts.editor.credential", value: "Credential", comment: "Claude credential value"),
+                    text: stringBinding(\.credentialValue)
+                )
+
+                TextField(
+                    NSLocalizedString("claude.accounts.editor.base_url", value: "Base URL", comment: "Claude base URL"),
+                    text: stringBinding(\.baseURL)
+                )
+
+                TextField("Model", text: stringBinding(\.anthropicModel))
+                TextField("Reasoning Model", text: stringBinding(\.anthropicReasoningModel))
+                TextField("Default Haiku Model", text: stringBinding(\.anthropicDefaultHaikuModel))
+                TextField("Default Sonnet Model", text: stringBinding(\.anthropicDefaultSonnetModel))
+                TextField("Default Opus Model", text: stringBinding(\.anthropicDefaultOpusModel))
+            }
+            .formStyle(.grouped)
+
+            HStack {
+                Spacer(minLength: 0)
+                Button(NSLocalizedString("generic.cancel", value: "Cancel", comment: "Cancel")) {
+                    onCancel()
+                }
+                Button(saveButtonTitle) {
+                    onSave()
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(draft == nil)
+            }
+        }
+        .padding(20)
+        .frame(minWidth: 480, minHeight: 520)
+    }
+
+    private var titleText: String {
+        switch draft?.mode {
+        case .create:
+            return NSLocalizedString("claude.accounts.editor.create", value: "New Claude Account", comment: "Create Claude account")
+        case .edit:
+            return NSLocalizedString("claude.accounts.editor.edit", value: "Edit Claude Account", comment: "Edit Claude account")
+        case nil:
+            return NSLocalizedString("claude.accounts.editor.title", value: "Claude Account", comment: "Claude account editor title")
+        }
+    }
+
+    private var saveButtonTitle: String {
+        switch draft?.mode {
+        case .create:
+            return NSLocalizedString("generic.create", value: "Create", comment: "Create")
+        case .edit:
+            return NSLocalizedString("generic.save", value: "Save", comment: "Save")
+        case nil:
+            return NSLocalizedString("generic.save", value: "Save", comment: "Save")
+        }
+    }
+
+    private var credentialTypeBinding: Binding<ClaudeCredentialType> {
+        Binding(
+            get: { draft?.credentialType ?? .authToken },
+            set: { newValue in
+                guard var draft else { return }
+                draft.credentialType = newValue
+                self.draft = draft
+            }
+        )
+    }
+
+    private func stringBinding(_ keyPath: WritableKeyPath<Draft, String>) -> Binding<String> {
+        Binding(
+            get: { draft?[keyPath: keyPath] ?? "" },
+            set: { value in
+                guard var draft else { return }
+                draft[keyPath: keyPath] = value
+                self.draft = draft
+            }
+        )
+    }
+}
+
+private extension ProviderFetchKind {
+    var nolonLabel: String {
+        switch self {
+        case .cli:
+            return "CLI"
+        case .web:
+            return "Web"
+        case .oauth:
+            return "OAuth"
+        case .apiToken:
+            return "API Token"
+        case .localProbe:
+            return "Local Probe"
+        case .webDashboard:
+            return "Dashboard"
+        }
+    }
+}
+
+private extension ProviderFetchStrategyKind {
+    var nolonLabel: String {
+        switch self {
+        case .direct:
+            return NSLocalizedString("usage.fetch.strategy.direct", value: "Direct", comment: "Direct fetch strategy")
+        case .fallback:
+            return NSLocalizedString("usage.fetch.strategy.fallback", value: "Fallback", comment: "Fallback fetch strategy")
+        }
+    }
+}
+
 struct ProviderUsageView: View, DebugPageLocatable {
     let provider: Provider
     let isEmbedded: Bool
     @State private var rootViewModel: ProviderUsageRootViewModel
-    @State var targetingGatewayCardID: UUID?
-    @State var gatewayAccountPickerCardID: UUID?
-    @State var gatewayAccountPickerSelection: Set<IDBox<UUID>> = []
     var currentRootViewModel: ProviderUsageRootViewModel { rootViewModel }
 
     let codexAccountColumns: [GridItem] = [
@@ -49,13 +188,8 @@ struct ProviderUsageView: View, DebugPageLocatable {
         rootViewModel.loginFlowViewModel
     }
 
-    var gatewayCardsViewModel: CodexGatewayCardsViewModel {
-        rootViewModel.gatewayCardsViewModel
-    }
-
     var debugPageMarkerItems: [PageMarkerItem] { rootViewModel.debugPageMarkerItems }
     var tokenTrendDebugPageMarkerItems: [PageMarkerItem] { rootViewModel.tokenTrendDebugPageMarkerItems }
-    var gatewayCardsDebugPageMarkerItems: [PageMarkerItem] { rootViewModel.gatewayCardsDebugPageMarkerItems }
 
     var body: some View {
         NolonUI.ProviderUsageScreenScaffold(
@@ -126,11 +260,7 @@ struct ProviderUsageView: View, DebugPageLocatable {
                     ),
                     modelProviderOptions: viewModel.codex.configEditorModelProviderOptions,
                     errorMessage: viewModel.codex.configEditorErrorMessage,
-                    testSuccessMessage: viewModel.codex.usageQueryTestSuccessMessage,
-                    testErrorMessage: viewModel.codex.usageQueryTestErrorMessage,
-                    isTestingUsageQuery: viewModel.codex.isTestingUsageQuery,
                     onCancel: { viewModel.codex.dismissConfigEditor() },
-                    onTest: { Task { await viewModel.codex.testUsageQueryDraft() } },
                     onValidateConnection: { Task { await viewModel.codex.validateConnectionDraft() } },
                     onSave: { Task { await viewModel.codex.saveConfigEditor() } }
                 )
@@ -151,22 +281,6 @@ struct ProviderUsageView: View, DebugPageLocatable {
                 onCancel: { viewModel.claude.dismissEditor() },
                 onSave: { Task { await viewModel.claude.saveEditor() } }
             )
-        }
-        .sheet(
-            isPresented: Binding(
-                get: { viewModel.codex.isShowingGatewayCardPicker },
-                set: { if !$0 { gatewayCardsViewModel.dismissGatewayCardPicker() } }
-            )
-        ) { gatewayCardPickerSheet }
-        .sheet(
-            isPresented: Binding(
-                get: { gatewayAccountPickerCardID != nil },
-                set: { if !$0 { dismissGatewayAccountPicker() } }
-            )
-        ) {
-            if let cardID = gatewayAccountPickerCardID {
-                gatewayAccountSelectionSheet(cardID: cardID)
-            }
         }
         .confirmationAlert(
             data: geminiImportAlertData,
@@ -306,10 +420,7 @@ protocol ProviderUsageMenuButtonActionRepresentable {
     @MainActor
     func isMenuActionEnabled(in rootViewModel: ProviderUsageRootViewModel) -> Bool
     @MainActor
-    func performMenuAction(
-        in rootViewModel: ProviderUsageRootViewModel,
-        createGatewayCard: @escaping @MainActor () -> Void
-    )
+    func performMenuAction(in rootViewModel: ProviderUsageRootViewModel)
 }
 
 enum ProviderUsageMenuButtonAction: String, Identifiable {
@@ -319,7 +430,6 @@ enum ProviderUsageMenuButtonAction: String, Identifiable {
     case claudeImportFromCCSwitch
     case codexEnterMultiSelection
     case codexNewAPIKey
-    case codexCreateGatewayCard
 
     var id: String { rawValue }
 }
@@ -339,8 +449,6 @@ extension ProviderUsageMenuButtonAction: ProviderUsageMenuButtonActionRepresenta
             return NSLocalizedString("codex.accounts.action.multi_select", value: "进入多选", comment: "Enter Codex multi-select mode")
         case .codexNewAPIKey:
             return NSLocalizedString("codex.accounts.action.new_api_key", value: "新增 API Key", comment: "New API key account")
-        case .codexCreateGatewayCard:
-            return NSLocalizedString("codex.gateway.cards.create.title", value: "新建网关卡片", comment: "Create gateway card title")
         }
     }
 
@@ -358,8 +466,6 @@ extension ProviderUsageMenuButtonAction: ProviderUsageMenuButtonActionRepresenta
             return "checklist"
         case .codexNewAPIKey:
             return "key"
-        case .codexCreateGatewayCard:
-            return "square.stack.3d.up.badge.a"
         }
     }
 
@@ -378,15 +484,12 @@ extension ProviderUsageMenuButtonAction: ProviderUsageMenuButtonActionRepresenta
         switch self {
         case .refresh, .claudeMigrateCurrent, .claudeImportFromCCSwitch:
             return !rootViewModel.accountsViewModel.isLoading
-        case .claudeAddAccount, .codexEnterMultiSelection, .codexNewAPIKey, .codexCreateGatewayCard:
+        case .claudeAddAccount, .codexEnterMultiSelection, .codexNewAPIKey:
             return true
         }
     }
 
-    func performMenuAction(
-        in rootViewModel: ProviderUsageRootViewModel,
-        createGatewayCard: @escaping @MainActor () -> Void
-    ) {
+    func performMenuAction(in rootViewModel: ProviderUsageRootViewModel) {
         switch self {
         case .refresh:
             Task { await rootViewModel.accountsViewModel.load() }
@@ -400,8 +503,6 @@ extension ProviderUsageMenuButtonAction: ProviderUsageMenuButtonActionRepresenta
             rootViewModel.accountsViewModel.codex.toggleMultiSelectionMode()
         case .codexNewAPIKey:
             rootViewModel.accountsViewModel.codex.beginNewAPIKeyAccount()
-        case .codexCreateGatewayCard:
-            createGatewayCard()
         }
     }
 }
@@ -549,9 +650,6 @@ extension ProviderUsageView {
             LazyVStack(alignment: .leading, spacing: 16) {
                 if capabilities.isCodexFamily {
                     codexManagementCard
-                    if !gatewayCardsViewModel.gatewayCards.isEmpty {
-                        gatewayCardsSection
-                    }
                     codexAccountsSection
                 } else {
                     genericAccountsSection
@@ -563,6 +661,141 @@ extension ProviderUsageView {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
+    }
+
+    @ViewBuilder
+    private var codexManagementCard: some View {
+        if let status = viewModel.codex.managementStatus, status.needsEnable || status.needsMigration {
+            VStack(alignment: .leading, spacing: 12) {
+                Text(
+                    NSLocalizedString(
+                        "codex.accounts.management.title",
+                        value: "Codex 本地账号托管",
+                        comment: "Codex management card title"
+                    )
+                )
+                .font(.headline)
+
+                Text(codexManagementSummary(status: status))
+                    .font(.subheadline)
+                    .foregroundStyle(NolonUI.DesignSystem.Colors.Text.secondary)
+
+                HStack(spacing: 8) {
+                    if status.needsEnable {
+                        Button(
+                            NSLocalizedString(
+                                "codex.accounts.management.enable",
+                                value: "启用托管",
+                                comment: "Enable Codex management"
+                            )
+                        ) {
+                            Task { await viewModel.codex.enableManagement() }
+                        }
+                        .buttonStyle(.borderedProminent)
+                    }
+
+                    if status.needsMigration {
+                        Button(
+                            NSLocalizedString(
+                                "codex.accounts.management.migrate",
+                                value: "迁移现有数据",
+                                comment: "Migrate Codex management data"
+                            )
+                        ) {
+                            Task { await viewModel.codex.migrateManagementData() }
+                        }
+                        .buttonStyle(.bordered)
+                    }
+                }
+            }
+            .padding()
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(NolonUI.DesignSystem.Colors.Background.surface)
+            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .stroke(NolonUI.DesignSystem.Colors.Component.border.opacity(0.3), lineWidth: 1)
+            )
+        }
+    }
+
+    @ViewBuilder
+    private var codexAccountsSection: some View {
+        let sections = viewModel.codex.accountDisplaySections
+
+        if viewModel.isLoading && sections.isEmpty {
+            codexOutcomesContainer(viewModel.codex.accountOutcomes)
+        } else if sections.isEmpty {
+            ProviderUsageEmptyStateCard(
+                title: LocalizedStringKey("codex.accounts.empty.title"),
+                systemImage: "person.crop.circle.badge.exclamationmark",
+                descriptionText: Text(
+                    NSLocalizedString(
+                        "codex.accounts.empty.desc",
+                        value: "No Codex accounts are currently available.",
+                        comment: "Codex accounts empty description"
+                    )
+                )
+            )
+        } else {
+            VStack(alignment: .leading, spacing: 16) {
+                ForEach(sections) { section in
+                    VStack(alignment: .leading, spacing: 10) {
+                        if let title = section.title, !title.isEmpty {
+                            Button {
+                                viewModel.codex.toggleSection(section.id)
+                            } label: {
+                                HStack(spacing: 8) {
+                                    Image(systemName: viewModel.codex.isSectionCollapsed(section.id) ? "chevron.right" : "chevron.down")
+                                        .font(.caption.weight(.semibold))
+                                    Text(title)
+                                        .font(.headline)
+                                    Spacer(minLength: 0)
+                                    Text("\(section.items.count)")
+                                        .font(.caption)
+                                        .foregroundStyle(NolonUI.DesignSystem.Colors.Text.secondary)
+                                }
+                            }
+                            .buttonStyle(.plain)
+                        }
+
+                        if !viewModel.codex.isSectionCollapsed(section.id) {
+                            codexOutcomesContainer(section.items)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private var tokenTrendSection: some View {
+        ProviderTokenTrendSection(
+            snapshot: tokenTrendViewModel.tokenTrendSnapshot,
+            isLoading: tokenTrendViewModel.isLoadingTokenTrend,
+            errorMessage: tokenTrendViewModel.tokenTrendErrorMessage,
+            range: tokenTrendViewModel.tokenTrendRange,
+            onRangeChange: { tokenTrendViewModel.setRange($0) },
+            onRefresh: { tokenTrendViewModel.refreshNow() },
+            debugPageMarkerItems: tokenTrendDebugPageMarkerItems
+        )
+    }
+
+    private func codexManagementSummary(status: CodexAuthManager.CodexManagementStatus) -> String {
+        let authState = status.providerAuthIsSymlink
+            ? NSLocalizedString("codex.accounts.management.auth_linked", value: "已接管 auth.json", comment: "Provider auth linked")
+            : NSLocalizedString("codex.accounts.management.auth_unmanaged", value: "auth.json 未接管", comment: "Provider auth unmanaged")
+
+        return [
+            String(
+                format: NSLocalizedString(
+                    "codex.accounts.management.snapshot_count",
+                    value: "已发现 %d 个快照",
+                    comment: "Codex snapshot count"
+                ),
+                status.snapshotCount
+            ),
+            authState
+        ].joined(separator: " · ")
     }
 
     private var genericAccountsSection: some View {
@@ -862,16 +1095,6 @@ extension ProviderUsageView {
                         }
                         .disabled(!viewModel.codex.canExportSelectedAccounts)
 
-                        Button {
-                            viewModel.codex.addSelectedToGatewayCard()
-                        } label: {
-                            Label(
-                                NSLocalizedString("codex.gateway.cards.action.add_selected", value: "加入网关卡片", comment: "Add selected accounts to gateway card"),
-                                systemImage: "rectangle.stack.badge.plus"
-                            )
-                        }
-                        .disabled(!viewModel.codex.canAddSelectedToGatewayCard)
-
                         Divider()
 
                         Button {
@@ -996,7 +1219,7 @@ extension ProviderUsageView {
     }
 
     private var codexAccountManagementMenuActions: [ProviderUsageMenuButtonAction] {
-        [.codexNewAPIKey, .codexCreateGatewayCard]
+        [.codexNewAPIKey]
     }
 
     private var genericMenuActions: [ProviderUsageMenuButtonAction] {
@@ -1088,7 +1311,7 @@ extension ProviderUsageView {
 
     private func performMenuActionItem(_ item: NolonUI.ProviderUsageMenuActionItem) {
         guard let action = ProviderUsageMenuButtonAction(rawValue: item.id) else { return }
-        action.performMenuAction(in: currentRootViewModel, createGatewayCard: createGatewayCardWithPrompt)
+        action.performMenuAction(in: currentRootViewModel)
     }
 
     private func syncSettingsFromStore() {
@@ -1144,7 +1367,7 @@ extension ProviderUsageView {
                 : nil,
             onTapTrailingAction: {
                 ProviderUsageMenuButtonAction.codexEnterMultiSelection
-                    .performMenuAction(in: currentRootViewModel, createGatewayCard: createGatewayCardWithPrompt)
+                    .performMenuAction(in: currentRootViewModel)
             }
         )
 
@@ -1273,11 +1496,9 @@ extension ProviderUsageView {
     }
 
     private func codexListModeModule(outcomes: [ProviderAccountUsageOutcome]) -> some View {
-        let hasActiveGatewayCardSelection = gatewayCardsViewModel.hasActiveGatewayCardSelection
         let models = outcomes.map {
             accountsViewModel.codex.makeUsageCardModel(
                 outcome: $0,
-                hasActiveGatewayCardSelection: hasActiveGatewayCardSelection,
                 isRunningCLILogin: loginFlowViewModel.isRunningCLILogin
             )
         }
@@ -1321,10 +1542,7 @@ extension ProviderUsageView {
             usageColumnWidth: viewModel.codex.listUsageColumnWidth,
             onTap: { itemID in
                 guard let model = modelByID[itemID] else { return }
-                handleCodexAccountCardTap(
-                    accountID: model.accountID,
-                    hasActiveGatewayCardSelection: hasActiveGatewayCardSelection
-                )
+                handleCodexAccountCardTap(accountID: model.accountID)
             },
             onMenuAction: { itemID, actionID in
                 guard let model = modelByID[itemID] else { return }
@@ -1336,10 +1554,8 @@ extension ProviderUsageView {
 
     @ViewBuilder
     private func codexOutcomeCard(outcome: ProviderAccountUsageOutcome) -> some View {
-        let hasActiveGatewayCardSelection = gatewayCardsViewModel.hasActiveGatewayCardSelection
         let model = accountsViewModel.codex.makeUsageCardModel(
             outcome: outcome,
-            hasActiveGatewayCardSelection: hasActiveGatewayCardSelection,
             isRunningCLILogin: loginFlowViewModel.isRunningCLILogin
         )
         let cardView = codexCompactSnapshotView(model: model)
@@ -1347,40 +1563,23 @@ extension ProviderUsageView {
         if let accountId = model.accountID, accountsViewModel.codex.isMultiSelectionEnabled {
             NolonUI.GenericSelectionControl(
                 value: IDBox(accountId),
-                selections: selectedCodexAccountIDBoxesBinding,
-                onToggle: {
-                    if hasActiveGatewayCardSelection {
-                        gatewayCardsViewModel.clearActiveGatewayCardSelection()
-                    }
-                }
+                selections: selectedCodexAccountIDBoxesBinding
             ) { _ in
                 cardView
             }
             .applyCodexAccountDraggable(accountID: accountId)
         } else {
             let tappableCardView = cardView.onTapGesture {
-                handleCodexAccountCardTap(
-                    accountID: model.accountID,
-                    hasActiveGatewayCardSelection: hasActiveGatewayCardSelection
-                )
+                handleCodexAccountCardTap(accountID: model.accountID)
             }
 
             tappableCardView.applyCodexAccountDraggable(accountID: model.accountID)
         }
     }
 
-    private func handleCodexAccountCardTap(
-        accountID: UUID?,
-        hasActiveGatewayCardSelection: Bool
-    ) {
+    private func handleCodexAccountCardTap(accountID: UUID?) {
         guard let accountID else { return }
-        if hasActiveGatewayCardSelection {
-            gatewayCardsViewModel.clearActiveGatewayCardSelection()
-        }
-        let shouldActivate = accountsViewModel.codex.shouldActivateAccountOnTap(
-            id: accountID,
-            hasActiveGatewayCardSelection: hasActiveGatewayCardSelection
-        )
+        let shouldActivate = accountsViewModel.codex.shouldActivateAccountOnTap(id: accountID)
         guard shouldActivate else { return }
         accountsViewModel.codex.requestActivateAccount(id: accountID)
     }
@@ -1518,7 +1717,7 @@ extension ProviderUsageView {
             }
         }
         switch presentation.selectionStyle {
-        case .active, .selected:
+        case .active, .transitioning, .selected:
             return .primary
         case .pending:
             return .warning
@@ -1531,11 +1730,7 @@ extension ProviderUsageView {
 
 private extension View {
     @ViewBuilder
-    func applyCodexAccountDraggable(accountID: UUID?) -> some View {
-        if let accountID {
-            draggable(CodexGatewayAccountDropItem(accountID: accountID))
-        } else {
-            self
-        }
+    func applyCodexAccountDraggable(accountID _: UUID?) -> some View {
+        self
     }
 }

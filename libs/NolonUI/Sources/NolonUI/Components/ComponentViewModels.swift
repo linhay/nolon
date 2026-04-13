@@ -64,16 +64,6 @@ public final class AccountUsageContentCardSceneViewModel {
 }
 
 @Observable
-public final class GatewayCardListModuleViewModel {
-    public init() {}
-}
-
-@Observable
-public final class GatewayCardModuleViewModel {
-    public init() {}
-}
-
-@Observable
 public final class GenericSelectionControlViewModel {
     public init() {}
 }

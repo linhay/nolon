@@ -1,6 +1,5 @@
 import Foundation
 import Testing
-import CodexGatewayKit
 @testable import NolonCoreCLIKit
 
 extension NolonCodexCLIEntrypointTests {
@@ -348,7 +347,7 @@ extension NolonCodexCLIEntrypointTests {
         )
 
         #expect(result.exitCode == 0)
-        #expect(result.stdout.contains("runtime_switched: true"))
+        #expect(result.stdout.contains("account_id: 11111111-1111-1111-1111-111111111111"))
         #expect(result.stderr.isEmpty)
         #expect(await mock.lastCall() == "authActivate")
     }
@@ -367,7 +366,6 @@ extension NolonCodexCLIEntrypointTests {
         #expect(result.exitCode == 0)
         #expect(result.stdout.contains("* mock@example.com"))
         #expect(result.stdout.contains("| 已激活 | 成功"))
-        #expect(result.stdout.contains("运行时切换"))
         #expect(result.stdout.contains("汇总-总数: 1"))
         #expect(await mock.lastCall() == "authRefresh")
     }

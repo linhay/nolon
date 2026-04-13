@@ -2,14 +2,13 @@ import XCTest
 import ProviderCatalog
 import NolonResourceKit
 import STFilePath
+@testable import nolon
 
 final class MCPLinkedSyncRegressionTests: XCTestCase {
     func testDeletingAllCacheFragmentsClearsCodexProjection() throws {
         try withIsolatedNolonHome { root in
-            let manager = NolonManager.shared
+            let manager = NolonManager()
             _ = manager.mcpsFolder.createIfNotExists()
-            let beforeNames = Set(try MCPConfigManager.listServers(for: .codex).map(\.name))
-
             let alphaName = "reg-alpha-\(UUID().uuidString.prefix(8))"
             let betaName = "reg-beta-\(UUID().uuidString.prefix(8))"
             let alpha = manager.mcpsURL.appendingPathComponent("\(alphaName).json")
@@ -51,13 +50,13 @@ final class MCPLinkedSyncRegressionTests: XCTestCase {
             let afterDeleteNames = Set(try MCPConfigManager.listServers(for: .codex).map(\.name))
             XCTAssertFalse(afterDeleteNames.contains(alphaName))
             XCTAssertFalse(afterDeleteNames.contains(betaName))
-            XCTAssertTrue(beforeNames.isSubset(of: afterDeleteNames))
+            XCTAssertTrue(afterDeleteNames.isEmpty)
         }
     }
 
     func testLinkedSyncIsIdempotentForCodexConfig() throws {
         try withIsolatedNolonHome { _ in
-            let manager = NolonManager.shared
+            let manager = NolonManager()
             _ = manager.mcpsFolder.createIfNotExists()
 
             let zetaName = "reg-zeta-\(UUID().uuidString.prefix(8))"
@@ -98,6 +97,62 @@ final class MCPLinkedSyncRegressionTests: XCTestCase {
             XCTAssertEqual(second, third)
             XCTAssertFalse(second.isEmpty)
             XCTAssertFalse(first.isEmpty)
+        }
+    }
+
+    @MainActor
+    func testAppSetupRepairsStaleCodexMCPConfigBeforeWatcherSync() throws {
+        try withIsolatedNolonHome { _ in
+            let manager = NolonManager()
+            _ = manager.mcpsFolder.createIfNotExists()
+
+            let fragmentPath = manager.mcpsURL.appendingPathComponent("playwright.json")
+            try writeCacheFragment(
+                to: fragmentPath,
+                name: "playwright",
+                server: [
+                    "command": "npx",
+                    "args": ["@playwright/mcp@latest"],
+                    "type": "stdio",
+                    "http_headers": ["x-token": "abc"]
+                ]
+            )
+
+            let configPath = ProviderTemplate.codex.defaultMcpConfigPath
+            _ = STFolder(configPath.deletingLastPathComponent()).createIfNotExists()
+            try """
+            [mcp_servers.playwright]
+            command = "npx"
+            args = ["@playwright/mcp@latest"]
+            type = "stdio"
+
+            [mcp_servers.playwright.http_headers]
+            x-token = "abc"
+            """.write(to: configPath, atomically: true, encoding: .utf8)
+
+            let suiteName = "nolon-mcp-linked-sync-\(UUID().uuidString)"
+            let userDefaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+            defer { userDefaults.removePersistentDomain(forName: suiteName) }
+
+            let settings = ProviderSettings(userDefaults: userDefaults, nolonManager: manager)
+            let viewModel = MainSplitViewModel(
+                settings: settings,
+                repository: SkillRepository(nolonManager: manager),
+                nolonManager: manager,
+                userDefaults: userDefaults
+            )
+
+            viewModel.setup()
+
+            let fragmentRoot = try XCTUnwrap(
+                JSONSerialization.jsonObject(with: Data(contentsOf: fragmentPath)) as? [String: Any]
+            )
+            let fragmentServers = try XCTUnwrap(fragmentRoot["mcpServers"] as? [String: Any])
+            let playwrightFragment = try XCTUnwrap(fragmentServers["playwright"] as? [String: Any])
+            XCTAssertNil(playwrightFragment["http_headers"])
+
+            let rawConfig = try String(contentsOf: configPath, encoding: .utf8)
+            XCTAssertFalse(rawConfig.contains("[mcp_servers.playwright.http_headers]"))
         }
     }
 }

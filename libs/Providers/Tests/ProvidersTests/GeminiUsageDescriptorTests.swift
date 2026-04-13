@@ -124,6 +124,92 @@ struct GeminiUsageDescriptorTests {
         }
     }
 
+    @Test("Normalizes Gemini model titles and keeps stable window order")
+    func fetchOutcome_normalizesWindowTitlesAndOrder() async {
+        let now = Date(timeIntervalSince1970: 1_715_000_100)
+        let account = GeminiAuthAccount(
+            id: UUID(uuidString: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")!,
+            providerID: .gemini,
+            name: "Gemini Main",
+            method: .oauthPersonal,
+            createdAt: now,
+            lastUsedAt: now,
+            lastLoginAt: now,
+            email: "dev@example.com",
+            project: nil,
+            location: nil,
+            runtimeHomeRelativePath: "accounts/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee/home"
+        )
+        let descriptor = GeminiUsageDescriptor(
+            provider: .gemini,
+            now: { now },
+            loadActiveAccount: { _ in account },
+            loadRuntimeHomeURL: { _, _ in
+                URL(fileURLWithPath: "/tmp/gemini-runtime", isDirectory: true)
+            },
+            fetchQuotaSnapshot: { _, _, _ in
+                GeminiQuotaSnapshot(
+                    buckets: [
+                        GeminiQuotaBucket(
+                            modelID: "gemini-2.5-flash-001",
+                            remainingFraction: 0.8,
+                            resetTime: Date(timeIntervalSince1970: 1_715_001_800)
+                        ),
+                        GeminiQuotaBucket(
+                            modelID: "gemini-3.1-pro-preview-customtools",
+                            remainingFraction: 0.92,
+                            resetTime: Date(timeIntervalSince1970: 1_715_003_600)
+                        ),
+                        GeminiQuotaBucket(
+                            modelID: "gemini-2.5-pro",
+                            remainingFraction: 0.5,
+                            resetTime: Date(timeIntervalSince1970: 1_715_002_400)
+                        ),
+                    ],
+                    pro: GeminiQuotaBucket(
+                        modelID: "gemini-3.1-pro-preview-customtools",
+                        remainingFraction: 0.92,
+                        resetTime: Date(timeIntervalSince1970: 1_715_003_600)
+                    ),
+                    flash: GeminiQuotaBucket(
+                        modelID: "gemini-2.5-flash-001",
+                        remainingFraction: 0.8,
+                        resetTime: Date(timeIntervalSince1970: 1_715_001_800)
+                    ),
+                    fetchedAt: now
+                )
+            }
+        )
+        let context = ProviderFetchContext(
+            provider: .gemini,
+            sourceMode: .auto,
+            includeCredits: false,
+            timeout: 20,
+            costWindowDays: 30,
+            environment: [:],
+            token: nil
+        )
+
+        let outcome = await descriptor.fetchOutcome(context: context)
+        switch outcome.result {
+        case let .success(result):
+            #expect(result.usage.windows.map(\.id) == [
+                "gemini-3.1-pro-preview-customtools",
+                "gemini-2.5-pro",
+                "gemini-2.5-flash-001",
+            ])
+            #expect(result.usage.windows.map(\.title) == [
+                "gemini-3.1-pro-preview",
+                "gemini-2.5-pro",
+                "gemini-2.5-flash",
+            ])
+            #expect(abs((result.usage.primary?.usedPercent ?? -1) - 8) < 0.0001)
+            #expect(abs((result.usage.secondary?.usedPercent ?? -1) - 50) < 0.0001)
+        case let .failure(error):
+            Issue.record("Expected normalized Gemini windows, got failure: \(error)")
+        }
+    }
+
     @Test("Returns success snapshot for active Vertex account")
     func fetchOutcome_successForVertexAccount() async {
         let now = Date(timeIntervalSince1970: 1_715_123_456)

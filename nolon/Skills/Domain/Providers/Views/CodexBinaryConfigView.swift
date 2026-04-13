@@ -261,6 +261,9 @@ final class CodexBinaryConfigViewModel {
         case .upToDate:
             return NSLocalizedString("codex.binary.update.up_to_date", value: "Up to date", comment: "Update status")
         case .updateAvailable:
+            guard hasUpdateAvailable else {
+                return NSLocalizedString("codex.binary.update.up_to_date", value: "Up to date", comment: "Update status")
+            }
             if let version = manifest.lastSeenRemoteVersion {
                 return String(
                     format: NSLocalizedString("codex.binary.update.available", value: "Update available: %@", comment: "Update status"),
@@ -287,12 +290,9 @@ final class CodexBinaryConfigViewModel {
         manifest.includeBetaVersions
     }
 
-    var hasUpdateAvailable: Bool {
-        manifest.updateState == .updateAvailable && manifest.lastSeenRemoteAssetURL != nil
-    }
-
     var remoteVersion: (version: String, assetURL: URL)? {
-        guard hasUpdateAvailable,
+        guard manifest.updateState == .updateAvailable,
+              manifest.lastSeenRemoteAssetURL != nil,
               let version = manifest.lastSeenRemoteVersion,
               let raw = manifest.lastSeenRemoteAssetURL,
               let url = URL(string: raw) else {
@@ -300,6 +300,10 @@ final class CodexBinaryConfigViewModel {
         }
         let alreadyInstalled = manifest.versions.contains { $0.detectedVersion == version }
         return alreadyInstalled ? nil : (version, url)
+    }
+
+    var hasUpdateAvailable: Bool {
+        remoteVersion != nil
     }
 
     var remoteReleaseRows: [CodexRemoteRelease] {

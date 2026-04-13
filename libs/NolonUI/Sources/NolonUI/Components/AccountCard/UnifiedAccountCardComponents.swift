@@ -184,7 +184,7 @@ public struct AccountSummaryCard<Content: View>: View {
         switch presentation.selectionStyle {
         case .neutral:
             return DesignSystem.Colors.Background.elevated
-        case .active, .pending, .selected:
+        case .active, .pending, .transitioning, .selected:
             return DesignSystem.Colors.primary.opacity(Self.backgroundOpacity(for: presentation.selectionStyle))
         }
     }
@@ -197,6 +197,8 @@ public struct AccountSummaryCard<Content: View>: View {
             return DesignSystem.Colors.primary
         case .pending:
             return DesignSystem.Colors.primary.opacity(0.6)
+        case .transitioning:
+            return DesignSystem.Colors.primary.opacity(0.7)
         case .selected:
             return DesignSystem.Colors.primary.opacity(0.8)
         }
@@ -214,6 +216,7 @@ public struct AccountSummaryCard<Content: View>: View {
         case .neutral: return 0
         case .active: return 0.08
         case .pending: return 0.04
+        case .transitioning: return 0.09
         case .selected: return 0.06
         }
     }
@@ -221,6 +224,7 @@ public struct AccountSummaryCard<Content: View>: View {
     public static func borderLineWidth(for selectionStyle: AccountCardSelectionStyle) -> CGFloat {
         switch selectionStyle {
         case .active: return 2.0
+        case .transitioning: return 2.0
         case .selected: return 1.5
         case .neutral, .pending: return 1.0
         }
@@ -229,7 +233,7 @@ public struct AccountSummaryCard<Content: View>: View {
     public static func borderDash(for selectionStyle: AccountCardSelectionStyle) -> [CGFloat] {
         switch selectionStyle {
         case .pending: return [5, 4]
-        case .neutral, .active, .selected: return []
+        case .neutral, .active, .transitioning, .selected: return []
         }
     }
 }
@@ -1107,280 +1111,6 @@ public struct AccountEmptyStateModule: View {
     }
 }
 
-// MARK: - GatewayCardModule
-
-public struct GatewayCardMemberItem: Identifiable, Equatable, Sendable {
-    public let id: UUID
-    public let title: String
-    public let plan: String?
-
-    public init(id: UUID, title: String, plan: String? = nil) {
-        self.id = id
-        self.title = title
-        self.plan = plan
-    }
-}
-
-public struct GatewayCardModule: View {
-    public struct Config {
-        public var presentation: AccountCardPresentation
-        public var title: String
-        public var memberCountText: String
-        public var members: [GatewayCardMemberItem]
-        public var isCompact: Bool
-        public var memberDisplayLimit: Int
-        public var memberRowMaxHeight: CGFloat
-
-        public init(
-            presentation: AccountCardPresentation = .neutral,
-            title: String,
-            memberCountText: String,
-            members: [GatewayCardMemberItem],
-            isCompact: Bool = false,
-            memberDisplayLimit: Int = 12,
-            memberRowMaxHeight: CGFloat = 70
-        ) {
-            self.presentation = presentation
-            self.title = title
-            self.memberCountText = memberCountText
-            self.members = members
-            self.isCompact = isCompact
-            self.memberDisplayLimit = memberDisplayLimit
-            self.memberRowMaxHeight = memberRowMaxHeight
-        }
-    }
-
-    @State private var viewModel = GatewayCardModuleViewModel()
-    public let presentation: AccountCardPresentation
-    public let title: String
-    public let memberCountText: String
-    public let members: [GatewayCardMemberItem]
-    public let isCompact: Bool
-    public let memberDisplayLimit: Int
-    public let memberRowMaxHeight: CGFloat
-
-    public init(config: Config) {
-        self.presentation = config.presentation
-        self.title = config.title
-        self.memberCountText = config.memberCountText
-        self.members = config.members
-        self.isCompact = config.isCompact
-        self.memberDisplayLimit = config.memberDisplayLimit
-        self.memberRowMaxHeight = config.memberRowMaxHeight
-    }
-
-    public init(
-        presentation: AccountCardPresentation = .neutral,
-        title: String,
-        memberCountText: String,
-        members: [GatewayCardMemberItem],
-        isCompact: Bool = false,
-        memberDisplayLimit: Int = 12,
-        memberRowMaxHeight: CGFloat = 70
-    ) {
-        self.init(
-            config: Config(
-                presentation: presentation,
-                title: title,
-                memberCountText: memberCountText,
-                members: members,
-                isCompact: isCompact,
-                memberDisplayLimit: memberDisplayLimit,
-                memberRowMaxHeight: memberRowMaxHeight
-            )
-        )
-    }
-
-    public var body: some View {
-        let avatarSize: CGFloat = isCompact ? 16 : 20
-        let chipVerticalPadding: CGFloat = isCompact ? 1 : 2
-        let chipTrailingPadding: CGFloat = isCompact ? 4 : 6
-        let chipSpacing: CGFloat = isCompact ? 4 : 6
-        let memberNameFontSize: CGFloat = isCompact ? 9 : 10
-        let memberInitialFontSize: CGFloat = isCompact ? 8 : 9
-
-        return AccountSummaryCard(presentation: presentation) {
-            VStack(alignment: .leading, spacing: isCompact ? 8 : 12) {
-                HStack(spacing: isCompact ? 8 : 12) {
-                    ZStack {
-                        RoundedRectangle(cornerRadius: 6, style: .continuous)
-                            .fill(DesignSystem.Colors.primary.opacity(0.15))
-                            .frame(width: isCompact ? 20 : 28, height: isCompact ? 20 : 28)
-                            .offset(x: isCompact ? 2 : 3, y: isCompact ? -2 : -3)
-
-                        RoundedRectangle(cornerRadius: 6, style: .continuous)
-                            .fill(DesignSystem.Colors.primary)
-                            .frame(width: isCompact ? 20 : 28, height: isCompact ? 20 : 28)
-                            .overlay(
-                                Image(systemName: "square.stack.3d.up.fill")
-                                    .font(.system(size: isCompact ? 10 : 14))
-                                    .foregroundStyle(.white)
-                            )
-                    }
-
-                    VStack(alignment: .leading, spacing: 1) {
-                        Text(title)
-                            .font(.system(size: isCompact ? 13 : 14, weight: isCompact ? .semibold : .bold))
-                            .foregroundStyle(DesignSystem.Colors.Text.primary)
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.9)
-
-                        Text(memberCountText)
-                            .font(.system(size: isCompact ? 9 : 10, weight: .semibold))
-                            .foregroundStyle(DesignSystem.Colors.Text.tertiary)
-                            .lineLimit(1)
-                    }
-                }
-
-                if !members.isEmpty {
-                    FlowLayout(spacing: chipSpacing) {
-                        ForEach(members.prefix(memberDisplayLimit)) { member in
-                            HStack(spacing: isCompact ? 3 : 4) {
-                                if let planInitial = memberPlanInitialText(for: member) {
-                                    Text(planInitial)
-                                        .font(.system(size: memberInitialFontSize, weight: .bold))
-                                        .frame(width: avatarSize, height: avatarSize)
-                                        .background(DesignSystem.Colors.primary.opacity(0.12))
-                                        .foregroundStyle(DesignSystem.Colors.primary)
-                                        .clipShape(Circle())
-                                } else {
-                                    Circle()
-                                        .fill(Color.clear)
-                                        .frame(width: avatarSize, height: avatarSize)
-                                }
-
-                                Text(member.title)
-                                    .font(.system(size: memberNameFontSize, weight: .medium))
-                                    .foregroundStyle(DesignSystem.Colors.Text.secondary)
-                                    .lineLimit(1)
-                            }
-                            .padding(.leading, 2)
-                            .padding(.trailing, chipTrailingPadding)
-                            .padding(.vertical, chipVerticalPadding)
-                            .background(DesignSystem.Colors.Background.surface.opacity(0.5))
-                            .clipShape(Capsule())
-                            .overlay(
-                                Capsule()
-                                    .stroke(DesignSystem.Colors.Component.border.opacity(0.3), lineWidth: 0.5)
-                            )
-                        }
-
-                        if members.count > memberDisplayLimit {
-                            Text("+\(members.count - memberDisplayLimit)")
-                                .font(.system(size: isCompact ? 8 : 9, weight: .bold))
-                                .padding(.horizontal, isCompact ? 5 : 6)
-                                .padding(.vertical, isCompact ? 3 : 4)
-                                .background(DesignSystem.Colors.Component.controlFillSubtle)
-                                .foregroundStyle(DesignSystem.Colors.Text.tertiary)
-                                .clipShape(Capsule())
-                        }
-                    }
-                    .frame(maxHeight: memberRowMaxHeight, alignment: .topLeading)
-                    .clipped()
-                }
-            }
-        }
-    }
-
-    private func memberPlanInitialText(for member: GatewayCardMemberItem) -> String? {
-        if let plan = member.plan?.trimmingCharacters(in: .whitespacesAndNewlines),
-           let first = plan.first {
-            return String(first).uppercased()
-        }
-        return nil
-    }
-
-}
-
-@MainActor
-
-
-// MARK: - GatewayCardListModule
-
-public struct GatewayCardListModule<Item: Identifiable, Content: View>: View {
-    @State private var viewModel = GatewayCardListModuleViewModel()
-    public enum LayoutMode: Sendable {
-        case list
-        case cards
-    }
-
-    public struct Config {
-        public var items: [Item]
-        public var layoutMode: LayoutMode
-        public var columns: [GridItem]
-        public var spacing: CGFloat
-        public var content: (Item) -> Content
-
-        public init(
-            items: [Item],
-            layoutMode: LayoutMode,
-            columns: [GridItem] = [GridItem(.adaptive(minimum: 240, maximum: 340), spacing: 12, alignment: .topLeading)],
-            spacing: CGFloat = 12,
-            @ViewBuilder content: @escaping (Item) -> Content
-        ) {
-            self.items = items
-            self.layoutMode = layoutMode
-            self.columns = columns
-            self.spacing = spacing
-            self.content = content
-        }
-    }
-
-    public let items: [Item]
-    public let layoutMode: LayoutMode
-    public let columns: [GridItem]
-    public let spacing: CGFloat
-    @ViewBuilder public let content: (Item) -> Content
-
-    public init(config: Config) {
-        self.items = config.items
-        self.layoutMode = config.layoutMode
-        self.columns = config.columns
-        self.spacing = config.spacing
-        self.content = config.content
-    }
-
-    public init(
-        items: [Item],
-        layoutMode: LayoutMode,
-        columns: [GridItem] = [GridItem(.adaptive(minimum: 240, maximum: 340), spacing: 12, alignment: .topLeading)],
-        spacing: CGFloat = 12,
-        @ViewBuilder content: @escaping (Item) -> Content
-    ) {
-        self.init(
-            config: Config(
-                items: items,
-                layoutMode: layoutMode,
-                columns: columns,
-                spacing: spacing,
-                content: content
-            )
-        )
-    }
-
-    public var body: some View {
-        Group {
-            switch layoutMode {
-            case .list:
-                LazyVStack(alignment: .leading, spacing: spacing) {
-                    ForEach(items) { item in
-                        content(item)
-                    }
-                }
-            case .cards:
-                LazyVGrid(columns: columns, alignment: .leading, spacing: spacing) {
-                    ForEach(items) { item in
-                        content(item)
-                    }
-                }
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-}
-
-
-
 // MARK: - AccountListModeModule
 
 public struct AccountListModeUsageWindow: Identifiable {
@@ -1780,6 +1510,8 @@ public struct AccountListModeModule: View {
             return DesignSystem.Colors.primary.opacity(0.12)
         case .pending:
             return DesignSystem.Colors.Status.warning.opacity(0.14)
+        case .transitioning:
+            return DesignSystem.Colors.primary.opacity(0.16)
         case .selected:
             return DesignSystem.Colors.primary.opacity(0.10)
         case .neutral:
@@ -1793,6 +1525,8 @@ public struct AccountListModeModule: View {
             return DesignSystem.Colors.primary.opacity(0.45)
         case .pending:
             return DesignSystem.Colors.Status.warning.opacity(0.45)
+        case .transitioning:
+            return DesignSystem.Colors.primary.opacity(0.55)
         case .selected:
             return DesignSystem.Colors.primary.opacity(0.35)
         case .neutral:
@@ -1804,7 +1538,7 @@ public struct AccountListModeModule: View {
         switch item.presentation.selectionStyle {
         case .neutral:
             return 0
-        case .active, .pending, .selected:
+        case .active, .pending, .transitioning, .selected:
             return 1
         }
     }
@@ -1861,6 +1595,8 @@ public struct AccountListModeModule: View {
             return DesignSystem.Colors.primary
         case .pending:
             return DesignSystem.Colors.Status.warning
+        case .transitioning:
+            return DesignSystem.Colors.primary
         case .selected:
             return DesignSystem.Colors.primary
         case .neutral:

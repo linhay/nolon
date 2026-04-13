@@ -202,53 +202,6 @@ for line in sys.stdin:
         }
     }
 
-    @Test("switchAccount sends chatgptAccountId in login/start payload")
-    func switchAccountIncludesChatgptAccountID() async throws {
-        guard STPath("/usr/bin/python3").permission.contains(.executable) else { return }
-
-        let script = #"""
-import json
-import sys
-
-for line in sys.stdin:
-    msg = json.loads(line)
-    mid = msg.get("id")
-    method = msg.get("method")
-    if method == "initialize" and mid is not None:
-        sys.stdout.write(json.dumps({"jsonrpc":"2.0","id":mid,"result":{"ok":True}}) + "\n")
-        sys.stdout.flush()
-    elif method == "initialized":
-        continue
-    elif method == "account/login/start" and mid is not None:
-        params = msg.get("params") or {}
-        if "chatgptAccountId" not in params:
-            sys.stdout.write(json.dumps({"jsonrpc":"2.0","id":mid,"error":{"code":-32600,"message":"missing chatgptAccountId"}}) + "\n")
-            sys.stdout.flush()
-            continue
-        if params.get("chatgptAccountId") != "acct-777":
-            sys.stdout.write(json.dumps({"jsonrpc":"2.0","id":mid,"error":{"code":-32602,"message":"bad chatgptAccountId"}}) + "\n")
-            sys.stdout.flush()
-            continue
-        sys.stdout.write(json.dumps({"jsonrpc":"2.0","id":mid,"result":{"type":"chatgptAuthTokens"}}) + "\n")
-        sys.stdout.write(json.dumps({"jsonrpc":"2.0","method":"account/updated","params":{"authMode":"chatgptAuthTokens"}}) + "\n")
-        sys.stdout.flush()
-"""#
-
-        let service = CodexAccountRuntimeService(
-            executable: "/usr/bin/python3",
-            session: CodexAppServerSession(
-                executable: "/usr/bin/python3",
-                startupArguments: ["-u", "-c", script]
-            )
-        )
-        defer {
-            Task { await service.shutdown() }
-        }
-
-        try await service.initialize(clientName: "providers-tests", clientVersion: "0.0.1")
-        try await service.switchAccount(idToken: "id-token", accessToken: "access-token", chatgptAccountID: "acct-777")
-    }
-
     @Test("Starts chatgpt login and validates loginId/authUrl")
     func startChatGPTLoginReturnsLoginIDAndURL() async throws {
         guard STPath("/usr/bin/python3").permission.contains(.executable) else { return }

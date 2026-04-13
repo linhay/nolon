@@ -63,6 +63,16 @@ private extension ProviderAgentsLinkService {
             ]
         }
 
+        if provider.templateId == ProviderTemplate.claudeCode.rawValue {
+            return [
+                LinkTarget(
+                    providerFile: provider.claudeInstructionsFile,
+                    globalFile: globalBase,
+                    backupFile: provider.claudeHomeFolder.file("CLAUDE.md.bak")
+                ),
+            ]
+        }
+
         if provider.templateId == "opencode" || provider.templateId == "copilot" {
             let providerHome = STFolder(URL(fileURLWithPath: provider.defaultSkillsPath).deletingLastPathComponent())
             return [

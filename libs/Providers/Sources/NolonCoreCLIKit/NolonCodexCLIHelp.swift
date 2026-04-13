@@ -221,6 +221,7 @@ enum NolonCodexCLIHelpResolver {
         Actions:
           list
             --provider codex|codex-xcode                # 指定 provider（可选）
+            --group-by provider|time-project            # 分组维度（可选，默认 provider）
           preview-rewrite
             --provider codex|codex-xcode                # 指定 provider（可选）
             --thread-id <id>                            # 指定 thread id，可重复
@@ -386,6 +387,7 @@ enum NolonCodexCLIHelpResolver {
         Usage: nolon codex session list [options]
 
           --provider <id>                             # 指定 provider（可选，默认 codex）
+          --group-by provider|time-project            # 分组维度（可选，默认 provider）
         """
     }
 

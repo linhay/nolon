@@ -110,7 +110,7 @@ public struct GeminiTokenTrendService: Sendable {
             points = allPoints
         }
 
-        let today = allPoints.last?.totalTokens
+        let today = todayTokens(from: allPoints, now: now())
         let last7 = sumTrailing(points: allPoints, days: 7)
         let last30 = sumTrailing(points: allPoints, days: 30)
         let all = sumAll(points: allPoints)
@@ -135,6 +135,20 @@ public struct GeminiTokenTrendService: Sendable {
     private func sumAll(points: [ProviderTokenTrendPoint]) -> Int? {
         guard !points.isEmpty else { return nil }
         return points.map(\.totalTokens).reduce(0, +)
+    }
+
+    private func todayTokens(from points: [ProviderTokenTrendPoint], now: Date) -> Int {
+        let todayKey = Self.dayKey(from: now)
+        return points.first(where: { $0.date == todayKey })?.totalTokens ?? 0
+    }
+
+    private static func dayKey(from date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.calendar = Calendar.current
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone.current
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter.string(from: date)
     }
 
     private static func dayString(from timestamp: String) -> String? {

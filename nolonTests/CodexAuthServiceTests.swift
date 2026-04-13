@@ -60,7 +60,7 @@ final class CodexAuthManagerTests: XCTestCase {
         let loaded = try await service.loadUsageCache(for: account)
         XCTAssertEqual(loaded, cache)
 
-        let data = try XCTUnwrap(service.accountAuthData(for: account))
+        let data = try XCTUnwrap(service.accountAuthDataWithoutMaterialization(for: account))
         let json = try JSON(data: data)
         XCTAssertNotEqual(json["nolon"]["usage_cache"], JSON.null)
     }

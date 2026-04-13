@@ -116,6 +116,66 @@ struct GeminiQuotaFetcherTests {
         #expect(snapshot.flash?.modelID == "gemini-3-flash-preview")
     }
 
+    @Test("Sorts and normalizes quota buckets for stable model display")
+    func fetch_sortsAndNormalizesQuotaBuckets() async throws {
+        let now = Date(timeIntervalSince1970: 1_715_400_200)
+        let fetcher = GeminiQuotaFetcher(
+            resolveExecutable: { binary, _ in
+                switch binary {
+                case "gemini":
+                    return URL(fileURLWithPath: "/opt/homebrew/lib/node_modules/@google/gemini-cli/dist/index.js")
+                case "node":
+                    return URL(fileURLWithPath: "/opt/homebrew/bin/node")
+                default:
+                    throw GeminiQuotaFetchError.binaryNotFound(binary)
+                }
+            },
+            runNodeScript: { _, _, _ in
+                """
+                {"projectId":"proj","quota":{"buckets":[
+                  {"modelId":"gemini-2.5-flash-lite","remainingFraction":0.65,"resetTime":"2026-03-08T15:00:00Z"},
+                  {"modelId":"gemini-3.1-pro-preview-customtools","remainingFraction":0.92,"resetTime":"2026-03-08T14:00:00Z"},
+                  {"modelId":"gemini-2.0-flash","remainingFraction":0.75,"resetTime":"2026-03-08T12:00:00Z"},
+                  {"modelId":"gemini-2.5-pro","remainingFraction":0.5,"resetTime":"2026-03-08T13:00:00Z"},
+                  {"modelId":"gemini-3.1-pro-preview","remainingFraction":0.94,"resetTime":"2026-03-08T16:00:00Z"},
+                  {"modelId":"gemini-2.5-flash-001","remainingFraction":0.8,"resetTime":"2026-03-08T17:00:00Z"}
+                ]}}
+                """
+            },
+            fileExists: { path in
+                path == "/opt/homebrew/lib/node_modules/@google/gemini-cli/node_modules/@google/gemini-cli-core/dist/index.js"
+            },
+            now: { now }
+        )
+        let account = GeminiAuthAccount(
+            id: UUID(uuidString: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")!,
+            providerID: .gemini,
+            name: "Gemini",
+            method: .oauthPersonal,
+            createdAt: now,
+            lastUsedAt: now,
+            lastLoginAt: now,
+            email: "dev@example.com",
+            project: nil,
+            location: nil,
+            runtimeHomeRelativePath: "accounts/runtime/home"
+        )
+
+        let snapshot = try #require(await fetcher.fetch(
+            account: account,
+            runtimeHomeURL: URL(fileURLWithPath: "/tmp/runtime-home", isDirectory: true),
+            environment: [:]
+        ))
+
+        #expect(snapshot.buckets.map(\.modelID) == [
+            "gemini-3.1-pro-preview",
+            "gemini-2.5-pro",
+            "gemini-2.5-flash-001",
+            "gemini-2.0-flash",
+            "gemini-2.5-flash-lite",
+        ])
+    }
+
     @Test("Skips quota fetch for non OAuth Gemini auth methods")
     func fetch_skipsNonOAuthMethods() async throws {
         let fetcher = GeminiQuotaFetcher(

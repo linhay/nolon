@@ -21,7 +21,7 @@ extension ProviderUsageEngine {
         var summaries: [UUID: CodexAuthSummary] = [:]
         summaries.reserveCapacity(accounts.count)
         for account in accounts {
-            if let data = codexAuthManager.accountAuthData(for: account) {
+            if let data = codexAuthManager.accountAuthDataWithoutMaterialization(for: account) {
                 summaries[account.id] = CodexAuthSummary.fromJSONData(data)
             }
         }
@@ -135,7 +135,7 @@ extension ProviderUsageEngine {
 
     func refreshCodexAccountImmediately(id: UUID) async {
         guard let account = codexAccounts.first(where: { $0.id == id }) else { return }
-        await refreshCodexAccountOutcome(account)
+        await refreshCodexAccountOutcome(account, forceIncludeCredits: true)
     }
 
     func refreshCodexAccountsIfNeeded(activeId: UUID?, summaries: [UUID: CodexAuthSummary]) async {
@@ -151,7 +151,10 @@ extension ProviderUsageEngine {
         await refreshCodexAccountsInParallel(targets)
     }
 
-    func refreshCodexAccountOutcome(_ account: CodexAuthAccount) async {
+    func refreshCodexAccountOutcome(
+        _ account: CodexAuthAccount,
+        forceIncludeCredits: Bool = false
+    ) async {
         let accountId = account.id
         guard isMultiAccountEnabled,
               codexAccounts.contains(where: { $0.id == accountId })
@@ -175,23 +178,22 @@ extension ProviderUsageEngine {
             await applyRefreshedCodexOutcome(outcome, for: account)
             return
         }
-        let outcome = await fetchCodexOutcomeWithTimeout(account: account, settings: settings, authURL: authURL)
+        let resolvedSettings = forceIncludeCredits ? manualRefreshSettings(from: settings) : settings
+        let outcome = await fetchCodexOutcomeWithTimeout(account: account, settings: resolvedSettings, authURL: authURL)
         codexRefreshingAccountIds.remove(accountId)
         isRefreshingCleared = true
         await applyRefreshedCodexOutcome(outcome, for: account)
     }
 
     func refreshCodexAccountsOnInitialLoad(activeId: UUID?, summaries: [UUID: CodexAuthSummary]) async {
-        let targets = orderedAccounts(activeId: activeId).filter { account in
-            if shouldSkipRefresh(accountID: account.id, summaries: summaries) {
-                return false
-            }
-            return true
-        }
+        let targets = orderedAccounts(activeId: activeId)
         await refreshCodexAccountsInParallel(targets)
     }
 
-    func refreshCodexAccountsInParallel(_ accounts: [CodexAuthAccount]) async {
+    func refreshCodexAccountsInParallel(
+        _ accounts: [CodexAuthAccount],
+        forceIncludeCredits: Bool = false
+    ) async {
         guard !accounts.isEmpty else { return }
         let targets = accounts.filter { account in
             codexAccounts.contains(where: { $0.id == account.id }) && !codexRefreshingAccountIds.contains(account.id)
@@ -202,7 +204,7 @@ extension ProviderUsageEngine {
         codexRefreshingAccountIds.formUnion(refreshingIDs)
         defer { codexRefreshingAccountIds.subtract(refreshingIDs) }
 
-        let settingsSnapshot = settings
+        let settingsSnapshot = forceIncludeCredits ? manualRefreshSettings(from: settings) : settings
         var tasks: [UUID: Task<ProviderAccountUsageOutcome, Never>] = [:]
         tasks.reserveCapacity(targets.count)
 
@@ -226,6 +228,12 @@ extension ProviderUsageEngine {
             if Task.isCancelled { continue }
             await applyRefreshedCodexOutcome(outcome, for: account)
         }
+    }
+
+    func manualRefreshSettings(from settings: UsageMonitorProviderSettings) -> UsageMonitorProviderSettings {
+        var copy = settings
+        copy.includeCredits = true
+        return copy
     }
 
     func applyRefreshedCodexOutcome(_ outcome: ProviderAccountUsageOutcome, for account: CodexAuthAccount) async {
@@ -293,27 +301,24 @@ extension ProviderUsageEngine {
             codexScheduledRefreshFailureStreak[accountId] = nextStreak
             codexRefreshedAccountIdsInSession.remove(accountId)
             let message = error.localizedDescription
-            if !shouldRetainExistingCodexSuccessResult(for: accountId, error: error) {
+            let isSelfManagedConfiguredAccount = codexAccountSummaries[accountId]?.cardKind?.isSelfManagedConfiguredAccount == true
+            codexAccountCreditsRefreshedAt.removeValue(forKey: accountId)
+            if !isSelfManagedConfiguredAccount {
                 replaceCodexOutcome(outcome, for: account.id)
             }
-            try? await codexAuthManager.updateSyncFailure(for: account, message: message, date: now)
             var summary = codexAccountSummaries[accountId] ?? CodexAuthSummary()
-            summary.lastSyncFailedAt = now
-            summary.lastSyncFailureMessage = message
+            if isSelfManagedConfiguredAccount {
+                try? await codexAuthManager.clearSyncFailure(for: account)
+                summary.lastSyncFailedAt = nil
+                summary.lastSyncFailureMessage = nil
+            } else {
+                try? await codexAuthManager.clearUsageCache(for: account)
+                try? await codexAuthManager.updateSyncFailure(for: account, message: message, date: now)
+                summary.lastSyncFailedAt = now
+                summary.lastSyncFailureMessage = message
+            }
             codexAccountSummaries[accountId] = summary
         }
-    }
-
-    func shouldRetainExistingCodexSuccessResult(for accountID: UUID, error: Error) -> Bool {
-        guard error is CodexHTTPUsageQueryError else { return false }
-        guard let existing = codexAccountOutcomes.first(where: { outcome in
-            guard case let .tokenAccount(account) = outcome.account else { return false }
-            return account.id == accountID
-        }) else {
-            return false
-        }
-        guard case .success = existing.outcome.result else { return false }
-        return true
     }
 
     func orderedAccounts(activeId: UUID?) -> [CodexAuthAccount] {
@@ -688,10 +693,6 @@ extension ProviderUsageEngine {
         let authFolderPath = codexAuthManager.nolonCodexAuthFolder().url.standardizedFileURL.path
         let isAuthFolderChange = path == authFolderPath || path.hasPrefix(authFolderPath + "/")
         if isAuthFolderChange {
-            if !gatewaySwitchInProgressTokens.isEmpty {
-                Self.logger.debug("Ignoring auth change during gateway switch. kind=\(String(describing: kind), privacy: .public) path=\(path, privacy: .public)")
-                return true
-            }
             if codexUsageCacheWriteCount > 0 {
                 Self.logger.debug("Ignoring auth change during cache write. kind=\(String(describing: kind), privacy: .public) path=\(path, privacy: .public)")
                 return true
@@ -703,34 +704,6 @@ extension ProviderUsageEngine {
         }
 
         return false
-    }
-
-    func withGatewaySwitchInProgress(_ operation: @MainActor () async -> Void) async {
-        let token = UUID()
-        gatewaySwitchInProgressTokens.insert(token)
-        defer { gatewaySwitchInProgressTokens.remove(token) }
-        await operation()
-    }
-
-    func ensureGatewayVirtualAccountActivatedForCurrentProviderIfNeeded() async {
-        guard let gatewayProviderID = resolvedGatewayProviderIDForCLI() else {
-            return
-        }
-        let virtual: CodexAuthAccount?
-        if let dedicatedVirtual = await codexAuthManager.gatewayVirtualAccount(providerID: gatewayProviderID) {
-            virtual = dedicatedVirtual
-        } else {
-            let accounts = (try? await codexAuthManager.loadAccounts()) ?? []
-            virtual = accounts.first(where: { account in
-                let data = codexAuthManager.accountAuthData(for: account)
-                return Self.isGatewayVirtualCodexAccount(
-                    relativeAuthPath: account.relativeAuthPath,
-                    authData: data
-                )
-            })
-        }
-        guard let virtual else { return }
-        try? await codexAuthManager.activateAccountAndMarkActive(virtual, for: provider)
     }
 
     func fetchCodexOutcomeWithTimeout(
@@ -920,6 +893,9 @@ extension ProviderUsageEngine {
         outcome: ProviderAccountUsageOutcome,
         summary: CodexAuthSummary?
     ) -> CodexAccountDisplayState {
+        if summary?.cardKind?.isSelfManagedConfiguredAccount == true {
+            return .healthy
+        }
         if case let .failure(error) = outcome.outcome.result {
             let isAuthFailure = CodexAuthFailureClassifier.isAuthFailure(errorText: Self.errorDetailText(error: error))
             let supportsRelogin = summary?.cardKind == .chatgptAccount || summary?.cardKind == nil
@@ -1105,7 +1081,13 @@ extension ProviderUsageEngine {
     }
 
     func prepareCLILoginHomeDirectory() throws -> URL {
-        let providerID = CodexGatewayProviderIDResolver.resolveOrDefault(provider: provider)
+        let providerID: String
+        switch provider.templateId {
+        case ProviderTemplate.codexXcode.rawValue:
+            providerID = "codex-xcode"
+        default:
+            providerID = "codex"
+        }
         let codexHome = codexAuthManager.cliLoginCodexHomeFolder(providerID: providerID)
         _ = codexHome.createIfNotExists()
         try writeCLILoginConfig(codexHome: codexHome)

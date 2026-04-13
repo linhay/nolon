@@ -483,7 +483,6 @@ public struct EmptyStateScaffold<Content: View>: View {
 public struct ProviderEmptyStateScaffold<Content: View>: View {
     public enum Preset {
         case usageUnsupported
-        case gatewayPickerEmpty
 
         public var emptyTitle: String {
             switch self {
@@ -493,12 +492,6 @@ public struct ProviderEmptyStateScaffold<Content: View>: View {
                     value: "Usage not supported",
                     comment: "Unsupported title"
                 )
-            case .gatewayPickerEmpty:
-                return NSLocalizedString(
-                    "codex.gateway.accounts.picker.empty.title",
-                    value: "没有可添加的账号",
-                    comment: "Gateway account picker empty title"
-                )
             }
         }
 
@@ -506,8 +499,6 @@ public struct ProviderEmptyStateScaffold<Content: View>: View {
             switch self {
             case .usageUnsupported:
                 return "chart.bar.xaxis"
-            case .gatewayPickerEmpty:
-                return "person.crop.circle.badge.checkmark"
             }
         }
 
@@ -518,12 +509,6 @@ public struct ProviderEmptyStateScaffold<Content: View>: View {
                     "usage.monitor.unsupported.desc",
                     value: "Usage is not configured for this provider yet.",
                     comment: "Unsupported description"
-                )
-            case .gatewayPickerEmpty:
-                return NSLocalizedString(
-                    "codex.gateway.accounts.picker.empty.desc",
-                    value: "当前所有账号都已在此网关卡片中。",
-                    comment: "Gateway account picker empty description"
                 )
             }
         }

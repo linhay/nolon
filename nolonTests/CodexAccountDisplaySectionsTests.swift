@@ -523,6 +523,26 @@ final class CodexAccountDisplaySectionsTests: XCTestCase {
         XCTAssertTrue(viewModel.selectedCodexAccountIDs.isEmpty)
     }
 
+    func testBDD_GivenStaleCodexSelectionOutsideMultiSelection_WhenReconciling_ThenClearsSelectionState() {
+        let viewModel = ProviderUsageEngine(provider: Self.makeCodexProvider())
+        let account = CodexAuthAccount(
+            id: UUID(uuidString: "d0d0d0d0-1111-2222-3333-444444444444")!,
+            name: "Residual",
+            createdAt: .distantPast,
+            relativeAuthPath: "auth/residual.json"
+        )
+        viewModel.codexAccounts = [account]
+        viewModel.selectedCodexAccountIDs = [account.id]
+        viewModel.isCodexMultiSelectionEnabled = false
+
+        viewModel.reconcileCodexSelections()
+
+        XCTAssertFalse(viewModel.isCodexAccountSelected(id: account.id))
+        XCTAssertEqual(viewModel.codexSelectedAccountCount, 0)
+        XCTAssertTrue(viewModel.selectedCodexAccountIDs.isEmpty)
+        XCTAssertTrue(viewModel.selectedCodexAccountIDsInDisplayOrder().isEmpty)
+    }
+
     func testBDD_GivenCodexMultiSelectionMode_WhenSelectingAccounts_ThenExportAvailabilityTracksSelectionCount() {
         let viewModel = ProviderUsageEngine(provider: Self.makeCodexProvider())
         let first = UUID()

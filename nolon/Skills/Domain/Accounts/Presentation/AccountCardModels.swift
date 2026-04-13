@@ -44,6 +44,7 @@ enum AccountActivationState: Equatable, Sendable {
     case inactive
     case active
     case pending
+    case transitioning
     case selected
 }
 
@@ -392,18 +393,19 @@ enum AccountRecordBuilder {
         isRefreshing: Bool,
         canRelogin: Bool
     ) -> AccountRecord {
+        let isSelfManagedConfiguredAccount = summary?.cardKind?.isSelfManagedConfiguredAccount == true
         let liveFailureError: Error? = {
             if case let .failure(error) = outcome.outcome.result { return error }
             return nil
         }()
         let failurePresentation = CodexAccountFailurePresentationBuilder.build(
-            liveFailureError: liveFailureError,
-            persistedFailureMessage: summary?.lastSyncFailureMessage,
-            canRelogin: canRelogin
+            liveFailureError: isSelfManagedConfiguredAccount ? nil : liveFailureError,
+            persistedFailureMessage: isSelfManagedConfiguredAccount ? nil : summary?.lastSyncFailureMessage,
+            canRelogin: isSelfManagedConfiguredAccount ? false : canRelogin
         )
         let displayState: AccountHealthState = {
-            if presentation.selectionStyle == .pending {
-                return .loading
+            if isSelfManagedConfiguredAccount {
+                return .healthy
             }
             if failurePresentation.hasFailure, failurePresentation.isAuthFailure {
                 return .warning
@@ -417,9 +419,12 @@ enum AccountRecordBuilder {
             return .healthy
         }()
 
-        let quota: AccountRecordQuota = {
+        let quota: AccountRecordQuota? = {
             switch outcome.outcome.result {
             case let .success(result):
+                if isSelfManagedConfiguredAccount, !codexShouldShowUsageSection(usage: result.usage, credits: result.credits) {
+                    return nil
+                }
                 return .init(
                     provider: outcome.provider,
                     accountTitle: title,
@@ -433,6 +438,9 @@ enum AccountRecordBuilder {
                     errorMessage: nil
                 )
             case .failure:
+                if isSelfManagedConfiguredAccount {
+                    return nil
+                }
                 return .init(
                     provider: outcome.provider,
                     accountTitle: title,
@@ -449,6 +457,9 @@ enum AccountRecordBuilder {
         }()
 
         let detailFields: [AccountRecordField] = {
+            if isSelfManagedConfiguredAccount {
+                return []
+            }
             guard let failureSummary = failurePresentation.summary else { return [] }
             var fields: [AccountRecordField] = [
                 .init(
@@ -531,6 +542,8 @@ enum AccountRecordBuilder {
             return .active
         case .pending:
             return .pending
+        case .transitioning:
+            return .transitioning
         case .selected:
             return .selected
         }
@@ -538,6 +551,13 @@ enum AccountRecordBuilder {
 
     static func codexSubtitleText(title: String, email: String?, plan: String?) -> String? {
         AccountDisplayTextSupport.codexSubtitle(title: title, email: email, plan: plan)
+    }
+
+    private static func codexShouldShowUsageSection(
+        usage: UsageSnapshot,
+        credits: CreditsSnapshot?
+    ) -> Bool {
+        !usage.allWindows.isEmpty || credits != nil
     }
 }
 
@@ -739,6 +759,8 @@ enum AccountCardViewDataMapper {
             return .active
         case .pending:
             return .pending
+        case .transitioning:
+            return .transitioning
         case .selected:
             return .selected
         }
@@ -750,11 +772,6 @@ enum AccountCardViewDataMapper {
             return .init(
                 text: NSLocalizedString("codex.accounts.status.reauth_needed", value: "Needs re-login", comment: "Account status reauth"),
                 tone: .warning
-            )
-        case .loading where record.activationState == .pending:
-            return .init(
-                text: NSLocalizedString("codex.accounts.status.pending", value: "Pending", comment: "Account status pending"),
-                tone: .neutral
             )
         default:
             break

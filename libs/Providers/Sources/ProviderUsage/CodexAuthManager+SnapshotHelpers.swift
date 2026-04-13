@@ -179,87 +179,12 @@ extension CodexAuthManager {
     func activeAccountIdFromRegistry(for provider: Provider, accounts: [CodexAuthAccount]) -> UUID? {
         let map = loadActiveAccountMap()
         guard let raw = resolveActiveAccountID(from: map, for: provider), let id = UUID(uuidString: raw) else { return nil }
-        if accounts.contains(where: { $0.id == id }) {
-            return id
-        }
-        return containsGatewayVirtualAccount(id: id) ? id : nil
-    }
-
-    func containsGatewayVirtualAccount(id: UUID) -> Bool {
-        let folder = nolonCodexGatewayVirtualAuthFolder()
-        let fileNames = stableAuthSnapshotFileNames(in: folder)
-        for fileName in fileNames {
-            let relativePath = "gateway/virtual-auth/\(fileName)"
-            let file = folder.file(fileName)
-            guard let account = try? loadAccount(file: file, relativeAuthPath: relativePath) else {
-                continue
-            }
-            if account.id == id {
-                return true
-            }
-        }
-        return false
-    }
-
-    func loadGatewayVirtualAccount(byStandardizedPath path: String) -> CodexAuthAccount? {
-        let folder = nolonCodexGatewayVirtualAuthFolder()
-        let fileNames = stableAuthSnapshotFileNames(in: folder)
-        for fileName in fileNames {
-            let relativePath = "gateway/virtual-auth/\(fileName)"
-            let file = folder.file(fileName)
-            guard standardizedPathString(file) == path else { continue }
-            if let account = try? loadAccount(file: file, relativeAuthPath: relativePath) {
-                return account
-            }
-        }
-        return nil
+        return accounts.contains(where: { $0.id == id }) ? id : nil
     }
 
     func isRelayProfileAccount(_ account: CodexAuthAccount) -> Bool {
         guard let data = try? readAccountAuthData(account), !data.isEmpty else { return false }
         return CodexAuthSummary.fromJSONData(data).cardKind == .relayProfile
-    }
-
-    func isGatewayVirtualAccount(_ account: CodexAuthAccount) -> Bool {
-        let relative = account.relativeAuthPath.lowercased()
-        if relative.hasPrefix("gateway/virtual-auth/") || relative.contains("/__gateway_reply__-") {
-            return true
-        }
-        guard let data = try? readAccountAuthData(account),
-              let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let nolon = object["nolon"] as? [String: Any],
-              let relay = nolon["relay"] as? [String: Any],
-              let params = relay["query_params"] as? [String: Any]
-        else {
-            return false
-        }
-        return (params["nolon_gateway_virtual"] as? String) == "1"
-    }
-
-    func isGatewayVirtualAuthPayload(_ data: Data) -> Bool {
-        guard let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-            return false
-        }
-        if let apiKey = object["OPENAI_API_KEY"] as? String {
-            let normalizedAPIKey = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
-            if normalizedAPIKey == Self.gatewayVirtualAPIKey {
-                return true
-            }
-        }
-        guard let nolon = object["nolon"] as? [String: Any],
-              let relay = nolon["relay"] as? [String: Any],
-              let params = relay["query_params"] as? [String: Any]
-        else {
-            return false
-        }
-        if let marker = params["nolon_gateway_virtual"] as? String {
-            let normalized = marker.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-            return normalized == "1" || normalized == "true"
-        }
-        if let marker = params["nolon_gateway_virtual"] as? NSNumber {
-            return marker.intValue != 0
-        }
-        return false
     }
 
     func loadActiveAccountMap() -> [String: String] {
@@ -433,7 +358,6 @@ extension CodexAuthManager {
     }
 
     func createSnapshotAccount(authJSONString: String) throws -> CodexAuthAccount {
-        let name = deriveAccountName(fromAuthJSONString: authJSONString)
         let preferredID = UUID()
         let relativePath = sqliteRelativeAuthPath(for: preferredID)
         let data = try normalizeAccountPayloadData(
@@ -586,7 +510,7 @@ extension CodexAuthManager {
     }
 
     func readAccountAuthData(_ account: CodexAuthAccount) throws -> Data {
-        if let data = try loadCodexAccountAuthDataFromSQLite(accountID: account.id), !data.isEmpty {
+        if let data = try loadCodexAccountAuthDataFromSQLite(accountID: account.id, includeManagedMetadata: true), !data.isEmpty {
             return data
         }
         throw CocoaError(.fileNoSuchFile)
@@ -853,9 +777,27 @@ extension CodexAuthManager {
         setValue(relativeAuthPath, path: ["nolon", "account", "relativeAuthPath"], dict: &rootObject)
 
         if let relay {
+            let trimmedBaseURL = relay.baseURL.trimmingCharacters(in: .whitespacesAndNewlines)
+            let trimmedModelProvider = relay.modelProvider.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmedBaseURL.isEmpty else {
+                throw NSError(
+                    domain: "CodexAuthManager.ConfiguredRelay",
+                    code: 1,
+                    userInfo: [NSLocalizedDescriptionKey: "Relay base URL is required."]
+                )
+            }
+            guard !trimmedModelProvider.isEmpty else {
+                throw NSError(
+                    domain: "CodexAuthManager.ConfiguredRelay",
+                    code: 2,
+                    userInfo: [NSLocalizedDescriptionKey: "Relay model provider is required."]
+                )
+            }
+            rootObject["base_url"] = trimmedBaseURL
+            rootObject.removeValue(forKey: "baseURL")
             var relayObject: JSONObject = [
-                "base_url": relay.baseURL.trimmingCharacters(in: .whitespacesAndNewlines),
-                "model_provider": relay.modelProvider.trimmingCharacters(in: .whitespacesAndNewlines),
+                "base_url": trimmedBaseURL,
+                "model_provider": trimmedModelProvider,
             ]
             if !relay.queryParams.isEmpty {
                 relayObject["query_params"] = relay.queryParams
@@ -865,6 +807,8 @@ extension CodexAuthManager {
             }
             setValue(relayObject, path: ["nolon", "relay"], dict: &rootObject)
         } else {
+            rootObject.removeValue(forKey: "base_url")
+            rootObject.removeValue(forKey: "baseURL")
             removeValue(path: ["nolon", "relay"], dict: &rootObject)
         }
 

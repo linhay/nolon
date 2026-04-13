@@ -510,10 +510,11 @@ extension ProviderUsageEngine {
 
     func reconcileCodexSelections() {
         let validIDs = Set(codexAccounts.map(\.id))
-        selectedCodexAccountIDs = selectedCodexAccountIDs.intersection(validIDs)
-        if selectedCodexAccountIDs.isEmpty, !isCodexMultiSelectionEnabled {
+        guard isCodexMultiSelectionEnabled else {
+            selectedCodexAccountIDs.removeAll()
             return
         }
+        selectedCodexAccountIDs = selectedCodexAccountIDs.intersection(validIDs)
         if validIDs.isEmpty {
             setCodexMultiSelectionEnabled(false)
         }
@@ -532,7 +533,7 @@ extension ProviderUsageEngine {
     }
 
     func selectedCodexAccountIDsInDisplayOrder() -> [UUID] {
-        codexAccounts
+        return codexAccounts
             .map(\.id)
             .filter { selectedCodexAccountIDs.contains($0) }
     }

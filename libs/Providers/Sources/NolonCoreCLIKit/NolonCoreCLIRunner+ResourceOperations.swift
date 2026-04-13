@@ -46,15 +46,14 @@ extension NolonCoreCLIRunner {
         for target in targets {
             providersScanned += 1
             let providerFolder = STFolder(target.providerPath)
-            guard providerFolder.isExists else {
-                continue
-            }
-            let isDirectory = (try? providerFolder.url.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) ?? false
-            guard isDirectory else {
-                if provider != nil {
-                    throw NolonCoreCLIError.invalidArguments("Provider skills path is not a directory: \(target.providerPath)")
+            if service is NolonLiveSkillsRepositoryService {
+                guard providerFolder.isExists else {
+                    continue
                 }
-                continue
+                let isDirectory = (try? providerFolder.url.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) ?? false
+                guard isDirectory else {
+                    continue
+                }
             }
 
             let scan: NolonSkillMigrateScanResult
@@ -64,9 +63,6 @@ extension NolonCoreCLIRunner {
                     globalSkillsPath: globalSkillsPath
                 )
             } catch {
-                if provider != nil {
-                    throw error
-                }
                 continue
             }
             items.append(contentsOf: scan.states.map { state in

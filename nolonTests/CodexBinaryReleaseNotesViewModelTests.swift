@@ -84,4 +84,38 @@ final class CodexBinaryReleaseNotesViewModelTests: XCTestCase {
 
         XCTAssertEqual(data.notesMarkdown, "Matched by source URL")
     }
+
+    @MainActor
+    func testBDD_GivenRemoteVersionAlreadyInstalled_WhenReadingPrimaryAction_ThenShowsCheckUpdatesInsteadOfDownload() throws {
+        let viewModel = try makeViewModel()
+        viewModel.manifest = CodexBinaryManifest(
+            versions: [
+                ManagedCodexVersion(
+                    id: "v0.120.0-test",
+                    displayName: "Codex 0.120.0",
+                    detectedVersion: "0.120.0",
+                    binaryRelativePath: "versions/v0.120.0-test/codex",
+                    sha256: "def",
+                    source: "download",
+                    sourceURL: "https://example.com/codex-aarch64-apple-darwin.tar.gz",
+                    importedAt: Date(),
+                    notes: nil
+                )
+            ],
+            lastSeenRemoteVersion: "0.120.0",
+            lastSeenRemoteTag: "rust-v0.120.0",
+            lastSeenRemoteAssetURL: "https://example.com/codex-aarch64-apple-darwin.tar.gz",
+            updateState: .updateAvailable
+        )
+
+        XCTAssertFalse(viewModel.hasUpdateAvailable)
+        XCTAssertEqual(
+            viewModel.primaryActionTitle,
+            NSLocalizedString("codex.binary.check_updates", value: "Check Updates", comment: "Check updates")
+        )
+        XCTAssertEqual(
+            viewModel.statusText(),
+            NSLocalizedString("codex.binary.update.up_to_date", value: "Up to date", comment: "Update status")
+        )
+    }
 }

@@ -749,7 +749,7 @@ public struct ProviderAgentsLinkToolbarMenuButton: View {
             Toggle(
                 NSLocalizedString(
                     "provider.agents_link.toggle",
-                    value: "Link this provider's AGENTS docs to ~/.nolon/agents",
+                    value: "Link this provider's instruction docs to ~/.nolon/agents",
                     comment: "Agents link toggle title"
                 ),
                 isOn: Binding(
@@ -767,7 +767,7 @@ public struct ProviderAgentsLinkToolbarMenuButton: View {
         .help(
             NSLocalizedString(
                 "provider.agents_link.menu.help",
-                value: "AGENTS link settings",
+                value: "Instruction docs link settings",
                 comment: "Agents link menu button help text"
             )
         )
@@ -1939,7 +1939,7 @@ public struct ProviderResourceGridSectionView<Content: View>: View {
         case .rules:
             return NSLocalizedString("rules.empty", value: "No Rules", comment: "No rules")
         case .agents:
-            return NSLocalizedString("agents.empty", value: "No AGENTS.md Files", comment: "No agent docs")
+            return NSLocalizedString("agents.empty", value: "No Instruction Files", comment: "No agent docs")
         case nil:
             return NSLocalizedString("remote.search.no_results", value: "No Results", comment: "No results")
         }
@@ -1969,7 +1969,7 @@ public struct ProviderResourceGridSectionView<Content: View>: View {
         case .rules:
             return NSLocalizedString("rules.empty_desc", value: "No rules in this provider", comment: "No rules in provider")
         case .agents:
-            return NSLocalizedString("agents.empty_desc", value: "No AGENTS.md files found for this provider", comment: "No agents docs")
+            return NSLocalizedString("agents.empty_desc", value: "No instruction files found for this provider", comment: "No agents docs")
         case nil:
             return NSLocalizedString("remote.search.no_results_desc", value: "No matching results found", comment: "No search results description")
         }

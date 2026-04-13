@@ -235,7 +235,10 @@ enum NolonCodexCLIExecutor {
         outputMode: OutputMode
     ) async throws -> String {
         let providerID = try parseCodexProviderID(command.provider)
-        let payload = try await context.codexService().sessionList(providerID: providerID)
+        let payload = try await context.codexService().sessionList(
+            providerID: providerID,
+            groupBy: command.groupBy
+        )
         return try renderOutput(command: .sessionList, payload: payload, outputMode: outputMode, textFormatter: formatSessionList)
     }
 
@@ -1086,8 +1089,6 @@ enum NolonCodexCLIExecutor {
         [
             "provider: \(payload.providerID)",
             "account_id: \(payload.accountID.uuidString)",
-            "runtime_switched: \(payload.runtimeSwitched)",
-            "runtime_error: \(payload.runtimeErrorDescription ?? "-")",
         ].joined(separator: "\n")
     }
 
@@ -1097,8 +1098,6 @@ enum NolonCodexCLIExecutor {
             "account_id: \(payload.accountID.uuidString)",
             "account_name: \(payload.accountName)",
             "login_url: \(payload.loginURL ?? "-")",
-            "runtime_switched: \(payload.runtimeSwitched)",
-            "runtime_error: \(payload.runtimeErrorDescription ?? "-")",
         ].joined(separator: "\n")
     }
 
@@ -1106,16 +1105,15 @@ enum NolonCodexCLIExecutor {
         var lines: [String] = []
         lines.reserveCapacity(payload.items.count + 5)
         lines.append("提供方: \(payload.providerID)")
-        lines.append("邮箱                         | 状态  | 结果   | 运行时切换 | 错误码")
+        lines.append("邮箱                         | 状态  | 结果   | 错误码")
         for item in payload.items {
             let marker = item.isActive ? "*" : " "
             let email = item.email ?? item.accountName
             let status = item.isActive ? "已激活" : "未激活"
             let result = item.success ? "成功" : "失败"
-            let runtime = item.runtimeSwitched ? "已切换" : "未切换"
             let code = item.errorCode ?? "-"
             lines.append(
-                "\(marker) \(pad(email, to: 27)) | \(pad(status, to: 3)) | \(pad(result, to: 4)) | \(pad(runtime, to: 7)) | \(code)"
+                "\(marker) \(pad(email, to: 27)) | \(pad(status, to: 3)) | \(pad(result, to: 4)) | \(code)"
             )
         }
         lines.append("汇总-总数: \(payload.summary.totalCount)")
@@ -1276,6 +1274,7 @@ enum NolonCodexCLIExecutor {
     private static func formatSessionList(_ payload: NolonCodexSessionListPayload) -> String {
         var lines = [
             "provider: \(payload.providerID)",
+            "group_by: \(payload.groupBy.rawValue)",
             "total: \(payload.totalSessionCount)",
             "live: \(payload.totalLiveCount)",
             "archived: \(payload.totalArchivedCount)",
@@ -1284,13 +1283,27 @@ enum NolonCodexCLIExecutor {
 
         for section in payload.sections {
             lines.append("")
-            lines.append("[\(section.modelProvider)] live=\(section.liveCount) archived=\(section.archivedCount) total=\(section.totalSessionCount)")
+            var sectionLine = "[\(section.title)] live=\(section.liveCount) archived=\(section.archivedCount) total=\(section.totalSessionCount)"
+            if payload.groupBy == .timeProject, !section.providerIDs.isEmpty {
+                sectionLine += " providers=\(section.providerIDs.joined(separator: ", "))"
+            }
+            lines.append(sectionLine)
             for session in section.sessions {
                 let mode = session.archived ? "archived" : "live"
                 let editable = session.editable ? "editable" : "read-only"
                 let threadID = session.threadID ?? "-"
                 let rowCount = session.stateRowCount
-                lines.append("- \(threadID) | \(session.title) | \(mode) | rows=\(rowCount) | \(editable) | \(session.rolloutPath)")
+                let providerPart = payload.groupBy == .provider ? nil : "provider=\(session.modelProvider)"
+                let segments = [
+                    threadID,
+                    session.title,
+                    providerPart,
+                    mode,
+                    "rows=\(rowCount)",
+                    editable,
+                    session.rolloutPath,
+                ].compactMap { $0 }
+                lines.append("- \(segments.joined(separator: " | "))")
             }
         }
 

@@ -23,7 +23,6 @@ struct ProviderUsageSubViewModelWiringTests {
         #expect(root.accountsViewModel.usageProvider == root.usageProvider)
         #expect(root.accountsViewModel.codex.accounts == root.state.codexEngine.codexAccounts)
         #expect(root.tokenTrendViewModel.tokenTrendRange == root.state.commonEngine.tokenTrendRange)
-        #expect(root.gatewayCardsViewModel.gatewayCardsState == root.state.codexEngine.gatewayCardsState)
         #expect(root.importExportViewModel.isShowingCodexImportSheet == root.state.codexEngine.isShowingCodexImportSheet)
         #expect(root.loginFlowViewModel.isRunningCLILogin == root.state.commonEngine.isRunningCLILogin)
     }

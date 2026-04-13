@@ -73,7 +73,8 @@ enum ProviderTemplateEmbeddedJSON {
         "secondaryResourceLabel": "Workflows",
         "vendorTabs": [
             "usage",
-            "rules"
+            "rules",
+            "agents"
         ]
     },
     "opencode": {
@@ -108,7 +109,7 @@ enum ProviderTemplateEmbeddedJSON {
         "logoFile": "copilot",
         "vendorCategory": "integrated",
         "vendorHomeRelativePath": ".copilot",
-        "defaultSkillsPath": "agents",
+        "defaultSkillsPath": "skills",
         "defaultWorkflowPath": "workflows",
         "documentationURL": "https://docs.github.com/en/copilot/concepts/agents/about-agent-skills",
         "mcpDocumentationURL": "https://code.visualstudio.com/docs/copilot/customization/mcp-servers",

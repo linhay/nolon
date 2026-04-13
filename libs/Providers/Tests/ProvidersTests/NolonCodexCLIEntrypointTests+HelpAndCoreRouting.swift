@@ -28,6 +28,7 @@ extension NolonCodexCLIEntrypointTests {
         #expect(result.stdout.contains("Usage: nolon codex session"))
         #expect(result.stdout.contains("preview-rewrite"))
         #expect(result.stdout.contains("rewrite"))
+        #expect(result.stdout.contains("--group-by"))
     }
     @Test("codex session rewrite --help prints action help")
     func codexSessionRewriteHelpPrintsHelp() async {
@@ -220,6 +221,22 @@ extension NolonCodexCLIEntrypointTests {
         #expect(result.stdout.contains("provider: codex"))
         #expect(result.stdout.contains("[openai]"))
         #expect(await mock.lastCall() == "sessionList")
+    }
+
+    @Test("codex session list time-project routes successfully")
+    func codexSessionListTimeProjectRoutesSuccessfully() async {
+        let mock = MockCodexCLIService()
+        let result = await NolonCLIEntrypoint.execute(
+            arguments: ["codex", "session", "list", "--group-by", "time-project"],
+            codexService: mock
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stderr.isEmpty)
+        #expect(result.stdout.contains("group_by: time-project"))
+        #expect(result.stdout.contains("[2026-04-11 · demo]"))
+        #expect(await mock.lastCall() == "sessionList")
+        #expect(await mock.lastSessionListGrouping() == .timeProject)
     }
     @Test("codex session preview rewrite routes successfully")
     func codexSessionPreviewRewriteRoutesSuccessfully() async {

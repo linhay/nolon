@@ -22,13 +22,11 @@ final class ProviderUsageEngine: CopyToastPresenting {
     static let logger = Logger(subsystem: "com.nolon", category: "ProviderUsageEngine")
     static var codexInitialFullRefreshProviderIDs: Set<String> = []
     static let codexOfficialAPIBaseURL = "https://api.openai.com/v1"
-    static let codexGatewayDefaultHost = "127.0.0.1"
-    static let codexGatewayDefaultPort = 8080
+    static let codexDefaultModelProvider = "nolon"
     let usageMonitor: ProviderUsageMonitorService
     let codexTokenTrendService = CodexTokenTrendService()
     let codexModelPreferenceService: CodexModelPreferenceService
     let settingsStore = UsageMonitorSettingsStore.shared
-    let codexGatewayCardsStore: CodexGatewayCardsStore
     let codexAuthManager: CodexAuthManager
     let claudeAccountManager = ClaudeAccountManager()
     let geminiAuthStore = GeminiAuthStore.shared
@@ -43,8 +41,6 @@ final class ProviderUsageEngine: CopyToastPresenting {
     var codexUsageQueryTestAction: CodexUsageQueryTestAction { actions.codexUsageQueryTest }
     var codexConfiguredAccountValidateAction: CodexConfiguredAccountValidateAction { actions.codexConfiguredAccountValidate }
     var codexImportConnectionTestAction: CodexImportConnectionTestAction { actions.codexImportConnectionTest }
-    var codexGatewayStartAction: CodexGatewayStartAction { actions.codexGatewayStart }
-    var codexGatewayStopAction: CodexGatewayStopAction { actions.codexGatewayStop }
     var codexImportOpenPanelAction: CodexImportOpenPanelAction { actions.codexImportOpenPanel }
     var codexExportSavePanelAction: CodexExportSavePanelAction { actions.codexExportSavePanel }
     var codexImportExportArchiveAction: CodexImportExportArchiveAction { actions.codexImportExportArchive }
@@ -94,10 +90,6 @@ final class ProviderUsageEngine: CopyToastPresenting {
     var collapsedCodexSectionIDs: Set<String> = []
     var isCodexMultiSelectionEnabled = false
     var selectedCodexAccountIDs: Set<UUID> = []
-    var gatewayCardsState = CodexGatewayCardsState()
-    var isGatewayCardsSectionCollapsed = false
-    var isShowingGatewayCardPicker = false
-    var pendingGatewaySelectionAccountIDs: [UUID] = []
     var claudeAccounts: [ClaudeAccount] = []
     var activeClaudeAccountId: UUID?
     var geminiAccounts: [GeminiAuthAccount] = []
@@ -125,6 +117,7 @@ final class ProviderUsageEngine: CopyToastPresenting {
 
     var isShowingActivateConfirm = false
     var pendingActivateCodexAccount: CodexAuthAccount?
+    var activatingCodexAccountId: UUID?
     var isShowingDeleteConfirm = false
     var pendingDeleteCodexAccount: CodexAuthAccount?
     var isShowingImportValidationConfirm = false
@@ -162,7 +155,6 @@ final class ProviderUsageEngine: CopyToastPresenting {
     var codexReloadPending = false
     var codexReloadPendingRefreshUsage = false
     var codexUsageCacheWriteCount = 0
-    var gatewaySwitchInProgressTokens: Set<UUID> = []
     var codexDiskReloadCountForTesting = 0
     var hasTriggeredAppearRefresh = false
     var didStartInitialLoad = false
@@ -178,10 +170,13 @@ final class ProviderUsageEngine: CopyToastPresenting {
     let refreshPolicyProfile: RefreshPolicyProfile = .balanced
 
     struct CodexSQLiteObservationSnapshot: Equatable {
-        let accountsCount: Int
-        let credentialsCount: Int
-        let metadataCount: Int
-        let activeCount: Int
+        let accountRowCount: Int
+        let credentialsRowCount: Int
+        let metadataRowCount: Int
+        let activeRowCount: Int
+        let accountsUpdatedAt: String?
+        let metadataUpdatedAt: String?
+        let activeUpdatedAt: String?
     }
 
     enum RefreshPolicyProfile: Equatable {
@@ -192,6 +187,12 @@ final class ProviderUsageEngine: CopyToastPresenting {
         let shouldRefresh: Bool
         let nextEligibleAt: Date
         let reason: String
+    }
+
+    struct PersistedCodexSyncFailureError: LocalizedError {
+        let message: String
+
+        var errorDescription: String? { message }
     }
 
     var usageAggregate: ProviderUsageAggregate {
@@ -211,8 +212,6 @@ final class ProviderUsageEngine: CopyToastPresenting {
         codexUsageQueryTestAction: CodexUsageQueryTestAction? = nil,
         codexConfiguredAccountValidateAction: CodexConfiguredAccountValidateAction? = nil,
         codexImportConnectionTestAction: CodexImportConnectionTestAction? = nil,
-        codexGatewayStartAction: CodexGatewayStartAction? = nil,
-        codexGatewayStopAction: CodexGatewayStopAction? = nil,
         codexImportOpenPanelAction: CodexImportOpenPanelAction? = nil,
         codexExportSavePanelAction: CodexExportSavePanelAction? = nil,
         codexImportExportArchiveAction: CodexImportExportArchiveAction? = nil,
@@ -220,13 +219,10 @@ final class ProviderUsageEngine: CopyToastPresenting {
         postDeleteLoadAction: AsyncVoidAction? = nil,
         codexRefreshTimeoutGraceSeconds: TimeInterval = 5,
         initialSettingsOverride: UsageMonitorProviderSettings? = nil,
-        codexGatewayCardsStore: CodexGatewayCardsStore? = nil,
         codexModelPreferenceService: CodexModelPreferenceService = CodexModelPreferenceService()
     ) {
         let tokenStore = FileTokenAccountStore(fileURL: ProviderUsagePaths.defaultTokenAccountsFileURL())
-        let resolvedCodexGatewayCardsStore = codexGatewayCardsStore ?? .shared
         self.usageMonitor = usageMonitor ?? ProviderUsageMonitorService(tokenAccountStore: tokenStore)
-        self.codexGatewayCardsStore = resolvedCodexGatewayCardsStore
         self.codexAuthManager = codexAuthManager
         self.provider = provider
         self.codexModelPreferenceService = codexModelPreferenceService
@@ -240,7 +236,6 @@ final class ProviderUsageEngine: CopyToastPresenting {
         self.codexAccountGroupingOption = Self.codexGroupingOption(
             rawValue: initialSettings.codexAccountGroupingOptionRawValue
         )
-        self.gatewayCardsState = resolvedCodexGatewayCardsStore.load(for: provider)
         if ProviderUsageEngine.mapToUsageProvider(provider) == .codex {
             self.isMultiAccountEnabled = true
         } else {
@@ -260,12 +255,6 @@ final class ProviderUsageEngine: CopyToastPresenting {
         }
         let resolvedCodexImportConnectionTestAction = codexImportConnectionTestAction ?? { validationResult, settings in
             await Self.testCodexImportConnectionDetached(validationResult: validationResult, settings: settings)
-        }
-        let resolvedCodexGatewayStartAction = codexGatewayStartAction ?? { providerID, host, port in
-            _ = try await NolonLiveCodexCLIService().gatewayStart(providerID: providerID, host: host, port: port)
-        }
-        let resolvedCodexGatewayStopAction = codexGatewayStopAction ?? { providerID in
-            _ = try await NolonLiveCodexCLIService().gatewayStop(providerID: providerID)
         }
         let resolvedCodexImportOpenPanelAction = codexImportOpenPanelAction ?? {
             let panel = NSOpenPanel()
@@ -306,8 +295,6 @@ final class ProviderUsageEngine: CopyToastPresenting {
             codexUsageQueryTest: resolvedCodexUsageQueryTestAction,
             codexConfiguredAccountValidate: resolvedCodexConfiguredAccountValidateAction,
             codexImportConnectionTest: resolvedCodexImportConnectionTestAction,
-            codexGatewayStart: resolvedCodexGatewayStartAction,
-            codexGatewayStop: resolvedCodexGatewayStopAction,
             codexImportOpenPanel: resolvedCodexImportOpenPanelAction,
             codexExportSavePanel: resolvedCodexExportSavePanelAction,
             codexImportExportArchive: resolvedCodexImportExportArchiveAction,
@@ -444,9 +431,22 @@ final class ProviderUsageEngine: CopyToastPresenting {
     @discardableResult
     func loadIfNeeded() async -> Bool {
         guard !didStartInitialLoad else { return false }
+        await hydrateCachedStateForInitialLoadIfNeeded()
         didStartInitialLoad = true
         await load()
         return true
+    }
+
+    func hydrateCachedStateForInitialLoadIfNeeded() async {
+        guard usageProvider == .codex, isMultiAccountEnabled else { return }
+        do {
+            codexAuthFilePath = await codexAuthManager.authFile(for: provider)?.url.path
+            currentCodexAuthHashHex = await codexAuthManager.currentAuthHashHex(for: provider)
+            let loadedAccounts = try await codexAuthManager.loadAccounts()
+            await applyCodexAccountsForDisplay(loadedAccounts)
+        } catch {
+            Self.logger.error("Failed to hydrate cached codex state before initial load: \(String(describing: error), privacy: .public)")
+        }
     }
 
     func handleUsageViewAppear() async {
@@ -693,7 +693,7 @@ final class ProviderUsageEngine: CopyToastPresenting {
             if let codexRefreshAllAction {
                 await codexRefreshAllAction(targets)
             } else {
-                await refreshCodexAccountsInParallel(targets)
+                await refreshCodexAccountsInParallel(targets, forceIncludeCredits: true)
             }
             return
         }
@@ -791,6 +791,11 @@ final class ProviderUsageEngine: CopyToastPresenting {
         if usageProvider == .codex {
             if isMultiAccountEnabled {
                 paths.append(codexAuthManager.nolonCodexAuthFolder().url.path)
+                let sqlitePath = codexAuthManager.accountsSQLiteFile().url.path
+                paths.append(URL(fileURLWithPath: sqlitePath).deletingLastPathComponent().path)
+                paths.append(sqlitePath)
+                paths.append(sqlitePath + "-wal")
+                paths.append(sqlitePath + "-shm")
             }
         }
 
@@ -833,17 +838,28 @@ final class ProviderUsageEngine: CopyToastPresenting {
         }
 
         let authFolderPath = codexAuthManager.nolonCodexAuthFolder().url.standardizedFileURL.path
+        let sqliteStorePath = codexAuthManager.accountsSQLiteFile().url.standardizedFileURL.path
+        let sqliteFolderPath = URL(fileURLWithPath: sqliteStorePath).deletingLastPathComponent().path
+        let sqliteFilePrefix = (sqliteStorePath as NSString).lastPathComponent
 
         let isAuthFolderChange = changedPath == authFolderPath || changedPath.hasPrefix(authFolderPath + "/")
         let isAuthFileChange: Bool = {
             guard let codexAuthFilePath else { return false }
             return changedPath == normalizedPath(codexAuthFilePath)
         }()
+        let sqliteWALPath = sqliteStorePath + "-wal"
+        let sqliteSHMPath = sqliteStorePath + "-shm"
+        let isSQLiteStoreChange =
+            changedPath == sqliteStorePath ||
+            changedPath == sqliteWALPath ||
+            changedPath == sqliteSHMPath ||
+            (changedPath.hasPrefix(sqliteFolderPath + "/") &&
+             (changedPath as NSString).lastPathComponent.hasPrefix(sqliteFilePrefix))
 
         Self.logger.debug(
-            "Codex auth change. isAuthFolder=\(isAuthFolderChange, privacy: .public) isAuthFile=\(isAuthFileChange, privacy: .public) path=\(changedPath, privacy: .public)"
+            "Codex auth change. isAuthFolder=\(isAuthFolderChange, privacy: .public) isAuthFile=\(isAuthFileChange, privacy: .public) isSQLiteStore=\(isSQLiteStoreChange, privacy: .public) path=\(changedPath, privacy: .public)"
         )
-        guard isAuthFolderChange || isAuthFileChange else { return }
+        guard isAuthFolderChange || isAuthFileChange || isSQLiteStoreChange else { return }
 
         guard isMultiAccountEnabled else {
             await load()
@@ -862,15 +878,16 @@ final class ProviderUsageEngine: CopyToastPresenting {
             codexAuthFilePath = await codexAuthManager.authFile(for: provider)?.url.path
             currentCodexAuthHashHex = await codexAuthManager.currentAuthHashHex(for: provider)
 
-            let loadedAccounts = try await codexAuthManager.loadAccounts()
-            codexAccounts = filterGatewayVirtualCodexAccounts(loadedAccounts)
+            codexAccounts = try await codexAuthManager.loadAccounts()
             reconcileCodexSelections()
-            reconcileGatewayCardsWithCurrentAccounts()
             codexAccountSummaries = loadCodexAccountSummaries(accounts: codexAccounts)
             codexAccountCustomGroupNames = (try? await codexAuthManager.loadCustomGroupNamesByAccountID()) ?? [:]
             normalizeCodexGroupingOptionIfNeeded()
             activeCodexAccountId = await codexAuthManager.activeAccountId(for: provider)
-            codexAccountOutcomes = await loadCachedCodexAccountOutcomes(accounts: codexAccounts)
+            codexAccountOutcomes = await loadCachedCodexAccountOutcomes(
+                accounts: codexAccounts,
+                summaries: codexAccountSummaries
+            )
             reorderCodexAccountOutcomesForDisplay()
 
             Self.logger.debug(
@@ -882,6 +899,7 @@ final class ProviderUsageEngine: CopyToastPresenting {
                     summaries: codexAccountSummaries
                 )
             }
+            await updateUsageFileWatcher()
         } catch {
             // Ignore file reload errors; watcher will fire again on next change.
             Self.logger.error("Codex disk reload failed: \(String(describing: error), privacy: .public)")
@@ -947,15 +965,21 @@ final class ProviderUsageEngine: CopyToastPresenting {
             codexSQLiteObservationDatabaseQueue = dbQueue
 
             let observation = ValueObservation.tracking { db -> CodexSQLiteObservationSnapshot in
-                let accountsCount = try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM codex_accounts;") ?? 0
-                let credentialsCount = try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM codex_account_credentials;") ?? 0
-                let metadataCount = try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM codex_account_metadata;") ?? 0
-                let activeCount = try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM codex_active_accounts;") ?? 0
+                let accountRowCount = try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM codex_accounts;") ?? 0
+                let credentialsRowCount = try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM codex_account_credentials;") ?? 0
+                let metadataRowCount = try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM codex_account_metadata;") ?? 0
+                let activeRowCount = try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM codex_active_accounts;") ?? 0
+                let accountsUpdatedAt = try String.fetchOne(db, sql: "SELECT MAX(updated_at) FROM codex_accounts;")
+                let metadataUpdatedAt = try String.fetchOne(db, sql: "SELECT MAX(updated_at) FROM codex_account_metadata;")
+                let activeUpdatedAt = try String.fetchOne(db, sql: "SELECT MAX(updated_at) FROM codex_active_accounts;")
                 return CodexSQLiteObservationSnapshot(
-                    accountsCount: accountsCount,
-                    credentialsCount: credentialsCount,
-                    metadataCount: metadataCount,
-                    activeCount: activeCount
+                    accountRowCount: accountRowCount,
+                    credentialsRowCount: credentialsRowCount,
+                    metadataRowCount: metadataRowCount,
+                    activeRowCount: activeRowCount,
+                    accountsUpdatedAt: accountsUpdatedAt,
+                    metadataUpdatedAt: metadataUpdatedAt,
+                    activeUpdatedAt: activeUpdatedAt
                 )
             }
 
@@ -981,7 +1005,7 @@ final class ProviderUsageEngine: CopyToastPresenting {
                         guard self.codexSQLiteObservationLastSnapshot != snapshot else { return }
                         self.codexSQLiteObservationLastSnapshot = snapshot
                         Self.logger.debug(
-                            "GRDB sqlite change detected. accounts=\(snapshot.accountsCount, privacy: .public) credentials=\(snapshot.credentialsCount, privacy: .public) metadata=\(snapshot.metadataCount, privacy: .public) active=\(snapshot.activeCount, privacy: .public)"
+                            "GRDB sqlite change detected. accounts=\(snapshot.accountRowCount, privacy: .public) credentials=\(snapshot.credentialsRowCount, privacy: .public) metadata=\(snapshot.metadataRowCount, privacy: .public) active=\(snapshot.activeRowCount, privacy: .public) metadataUpdatedAt=\(snapshot.metadataUpdatedAt ?? "-", privacy: .public)"
                         )
                         self.enqueueCodexReload(refreshUsage: false, reason: "grdb_sqlite_observation")
                     }
@@ -1009,17 +1033,19 @@ final class ProviderUsageEngine: CopyToastPresenting {
     }
 
     func applyCodexAccountsForDisplay(_ accounts: [CodexAuthAccount]) async {
-        codexAccounts = filterGatewayVirtualCodexAccounts(accounts)
+        codexAccounts = accounts
         let validIDs = Set(codexAccounts.map(\.id))
         codexScheduledRefreshLastAt = codexScheduledRefreshLastAt.filter { validIDs.contains($0.key) }
         codexScheduledRefreshFailureStreak = codexScheduledRefreshFailureStreak.filter { validIDs.contains($0.key) }
         reconcileCodexSelections()
-        reconcileGatewayCardsWithCurrentAccounts()
         codexAccountSummaries = loadCodexAccountSummaries(accounts: codexAccounts)
         codexAccountCustomGroupNames = (try? await codexAuthManager.loadCustomGroupNamesByAccountID()) ?? [:]
         normalizeCodexGroupingOptionIfNeeded()
         activeCodexAccountId = await codexAuthManager.activeAccountId(for: provider)
-        codexAccountOutcomes = await loadCachedCodexAccountOutcomes(accounts: codexAccounts)
+        codexAccountOutcomes = await loadCachedCodexAccountOutcomes(
+            accounts: codexAccounts,
+            summaries: codexAccountSummaries
+        )
         reorderCodexAccountOutcomesForDisplay()
     }
 
@@ -1032,41 +1058,6 @@ final class ProviderUsageEngine: CopyToastPresenting {
         }
         guard !hasCustomGroup else { return }
         setCodexAccountGroupingOption(.typeInfo)
-    }
-
-    func filterGatewayVirtualCodexAccounts(_ accounts: [CodexAuthAccount]) -> [CodexAuthAccount] {
-        accounts.filter { account in
-            let data = codexAuthManager.accountAuthData(for: account)
-            return !Self.isGatewayVirtualCodexAccount(
-                relativeAuthPath: account.relativeAuthPath,
-                authData: data
-            )
-        }
-    }
-
-    static func isGatewayVirtualCodexAccount(relativeAuthPath: String, authData: Data?) -> Bool {
-        let normalizedPath = relativeAuthPath.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        if normalizedPath.hasPrefix("gateway/virtual-auth/") || normalizedPath.contains("/__gateway_reply__-") {
-            return true
-        }
-        guard let authData,
-              let object = try? JSONSerialization.jsonObject(with: authData) as? [String: Any]
-        else {
-            return false
-        }
-        if let apiKey = object["OPENAI_API_KEY"] as? String {
-            let normalizedAPIKey = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
-            if normalizedAPIKey == "nolon-gateway-virtual-api-key" {
-                return true
-            }
-        }
-        guard let nolon = object["nolon"] as? [String: Any],
-              let relay = nolon["relay"] as? [String: Any],
-              let params = relay["query_params"] as? [String: Any]
-        else {
-            return false
-        }
-        return (params["nolon_gateway_virtual"] as? String) == "1"
     }
 
     func shouldIgnoreTemporaryFileChange(path: String) -> Bool {
@@ -1103,7 +1094,10 @@ final class ProviderUsageEngine: CopyToastPresenting {
         Task { await load() }
     }
 
-    func loadCachedCodexAccountOutcomes(accounts: [CodexAuthAccount]) async -> [ProviderAccountUsageOutcome] {
+    func loadCachedCodexAccountOutcomes(
+        accounts: [CodexAuthAccount],
+        summaries: [UUID: CodexAuthSummary]
+    ) async -> [ProviderAccountUsageOutcome] {
         var outcomes: [ProviderAccountUsageOutcome] = []
         outcomes.reserveCapacity(accounts.count)
         var creditsRefreshedAt: [UUID: Date] = [:]
@@ -1117,7 +1111,18 @@ final class ProviderUsageEngine: CopyToastPresenting {
                 lastUsed: nil
             )
 
-            if let cache = try? await codexAuthManager.loadUsageCache(for: account) {
+            if let summary = summaries[account.id],
+               summary.cardKind?.isSelfManagedConfiguredAccount != true,
+               let persistedFailure = persistedCodexFailureOutcome(for: tokenAccount, summary: summary)
+            {
+                outcomes.append(
+                    ProviderAccountUsageOutcome(
+                        provider: .codex,
+                        account: .tokenAccount(tokenAccount),
+                        outcome: persistedFailure
+                    )
+                )
+            } else if let cache = try? await codexAuthManager.loadUsageCache(for: account) {
                 if let credits = cache.credits, !credits.remaining.isNaN {
                     creditsRefreshedAt[account.id] = cache.creditsRefreshedAt ?? cache.cachedAt
                 }
@@ -1162,6 +1167,33 @@ final class ProviderUsageEngine: CopyToastPresenting {
 
         codexAccountCreditsRefreshedAt = creditsRefreshedAt
         return outcomes
+    }
+
+    func persistedCodexFailureOutcome(
+        for tokenAccount: ProviderTokenAccount,
+        summary: CodexAuthSummary
+    ) -> ProviderFetchOutcome? {
+        let trimmedMessage = summary.lastSyncFailureMessage?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        if let trimmedMessage, !trimmedMessage.isEmpty {
+            return ProviderFetchOutcome(
+                fetchKind: .cli,
+                result: .failure(PersistedCodexSyncFailureError(message: trimmedMessage))
+            )
+        }
+        guard summary.lastSyncFailedAt != nil else { return nil }
+        return ProviderFetchOutcome(
+            fetchKind: .cli,
+            result: .failure(
+                PersistedCodexSyncFailureError(
+                    message: NSLocalizedString(
+                        "usage.monitor.codex.failure.cached",
+                        value: "Last sync failed.",
+                        comment: "Fallback message for persisted Codex sync failure"
+                    )
+                )
+            )
+        )
     }
 
     func updateSupportedModes() {

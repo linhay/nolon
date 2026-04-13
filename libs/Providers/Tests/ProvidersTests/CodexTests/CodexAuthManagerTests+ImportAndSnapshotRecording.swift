@@ -41,7 +41,7 @@ extension CodexAuthManagerTests {
 
         let results = await manager.validateImportAuthFiles(urls: [batchURL])
         #expect(results.count == 2)
-        #expect(results.filter(\.isValid).count == 2)
+        #expect(results.filter { $0.isValid }.count == 2)
 
         let imported = try await manager.importValidatedAuthFiles(results: results)
         #expect(imported.count == 2)
@@ -52,8 +52,8 @@ extension CodexAuthManagerTests {
         let pairB = try await manager.readTokenPair(for: accountB)
         let pairs = [pairA, pairB].compactMap { $0 }
         #expect(pairs.count == 2)
-        #expect(Set(pairs.map(\.idToken)) == ["id-a", "id-b"])
-        #expect(Set(pairs.map(\.accessToken)) == ["access-a", "access-b"])
+        #expect(Set(pairs.map { $0.idToken }) == ["id-a", "id-b"])
+        #expect(Set(pairs.map { $0.accessToken }) == ["access-a", "access-b"])
     }
     @Test("Given auth JSON contains type but not codex, when validating then candidate is rejected with a stable reason")
     func validateImportAuthFilesRejectsUnsupportedProviderType() async throws {
@@ -396,79 +396,5 @@ extension CodexAuthManagerTests {
         let newerRaw = try await manager.accountAuthFile(newer).read()
         let newerJSON = try #require(try? JSON(data: Data(newerRaw.utf8)))
         #expect(newerJSON["OPENAI_API_KEY"].string == "sk-beta-1234")
-    }
-    @Test("Given gateway virtual auth payload, when recording CLI login snapshot, then it is rejected to avoid polluting managed account snapshots")
-    func recordCLILoginSnapshotRejectsGatewayVirtualPayload() async throws {
-        let root = try makeTempRoot("codex-auth-record-gateway-virtual")
-        defer { try? root.delete() }
-
-        let manager = CodexAuthManager(rootURL: root.url)
-        let existing = try await manager.addAccount(
-            name: "existing",
-            authJSONString: #"{"email":"existing@example.com","tokens":{"id_token":"id-old","access_token":"access-old"}}"#
-        )
-        let existingRawBefore = try await manager.accountAuthFile(existing).read()
-
-        let gatewayVirtualPayload = #"""
-        {
-          "OPENAI_API_KEY": "nolon-gateway-virtual-api-key",
-          "auth_mode": "apikey",
-          "nolon": {
-            "relay": {
-              "base_url": "http://127.0.0.1:8080",
-              "model_provider": "openai",
-              "query_params": {
-                "nolon_gateway_virtual": "1",
-                "provider_id": "codex"
-              }
-            }
-          },
-          "tokens": null
-        }
-        """#
-
-        await #expect(throws: CodexAuthManager.CLILoginError.gatewayVirtualAuthPayload) {
-            _ = try await manager.recordCLILoginSnapshot(
-                authJSONString: gatewayVirtualPayload,
-                preferredAccountID: nil
-            )
-        }
-
-        let accounts = try await manager.loadAccounts()
-        #expect(accounts.count == 1)
-        let existingRawAfter = try await manager.accountAuthFile(existing).read()
-        #expect(existingRawAfter == existingRawBefore)
-    }
-    @Test("Given virtual api key payload without marker, when recording CLI login snapshot, then it is still rejected")
-    func recordCLILoginSnapshotRejectsVirtualAPIKeyWithoutMarker() async throws {
-        let root = try makeTempRoot("codex-auth-record-gateway-virtual-key")
-        defer { try? root.delete() }
-
-        let manager = CodexAuthManager(rootURL: root.url)
-        let existing = try await manager.addAccount(
-            name: "existing",
-            authJSONString: #"{"email":"existing@example.com","tokens":{"id_token":"id-old","access_token":"access-old"}}"#
-        )
-        let existingRawBefore = try await manager.accountAuthFile(existing).read()
-
-        let gatewayVirtualPayload = #"""
-        {
-          "OPENAI_API_KEY": "nolon-gateway-virtual-api-key",
-          "auth_mode": "apikey",
-          "tokens": null
-        }
-        """#
-
-        await #expect(throws: CodexAuthManager.CLILoginError.gatewayVirtualAuthPayload) {
-            _ = try await manager.recordCLILoginSnapshot(
-                authJSONString: gatewayVirtualPayload,
-                preferredAccountID: nil
-            )
-        }
-
-        let accounts = try await manager.loadAccounts()
-        #expect(accounts.count == 1)
-        let existingRawAfter = try await manager.accountAuthFile(existing).read()
-        #expect(existingRawAfter == existingRawBefore)
     }
 }

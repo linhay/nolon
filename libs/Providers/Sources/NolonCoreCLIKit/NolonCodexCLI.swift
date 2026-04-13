@@ -14,7 +14,7 @@ import Glibc
 #endif
 
 public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
-    typealias AuthActivator = @Sendable (CodexAuthAccount, Provider) async throws -> CodexAuthActivationResult
+    typealias AuthActivator = @Sendable (CodexAuthAccount, Provider) async throws -> Void
     typealias AuthRefreshRunner = @Sendable (_ providerID: String, _ accountID: UUID, _ environment: [String: String]) async throws -> Void
     typealias UsageOutcomeFetcher = @Sendable (_ environment: [String: String]) async -> ProviderFetchOutcome
 
@@ -220,6 +220,7 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
         views.reserveCapacity(accounts.count)
 
         for account in accounts {
+            let isSelfManagedConfiguredAccount = Self.isSelfManagedConfiguredAccount(account: account, authManager: authManager)
             let email = Self.loadEmail(for: account, authManager: authManager)
             let usageCache: CodexAuthUsageCache?
             if refreshReport.failedAccountIDs.contains(account.id) || refreshReport.skippedAccountIDs.contains(account.id) {
@@ -229,15 +230,22 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
             }
             let authInfo = Self.resolveAuthTokenInfo(for: account, authManager: authManager)
             let syncFailure = Self.resolveSyncFailureInfo(for: account, authManager: authManager)
+            let visibleSyncFailure: (failedAt: Date?, message: String?) = {
+                guard !isSelfManagedConfiguredAccount else {
+                    return (nil, nil)
+                }
+                return syncFailure
+            }()
             let status = resolveUsageStatus(
                 accountID: account.id,
+                isSelfManagedConfiguredAccount: isSelfManagedConfiguredAccount,
                 usageCache: usageCache,
-                syncFailureMessage: syncFailure.message,
+                syncFailureMessage: visibleSyncFailure.message,
                 refreshReport: refreshReport
             )
             let failureType: NolonCodexAuthUsageAccountView.FailureType? = {
                 guard status == .failed || status == .needsReauth else { return nil }
-                let text = syncFailure.message?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                let text = visibleSyncFailure.message?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
                 return CodexAuthFailureClassifier.isAuthFailure(errorText: text) ? .auth : .other
             }()
             views.append(
@@ -259,8 +267,8 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
                     expiresAt: authInfo.expiresAt,
                     hasRefreshToken: authInfo.hasRefreshToken,
                     refreshedAt: Self.resolveRefreshTime(from: usageCache),
-                    syncFailedAt: syncFailure.failedAt,
-                    syncFailureMessage: syncFailure.message
+                    syncFailedAt: visibleSyncFailure.failedAt,
+                    syncFailureMessage: visibleSyncFailure.message
                 )
             )
         }
@@ -385,11 +393,15 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
                     _ = try? await authManager.backfillEmailIfMissing(for: account, email: email)
                 }
             case let .failure(error):
-                // Refresh failure means current account's usage snapshot is stale;
-                // remove cache to avoid showing outdated values as if they were fresh.
-                try await authManager.clearUsageCache(for: account)
-                try await authManager.updateSyncFailure(for: account, message: error.localizedDescription, date: Date())
-                report.failedAccountIDs.insert(account.id)
+                if Self.isSelfManagedConfiguredAccount(account: account, authManager: authManager) {
+                    try await authManager.clearSyncFailure(for: account)
+                } else {
+                    // Refresh failure means current account's usage snapshot is stale;
+                    // remove cache to avoid showing outdated values as if they were fresh.
+                    try await authManager.clearUsageCache(for: account)
+                    try await authManager.updateSyncFailure(for: account, message: error.localizedDescription, date: Date())
+                    report.failedAccountIDs.insert(account.id)
+                }
             }
         }
         return report
@@ -397,11 +409,15 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
 
     private func resolveUsageStatus(
         accountID: UUID,
+        isSelfManagedConfiguredAccount: Bool,
         usageCache: CodexAuthUsageCache?,
         syncFailureMessage: String?,
         refreshReport: UsageRefreshReport
     ) -> NolonCodexAuthUsageAccountView.Status {
         if refreshReport.skippedAccountIDs.contains(accountID) { return .skipped }
+        if isSelfManagedConfiguredAccount {
+            return usageCache != nil ? .healthy : .pending
+        }
         if refreshReport.failedAccountIDs.contains(accountID) {
             let text = syncFailureMessage?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
             return CodexAuthFailureClassifier.isAuthFailure(errorText: text) ? .needsReauth : .failed
@@ -411,6 +427,11 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
         }
         if usageCache != nil { return .healthy }
         return .pending
+    }
+
+    private static func isSelfManagedConfiguredAccount(account: CodexAuthAccount, authManager: CodexAuthManager) -> Bool {
+        guard let data = authManager.accountAuthDataWithoutMaterialization(for: account) else { return false }
+        return CodexAuthSummary.fromJSONData(data).cardKind?.isSelfManagedConfiguredAccount == true
     }
 
     public func authStatus(providerID: String) async throws -> NolonCodexAuthStatusPayload {
@@ -442,12 +463,10 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
             )
         }
 
-        let result = try await authActivator(account, provider)
+        try await authActivator(account, provider)
         return NolonCodexAuthActivatePayload(
             providerID: canonicalProviderID,
-            accountID: accountID,
-            runtimeSwitched: result.runtimeSwitched,
-            runtimeErrorDescription: result.runtimeErrorDescription
+            accountID: accountID
         )
     }
 
@@ -495,8 +514,6 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
                         email: email,
                         isActive: target.id == activeAccountID,
                         success: false,
-                        runtimeSwitched: false,
-                        runtimeErrorDescription: nil,
                         errorCode: "codex_auth_refresh_token_missing",
                         errorMessage: "Account does not contain refresh_token: \(target.id.uuidString)"
                     )
@@ -505,7 +522,7 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
             }
 
             do {
-                let activation = try await authActivator(target, provider)
+                try await authActivator(target, provider)
                 try await authRefreshRunner(canonicalProviderID, target.id, environment)
                 items.append(
                     NolonCodexAuthRefreshItemView(
@@ -514,8 +531,6 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
                         email: email,
                         isActive: target.id == activeAccountID,
                         success: true,
-                        runtimeSwitched: activation.runtimeSwitched,
-                        runtimeErrorDescription: activation.runtimeErrorDescription,
                         errorCode: nil,
                         errorMessage: nil
                     )
@@ -531,8 +546,6 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
                         email: email,
                         isActive: target.id == activeAccountID,
                         success: false,
-                        runtimeSwitched: false,
-                        runtimeErrorDescription: nil,
                         errorCode: mapped.code,
                         errorMessage: message
                     )
@@ -543,7 +556,7 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
         var restoredPreservedActive = false
         if let preservedActiveAccount {
             do {
-                _ = try await authActivator(preservedActiveAccount, provider)
+                try await authActivator(preservedActiveAccount, provider)
                 restoredPreservedActive = true
             } catch {
                 do {
@@ -570,8 +583,6 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
                 email: item.email,
                 isActive: item.accountID == finalActiveAccountID,
                 success: item.success,
-                runtimeSwitched: item.runtimeSwitched,
-                runtimeErrorDescription: item.runtimeErrorDescription,
                 errorCode: item.errorCode,
                 errorMessage: item.errorMessage
             )
@@ -609,13 +620,11 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
             authJSONString: loginResult.authJSONString,
             preferredAccountID: preferredAccountID
         )
-        let activation = try await authActivator(account, provider)
+        try await authActivator(account, provider)
         return NolonCodexAuthLoginPayload(
             providerID: canonicalProviderID,
             accountID: account.id,
             accountName: account.name,
-            runtimeSwitched: activation.runtimeSwitched,
-            runtimeErrorDescription: activation.runtimeErrorDescription,
             loginURL: loginResult.loginURL
         )
     }
@@ -761,50 +770,19 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
         )
     }
 
-    public func sessionList(providerID: String) async throws -> NolonCodexSessionListPayload {
+    public func sessionList(
+        providerID: String,
+        groupBy: NolonCodexSessionListGrouping
+    ) async throws -> NolonCodexSessionListPayload {
         let canonicalProviderID = try Self.canonicalProviderID(providerID)
         let provider = try Self.provider(for: canonicalProviderID)
         let snapshot = try CodexSessionStore().loadSnapshot(codexHome: provider.codexHomeFolder.url)
-
-        let sections = Dictionary(grouping: snapshot.sessions, by: \.modelProvider)
-            .map { modelProvider, sessions in
-                NolonCodexSessionSectionView(
-                    modelProvider: modelProvider,
-                    sessions: sessions.map { session in
-                        NolonCodexSessionRowView(
-                            id: session.id,
-                            threadID: session.threadID,
-                            title: session.title ?? Self.fallbackSessionTitle(for: session),
-                            summary: session.summary,
-                            modelProvider: session.modelProvider,
-                            archived: session.archived,
-                            rolloutPath: session.rolloutPath,
-                            cwd: session.cwd,
-                            updatedAt: session.updatedAt,
-                            stateRowCount: session.stateRowCount,
-                            editable: session.editable
-                        )
-                    },
-                    totalSessionCount: sessions.count,
-                    editableThreadIDs: sessions.compactMap { session in
-                        guard session.editable else { return nil }
-                        return session.threadID
-                    },
-                    liveCount: sessions.filter { !$0.archived }.count,
-                    archivedCount: sessions.filter(\.archived).count
-                )
-            }
-            .sorted { lhs, rhs in
-                if lhs.modelProvider != rhs.modelProvider {
-                    return lhs.modelProvider < rhs.modelProvider
-                }
-                let leftDate = lhs.sessions.first?.updatedAt ?? .distantPast
-                let rightDate = rhs.sessions.first?.updatedAt ?? .distantPast
-                return leftDate > rightDate
-            }
+        let rows = snapshot.sessions.map(Self.makeSessionRowView(from:))
+        let sections = Self.makeSessionSections(rows: rows, groupBy: groupBy)
 
         return NolonCodexSessionListPayload(
             providerID: canonicalProviderID,
+            groupBy: groupBy,
             availableTargetProviderIDs: snapshot.availableProviderIDs,
             sections: sections,
             totalSessionCount: snapshot.sessions.count,
@@ -864,7 +842,8 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
         }
         let result = try context.store.rewriteProviders(
             codexHome: context.provider.codexHomeFolder.url,
-            request: context.request
+            request: context.request,
+            confirmedPreview: preview
         )
         return NolonCodexSessionRewritePayload(
             providerID: context.providerID,
@@ -1217,6 +1196,158 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
         }
     }
 
+    private static func makeSessionRowView(from session: CodexSessionRecord) -> NolonCodexSessionRowView {
+        NolonCodexSessionRowView(
+            id: session.id,
+            threadID: session.threadID,
+            title: session.title ?? fallbackSessionTitle(for: session),
+            summary: session.summary,
+            modelProvider: session.modelProvider,
+            archived: session.archived,
+            rolloutPath: session.rolloutPath,
+            cwd: session.cwd,
+            updatedAt: session.updatedAt,
+            stateRowCount: session.stateRowCount,
+            editable: session.editable
+        )
+    }
+
+    private static func makeSessionSections(
+        rows: [NolonCodexSessionRowView],
+        groupBy: NolonCodexSessionListGrouping
+    ) -> [NolonCodexSessionSectionView] {
+        switch groupBy {
+        case .provider:
+            let grouped = Dictionary(grouping: rows, by: \.modelProvider)
+            return grouped
+                .map { modelProvider, sessions in
+                    makeSessionSection(
+                        id: "provider:\(modelProvider)",
+                        modelProvider: modelProvider,
+                        title: modelProvider,
+                        sourceProviderID: modelProvider,
+                        providerIDs: [modelProvider],
+                        sessions: sessions
+                    )
+                }
+                .sorted(by: sortSessionSections(_:_:))
+
+        case .timeProject:
+            let grouped = Dictionary(grouping: rows) { row in
+                let dayKey = sessionDayKey(for: row.updatedAt) ?? "unknown-day"
+                let projectPath = normalizedProjectPath(for: row.cwd) ?? "unknown-project"
+                return "\(dayKey)|\(projectPath)"
+            }
+            return grouped
+                .map { _, sessions in
+                    let dayLabel = sessionDayKey(for: sessions.first?.updatedAt)
+                        ?? NSLocalizedString(
+                            "codex.sessions.group.unknown_day",
+                            value: "Unknown Day",
+                            comment: "Unknown session day label"
+                        )
+                    let projectName = projectDisplayName(for: sessions.first?.cwd)
+                    let providerIDs = Array(Set(sessions.map(\.modelProvider))).sorted {
+                        $0.localizedCaseInsensitiveCompare($1) == .orderedAscending
+                    }
+                    let sourceProviderID = providerIDs.count == 1 ? providerIDs.first : nil
+                    return makeSessionSection(
+                        id: "time-project:\(dayLabel)|\(normalizedProjectPath(for: sessions.first?.cwd) ?? "unknown-project")",
+                        modelProvider: sourceProviderID ?? providerIDs.first ?? "\(dayLabel) · \(projectName)",
+                        title: "\(dayLabel) · \(projectName)",
+                        sourceProviderID: sourceProviderID,
+                        providerIDs: providerIDs,
+                        sessions: sessions
+                    )
+                }
+                .sorted(by: sortSessionSections(_:_:))
+        }
+    }
+
+    private static func makeSessionSection(
+        id: String,
+        modelProvider: String,
+        title: String,
+        sourceProviderID: String?,
+        providerIDs: [String],
+        sessions: [NolonCodexSessionRowView]
+    ) -> NolonCodexSessionSectionView {
+        let sortedSessions = sessions.sorted(by: sortSessionRows(_:_:))
+        let editableThreadIDs: [String]
+        if providerIDs.count == 1 {
+            editableThreadIDs = sortedSessions.compactMap { session in
+                guard session.editable else { return nil }
+                return session.threadID
+            }
+        } else {
+            editableThreadIDs = []
+        }
+        return NolonCodexSessionSectionView(
+            id: id,
+            modelProvider: modelProvider,
+            title: title,
+            sourceProviderID: sourceProviderID,
+            providerIDs: providerIDs,
+            sessions: sortedSessions,
+            totalSessionCount: sortedSessions.count,
+            editableThreadIDs: editableThreadIDs,
+            liveCount: sortedSessions.filter { !$0.archived }.count,
+            archivedCount: sortedSessions.filter(\.archived).count
+        )
+    }
+
+    private static func sortSessionRows(
+        _ lhs: NolonCodexSessionRowView,
+        _ rhs: NolonCodexSessionRowView
+    ) -> Bool {
+        let leftDate = lhs.updatedAt ?? .distantPast
+        let rightDate = rhs.updatedAt ?? .distantPast
+        if leftDate != rightDate {
+            return leftDate > rightDate
+        }
+        let titleOrder = lhs.title.localizedCaseInsensitiveCompare(rhs.title)
+        if titleOrder != .orderedSame {
+            return titleOrder == .orderedAscending
+        }
+        return lhs.id < rhs.id
+    }
+
+    private static func sortSessionSections(
+        _ lhs: NolonCodexSessionSectionView,
+        _ rhs: NolonCodexSessionSectionView
+    ) -> Bool {
+        let leftDate = lhs.sessions.first?.updatedAt ?? .distantPast
+        let rightDate = rhs.sessions.first?.updatedAt ?? .distantPast
+        if leftDate != rightDate {
+            return leftDate > rightDate
+        }
+        return lhs.title.localizedCaseInsensitiveCompare(rhs.title) == .orderedAscending
+    }
+
+    private static func sessionDayKey(for date: Date?) -> String? {
+        guard let date else { return nil }
+        return sessionDayFormatter.string(from: date)
+    }
+
+    private static func normalizedProjectPath(for cwd: String?) -> String? {
+        guard let cwd = cwd?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !cwd.isEmpty
+        else { return nil }
+        return URL(fileURLWithPath: cwd).standardizedFileURL.path
+    }
+
+    private static func projectDisplayName(for cwd: String?) -> String {
+        guard let normalizedPath = normalizedProjectPath(for: cwd) else {
+            return NSLocalizedString(
+                "codex.sessions.group.unknown_project",
+                value: "Unknown Project",
+                comment: "Unknown session project label"
+            )
+        }
+        let projectName = URL(fileURLWithPath: normalizedPath).lastPathComponent
+        return projectName.isEmpty ? normalizedPath : projectName
+    }
+
     private static func fallbackSessionTitle(for session: CodexSessionRecord) -> String {
         if let lastPathComponent = session.rolloutPath.split(separator: "/").last, !lastPathComponent.isEmpty {
             return String(lastPathComponent)
@@ -1252,13 +1383,13 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
     }
 
     private static func loadEmail(for account: CodexAuthAccount, authManager: CodexAuthManager) -> String? {
-        guard let data = authManager.accountAuthData(for: account), !data.isEmpty else { return nil }
+        guard let data = authManager.accountAuthDataWithoutMaterialization(for: account), !data.isEmpty else { return nil }
         let summary = CodexAuthSummary.fromJSONData(data)
         return summary.email
     }
 
     private static func loadSummary(for account: CodexAuthAccount, authManager: CodexAuthManager) -> CodexAuthSummary {
-        guard let data = authManager.accountAuthData(for: account),
+        guard let data = authManager.accountAuthDataWithoutMaterialization(for: account),
               !data.isEmpty
         else { return CodexAuthSummary() }
         return CodexAuthSummary.fromJSONData(data)
@@ -1289,15 +1420,24 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
         return cache.creditsRefreshedAt ?? cache.usage.updatedAt
     }
 
+    private static let sessionDayFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = .current
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter
+    }()
+
     private static func resolveAuthTokenInfo(for account: CodexAuthAccount, authManager: CodexAuthManager) -> (expiresAt: Date?, hasRefreshToken: Bool?) {
-        guard let data = authManager.accountAuthData(for: account),
+        guard let data = authManager.accountAuthDataWithoutMaterialization(for: account),
               !data.isEmpty
         else { return (nil, nil) }
         return parseAuthTokenInfo(fromAuthData: data)
     }
 
     private static func resolveSyncFailureInfo(for account: CodexAuthAccount, authManager: CodexAuthManager) -> (failedAt: Date?, message: String?) {
-        guard let data = authManager.accountAuthData(for: account),
+        guard let data = authManager.accountAuthDataWithoutMaterialization(for: account),
               !data.isEmpty
         else { return (nil, nil) }
         let summary = CodexAuthSummary.fromJSONData(data)

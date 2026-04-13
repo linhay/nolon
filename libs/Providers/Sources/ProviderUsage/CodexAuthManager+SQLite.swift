@@ -710,7 +710,10 @@ extension CodexAuthManager {
         )
     }
 
-    nonisolated func loadCodexAccountAuthDataFromSQLite(accountID: UUID) throws -> Data? {
+    nonisolated func loadCodexAccountAuthDataFromSQLite(
+        accountID: UUID,
+        includeManagedMetadata: Bool = false
+    ) throws -> Data? {
         let dbURL = codexAccountsSQLiteDatabaseURL()
         guard FileManager.default.fileExists(atPath: dbURL.path) else { return nil }
 
@@ -822,8 +825,8 @@ extension CodexAuthManager {
 
         let hasStructuredData = [
             idToken, accessToken, refreshToken, credentialAPIKey, baseURL, credentialEmail, credentialAccountID,
-            authMode, metadataAPIKey, metadataAccountID, metadataEmail, metadataPlanType, customGroupName, kind,
-            usageCacheJSON, usageQueryJSON, relayModelProvider, relayQueryParamsJSON, relayHeadersJSON,
+            authMode, metadataAPIKey, metadataAccountID, metadataEmail, metadataPlanType,
+            usageQueryJSON, relayModelProvider, relayQueryParamsJSON, relayHeadersJSON,
         ].contains { $0 != nil }
 
         if !hasStructuredData, let legacyAuthJSON {
@@ -895,33 +898,51 @@ extension CodexAuthManager {
             root["tokens"] = NSNull()
         }
 
-        var nolonAccount: JSONObject = [
-            "id": accountID.uuidString,
-            "updatedAt": updatedAt,
-            "relativeAuthPath": sqliteRelativeAuthPath(for: accountID),
-        ]
-        if let createdAt { nolonAccount["createdAt"] = createdAt }
-        if let kind { nolonAccount["kind"] = kind }
-        if let email = nolonAccountEmail ?? metadataEmail ?? credentialEmail {
-            nolonAccount["email"] = email
-        }
-        if let lastLoginAt { nolonAccount["lastLoginAt"] = lastLoginAt }
-        if let lastSyncSucceededAt { nolonAccount["lastSyncSucceededAt"] = lastSyncSucceededAt }
-        if let lastSyncFailedAt { nolonAccount["lastSyncFailedAt"] = lastSyncFailedAt }
-        if let lastSyncFailureMessage { nolonAccount["lastSyncFailureMessage"] = lastSyncFailureMessage }
-
         var nolonObject: JSONObject = (root["nolon"] as? JSONObject) ?? [:]
-        nolonObject["account"] = nolonAccount
-        if let customGroupName {
-            nolonObject["custom_group_name"] = customGroupName
-        }
-        if let usageCache = decodeEmbeddedJSONObject(usageCacheJSON) {
-            nolonObject["usage_cache"] = usageCache
+        if includeManagedMetadata {
+            var accountObject: JSONObject = [:]
+            accountObject["id"] = accountID.uuidString
+            accountObject["relativeAuthPath"] = sqliteRelativeAuthPath(for: accountID)
+            if let createdAt {
+                accountObject["createdAt"] = createdAt
+            }
+            accountObject["updatedAt"] = updatedAt
+            if let kind {
+                accountObject["kind"] = kind
+            }
+            if let accountEmail = nolonAccountEmail ?? metadataEmail ?? credentialEmail {
+                accountObject["email"] = accountEmail
+            }
+            if let lastLoginAt {
+                accountObject["lastLoginAt"] = lastLoginAt
+            }
+            if let lastSyncSucceededAt {
+                accountObject["lastSyncSucceededAt"] = lastSyncSucceededAt
+            }
+            if let lastSyncFailedAt {
+                accountObject["lastSyncFailedAt"] = lastSyncFailedAt
+            }
+            if let lastSyncFailureMessage {
+                accountObject["lastSyncFailureMessage"] = lastSyncFailureMessage
+            }
+            if !accountObject.isEmpty {
+                nolonObject["account"] = accountObject
+            }
+            if let customGroupName {
+                nolonObject["custom_group_name"] = customGroupName
+            }
+            if let usageCache = decodeEmbeddedJSONObject(usageCacheJSON) {
+                nolonObject["usage_cache"] = usageCache
+            }
         }
         if let usageQuery = decodeEmbeddedJSONObject(usageQueryJSON) {
             nolonObject["usage_query"] = usageQuery
         }
-        root["nolon"] = nolonObject
+        if nolonObject.isEmpty {
+            root.removeValue(forKey: "nolon")
+        } else {
+            root["nolon"] = nolonObject
+        }
 
         return try Self.encodeJSONObject(root)
     }

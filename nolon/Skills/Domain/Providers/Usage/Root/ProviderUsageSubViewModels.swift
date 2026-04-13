@@ -55,7 +55,7 @@ final class ProviderUsageAccountsViewModel {
             get { Set(engine.selectedCodexAccountIDs.map(IDBox.init)) }
             set { engine.selectedCodexAccountIDs = Set(newValue.map(\.rawValue)) }
         }
-        var hasSelectedAccounts: Bool { !engine.selectedCodexAccountIDs.isEmpty }
+        var hasSelectedAccounts: Bool { engine.codexSelectedAccountCount > 0 }
         var selectedAccountIDsInDisplayOrder: [UUID] {
             engine.selectedCodexAccountIDsInDisplayOrder()
         }
@@ -64,6 +64,7 @@ final class ProviderUsageAccountsViewModel {
             get { engine.pendingActivateCodexAccount }
             set { engine.pendingActivateCodexAccount = newValue }
         }
+        var activatingAccountId: UUID? { engine.activatingCodexAccountId }
         var managementStatus: CodexAuthManager.CodexManagementStatus? { engine.codexManagementStatus }
         var configEditorDraft: CodexConfigEditorDraft? {
             get { engine.codexConfigEditorDraft }
@@ -107,9 +108,6 @@ final class ProviderUsageAccountsViewModel {
         var collapsedSectionIDs: Set<String> { engine.collapsedCodexSectionIDs }
         var isHeaderRefreshing: Bool { engine.isCodexHeaderRefreshing }
         var canExportSelectedAccounts: Bool { engine.canExportSelectedCodexAccounts }
-        var canAddSelectedToGatewayCard: Bool { engine.canAddSelectedToGatewayCard }
-        var gatewayMemberDisplayLimit: Int { Self.gatewayMemberDisplayLimit(layoutMode: accountLayoutMode) }
-        var gatewayMemberRowMaxHeight: CGFloat { Self.gatewayMemberRowMaxHeight(layoutMode: accountLayoutMode) }
         var isShowingActivateConfirm: Bool {
             get { engine.isShowingActivateConfirm }
             set { engine.isShowingActivateConfirm = newValue }
@@ -122,7 +120,6 @@ final class ProviderUsageAccountsViewModel {
             get { engine.pendingDeleteCodexAccount }
             set { engine.pendingDeleteCodexAccount = newValue }
         }
-        var isShowingGatewayCardPicker: Bool { engine.isShowingGatewayCardPicker }
         var cliLoginPreferredAccountId: UUID? { engine.cliLoginPreferredAccountId }
         var hasPendingActivateAccount: Bool { engine.pendingActivateCodexAccount != nil }
 
@@ -138,24 +135,12 @@ final class ProviderUsageAccountsViewModel {
             return Array(actions.prefix(3))
         }
 
-        static func shouldShowActivateGatewayContextAction(isActiveGateway: Bool) -> Bool {
-            !isActiveGateway
-        }
-
         static func usesCompactListRows(layoutMode: UsageAccountLayoutMode) -> Bool {
             layoutMode == .list
         }
 
         static func enablesTextSelection(layoutMode: UsageAccountLayoutMode) -> Bool {
             !usesCompactListRows(layoutMode: layoutMode)
-        }
-
-        static func gatewayMemberDisplayLimit(layoutMode: UsageAccountLayoutMode) -> Int {
-            usesCompactListRows(layoutMode: layoutMode) ? 8 : 12
-        }
-
-        static func gatewayMemberRowMaxHeight(layoutMode: UsageAccountLayoutMode) -> CGFloat {
-            usesCompactListRows(layoutMode: layoutMode) ? 48 : 70
         }
 
         func confirmActivate() async {
@@ -186,8 +171,12 @@ final class ProviderUsageAccountsViewModel {
             engine.isCodexAccountSelected(id: id)
         }
 
-        func shouldActivateAccountOnTap(id: UUID, hasActiveGatewayCardSelection: Bool) -> Bool {
-            engine.shouldActivateCodexAccountOnTap(id: id, hasActiveGatewayCardSelection: hasActiveGatewayCardSelection)
+        func interactionState(accountID: UUID?) -> CodexAccountInteractionState {
+            engine.codexInteractionState(accountID: accountID)
+        }
+
+        func shouldActivateAccountOnTap(id: UUID) -> Bool {
+            engine.shouldActivateCodexAccountOnTap(id: id)
         }
 
         func setMultiSelectionEnabled(_ enabled: Bool) {
@@ -319,10 +308,6 @@ final class ProviderUsageAccountsViewModel {
             engine.codexDirection(for: option)
         }
 
-        func addSelectedToGatewayCard() {
-            engine.addSelectedToGatewayCard()
-        }
-
         func beginImportAuthFiles() {
             engine.beginImportAuthFiles()
         }
@@ -331,9 +316,6 @@ final class ProviderUsageAccountsViewModel {
             engine.copyErrorText(text)
         }
 
-        func gatewayMembers(for card: CodexGatewayCard) -> [CodexGatewayMemberDisplay] {
-            engine.gatewayMembers(for: card)
-        }
     }
 
     @MainActor
@@ -843,70 +825,5 @@ final class ProviderLoginFlowViewModel {
 
     func reopenLoginURLInBrowser() {
         engine.reopenLoginURLInBrowser()
-    }
-}
-
-@MainActor
-@Observable
-final class CodexGatewayCardsViewModel {
-    private let state: ProviderUsageStateStore
-
-    init(state: ProviderUsageStateStore) {
-        self.state = state
-    }
-
-    var gatewayCards: [CodexGatewayCard] { state.codexEngine.gatewayCards }
-    var gatewayCardsState: CodexGatewayCardsState { state.codexEngine.gatewayCardsState }
-    var isGatewayCardsSectionCollapsed: Bool { state.codexEngine.isGatewayCardsSectionCollapsed }
-    var hasActiveGatewayCardSelection: Bool { state.codexEngine.hasActiveGatewayCardSelection }
-    var pendingGatewaySelectionAccountIDs: [UUID] { state.codexEngine.pendingGatewaySelectionAccountIDs }
-
-    func clearActiveGatewayCardSelection() {
-        state.codexEngine.clearActiveGatewayCardSelection()
-    }
-
-    func toggleGatewayCardsSectionCollapsed() {
-        state.codexEngine.toggleGatewayCardsSectionCollapsed()
-    }
-
-    func activateGatewayCard(cardID: UUID) -> Bool {
-        state.codexEngine.activateGatewayCard(cardID: cardID)
-    }
-
-    func startGatewayForCardSelection(cardID: UUID) async {
-        await state.codexEngine.startGatewayForCardSelection(cardID: cardID)
-    }
-
-    func renameGatewayCard(cardID: UUID, name: String) {
-        state.codexEngine.renameGatewayCard(cardID: cardID, name: name)
-    }
-
-    func deleteGatewayCard(cardID: UUID) {
-        state.codexEngine.deleteGatewayCard(cardID: cardID)
-    }
-
-    func confirmAddPendingAccounts(to cardID: UUID) {
-        state.codexEngine.confirmAddPendingAccounts(to: cardID)
-    }
-
-    func dismissGatewayCardPicker() {
-        state.codexEngine.dismissGatewayCardPicker()
-    }
-
-    func gatewayCandidateAccounts(for cardID: UUID) -> [CodexAuthAccount] {
-        state.codexEngine.gatewayCandidateAccounts(for: cardID)
-    }
-
-    func gatewayCandidateSections(for cardID: UUID) -> [CodexGatewayCandidateSection] {
-        state.codexEngine.gatewayCandidateSections(for: cardID)
-    }
-
-    func addAccountsToGatewayCard(accountIDs: [UUID], cardID: UUID) {
-        state.codexEngine.addAccountsToGatewayCard(accountIDs: accountIDs, cardID: cardID)
-    }
-
-    @discardableResult
-    func createGatewayCard(name: String) -> CodexGatewayCard? {
-        state.codexEngine.createGatewayCard(name: name)
     }
 }

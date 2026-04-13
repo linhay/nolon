@@ -68,7 +68,7 @@ extension ProviderUsageEngine {
             if hideZeroQuotaAccounts, shouldHideCodexAccountForZeroQuota(outcome: outcome) {
                 return nil
             }
-            if hideErroredAccounts, shouldHideCodexAccountForError(outcome: outcome) {
+            if hideErroredAccounts, shouldHideCodexAccountForError(outcome: outcome, summary: summaries[account.id]) {
                 return nil
             }
             return (account, outcome, summaries[account.id])
@@ -203,13 +203,13 @@ extension ProviderUsageEngine {
         case .newAPIKey:
             return NSLocalizedString(
                 "codex.accounts.config.subtitle.api_key",
-                value: "先填名称和 API Key。若需要 Relay，可继续填写 Base URL 与 Provider。",
+                value: "填写 model_provider、API Key、Base URL。model_provider 默认 nolon，API Key 必填，Base URL 选填。",
                 comment: "API key config subtitle"
             )
         case .edit:
             return NSLocalizedString(
                 "codex.accounts.config.subtitle.edit",
-                value: "优先修改基础连接信息，HTTP 用量查询和高级项按需展开。",
+                value: "填写 model_provider、API Key、Base URL。model_provider 默认 nolon，API Key 必填，Base URL 选填。",
                 comment: "Edit config subtitle"
             )
         }
@@ -289,9 +289,20 @@ extension ProviderUsageEngine {
     }
 
     private static func shouldHideCodexAccountForError(
-        outcome: ProviderAccountUsageOutcome
+        outcome: ProviderAccountUsageOutcome,
+        summary: CodexAuthSummary?
     ) -> Bool {
+        if summary?.cardKind?.isSelfManagedConfiguredAccount == true {
+            return false
+        }
         if case .failure = outcome.outcome.result {
+            return true
+        }
+        let persistedFailureText = summary?.lastSyncFailureMessage?.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let persistedFailureText, !persistedFailureText.isEmpty {
+            return true
+        }
+        if summary?.lastSyncFailedAt != nil {
             return true
         }
         return false

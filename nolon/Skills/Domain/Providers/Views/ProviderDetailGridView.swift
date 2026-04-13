@@ -669,6 +669,12 @@ struct ProviderDetailGridView: View, DebugPageLocatable {
                     .id(provider.id)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
+        case .sessions:
+            if let provider = provider {
+                CodexSessionsTabView(provider: provider)
+                    .id(provider.id)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
         case .runtime:
             if let provider = provider {
                 CodexRuntimeTabView(provider: provider)
@@ -734,6 +740,7 @@ struct ProviderDetailGridView: View, DebugPageLocatable {
         guard let templateId = provider?.templateId else { return false }
         return templateId == "codex"
             || templateId == "codexXcode"
+            || templateId == ProviderTemplate.claudeCode.rawValue
             || templateId == "opencode"
             || templateId == "copilot"
     }
@@ -741,7 +748,7 @@ struct ProviderDetailGridView: View, DebugPageLocatable {
     static func agentsEmptyDescription() -> String {
         NSLocalizedString(
             "agents.empty_desc",
-            value: "No AGENTS.md files found for this provider",
+            value: "No instruction files found for this provider",
             comment: "No agents docs"
         )
     }
@@ -749,7 +756,7 @@ struct ProviderDetailGridView: View, DebugPageLocatable {
     static func agentsNoResultsDescription() -> String {
         NSLocalizedString(
             "agents.search.no_results_desc",
-            value: "No matching AGENTS.md files found",
+            value: "No matching instruction files found",
             comment: "No agent docs search results description"
         )
     }
@@ -762,6 +769,8 @@ struct ProviderDetailGridView: View, DebugPageLocatable {
         switch provider.templateId {
         case "codex", "codexXcode":
             return provider.codexAgentsFileURL.path
+        case ProviderTemplate.claudeCode.rawValue:
+            return provider.claudeInstructionsFileURL.path
         case "opencode", "copilot":
             return URL(fileURLWithPath: provider.defaultSkillsPath)
                 .deletingLastPathComponent()
@@ -883,11 +892,11 @@ struct ProviderDetailGridView: View, DebugPageLocatable {
     private var agentsLinkEnabledPlaceholderCard: some View {
         VStack(spacing: 16) {
             HStack(spacing: 14) {
-                placeholderFolderChip(systemImage: "doc.text", label: "Provider AGENTS")
+                placeholderFolderChip(systemImage: "doc.text", label: "Provider Instructions")
                 Image(systemName: "link")
                     .font(.system(size: 16, weight: .semibold))
                     .foregroundStyle(.secondary)
-                placeholderFolderChip(systemImage: "folder.badge.person.crop", label: "Nolon AGENTS")
+                placeholderFolderChip(systemImage: "folder.badge.person.crop", label: "Nolon Instructions")
             }
             .padding(.vertical, 6)
 
@@ -895,7 +904,7 @@ struct ProviderDetailGridView: View, DebugPageLocatable {
                 Text(
                     NSLocalizedString(
                         "provider.agents_link.placeholder.title",
-                        value: "AGENTS docs are linked to Nolon",
+                        value: "Instruction docs are linked to Nolon",
                         comment: "Agents link placeholder title"
                     )
                 )
@@ -904,7 +913,7 @@ struct ProviderDetailGridView: View, DebugPageLocatable {
                 Text(
                     NSLocalizedString(
                         "provider.agents_link.placeholder.description",
-                        value: "This provider now uses ~/.nolon/agents. Manage linked AGENTS docs from the Nolon page.",
+                        value: "This provider now uses ~/.nolon/agents. Manage linked instruction docs from the Nolon page.",
                         comment: "Agents link placeholder description"
                     )
                 )
@@ -988,6 +997,8 @@ struct ProviderDetailGridView: View, DebugPageLocatable {
             case .accounts:
                 break
             case .usage:
+                break
+            case .sessions:
                 break
             case .runtime:
                 break

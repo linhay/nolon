@@ -161,7 +161,7 @@ extension ProviderUsageEngine {
     }
 
     func isCodexAccountSelected(id: UUID?) -> Bool {
-        guard let id else { return false }
+        guard isCodexMultiSelectionEnabled, let id else { return false }
         return selectedCodexAccountIDs.contains(id)
     }
 
@@ -188,255 +188,9 @@ extension ProviderUsageEngine {
         })
     }
 
-    @discardableResult
-    func createGatewayCard(name: String) -> CodexGatewayCard? {
-        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return nil }
-        var state = codexGatewayCardsStore.normalized(
-            gatewayCardsState,
-            validAccountIDs: Set(codexAccounts.map(\.id))
-        )
-        let card = CodexGatewayCard(name: trimmed)
-        state.cards.append(card)
-        state.lastUsedCardID = card.id
-        updateGatewayCardsState(state)
-        return card
-    }
-
-    func renameGatewayCard(cardID: UUID, name: String) {
-        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return }
-        var state = codexGatewayCardsStore.normalized(
-            gatewayCardsState,
-            validAccountIDs: Set(codexAccounts.map(\.id))
-        )
-        guard let index = state.cards.firstIndex(where: { $0.id == cardID }) else { return }
-        guard state.cards[index].name != trimmed else { return }
-        state.cards[index].name = trimmed
-        state.cards[index].updatedAt = Date()
-        updateGatewayCardsState(state)
-    }
-
-    func deleteGatewayCard(cardID: UUID) {
-        var state = codexGatewayCardsStore.normalized(
-            gatewayCardsState,
-            validAccountIDs: Set(codexAccounts.map(\.id))
-        )
-        let originalCount = state.cards.count
-        state.cards.removeAll { $0.id == cardID }
-        guard state.cards.count != originalCount else { return }
-        if state.lastUsedCardID == cardID {
-            state.lastUsedCardID = nil
-        }
-        updateGatewayCardsState(state)
-    }
-
-    func addAccountsToGatewayCard(accountIDs: [UUID], cardID: UUID) {
-        let validAccountIDs = Set(codexAccounts.map(\.id))
-        let uniqueValidTargets = accountIDs.filter { validAccountIDs.contains($0) }
-        guard !uniqueValidTargets.isEmpty else { return }
-
-        var state = codexGatewayCardsStore.normalized(
-            gatewayCardsState,
-            validAccountIDs: validAccountIDs
-        )
-        guard let index = state.cards.firstIndex(where: { $0.id == cardID }) else { return }
-
-        var mergedMembers = state.cards[index].memberAccountIDs
-        for id in uniqueValidTargets where !mergedMembers.contains(id) {
-            mergedMembers.append(id)
-        }
-
-        guard mergedMembers != state.cards[index].memberAccountIDs else {
-            state.lastUsedCardID = cardID
-            updateGatewayCardsState(state)
-            return
-        }
-
-        state.cards[index].memberAccountIDs = mergedMembers
-        state.cards[index].updatedAt = Date()
-        state.lastUsedCardID = cardID
-        updateGatewayCardsState(state)
-    }
-
-    func removeAccountFromGatewayCard(accountID: UUID, cardID: UUID) {
-        var state = codexGatewayCardsStore.normalized(
-            gatewayCardsState,
-            validAccountIDs: Set(codexAccounts.map(\.id))
-        )
-        guard let index = state.cards.firstIndex(where: { $0.id == cardID }) else { return }
-        let originalCount = state.cards[index].memberAccountIDs.count
-        state.cards[index].memberAccountIDs.removeAll { $0 == accountID }
-        guard state.cards[index].memberAccountIDs.count != originalCount else { return }
-        state.cards[index].updatedAt = Date()
-        updateGatewayCardsState(state)
-    }
-
-    @discardableResult
-    func activateGatewayCard(cardID: UUID) -> Bool {
-        var state = codexGatewayCardsStore.normalized(
-            gatewayCardsState,
-            validAccountIDs: Set(codexAccounts.map(\.id))
-        )
-        guard let index = state.cards.firstIndex(where: { $0.id == cardID }) else { return false }
-        let shouldPromptAddAccounts = state.cards[index].memberAccountIDs.isEmpty
-        state.lastUsedCardID = cardID
-        updateGatewayCardsState(state)
-        return shouldPromptAddAccounts
-    }
-
-    func startGatewayForCardSelection(cardID: UUID) async {
-        guard usageProvider == .codex else { return }
-        var normalizedState = codexGatewayCardsStore.normalized(
-            gatewayCardsState,
-            validAccountIDs: Set(codexAccounts.map(\.id))
-        )
-        guard let card = normalizedState.cards.first(where: { $0.id == cardID }) else { return }
-        if normalizedState.lastUsedCardID != cardID {
-            normalizedState.lastUsedCardID = cardID
-            updateGatewayCardsState(normalizedState)
-        }
-        guard !card.memberAccountIDs.isEmpty else { return }
-        guard let gatewayProviderID = resolvedGatewayProviderIDForCLI() else { return }
-
-        await withGatewaySwitchInProgress {
-            do {
-                try await codexGatewayStartAction(
-                    gatewayProviderID,
-                    Self.codexGatewayDefaultHost,
-                    Self.codexGatewayDefaultPort
-                )
-                await ensureGatewayVirtualAccountActivatedForCurrentProviderIfNeeded()
-                selectedCodexAccountIDs.removeAll()
-                codexAuthReloadSignal.send()
-            } catch let cliError as NolonCoreCLIError {
-                guard gatewayCardsState.lastUsedCardID == cardID else { return }
-                if case let .domainFailed(code, _) = cliError, code == "codex_gateway_already_running" {
-                    do {
-                        try await codexGatewayStopAction(gatewayProviderID)
-                        try await codexGatewayStartAction(
-                            gatewayProviderID,
-                            Self.codexGatewayDefaultHost,
-                            Self.codexGatewayDefaultPort
-                        )
-                        await ensureGatewayVirtualAccountActivatedForCurrentProviderIfNeeded()
-                        selectedCodexAccountIDs.removeAll()
-                        codexAuthReloadSignal.send()
-                        return
-                    } catch {
-                        alertTitle = NSLocalizedString("codex.gateway.cards.title", value: "网关卡片", comment: "Gateway cards section title")
-                        alertMessage = Self.errorSummaryText(error: error, maxLength: 220)
-                        return
-                    }
-                }
-                alertTitle = NSLocalizedString("codex.gateway.cards.title", value: "网关卡片", comment: "Gateway cards section title")
-                alertMessage = Self.errorSummaryText(error: cliError, maxLength: 220)
-            } catch {
-                guard gatewayCardsState.lastUsedCardID == cardID else { return }
-                alertTitle = NSLocalizedString("codex.gateway.cards.title", value: "网关卡片", comment: "Gateway cards section title")
-                alertMessage = Self.errorSummaryText(error: error, maxLength: 220)
-            }
-        }
-    }
-
-    func clearActiveGatewayCardSelection() {
-        var state = codexGatewayCardsStore.normalized(
-            gatewayCardsState,
-            validAccountIDs: Set(codexAccounts.map(\.id))
-        )
-        guard state.lastUsedCardID != nil else { return }
-        state.lastUsedCardID = nil
-        updateGatewayCardsState(state)
-    }
-
-    func gatewayMembers(for card: CodexGatewayCard) -> [CodexGatewayMemberDisplay] {
-        let accountByID = Dictionary(uniqueKeysWithValues: codexAccounts.map { ($0.id, $0) })
-        let summaryByID = codexAccountSummaries
-        return card.memberAccountIDs.compactMap { id in
-            guard let account = accountByID[id] else { return nil }
-            let summary = summaryByID[id]
-            let title = AccountDisplayTextSupport.codexTitle(
-                summary: summary,
-                relativeAuthPath: account.relativeAuthPath,
-                defaultName: account.name,
-                accountID: id
-            )
-            return CodexGatewayMemberDisplay(
-                id: id,
-                title: title,
-                subtitle: AccountDisplayTextSupport.codexSubtitle(
-                    title: title,
-                    email: summary?.email,
-                    plan: nil
-                ),
-                plan: TextNormalizationSupport.trimmed(summary?.plan)
-            )
-        }
-    }
-
-    func gatewayCandidateAccounts(for cardID: UUID) -> [CodexAuthAccount] {
-        guard let card = gatewayCards.first(where: { $0.id == cardID }) else {
-            return codexAccounts
-        }
-        let memberIDs = Set(card.memberAccountIDs)
-        guard !memberIDs.isEmpty else { return codexAccounts }
-        return codexAccounts.filter { !memberIDs.contains($0.id) }
-    }
-
-    func gatewayCandidateSections(for cardID: UUID) -> [CodexGatewayCandidateSection] {
-        let candidates = gatewayCandidateAccounts(for: cardID)
-        guard !candidates.isEmpty else { return [] }
-
-        var grouped: [String: [CodexAuthAccount]] = [:]
-        var titleByKey: [String: String] = [:]
-
-        for account in candidates {
-            let title = Self.codexGroupingTitle(account: account, summary: codexAccountSummaries[account.id])
-            let key = title.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
-            titleByKey[key] = title
-            grouped[key, default: []].append(account)
-        }
-
-        return grouped
-            .keys
-            .sorted()
-            .map { key in
-                CodexGatewayCandidateSection(
-                    id: key,
-                    title: titleByKey[key] ?? key,
-                    items: grouped[key] ?? []
-                )
-            }
-    }
-
-    func addSelectedToGatewayCard() {
-        presentGatewayCardPicker(
-            accountIDs: selectedCodexAccountIDsInDisplayOrder()
-        )
-    }
-
-    func presentGatewayCardPicker(accountIDs: [UUID]) {
-        let valid = Set(codexAccounts.map(\.id))
-        let unique = orderedUniqueValidAccountIDs(accountIDs, validAccountIDs: valid)
-        guard !unique.isEmpty, !gatewayCards.isEmpty else { return }
-        pendingGatewaySelectionAccountIDs = unique
-        isShowingGatewayCardPicker = true
-    }
-
-    func confirmAddPendingAccounts(to cardID: UUID) {
-        addAccountsToGatewayCard(accountIDs: pendingGatewaySelectionAccountIDs, cardID: cardID)
-        pendingGatewaySelectionAccountIDs = []
-        isShowingGatewayCardPicker = false
-    }
-
-    func dismissGatewayCardPicker() {
-        pendingGatewaySelectionAccountIDs = []
-        isShowingGatewayCardPicker = false
-    }
-
     func loadCodexConfigEditorModelProviderOptions(current: String) -> [String] {
         guard codexModelPreferenceService.supports(provider: provider) else { return [] }
-        var options = codexModelPreferenceService.loadVisibleModelSlugs(for: provider)
+        var options = codexModelPreferenceService.loadRelayModelProviderIDs(for: provider)
         let normalizedCurrent = current.trimmingCharacters(in: .whitespacesAndNewlines)
         if !normalizedCurrent.isEmpty && !options.contains(normalizedCurrent) {
             options.insert(normalizedCurrent, at: 0)
@@ -450,7 +204,7 @@ extension ProviderUsageEngine {
             name: "",
             apiKey: "",
             baseURL: "",
-            modelProvider: "",
+            modelProvider: Self.codexDefaultModelProvider,
             queryParamsText: "",
             headersText: "",
             httpUsageEnabled: false,
@@ -506,7 +260,7 @@ extension ProviderUsageEngine {
             name: account.name,
             apiKey: rawJSON?["OPENAI_API_KEY"].string ?? "",
             baseURL: summary.relayBaseURL ?? "",
-            modelProvider: summary.relayModelProvider ?? "",
+            modelProvider: summary.relayModelProvider ?? Self.codexDefaultModelProvider,
             queryParamsText: Self.serializeKeyValueLines(relayObject),
             headersText: Self.serializeKeyValueLines(headerObject),
             httpUsageEnabled: usageQuery?.enabled ?? false,
@@ -561,22 +315,13 @@ extension ProviderUsageEngine {
         }
 
         let relay: CodexAuthManager.ConfiguredRelay?
-        if draft.isRelay {
-            let baseURL = Self.trimmed(draft.baseURL)
-            guard !baseURL.isEmpty else {
-                codexConfigEditorErrorMessage = NSLocalizedString(
-                    "codex.accounts.config.error.relay_required",
-                    value: "Relay requires Base URL.",
-                    comment: "Codex relay required fields"
-                )
-                return
-            }
+        let baseURL = Self.trimmed(draft.baseURL)
+        if !baseURL.isEmpty {
+            let modelProvider = Self.resolvedCodexModelProvider(draft.modelProvider)
             do {
                 relay = try .init(
                     baseURL: baseURL,
-                    modelProvider: Self.trimmed(draft.modelProvider),
-                    queryParams: Self.parseKeyValueLines(draft.queryParamsText),
-                    headers: Self.parseKeyValueLines(draft.headersText)
+                    modelProvider: modelProvider
                 )
             } catch {
                 codexConfigEditorErrorMessage = error.localizedDescription
@@ -584,14 +329,6 @@ extension ProviderUsageEngine {
             }
         } else {
             relay = nil
-        }
-
-        let usageQuery: CodexHTTPUsageQuery?
-        do {
-            usageQuery = try makeCodexUsageQuery(from: draft)
-        } catch {
-            codexConfigEditorErrorMessage = error.localizedDescription
-            return
         }
 
         do {
@@ -610,7 +347,7 @@ extension ProviderUsageEngine {
                     name: preferredName,
                     apiKey: apiKey,
                     relay: relay,
-                    usageQuery: usageQuery
+                    usageQuery: nil
                 )
             case let .edit(accountID):
                 guard let account = codexAccounts.first(where: { $0.id == accountID }) else { return }
@@ -619,14 +356,20 @@ extension ProviderUsageEngine {
                     name: preferredName,
                     apiKey: apiKey,
                     relay: relay,
-                    usageQuery: usageQuery
+                    usageQuery: nil
                 )
+                try await codexAuthManager.refreshActiveProviderConfigIfNeeded(for: account, provider: provider)
             }
             dismissCodexConfigEditor()
             await reloadCodexFromDisk(refreshUsage: false)
         } catch {
             codexConfigEditorErrorMessage = error.localizedDescription
         }
+    }
+
+    static func resolvedCodexModelProvider(_ raw: String) -> String {
+        let trimmed = trimmed(raw)
+        return trimmed.isEmpty ? codexDefaultModelProvider : trimmed
     }
 
     func resolvedConfiguredAccountName(
@@ -731,30 +474,14 @@ extension ProviderUsageEngine {
 
         do {
             var authObject: [String: Any] = ["OPENAI_API_KEY": apiKey]
-            if draft.isRelay {
-                let baseURL = Self.trimmed(draft.baseURL)
-                guard !baseURL.isEmpty else {
-                    codexConfigEditorErrorMessage = NSLocalizedString(
-                        "codex.accounts.config.error.relay_required",
-                        value: "Relay requires Base URL.",
-                        comment: "Codex relay required fields"
-                    )
-                    return
-                }
-                var relay: [String: Any] = ["base_url": baseURL]
-                let modelProvider = Self.trimmed(draft.modelProvider)
-                if !modelProvider.isEmpty {
-                    relay["model_provider"] = modelProvider
-                }
-                let queryParams = try Self.parseKeyValueLines(draft.queryParamsText)
-                if !queryParams.isEmpty {
-                    relay["query_params"] = queryParams
-                }
-                let headers = try Self.parseKeyValueLines(draft.headersText)
-                if !headers.isEmpty {
-                    relay["headers"] = headers
-                }
-                authObject["nolon"] = ["relay": relay]
+            let baseURL = Self.trimmed(draft.baseURL)
+            if !baseURL.isEmpty {
+                authObject["nolon"] = [
+                    "relay": [
+                        "base_url": baseURL,
+                        "model_provider": Self.resolvedCodexModelProvider(draft.modelProvider),
+                    ],
+                ]
             }
 
             let authData = try JSONSerialization.data(withJSONObject: authObject, options: [])

@@ -132,6 +132,7 @@ enum ProviderContentTabType: String, CaseIterable, Identifiable {
     case advanced = "Advanced"
     case accounts = "Accounts"
     case usage = "Usage"
+    case sessions = "Sessions"
     case runtime = "Runtime"
     
     var id: String { rawValue }
@@ -147,6 +148,7 @@ enum ProviderContentTabType: String, CaseIterable, Identifiable {
         case .advanced: return "slider.horizontal.3"
         case .accounts: return "person.2"
         case .usage: return "chart.bar.xaxis"
+        case .sessions: return "bubble.left.and.bubble.right"
         case .runtime: return "waveform.path.ecg.rectangle"
         }
     }
@@ -162,6 +164,7 @@ enum ProviderContentTabType: String, CaseIterable, Identifiable {
         case .advanced: return NSLocalizedString("tab.advanced", value: "Advanced", comment: "Advanced")
         case .accounts: return NSLocalizedString("tab.accounts", value: "Accounts", comment: "Accounts")
         case .usage: return NSLocalizedString("tab.usage", value: "Usage", comment: "Usage")
+        case .sessions: return NSLocalizedString("tab.sessions", value: "Sessions", comment: "Sessions")
         case .runtime: return NSLocalizedString("tab.runtime", value: "Runtime", comment: "Runtime")
         }
     }
@@ -203,9 +206,17 @@ enum ProviderContentTabType: String, CaseIterable, Identifiable {
         }
 
         if provider.templateId == "codex" {
-            tabs = move(tab: .runtime, after: .usage, in: tabs)
+            if !tabs.contains(.sessions) {
+                tabs.append(.sessions)
+            }
+            tabs = move(tab: .sessions, after: .usage, in: tabs)
+            tabs = move(tab: .runtime, after: .sessions, in: tabs)
         } else if provider.templateId == "codexXcode" {
-            tabs = move(tab: .runtime, after: .binary, in: tabs)
+            if !tabs.contains(.sessions) {
+                tabs.append(.sessions)
+            }
+            tabs = move(tab: .sessions, after: .binary, in: tabs)
+            tabs = move(tab: .runtime, after: .sessions, in: tabs)
         }
         return tabs
     }
@@ -240,6 +251,8 @@ extension ProviderContentTabType {
             self = .agents
         case "runtime":
             self = .runtime
+        case "sessions":
+            self = .sessions
         default:
             return nil
         }
@@ -280,6 +293,7 @@ final class ProviderContentTabViewModel {
         case .advanced: return 0
         case .accounts: return 0
         case .usage: return 0
+        case .sessions: return 0
         case .runtime: return 0
         }
     }

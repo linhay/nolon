@@ -74,18 +74,15 @@ extension CodexAuthManager {
                 if let destinationData = try? Data(contentsOf: destination.url),
                    let linked = matchAccount(authData: destinationData, accounts: snapshots) {
                     let activeID = activeAccountIdFromRegistry(for: provider, accounts: snapshots)
+                    if let activeID,
+                       let active = snapshots.first(where: { $0.id == activeID }),
+                       active.id != linked.id {
+                        try relinkProviderAuth(providerAuthFile: providerAuthFile, resolved: active, provider: provider)
+                        return active
+                    }
                     if activeID != linked.id {
                         try setActiveAccount(linked, for: provider)
                         return linked
-                    }
-                    return nil
-                }
-                let standardizedDestination = standardizedPathString(destination)
-                if let gatewayVirtual = loadGatewayVirtualAccount(byStandardizedPath: standardizedDestination) {
-                    let activeID = activeAccountIdFromRegistry(for: provider, accounts: snapshots)
-                    if activeID != gatewayVirtual.id {
-                        try setActiveAccount(gatewayVirtual, for: provider)
-                        return gatewayVirtual
                     }
                     return nil
                 }
@@ -270,9 +267,7 @@ extension CodexAuthManager {
             throw CocoaError(.fileReadInapplicableStringEncoding)
         }
 
-        guard !isGatewayVirtualAuthPayload(authData),
-              hasImportableCredentials(authJSONString: raw)
-        else {
+        guard hasImportableCredentials(authJSONString: raw) else {
             if let matched = matchAccount(authData: authData, accounts: snapshots),
                matched.id != excludedAccountID {
                 return matched
@@ -343,13 +338,6 @@ extension CodexAuthManager {
 
         let currentHash = cleanedHashHex(for: activeData)
         var fingerprints = loadActiveFingerprintMap()
-        if isGatewayVirtualAccount(activeAccount) {
-            if fingerprints[provider.id] != currentHash {
-                fingerprints[provider.id] = currentHash
-                try saveActiveFingerprintMap(fingerprints)
-            }
-            return nil
-        }
         guard let previousHash = fingerprints[provider.id] else {
             fingerprints[provider.id] = currentHash
             try saveActiveFingerprintMap(fingerprints)

@@ -28,6 +28,15 @@ public struct CodexAuthSummary: Hashable, Sendable {
         case chatgptAccount
         case officialAPIKey
         case relayProfile
+
+        public var isSelfManagedConfiguredAccount: Bool {
+            switch self {
+            case .officialAPIKey, .relayProfile:
+                return true
+            case .chatgptAccount:
+                return false
+            }
+        }
     }
 
     public var email: String?

@@ -1,6 +1,5 @@
 import Foundation
 import Testing
-import CodexGatewayKit
 @testable import NolonCoreCLIKit
 
 extension NolonCodexCLIEntrypointTests {
@@ -481,7 +480,7 @@ extension NolonCodexCLIEntrypointTests {
         #expect(result.exitCode == 0)
         #expect(result.stderr.isEmpty)
 
-        let expected = #"{"command":"codex.auth.activate","data":{"accountID":"33333333-3333-3333-3333-333333333333","providerID":"codex","runtimeErrorDescription":"runtime restarted","runtimeSwitched":false},"ok":true}"#
+        let expected = #"{"command":"codex.auth.activate","data":{"accountID":"33333333-3333-3333-3333-333333333333","providerID":"codex"},"ok":true}"#
         #expect(try canonicalJSON(result.stdout) == expected)
     }
     @Test("json contract snapshot for codex auth login success")
@@ -500,7 +499,7 @@ extension NolonCodexCLIEntrypointTests {
         #expect(result.exitCode == 0)
         #expect(result.stderr.isEmpty)
 
-        let expected = #"{"command":"codex.auth.login","data":{"accountID":"44444444-4444-4444-4444-444444444444","accountName":"json-login","loginURL":"https:\/\/auth.example.com\/device","providerID":"codex","runtimeSwitched":true},"ok":true}"#
+        let expected = #"{"command":"codex.auth.login","data":{"accountID":"44444444-4444-4444-4444-444444444444","accountName":"json-login","loginURL":"https:\/\/auth.example.com\/device","providerID":"codex"},"ok":true}"#
         #expect(try canonicalJSON(result.stdout) == expected)
     }
     @Test("json contract snapshot for codex auth refresh success")
@@ -519,7 +518,7 @@ extension NolonCodexCLIEntrypointTests {
         #expect(result.exitCode == 0)
         #expect(result.stderr.isEmpty)
 
-        let expected = #"{"command":"codex.auth.refresh","data":{"items":[{"accountID":"44444444-4444-4444-4444-444444444444","accountName":"json-refresh","email":"json@example.com","isActive":true,"runtimeSwitched":true,"success":true}],"providerID":"codex","summary":{"failureCount":0,"successCount":1,"totalCount":1}},"ok":true}"#
+        let expected = #"{"command":"codex.auth.refresh","data":{"items":[{"accountID":"44444444-4444-4444-4444-444444444444","accountName":"json-refresh","email":"json@example.com","isActive":true,"success":true}],"providerID":"codex","summary":{"failureCount":0,"successCount":1,"totalCount":1}},"ok":true}"#
         #expect(try canonicalJSON(result.stdout) == expected)
     }
     @Test("json contract snapshot for codex auth delete success")
@@ -552,7 +551,7 @@ extension NolonCodexCLIEntrypointTests {
         #expect(result.exitCode == 2)
         #expect(result.stdout.isEmpty)
 
-        let expected = #"{"error":{"code":"invalid_arguments","message":"Unknown group 'oops'. Available groups: auth, binary, gateway, provider, runtime, status."},"ok":false}"#
+        let expected = #"{"error":{"code":"invalid_arguments","message":"Unknown group 'oops'. Available groups: auth, binary, provider, runtime, session, status."},"ok":false}"#
         #expect(try canonicalJSON(result.stderr) == expected)
     }
     @Test("domain error keeps structured code")

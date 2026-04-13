@@ -19,6 +19,7 @@ struct NolonCodexCLIServiceTests {
         codexHome: STFolder,
         threadID: String,
         modelProvider: String,
+        cwd: String = "/tmp/project",
         archived: Bool = false
     ) throws {
         let rootFolder = archived ? codexHome.folder("archived_sessions") : codexHome.folder("sessions")
@@ -32,7 +33,7 @@ struct NolonCodexCLIServiceTests {
             "payload": [
                 "id": threadID,
                 "timestamp": "2026-04-11T10:00:00Z",
-                "cwd": "/tmp/project",
+                "cwd": cwd,
                 "source": "cli",
                 "model_provider": modelProvider,
             ],
@@ -501,6 +502,161 @@ struct NolonCodexCLIServiceTests {
         #expect(payload.summary.avgWeeklyRemainingPercent == 50)
     }
 
+    @Test("auth usage refresh keeps official api key accounts healthy when usage fetch fails")
+    func authUsageRefreshKeepsOfficialAPIKeyHealthyOnFailure() async throws {
+        let root = try makeTempRoot("nolon-codex-cli-usage-refresh-official-api-key-failure")
+        defer { try? root.delete() }
+
+        let authManager = CodexAuthManager(rootURL: root.url)
+        let account = try await authManager.addConfiguredAccount(
+            name: "configured",
+            apiKey: "sk-live-12345678",
+            relay: nil
+        )
+        let cache = CodexAuthUsageCache(
+            cachedAt: Date(timeIntervalSince1970: 1_733_100_000),
+            creditsRefreshedAt: nil,
+            fetchKind: .web,
+            strategyKind: .direct,
+            sourceLabel: "HTTP",
+            usage: UsageSnapshot(
+                identity: UsageIdentity(
+                    accountEmail: "api@example.com",
+                    accountOrganization: nil,
+                    loginMethod: nil,
+                    plan: nil
+                ),
+                primary: RateWindow(usedPercent: 25),
+                secondary: nil,
+                tertiary: nil,
+                updatedAt: Date(timeIntervalSince1970: 1_733_200_000)
+            ),
+            credits: nil,
+            cost: nil
+        )
+        try await authManager.storeUsageCache(cache, for: account)
+        try await authManager.updateSyncFailure(for: account, message: "OpenAI API key rejected")
+
+        let service = NolonLiveCodexCLIService(
+            authManager: authManager,
+            binaryManager: CodexBinaryManager(homeURL: root.url),
+            loginRunner: .init(),
+            environment: [:],
+            usageOutcomeFetcher: { _ in
+                ProviderFetchOutcome(
+                    fetchKind: .web,
+                    result: .failure(CodexCLIError.protocolError("OpenAI API key rejected"))
+                )
+            },
+            runtimeProcessInspector: StubRuntimeProcessInspector(snapshots: []),
+            runtimeSignalController: StubRuntimeSignalController(),
+            currentPIDProvider: { 999_999 },
+            sleep: { _ in }
+        )
+
+        let payload = try await service.authUsageRefresh(providerID: "codex", accountID: account.id)
+
+        let row = try #require(payload.accounts.first { $0.id == account.id })
+        #expect(row.status == .healthy)
+        #expect(row.failureType == nil)
+        #expect(row.fiveHourRemainingPercent == 75)
+        #expect(row.syncFailedAt == nil)
+        #expect(row.syncFailureMessage == nil)
+
+        let persisted = CodexAuthSummary.fromJSONData(try #require(authManager.accountAuthData(for: account)))
+        #expect(persisted.lastSyncFailedAt == nil)
+        #expect(persisted.lastSyncFailureMessage == nil)
+    }
+
+    @Test("auth usage hides relay profile sync failure metadata in output")
+    func authUsageHidesRelayProfileSyncFailureMetadataInOutput() async throws {
+        let root = try makeTempRoot("nolon-codex-cli-usage-relay-hidden-failure")
+        defer { try? root.delete() }
+
+        let authManager = CodexAuthManager(rootURL: root.url)
+        let account = try await authManager.addConfiguredAccount(
+            name: "relay",
+            apiKey: "sk-live-12345678",
+            relay: .init(
+                baseURL: "https://relay.example.com/v1",
+                modelProvider: "nolon"
+            )
+        )
+        try await authManager.updateSyncFailure(
+            for: account,
+            message: "Codex protocol error: -32600: chatgpt authentication required to read rate limits",
+            date: Date(timeIntervalSince1970: 1_733_300_000)
+        )
+
+        let service = NolonLiveCodexCLIService(
+            authManager: authManager,
+            binaryManager: CodexBinaryManager(homeURL: root.url),
+            loginRunner: .init(),
+            environment: [:]
+        )
+
+        let payload = try await service.authUsage(providerID: "codex")
+
+        let row = try #require(payload.accounts.first { $0.id == account.id })
+        #expect(row.status == .pending)
+        #expect(row.failureType == nil)
+        #expect(row.syncFailedAt == nil)
+        #expect(row.syncFailureMessage == nil)
+    }
+
+    @Test("auth usage refresh keeps relay profile accounts self managed when usage fetch fails")
+    func authUsageRefreshKeepsRelayProfileHealthyOnFailure() async throws {
+        let root = try makeTempRoot("nolon-codex-cli-usage-refresh-relay-failure")
+        defer { try? root.delete() }
+
+        let authManager = CodexAuthManager(rootURL: root.url)
+        let account = try await authManager.addConfiguredAccount(
+            name: "relay",
+            apiKey: "sk-live-12345678",
+            relay: .init(
+                baseURL: "https://relay.example.com/v1",
+                modelProvider: "nolon"
+            )
+        )
+        try await authManager.updateSyncFailure(
+            for: account,
+            message: "Codex protocol error: -32600: chatgpt authentication required to read rate limits",
+            date: Date(timeIntervalSince1970: 1_733_300_000)
+        )
+
+        let service = NolonLiveCodexCLIService(
+            authManager: authManager,
+            binaryManager: CodexBinaryManager(homeURL: root.url),
+            loginRunner: .init(),
+            environment: [:],
+            usageOutcomeFetcher: { _ in
+                ProviderFetchOutcome(
+                    fetchKind: .web,
+                    result: .failure(CodexCLIError.protocolError("chatgpt authentication required to read rate limits"))
+                )
+            },
+            runtimeProcessInspector: StubRuntimeProcessInspector(snapshots: []),
+            runtimeSignalController: StubRuntimeSignalController(),
+            currentPIDProvider: { 999_999 },
+            sleep: { _ in }
+        )
+
+        let payload = try await service.authUsageRefresh(providerID: "codex", accountID: account.id)
+
+        let row = try #require(payload.accounts.first { $0.id == account.id })
+        #expect(row.isSkipped == false)
+        #expect(row.status == .pending)
+        #expect(row.failureType == nil)
+        #expect(row.syncFailedAt == nil)
+        #expect(row.syncFailureMessage == nil)
+        #expect(payload.skippedAccounts.isEmpty)
+
+        let persisted = CodexAuthSummary.fromJSONData(try #require(authManager.accountAuthDataWithoutMaterialization(for: account)))
+        #expect(persisted.cardKind == .relayProfile)
+        #expect(persisted.lastSyncFailedAt == nil)
+        #expect(persisted.lastSyncFailureMessage == nil)
+    }
+
     @Test("auth usage refresh retries chatgpt accounts even when they have prior sync failure metadata")
     func authUsageRefreshRetriesChatGPTAccountsAfterPreviousFailure() async throws {
         let root = try makeTempRoot("nolon-codex-cli-refresh-chatgpt-retry")
@@ -676,7 +832,6 @@ struct NolonCodexCLIServiceTests {
             environment: [:],
             authActivator: { account, provider in
                 try await authManager.setActiveAccount(account, for: provider)
-                return CodexAuthActivationResult(runtimeSwitched: true, runtimeErrorDescription: nil)
             },
             authRefreshRunner: { _, _, _ in
                 await refreshCounter.increment()
@@ -710,9 +865,7 @@ struct NolonCodexCLIServiceTests {
             binaryManager: CodexBinaryManager(homeURL: root.url),
             loginRunner: .init(),
             environment: [:],
-            authActivator: { _, _ in
-                CodexAuthActivationResult(runtimeSwitched: true, runtimeErrorDescription: nil)
-            },
+            authActivator: { _, _ in },
             authRefreshRunner: { _, _, _ in
                 throw CodexCLIError.recoverableFallback("refresh_token_expired")
             }
@@ -750,7 +903,6 @@ struct NolonCodexCLIServiceTests {
             environment: [:],
             authActivator: { account, provider in
                 try await authManager.setActiveAccount(account, for: provider)
-                return CodexAuthActivationResult(runtimeSwitched: true, runtimeErrorDescription: nil)
             },
             authRefreshRunner: { _, _, _ in
                 await refreshCounter.increment()
@@ -793,14 +945,77 @@ struct NolonCodexCLIServiceTests {
                 environment: [:]
             )
 
-            let payload = try await service.sessionList(providerID: "codex")
+            let payload = try await service.sessionList(providerID: "codex", groupBy: .provider)
             #expect(payload.providerID == "codex")
+            #expect(payload.groupBy == .provider)
             #expect(payload.totalSessionCount == 2)
             #expect(payload.totalLiveCount == 1)
             #expect(payload.totalArchivedCount == 1)
             #expect(payload.availableTargetProviderIDs.contains("openai"))
             #expect(payload.availableTargetProviderIDs.contains("azure"))
-            #expect(payload.sections.map(\.modelProvider) == ["azure", "openai"])
+            #expect(payload.sections.map(\.modelProvider) == ["openai", "azure"])
+        }
+    }
+
+    @Test("session list can group sessions by time and project")
+    func sessionListGroupsSessionsByTimeAndProject() async throws {
+        let root = try makeTempRoot("nolon-codex-cli-session-list-time-project")
+        defer { try? root.delete() }
+
+        try await withTemporaryHome(root) {
+            let codexHome = root.folder(".codex")
+            _ = codexHome.createIfNotExists()
+
+            try writeSessionMeta(
+                codexHome: codexHome,
+                threadID: "thread-openai",
+                modelProvider: "openai",
+                cwd: "/tmp/project-alpha"
+            )
+            try writeSessionMeta(
+                codexHome: codexHome,
+                threadID: "thread-azure",
+                modelProvider: "azure",
+                cwd: "/tmp/project-alpha"
+            )
+
+            var calendar = Calendar(identifier: .gregorian)
+            calendar.timeZone = .current
+            let firstDate = try #require(calendar.date(from: DateComponents(year: 2026, month: 4, day: 11, hour: 10, minute: 0)))
+            let secondDate = try #require(calendar.date(from: DateComponents(year: 2026, month: 4, day: 11, hour: 9, minute: 30)))
+            try createStateDatabase(
+                codexHome: codexHome,
+                threads: [
+                    (
+                        id: "thread-openai",
+                        title: "OpenAI Session",
+                        modelProvider: "openai",
+                        updatedAt: Int64(firstDate.timeIntervalSince1970),
+                        archived: false
+                    ),
+                    (
+                        id: "thread-azure",
+                        title: "Azure Session",
+                        modelProvider: "azure",
+                        updatedAt: Int64(secondDate.timeIntervalSince1970),
+                        archived: false
+                    ),
+                ]
+            )
+
+            let service = NolonLiveCodexCLIService(
+                authManager: CodexAuthManager(rootURL: root.url),
+                binaryManager: CodexBinaryManager(homeURL: root.url),
+                loginRunner: .init(),
+                environment: [:]
+            )
+
+            let payload = try await service.sessionList(providerID: "codex", groupBy: .timeProject)
+            #expect(payload.groupBy == .timeProject)
+            #expect(payload.sections.count == 1)
+            #expect(payload.sections.first?.title.contains("project-alpha") == true)
+            #expect(payload.sections.first?.providerIDs == ["azure", "openai"])
+            #expect(payload.sections.first?.editableThreadIDs.isEmpty == true)
         }
     }
 

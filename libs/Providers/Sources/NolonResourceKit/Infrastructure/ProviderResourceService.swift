@@ -328,6 +328,10 @@ public final class ProviderResourceService: @unchecked Sendable {
         provider.templateId == "codex" || provider.templateId == "codexXcode"
     }
 
+    private func isClaudeProvider(_ provider: Provider) -> Bool {
+        provider.templateId == ProviderTemplate.claudeCode.rawValue
+    }
+
     private func firstNonEmptyLine(from content: String) -> String {
         for line in content.split(separator: "\n", omittingEmptySubsequences: false) {
             let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -416,6 +420,10 @@ public final class ProviderResourceService: @unchecked Sendable {
                 AgentDocTarget(url: provider.codexAgentsFileURL, kind: .base),
                 AgentDocTarget(url: provider.codexAgentsOverrideFile.url, kind: .override),
             ]
+        }
+
+        if isClaudeProvider(provider) {
+            return [AgentDocTarget(url: provider.claudeInstructionsFileURL, kind: .base)]
         }
 
         if provider.templateId == "opencode" {

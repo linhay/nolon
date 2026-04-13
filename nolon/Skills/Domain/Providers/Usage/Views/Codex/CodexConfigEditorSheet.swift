@@ -1,26 +1,16 @@
 import SwiftUI
-import ProviderUsage
 import NolonUI
 
 struct CodexConfigEditorSheet: View {
     @Binding var draft: ProviderUsageEngine.CodexConfigEditorDraft?
     let modelProviderOptions: [String]
     let errorMessage: String?
-    let testSuccessMessage: String?
-    let testErrorMessage: String?
-    let isTestingUsageQuery: Bool
     let onCancel: () -> Void
-    let onTest: () -> Void
     let onValidateConnection: () -> Void
     let onSave: () -> Void
 
     private var currentDraft: ProviderUsageEngine.CodexConfigEditorDraft? {
         draft
-    }
-
-    private var isRelayMode: Bool {
-        guard let draft = currentDraft else { return false }
-        return draft.isRelay
     }
 
     private var editorMode: ProviderUsageEngine.CodexConfigEditorMode? {
@@ -46,15 +36,12 @@ struct CodexConfigEditorSheet: View {
         return ProviderUsageEngine.codexConfigEditorPrimaryActionTitle(for: editorMode)
     }
 
-    private var canRunTest: Bool {
-        guard let draft = currentDraft else { return false }
-        if isTestingUsageQuery {
-            return false
-        }
-        guard draft.httpUsageEnabled else {
-            return false
-        }
-        return !draft.httpUsageURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    private var closeButtonHelp: String {
+        NSLocalizedString("generic.close", value: "Close", comment: "Close")
+    }
+
+    private var headerTrailingPadding: CGFloat {
+        SkillDetailScaffoldMetrics.closeButtonPadding + FloatingCloseButtonMetrics.buttonFrameSize + 12
     }
 
     private var canSaveDraft: Bool {
@@ -63,13 +50,7 @@ struct CodexConfigEditorSheet: View {
     }
 
     private var canValidateConnection: Bool {
-        guard let draft = currentDraft else { return false }
-        let hasAPIKey = !draft.apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        if !hasAPIKey { return false }
-        if draft.isRelay {
-            return !draft.baseURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        }
-        return true
+        canSaveDraft
     }
 
     private func binding(_ keyPath: WritableKeyPath<ProviderUsageEngine.CodexConfigEditorDraft, String>) -> Binding<String> {
@@ -79,65 +60,95 @@ struct CodexConfigEditorSheet: View {
         )
     }
 
-    private var httpUsageEnabledBinding: Binding<Bool> {
-        Binding(
-            get: { draft?.httpUsageEnabled ?? false },
-            set: { draft?.httpUsageEnabled = $0 }
-        )
-    }
-
-    private var httpMethodRawValueBinding: Binding<String> {
-        Binding(
-            get: { draft?.httpUsageMethod.rawValue ?? CodexHTTPMethod.get.rawValue },
-            set: { draft?.httpUsageMethod = CodexHTTPMethod(rawValue: $0) ?? .get }
-        )
-    }
-
     var body: some View {
         Group {
             if currentDraft != nil {
-                NolonUI.CodexConfigEditorSheetView(
-                    title: title,
-                    subtitle: subtitle,
-                    primaryActionTitle: primaryActionTitle,
-                    errorMessage: errorMessage,
-                    testSuccessMessage: testSuccessMessage,
-                    testErrorMessage: testErrorMessage,
-                    isRelayMode: isRelayMode,
-                    isTestingUsageQuery: isTestingUsageQuery,
-                    canRunTest: canRunTest,
-                    canValidateConnection: canValidateConnection,
-                    canSaveDraft: canSaveDraft,
-                    httpMethods: CodexHTTPMethod.allCases.map(\.rawValue),
-                    selectedHTTPMethod: httpMethodRawValueBinding,
-                    name: binding(\.name),
-                    apiKey: binding(\.apiKey),
-                    baseURL: binding(\.baseURL),
-                    modelProvider: binding(\.modelProvider),
-                    modelProviderOptions: modelProviderOptions,
-                    queryParamsText: binding(\.queryParamsText),
-                    headersText: binding(\.headersText),
-                    httpUsageEnabled: httpUsageEnabledBinding,
-                    httpUsageURL: binding(\.httpUsageURL),
-                    httpUsageTimeoutSeconds: binding(\.httpUsageTimeoutSeconds),
-                    httpUsageHeadersText: binding(\.httpUsageHeadersText),
-                    httpUsageBody: binding(\.httpUsageBody),
-                    httpUsageOverrideBaseURL: binding(\.httpUsageOverrideBaseURL),
-                    httpUsageOverrideAPIKey: binding(\.httpUsageOverrideAPIKey),
-                    httpUsageOverrideAccessToken: binding(\.httpUsageOverrideAccessToken),
-                    httpUsageOverrideUserID: binding(\.httpUsageOverrideUserID),
-                    httpUsagePlanPath: binding(\.httpUsagePlanPath),
-                    httpUsageCreditsRemainingPath: binding(\.httpUsageCreditsRemainingPath),
-                    httpUsageUsedPath: binding(\.httpUsageUsedPath),
-                    httpUsageTotalPath: binding(\.httpUsageTotalPath),
-                    httpUsageCostTodayPath: binding(\.httpUsageCostTodayPath),
-                    httpUsageCostLast30DaysPath: binding(\.httpUsageCostLast30DaysPath),
-                    httpUsageErrorMessagePath: binding(\.httpUsageErrorMessagePath),
-                    onCancel: onCancel,
-                    onTest: onTest,
-                    onValidateConnection: onValidateConnection,
-                    onSave: onSave
-                )
+                ZStack(alignment: .topTrailing) {
+                    VStack(alignment: .leading, spacing: 16) {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text(title)
+                                .font(.title3.weight(.semibold))
+
+                            if let subtitle, !subtitle.isEmpty {
+                                Text(subtitle)
+                                    .font(.footnote)
+                                    .foregroundStyle(.secondary)
+                            }
+
+                            if let errorMessage, !errorMessage.isEmpty {
+                                Text(errorMessage)
+                                    .font(.footnote)
+                                    .foregroundStyle(.red)
+                            }
+                        }
+                        .padding(.trailing, headerTrailingPadding)
+
+                        Form {
+                            TextField(
+                                NSLocalizedString("codex.accounts.config.model_provider", value: "Model Provider", comment: "Codex relay model provider"),
+                                text: binding(\.modelProvider)
+                            )
+
+                            TextField(
+                                NSLocalizedString("codex.accounts.config.api_key", value: "API Key", comment: "Codex API key"),
+                                text: binding(\.apiKey)
+                            )
+
+                            TextField(
+                                NSLocalizedString("codex.accounts.config.base_url", value: "Base URL", comment: "Codex relay base URL"),
+                                text: binding(\.baseURL)
+                            )
+
+                            if !modelProviderOptions.isEmpty {
+                                Menu {
+                                    ForEach(modelProviderOptions, id: \.self) { option in
+                                        Button(option) {
+                                            draft?.modelProvider = option
+                                        }
+                                    }
+                                } label: {
+                                    Label(
+                                        NSLocalizedString(
+                                            "codex.accounts.config.model_provider.suggested",
+                                            value: "Suggested from current config",
+                                            comment: "Model provider suggested options"
+                                        ),
+                                        systemImage: "list.bullet"
+                                    )
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                }
+                            }
+                        }
+                        .formStyle(.grouped)
+
+                        HStack {
+                            Spacer(minLength: 0)
+
+                            Button(NSLocalizedString("codex.accounts.action.validate", value: "Validate", comment: "Validate configured account")) {
+                                onValidateConnection()
+                            }
+                            .buttonStyle(.bordered)
+                            .disabled(!canValidateConnection)
+
+                            Button(primaryActionTitle) {
+                                onSave()
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .disabled(!canSaveDraft)
+                        }
+                    }
+                    .padding(20)
+                    .frame(minWidth: 520, minHeight: 320)
+
+                    FloatingCloseButton(
+                        help: closeButtonHelp,
+                        enableCancelShortcut: true,
+                        action: onCancel
+                    )
+                    .padding(SkillDetailScaffoldMetrics.closeButtonPadding)
+                    .accessibilityIdentifier("codex-config-editor-close")
+                }
             }
         }
     }

@@ -163,7 +163,7 @@ final class ProviderDetailGridViewIssueNavigationTests: XCTestCase {
         XCTAssertTrue(ProviderDetailGridView.supportsAgentsLink(codex))
         XCTAssertTrue(ProviderDetailGridView.supportsAgentsLink(openCode))
         XCTAssertTrue(ProviderDetailGridView.supportsAgentsLink(copilot))
-        XCTAssertFalse(ProviderDetailGridView.supportsAgentsLink(claude))
+        XCTAssertTrue(ProviderDetailGridView.supportsAgentsLink(claude))
         XCTAssertFalse(ProviderDetailGridView.supportsAgentsLink(gemini))
         XCTAssertFalse(ProviderDetailGridView.supportsAgentsLink(nil))
     }
@@ -185,7 +185,7 @@ final class ProviderDetailGridViewIssueNavigationTests: XCTestCase {
                 provider: openCode
             )
         )
-        XCTAssertFalse(
+        XCTAssertTrue(
             ProviderDetailGridView.shouldShowAgentsLinkToolbar(
                 selectedTab: .agents,
                 provider: claude
@@ -231,7 +231,10 @@ final class ProviderDetailGridViewIssueNavigationTests: XCTestCase {
         )
         XCTAssertEqual(
             ProviderDetailGridView.agentsLinkProviderPath(for: claude, fallbackPath: "/tmp/nolon/AGENTS.md"),
-            "/tmp/nolon/AGENTS.md"
+            URL(fileURLWithPath: claude.defaultSkillsPath)
+                .deletingLastPathComponent()
+                .appendingPathComponent("CLAUDE.md")
+                .path
         )
         XCTAssertEqual(
             ProviderDetailGridView.agentsLinkProviderPath(for: nil, fallbackPath: "/tmp/nolon/AGENTS.md"),
@@ -244,7 +247,7 @@ final class ProviderDetailGridViewIssueNavigationTests: XCTestCase {
             ProviderDetailGridView.agentsEmptyDescription(),
             NSLocalizedString(
                 "agents.empty_desc",
-                value: "No AGENTS.md files found for this provider",
+                value: "No instruction files found for this provider",
                 comment: "No agents docs"
             )
         )
@@ -252,7 +255,7 @@ final class ProviderDetailGridViewIssueNavigationTests: XCTestCase {
             ProviderDetailGridView.agentsNoResultsDescription(),
             NSLocalizedString(
                 "agents.search.no_results_desc",
-                value: "No matching AGENTS.md files found",
+                value: "No matching instruction files found",
                 comment: "No agent docs search results description"
             )
         )

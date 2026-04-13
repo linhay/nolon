@@ -91,9 +91,7 @@ struct GeminiTokenTrendServiceTests {
                     return "{}"
                 }
             },
-            now: {
-                Date(timeIntervalSince1970: 1_709_900_000)
-            }
+            now: { Self.makeLocalDate(year: 2026, month: 3, day: 8, hour: 12, minute: 0) }
         )
 
         let snapshot = try #require(await service.fetchActiveSnapshot(provider: .gemini))
@@ -178,7 +176,7 @@ struct GeminiTokenTrendServiceTests {
                 }
                 """
             },
-            now: { Date(timeIntervalSince1970: 1_709_900_000) }
+            now: { Self.makeLocalDate(year: 2026, month: 3, day: 3, hour: 12, minute: 0) }
         )
 
         let snapshot = try #require(await service.fetchActiveSnapshot(provider: .gemini, trailingDays: 2))
@@ -233,7 +231,7 @@ struct GeminiTokenTrendServiceTests {
                 }
                 """
             },
-            now: { Date(timeIntervalSince1970: 1_709_900_000) }
+            now: { Self.makeLocalDate(year: 2026, month: 3, day: 8, hour: 12, minute: 0) }
         )
 
         let snapshot = try #require(await service.fetchActiveSnapshot(provider: .gemini))
@@ -251,5 +249,64 @@ struct GeminiTokenTrendServiceTests {
         #expect(snapshot.last7DaysTokens == 150)
         #expect(snapshot.last30DaysTokens == 150)
         #expect(snapshot.allDaysTokens == 150)
+    }
+
+    @Test("Returns zero for today when latest Gemini session is before current date")
+    func fetchActiveSnapshot_returnsZeroWhenTodayHasNoUsageYet() async throws {
+        let globalGeminiURL = URL(fileURLWithPath: "/Users/tester/.gemini", isDirectory: true)
+        let service = GeminiTokenTrendService(
+            loadActiveAccount: { _ in
+                GeminiAuthAccount(
+                    id: UUID(uuidString: "22222222-bbbb-cccc-dddd-eeeeeeeeeeee")!,
+                    providerID: .gemini,
+                    name: "Gemini",
+                    method: .oauthPersonal,
+                    createdAt: Date(timeIntervalSince1970: 1_700_000_000),
+                    lastUsedAt: nil,
+                    lastLoginAt: nil,
+                    email: "dev@example.com",
+                    project: nil,
+                    location: nil,
+                    runtimeHomeRelativePath: "accounts/runtime/home"
+                )
+            },
+            loadSessionRoot: { globalGeminiURL },
+            listSessionFiles: { _ in
+                [globalGeminiURL.appendingPathComponent("tmp/project/chats/session-1.json")]
+            },
+            readFile: { _ in
+                """
+                {
+                  "messages": [
+                    { "type": "gemini", "timestamp": "2026-03-07T02:00:00Z", "tokens": { "input": 100, "output": 30, "cached": 10, "total": 130 } },
+                    { "type": "gemini", "timestamp": "2026-03-08T02:00:00Z", "tokens": { "input": 50, "output": 20, "cached": 5, "total": 70 } }
+                  ]
+                }
+                """
+            },
+            now: { Self.makeLocalDate(year: 2026, month: 3, day: 9, hour: 8, minute: 0) }
+        )
+
+        let snapshot = try #require(await service.fetchActiveSnapshot(provider: .gemini))
+
+        #expect(snapshot.todayTokens == 0)
+        #expect(snapshot.last7DaysTokens == 200)
+        #expect(snapshot.last30DaysTokens == 200)
+        #expect(snapshot.allDaysTokens == 200)
+    }
+}
+
+private extension GeminiTokenTrendServiceTests {
+    static func makeLocalDate(year: Int, month: Int, day: Int, hour: Int, minute: Int) -> Date {
+        var comps = DateComponents()
+        comps.calendar = Calendar.current
+        comps.timeZone = TimeZone.current
+        comps.year = year
+        comps.month = month
+        comps.day = day
+        comps.hour = hour
+        comps.minute = minute
+        comps.second = 0
+        return comps.date ?? Date(timeIntervalSince1970: 0)
     }
 }

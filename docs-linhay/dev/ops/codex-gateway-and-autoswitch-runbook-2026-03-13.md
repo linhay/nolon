@@ -1,5 +1,10 @@
 # Codex Gateway And Auto-Switch Runbook（2026-03-13）
 
+## 状态更新（2026-04-10）
+1. 本 runbook 已归档。
+2. `gateway` 子命令与主工程内的 gateway daemon 已移除，以下 gateway 启停/排障步骤不再适用于当前仓库。
+3. 当前主工程仅保留 auto-switch 相关诊断路径；如后续恢复 gateway，请以独立 SPM 仓库中的 runbook 为准。
+
 ## 适用范围
 1. Codex 本地 HTTP gateway 模式的启动、停止、排障与回归。
 2. Codex 非网关自动切号模式的诊断与回归。

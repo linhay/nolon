@@ -22,8 +22,13 @@
 1. 使用 `retrieveUserQuota` 返回的 `buckets[]`。
 2. `remainingFraction` 转换为 `usedPercent = (1 - remainingFraction) * 100`。
 3. `resetTime` 映射到 `RateWindow.resetsAt`。
-4. Gemini provider 将每个 bucket 映射为带标题的 usage window，标题默认使用 `modelId`。
-5. Gemini 卡片按 CLI quota 返回顺序展示全量模型列表，包括 `flash-lite` / `flash` / `pro` / preview 等 bucket。
+4. Gemini provider 将每个 bucket 映射为带标题的 usage window，标题默认使用规范化后的 `modelId`：
+   - `gemini-3.1-pro-preview-customtools` 统一展示为 `gemini-3.1-pro-preview`
+   - `*-001` 后缀在展示层移除（如 `gemini-2.5-flash-001` -> `gemini-2.5-flash`）
+5. Gemini 卡片不再依赖 CLI quota 原始返回顺序，而是按稳定优先级展示全量模型列表：
+   - `3.1 pro preview` -> `3 pro preview` -> `2.5 pro` -> `3 flash preview` -> `2.5 flash` -> `2.0 flash` -> `2.5 flash-lite`
+   - 未知新模型排在已知模型之后，并按标题字典序稳定展示
+   - 若多个 bucket 规范化后落到同一展示标题，仅保留排序更靠前的一项，避免重复额度行
 6. 为兼容旧消费方，`primary` / `secondary` / `tertiary` 继续保留：
    - `primary` -> 第一条窗口
    - `secondary` -> 第二条窗口
@@ -48,7 +53,7 @@
 7. 切换 provider tab / 页面重新 appear 不得隐式触发 usage 刷新；自动刷新只能由明确的刷新入口、后台 watcher 或定时策略驱动。
 
 ## BDD 验收
-1. Given Gemini OAuth 账号已有本地 `.gemini` 凭据，When 刷新 Usage，Then 卡片按 quota bucket 顺序显示全部模型剩余额度与 reset 时间。
+1. Given Gemini OAuth 账号已有本地 `.gemini` 凭据，When 刷新 Usage，Then 卡片按稳定模型优先级显示全部模型剩余额度与 reset 时间，而不是依赖上游 bucket 原始顺序。
 2. Given Gemini OAuth quota 查询失败，When 刷新 Usage，Then 页面仍显示账号身份，且指标区域不崩溃。
 3. Given Gemini API Key 账号，When 刷新 Usage，Then 保持现有“仅身份快照，无额度指标”行为。
 4. Given `nolon gemini auth usage --provider gemini`，When active account 为 OAuth，Then 返回结果包含全量 quota bucket 对应的 usage windows，且兼容字段 `primary/secondary/tertiary` 仍可用。
@@ -57,3 +62,5 @@
 7. Given provider 单独缓存了 credits 余额刷新时间，When detailed usage 卡片展示 credits，Then 卡片同时展示“刷新于”时间以及底层 credits 快照时间。
 8. Given Codex auth 目录在 watcher 重载期间出现 rename 事件和临时文件，When 某个 snapshot 文件恰好已被移走，Then 磁盘重载应忽略该文件而不是崩溃，且剩余账号仍可正常加载。
 9. Given 用户只是切换到其他 tab 再切回 Usage，When 页面重新 appear，Then 不应自动触发 Codex 或其他 provider 的 usage 刷新。
+10. Given quota buckets 同时返回 `gemini-3.1-pro-preview` 与 `gemini-3.1-pro-preview-customtools`，When 构建 usage windows，Then UI 只展示一条 `gemini-3.1-pro-preview` 额度项。
+11. Given quota bucket 的 `modelId` 带有 `-001` 后缀，When 渲染 model 标题，Then UI 应展示去后缀后的标准模型名。

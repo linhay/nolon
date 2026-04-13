@@ -78,6 +78,11 @@ public final class ProviderResourceMonitor {
             if provider.agentsLinkEnabled {
                 paths.append(NolonManager.shared.agentsURL.path)
             }
+        } else if provider.templateId == ProviderTemplate.claudeCode.rawValue {
+            paths.append(provider.claudeInstructionsFileURL.path)
+            if provider.agentsLinkEnabled {
+                paths.append(NolonManager.shared.agentsURL.path)
+            }
         } else if provider.templateId == "opencode" {
             let opencodeHome = URL(fileURLWithPath: provider.defaultSkillsPath).deletingLastPathComponent()
             paths.append(opencodeHome.appendingPathComponent("AGENTS.md").path)

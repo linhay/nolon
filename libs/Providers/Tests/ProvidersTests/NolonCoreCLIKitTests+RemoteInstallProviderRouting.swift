@@ -67,4 +67,3 @@ extension NolonCoreCLIKitTests {
         #expect(result.stderr.contains("Unsupported --provider-id"))
     }
 }
-}

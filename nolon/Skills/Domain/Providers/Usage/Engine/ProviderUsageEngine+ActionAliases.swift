@@ -3,7 +3,7 @@ import ProviderUsage
 import CodexBarProviderCatalog
 import UniformTypeIdentifiers
 
-typealias UsageEngineCodexActivateAction = @MainActor @Sendable (CodexAuthAccount, Provider) async throws -> CodexAuthActivationResult
+typealias UsageEngineCodexActivateAction = @MainActor @Sendable (CodexAuthAccount, Provider) async throws -> Void
 typealias UsageEngineCodexDeleteAction = @MainActor @Sendable (UUID) async throws -> Void
 typealias UsageEngineCodexRefreshAllAction = @MainActor @Sendable ([CodexAuthAccount]) async -> Void
 typealias UsageEngineCodexPreflightAction = @MainActor @Sendable (Provider, Bool, String) async throws -> CodexAuthAccount?
@@ -11,8 +11,6 @@ typealias UsageEngineCodexOutcomeFetchAction = @Sendable (CodexAuthAccount, Usag
 typealias UsageEngineCodexUsageQueryTestAction = @MainActor @Sendable (CodexHTTPUsageQueryResolvedConfiguration, Bool) async throws -> ProviderFetchResult
 typealias UsageEngineCodexConfiguredAccountValidateAction = @Sendable (CodexAuthAccount) async throws -> String
 typealias UsageEngineCodexImportConnectionTestAction = @Sendable (CodexAuthManager.CodexImportValidationResult, UsageMonitorProviderSettings) async -> ProviderAccountUsageOutcome
-typealias UsageEngineCodexGatewayStartAction = @MainActor @Sendable (String, String, Int) async throws -> Void
-typealias UsageEngineCodexGatewayStopAction = @MainActor @Sendable (String) async throws -> Void
 typealias UsageEngineCodexImportOpenPanelAction = @MainActor @Sendable () -> [URL]
 typealias UsageEngineCodexExportSavePanelAction = @MainActor @Sendable (UTType, String) -> URL?
 typealias UsageEngineCodexImportExportArchiveAction = @MainActor @Sendable ([CodexAuthManager.CodexImportValidationResult], URL) async throws -> Int
@@ -31,8 +29,6 @@ extension ProviderUsageEngine {
         let codexUsageQueryTest: CodexUsageQueryTestAction
         let codexConfiguredAccountValidate: CodexConfiguredAccountValidateAction
         let codexImportConnectionTest: CodexImportConnectionTestAction
-        let codexGatewayStart: CodexGatewayStartAction
-        let codexGatewayStop: CodexGatewayStopAction
         let codexImportOpenPanel: CodexImportOpenPanelAction
         let codexExportSavePanel: CodexExportSavePanelAction
         let codexImportExportArchive: CodexImportExportArchiveAction
@@ -47,8 +43,6 @@ extension ProviderUsageEngine {
     typealias CodexUsageQueryTestAction = UsageEngineCodexUsageQueryTestAction
     typealias CodexConfiguredAccountValidateAction = UsageEngineCodexConfiguredAccountValidateAction
     typealias CodexImportConnectionTestAction = UsageEngineCodexImportConnectionTestAction
-    typealias CodexGatewayStartAction = UsageEngineCodexGatewayStartAction
-    typealias CodexGatewayStopAction = UsageEngineCodexGatewayStopAction
     typealias CodexImportOpenPanelAction = UsageEngineCodexImportOpenPanelAction
     typealias CodexExportSavePanelAction = UsageEngineCodexExportSavePanelAction
     typealias CodexImportExportArchiveAction = UsageEngineCodexImportExportArchiveAction

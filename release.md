@@ -1,6 +1,6 @@
-# Nolon 2.1.4
+# Nolon 2.1.12
 
 ## Highlights
-- Local Codex account-pool gateway with scheduling, sticky sessions, request logs, metrics, and failover/circuit-breaker controls so traffic is routed through healthy accounts.
-- Direct auto-switch coordination that activates the next candidate whenever the active quota window drops below the configured threshold and logs rich diagnostics for each handoff.
-- App runtime UI plus the new CLI doctor/status commands now surface gateway/auto-switch state, active counts, sticky sessions, recent errors, and the latest auto-switch event to match the operational runbook.
+- Codex gateway 已从主工程移除，准备迁入独立 SPM；主仓库不再提供 gateway runtime、CLI 命令或 UI 管理入口。
+- Direct auto-switch 仍保留在主工程中，继续负责低额度场景下的本地自动切号。
+- Runtime、CLI、ProviderUsage 与共享 UI 已同步清理网关实现和对应依赖，避免后续继续耦合到主仓库。

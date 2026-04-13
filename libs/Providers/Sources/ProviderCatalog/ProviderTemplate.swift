@@ -144,7 +144,7 @@ public enum ProviderTemplate: String, CaseIterable, Sendable, Identifiable {
 
     /// Additional default skills paths for this template (penetration reading).
     public var defaultSkillsPaths: [URL] {
-        let homeURL = STFolder(NSHomeDirectory()).url
+        let homeURL = currentUserHomeURL()
         return (config?.defaultSkillsPaths ?? []).map { path in
             let trimmed = path.trimmingCharacters(in: .whitespacesAndNewlines)
             if trimmed.hasPrefix(".") {
@@ -200,7 +200,7 @@ public enum ProviderTemplate: String, CaseIterable, Sendable, Identifiable {
     // MARK: - Helpers
 
     private var vendorBaseURL: URL {
-        vendorBaseURL(userHome: STFolder(NSHomeDirectory()).url)
+        vendorBaseURL(userHome: currentUserHomeURL())
     }
 
     private func projectBaseURL(projectRoot: URL) -> URL {
@@ -233,6 +233,14 @@ public enum ProviderTemplate: String, CaseIterable, Sendable, Identifiable {
             url.appendPathComponent(component)
         }
         return url
+    }
+
+    private func currentUserHomeURL() -> URL {
+        if let home = ProcessInfo.processInfo.environment["HOME"]?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !home.isEmpty {
+            return STFolder(home).url
+        }
+        return STFolder(NSHomeDirectory()).url
     }
 
     /// Resolves a user-facing provider identifier to a template.

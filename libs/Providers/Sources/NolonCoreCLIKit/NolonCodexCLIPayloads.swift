@@ -1,19 +1,22 @@
 import ArgumentParser
 import CodexAppServerKit
 import CodexCLIKit
-import CodexGatewayKit
 import CodexProvider
 import Foundation
 import ProviderCatalog
 import ProviderUsage
 import SKProcessRunner
 import STFilePath
-import Vapor
 #if canImport(Darwin)
 import Darwin
 #elseif canImport(Glibc)
 import Glibc
 #endif
+
+public enum NolonCodexSessionListGrouping: String, Codable, Sendable, Equatable, CaseIterable, ExpressibleByArgument {
+    case provider
+    case timeProject = "time-project"
+}
 
 public protocol NolonCodexCLIServing: Sendable {
     func authList(providerID: String) async throws -> NolonCodexAuthListPayload
@@ -32,14 +35,24 @@ public protocol NolonCodexCLIServing: Sendable {
     func binaryUse(version: String) async throws -> NolonCodexBinaryUsePayload
     func binaryDoctor() async throws -> NolonCodexBinaryDoctorPayload
     func statusProbe(providerID: String?) async throws -> NolonCodexStatusProbePayload
+    func sessionList(
+        providerID: String,
+        groupBy: NolonCodexSessionListGrouping
+    ) async throws -> NolonCodexSessionListPayload
+    func sessionPreviewRewrite(
+        providerID: String,
+        requestSource: NolonCodexSessionSelectionSource,
+        targetProviderID: String
+    ) async throws -> NolonCodexSessionRewritePreviewPayload
+    func sessionRewrite(
+        providerID: String,
+        requestSource: NolonCodexSessionSelectionSource,
+        targetProviderID: String
+    ) async throws -> NolonCodexSessionRewritePayload
     func providerList() async throws -> NolonProviderListPayload
     func providerDiscover() async throws -> NolonCodexProviderDiscoverPayload
     func runtimeList(providerID: String?) async throws -> NolonCodexRuntimeListPayload
     func runtimeStop(pid: Int32, force: Bool, timeoutSeconds: Int) async throws -> NolonCodexRuntimeStopPayload
-    func gatewayStatus(providerID: String) async throws -> NolonCodexGatewayStatusPayload
-    func gatewayStart(providerID: String, host: String, port: Int) async throws -> NolonCodexGatewaySetPayload
-    func gatewayStop(providerID: String) async throws -> NolonCodexGatewaySetPayload
-    func gatewayServe(providerID: String, host: String, port: Int) async throws
 }
 
 public extension NolonCodexCLIServing {
@@ -56,8 +69,6 @@ public extension NolonCodexCLIServing {
             email: nil,
             isActive: false,
             success: true,
-            runtimeSwitched: login.runtimeSwitched,
-            runtimeErrorDescription: login.runtimeErrorDescription,
             errorCode: nil,
             errorMessage: nil
         )
@@ -136,44 +147,49 @@ public extension NolonCodexCLIServing {
         )
     }
 
-    func gatewayStatus(providerID: String) async throws -> NolonCodexGatewayStatusPayload {
-        let canonicalProviderID = providerID.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        return NolonCodexGatewayStatusPayload(
-            providerID: canonicalProviderID,
-            status: .stopped,
-            host: "127.0.0.1",
-            port: 8080,
-            startedAt: nil
+    func sessionList(
+        providerID: String,
+        groupBy: NolonCodexSessionListGrouping
+    ) async throws -> NolonCodexSessionListPayload {
+        _ = groupBy
+        throw NolonCoreCLIError.domainFailed(
+            code: "unsupported_command",
+            message: "Session list is not supported by this Codex CLI service."
         )
     }
 
-    func gatewayStart(providerID: String, host: String, port: Int) async throws -> NolonCodexGatewaySetPayload {
-        let canonicalProviderID = providerID.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        return NolonCodexGatewaySetPayload(
-            providerID: canonicalProviderID,
-            status: .running,
-            host: host,
-            port: port,
-            startedAt: Date()
-        )
+    func sessionList(providerID: String) async throws -> NolonCodexSessionListPayload {
+        try await sessionList(providerID: providerID, groupBy: .provider)
     }
 
-    func gatewayStop(providerID: String) async throws -> NolonCodexGatewaySetPayload {
-        let canonicalProviderID = providerID.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        return NolonCodexGatewaySetPayload(
-            providerID: canonicalProviderID,
-            status: .stopped,
-            host: "127.0.0.1",
-            port: 8080,
-            startedAt: nil
-        )
-    }
-
-    func gatewayServe(providerID: String, host: String, port: Int) async throws {
+    func sessionPreviewRewrite(
+        providerID: String,
+        requestSource: NolonCodexSessionSelectionSource,
+        targetProviderID: String
+    ) async throws -> NolonCodexSessionRewritePreviewPayload {
         _ = providerID
-        _ = host
-        _ = port
+        _ = requestSource
+        _ = targetProviderID
+        throw NolonCoreCLIError.domainFailed(
+            code: "unsupported_command",
+            message: "Session preview rewrite is not supported by this Codex CLI service."
+        )
     }
+
+    func sessionRewrite(
+        providerID: String,
+        requestSource: NolonCodexSessionSelectionSource,
+        targetProviderID: String
+    ) async throws -> NolonCodexSessionRewritePayload {
+        _ = providerID
+        _ = requestSource
+        _ = targetProviderID
+        throw NolonCoreCLIError.domainFailed(
+            code: "unsupported_command",
+            message: "Session rewrite is not supported by this Codex CLI service."
+        )
+    }
+
 }
 
 public enum NolonCodexUsageTrendRange: String, Codable, Sendable, Equatable {
@@ -316,22 +332,6 @@ public struct NolonCodexAuthUsageSummaryView: Codable, Sendable, Equatable {
     }
 }
 
-public struct NolonCodexGatewayStatusPayload: Codable, Sendable, Equatable {
-    public let providerID: String
-    public let status: CodexGatewayRuntimeStatus
-    public let host: String
-    public let port: Int
-    public let startedAt: Date?
-}
-
-public struct NolonCodexGatewaySetPayload: Codable, Sendable, Equatable {
-    public let providerID: String
-    public let status: CodexGatewayRuntimeStatus
-    public let host: String
-    public let port: Int
-    public let startedAt: Date?
-}
-
 public struct NolonCodexAuthUsagePayload: Codable, Sendable, Equatable {
     public struct RefreshStep: Codable, Sendable, Equatable {
         public let accountID: UUID
@@ -421,16 +421,12 @@ public struct NolonCodexAuthStatusPayload: Codable, Sendable, Equatable {
 public struct NolonCodexAuthActivatePayload: Codable, Sendable, Equatable {
     public let providerID: String
     public let accountID: UUID
-    public let runtimeSwitched: Bool
-    public let runtimeErrorDescription: String?
 }
 
 public struct NolonCodexAuthLoginPayload: Codable, Sendable, Equatable {
     public let providerID: String
     public let accountID: UUID
     public let accountName: String
-    public let runtimeSwitched: Bool
-    public let runtimeErrorDescription: String?
     public let loginURL: String?
 }
 
@@ -440,8 +436,6 @@ public struct NolonCodexAuthRefreshItemView: Codable, Sendable, Equatable {
     public let email: String?
     public let isActive: Bool
     public let success: Bool
-    public let runtimeSwitched: Bool
-    public let runtimeErrorDescription: String?
     public let errorCode: String?
     public let errorMessage: String?
 }
@@ -532,6 +526,149 @@ public struct NolonCodexStatusProbePayload: Codable, Sendable, Equatable {
     public let weeklyResetDescription: String?
     public let probeWarning: String?
     public let probeHint: String?
+}
+
+public enum NolonCodexSessionSelectionSource: Codable, Sendable, Equatable {
+    case threadIDs([String])
+    case modelProvider(String)
+}
+
+public struct NolonCodexSessionRowView: Codable, Sendable, Equatable {
+    public let id: String
+    public let threadID: String?
+    public let title: String
+    public let summary: String?
+    public let modelProvider: String
+    public let archived: Bool
+    public let rolloutPath: String
+    public let cwd: String?
+    public let updatedAt: Date?
+    public let stateRowCount: Int
+    public let editable: Bool
+
+    public init(
+        id: String,
+        threadID: String?,
+        title: String,
+        summary: String?,
+        modelProvider: String,
+        archived: Bool,
+        rolloutPath: String,
+        cwd: String?,
+        updatedAt: Date?,
+        stateRowCount: Int,
+        editable: Bool
+    ) {
+        self.id = id
+        self.threadID = threadID
+        self.title = title
+        self.summary = summary
+        self.modelProvider = modelProvider
+        self.archived = archived
+        self.rolloutPath = rolloutPath
+        self.cwd = cwd
+        self.updatedAt = updatedAt
+        self.stateRowCount = stateRowCount
+        self.editable = editable
+    }
+}
+
+public struct NolonCodexSessionSectionView: Codable, Sendable, Equatable {
+    public let id: String
+    public let modelProvider: String
+    public let title: String
+    public let sourceProviderID: String?
+    public let providerIDs: [String]
+    public let sessions: [NolonCodexSessionRowView]
+    public let totalSessionCount: Int
+    public let editableThreadIDs: [String]
+    public let liveCount: Int
+    public let archivedCount: Int
+
+    public init(
+        id: String? = nil,
+        modelProvider: String,
+        title: String? = nil,
+        sourceProviderID: String? = nil,
+        providerIDs: [String]? = nil,
+        sessions: [NolonCodexSessionRowView],
+        totalSessionCount: Int,
+        editableThreadIDs: [String],
+        liveCount: Int,
+        archivedCount: Int
+    ) {
+        let resolvedTitle = title ?? modelProvider
+        let resolvedProviderIDs = providerIDs ?? [modelProvider]
+        self.id = id ?? resolvedTitle
+        self.modelProvider = modelProvider
+        self.title = resolvedTitle
+        self.sourceProviderID = sourceProviderID ?? (resolvedProviderIDs.count == 1 ? resolvedProviderIDs.first : nil)
+        self.providerIDs = resolvedProviderIDs
+        self.sessions = sessions
+        self.totalSessionCount = totalSessionCount
+        self.editableThreadIDs = editableThreadIDs
+        self.liveCount = liveCount
+        self.archivedCount = archivedCount
+    }
+}
+
+public struct NolonCodexSessionListPayload: Codable, Sendable, Equatable {
+    public let providerID: String
+    public let groupBy: NolonCodexSessionListGrouping
+    public let availableTargetProviderIDs: [String]
+    public let sections: [NolonCodexSessionSectionView]
+    public let totalSessionCount: Int
+    public let totalLiveCount: Int
+    public let totalArchivedCount: Int
+
+    public init(
+        providerID: String,
+        groupBy: NolonCodexSessionListGrouping = .provider,
+        availableTargetProviderIDs: [String],
+        sections: [NolonCodexSessionSectionView],
+        totalSessionCount: Int,
+        totalLiveCount: Int,
+        totalArchivedCount: Int
+    ) {
+        self.providerID = providerID
+        self.groupBy = groupBy
+        self.availableTargetProviderIDs = availableTargetProviderIDs
+        self.sections = sections
+        self.totalSessionCount = totalSessionCount
+        self.totalLiveCount = totalLiveCount
+        self.totalArchivedCount = totalArchivedCount
+    }
+}
+
+public struct NolonCodexSessionRewritePreviewView: Codable, Sendable, Equatable {
+    public let sessionCount: Int
+    public let liveSessionCount: Int
+    public let archivedSessionCount: Int
+    public let stateRowCount: Int
+}
+
+public struct NolonCodexSessionRewritePreviewPayload: Codable, Sendable, Equatable {
+    public let providerID: String
+    public let sourceLabel: String
+    public let targetProviderID: String
+    public let threadIDs: [String]
+    public let preview: NolonCodexSessionRewritePreviewView
+}
+
+public struct NolonCodexSessionRewriteResultView: Codable, Sendable, Equatable {
+    public let preview: NolonCodexSessionRewritePreviewView
+    public let liveRolloutFilesUpdated: Int
+    public let archivedRolloutFilesUpdated: Int
+    public let stateRowsUpdated: Int
+    public let failures: [String]
+}
+
+public struct NolonCodexSessionRewritePayload: Codable, Sendable, Equatable {
+    public let providerID: String
+    public let sourceLabel: String
+    public let targetProviderID: String
+    public let threadIDs: [String]
+    public let result: NolonCodexSessionRewriteResultView
 }
 
 public struct NolonCodexRuntimeProcessView: Codable, Sendable, Equatable {

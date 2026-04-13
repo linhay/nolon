@@ -121,6 +121,7 @@ final class MainSplitViewModel {
     func setup() {
         let hadPersistedSelection = selectedSidebarSelectionKey != nil
         sanitizeSelectionState()
+        repairNativeMcpConfigsIfNeeded()
         if hadPersistedSelection, selectedSidebarSelectionKey == nil {
             if let firstProvider = settings.providers.first {
                 selectedSidebarItem = .provider(firstProvider.id)
@@ -297,6 +298,28 @@ final class MainSplitViewModel {
             } catch {
                 Self.logger.error(
                     "Linked MCP projection sync failed. provider=\(provider.id, privacy: .public) template=\(template.rawValue, privacy: .public) error=\(error.localizedDescription, privacy: .public)"
+                )
+            }
+        }
+    }
+
+    @MainActor
+    private func repairNativeMcpConfigsIfNeeded() {
+        var repairedTemplates = Set<String>()
+        for provider in settings.providers {
+            guard
+                let templateId = provider.templateId,
+                repairedTemplates.insert(templateId).inserted,
+                let template = ProviderTemplate(rawValue: templateId),
+                template.supportsNativeMcpConfig
+            else {
+                continue
+            }
+            do {
+                _ = try MCPConfigManager.repairProviderMCPStateIfNeeded(for: template)
+            } catch {
+                Self.logger.error(
+                    "Native MCP repair failed. provider=\(provider.id, privacy: .public) template=\(templateId, privacy: .public) error=\(error.localizedDescription, privacy: .public)"
                 )
             }
         }

@@ -1,6 +1,5 @@
 import Foundation
 import STJSON
-import TOML
 import STFilePath
 import ProviderCatalog
 
@@ -288,101 +287,23 @@ public actor ResourceInstaller {
         
         // Ensure MCP config directory exists
         let configDir = (mcpConfigPath as NSString).deletingLastPathComponent
-        _ = STFolder(configDir).createIfNotExists()        
-        if mcpConfigPath.lowercased().hasSuffix(".toml") {
-            var configTable: CodexMCPConfig
-            if let existingData = try? Data(contentsOf: URL(fileURLWithPath: mcpConfigPath)),
-               let decoded = try? TOMLDecoder().decode(CodexMCPConfig.self, from: existingData) {
-                configTable = decoded
-            } else {
-                configTable = CodexMCPConfig(model: nil, modelReasoningEffort: nil, projects: nil, notice: nil, mcpServers: [:])
-            }
-            
-            var servers = configTable.mcpServers ?? [:]
-            servers[slug] = CodexMCPServer(
-                url: fields.url,
-                command: fields.command,
-                args: fields.args,
-                env: fields.env,
-                enabled: fields.isEnabled
-            )
-            configTable.mcpServers = servers
-            
-            let tomlData = try TOMLEncoder().encode(configTable)
-            try tomlData.write(to: URL(fileURLWithPath: mcpConfigPath))
+        _ = STFolder(configDir).createIfNotExists()
+
+        // Use the shared MCP config writer for every provider so cache ownership,
+        // provider-specific sanitization, and Codex TOML patching all stay consistent.
+        var projectedConfig = serverConfig
+        if projectedConfig["url"] == nil, let url = fields.url { projectedConfig["url"] = url }
+        if projectedConfig["command"] == nil, let command = fields.command { projectedConfig["command"] = command }
+        if projectedConfig["args"] == nil, let args = fields.args { projectedConfig["args"] = args }
+        if projectedConfig["env"] == nil, let env = fields.env { projectedConfig["env"] = env }
+        if fields.isEnabled {
+            projectedConfig["enabled"] = true
+            projectedConfig["disabled"] = nil
         } else {
-            if template.rawValue == "opencode" {
-                // OpenCode uses a single config file (opencode.json) with a top-level `mcp` object.
-                var root: [String: Any] = [:]
-                if STFile(mcpConfigPath).isExists,
-                   let existingData = try? Data(contentsOf: URL(fileURLWithPath: mcpConfigPath)),
-                   let json = try? JSONSerialization.jsonObject(with: existingData) as? [String: Any] {
-                    root = json
-                }
-
-                var mcpTable = root["mcp"] as? [String: Any] ?? [:]
-                var server: [String: Any] = [:]
-
-                let type = (serverConfig["type"] as? String)?.lowercased()
-                if type == "http" || type == "remote" || fields.url != nil {
-                    server["type"] = "remote"
-                    if let url = fields.url { server["url"] = url }
-                } else {
-                    server["type"] = "local"
-                    let parts = [fields.command].compactMap { $0 } + (fields.args ?? [])
-                    if !parts.isEmpty {
-                        server["command"] = parts
-                    }
-                }
-
-                if let env = fields.env {
-                    server["environment"] = env
-                }
-                server["enabled"] = fields.isEnabled
-
-                mcpTable[slug] = server
-                root["mcp"] = mcpTable
-
-                let updatedData = try JSONSerialization.data(
-                    withJSONObject: root,
-                    options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
-                )
-                try updatedData.write(to: URL(fileURLWithPath: mcpConfigPath), options: .atomic)
-                return
-            }
-
-            // Read existing mcp_settings.json or create new
-            var existingConfig: [String: Any] = [:]
-            if STFile(mcpConfigPath).isExists {
-                let existingData = try Data(contentsOf: URL(fileURLWithPath: mcpConfigPath))
-                if let json = try? JSONSerialization.jsonObject(with: existingData) as? [String: Any] {
-                    existingConfig = json
-                }
-            }
-            
-            // Get or create mcpServers section
-            var mcpServers = existingConfig["mcpServers"] as? [String: Any] ?? [:]
-            
-            // Add/update this MCP
-            var serverConfig: [String: Any] = [:]
-            if let url = fields.url { serverConfig["url"] = url }
-            if let command = fields.command { serverConfig["command"] = command }
-            if let args = fields.args { serverConfig["args"] = args }
-            if let env = fields.env { serverConfig["env"] = env }
-            if fields.isEnabled == false { serverConfig["disabled"] = true }
-            
-            mcpServers[slug] = serverConfig
-            existingConfig["mcpServers"] = mcpServers
-            
-            // Write back to file
-            let encoder = JSONEncoder()
-            encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-            let updatedData = try JSONSerialization.data(
-                withJSONObject: existingConfig,
-                options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
-            )
-            try updatedData.write(to: URL(fileURLWithPath: mcpConfigPath))
+            projectedConfig["enabled"] = nil
+            projectedConfig["disabled"] = true
         }
+        try MCPConfigManager.upsertServer(for: template, name: slug, serverConfig: projectedConfig)
     }
     
     // MARK: - Uninstallation
@@ -433,58 +354,7 @@ public actor ResourceInstaller {
             return
         }
         
-        let mcpConfigPath = template.defaultMcpConfigPath.path
-        
-        guard STFile(mcpConfigPath).isExists else {
-            return
-        }
-        
-        if mcpConfigPath.lowercased().hasSuffix(".toml") {
-            guard
-                let data = try? Data(contentsOf: URL(fileURLWithPath: mcpConfigPath)),
-                var config = try? TOMLDecoder().decode(CodexMCPConfig.self, from: data),
-                var servers = config.mcpServers
-            else { return }
-            
-            servers.removeValue(forKey: slug)
-            config.mcpServers = servers
-            
-            if let tomlData = try? TOMLEncoder().encode(config) {
-                try tomlData.write(to: URL(fileURLWithPath: mcpConfigPath))
-            }
-        } else {
-            // Read existing config
-            let data = try Data(contentsOf: URL(fileURLWithPath: mcpConfigPath))
-            guard var json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-                return
-            }
-            
-            if template.rawValue == "opencode" {
-                var mcpTable = json["mcp"] as? [String: Any] ?? [:]
-                mcpTable.removeValue(forKey: slug)
-                json["mcp"] = mcpTable
-
-                let updatedData = try JSONSerialization.data(
-                    withJSONObject: json,
-                    options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
-                )
-                try updatedData.write(to: URL(fileURLWithPath: mcpConfigPath), options: .atomic)
-                return
-            }
-
-            // Remove from mcpServers
-            if var mcpServers = json["mcpServers"] as? [String: Any] {
-                mcpServers.removeValue(forKey: slug)
-                json["mcpServers"] = mcpServers
-                
-                // Write back
-                let updatedData = try JSONSerialization.data(
-                    withJSONObject: json,
-                    options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
-                )
-                try updatedData.write(to: URL(fileURLWithPath: mcpConfigPath), options: .atomic)
-            }
-        }
+        try MCPConfigManager.removeServer(for: template, name: slug)
     }
     
     // MARK: - Helpers

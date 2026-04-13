@@ -16,31 +16,31 @@ final class CodexRuntimeTabConfigurationTests: XCTestCase {
     }
 
     @MainActor
-    func testBDD_GivenCodexProvider_WhenResolvingAvailableTabs_ThenRuntimeAppearsAfterUsage() throws {
+    func testBDD_GivenCodexProvider_WhenResolvingAvailableTabs_ThenRuntimeAppearsAfterSessions() throws {
         let provider = try XCTUnwrap(ProviderTemplate(rawValue: "codex")).createProvider()
         let tabs = ProviderContentTabType.availableTabs(for: provider)
 
-        guard let usageIndex = tabs.firstIndex(of: .usage) else {
-            return XCTFail("Expected codex tabs to include usage: \(tabs)")
+        guard let sessionsIndex = tabs.firstIndex(of: .sessions) else {
+            return XCTFail("Expected codex tabs to include sessions: \(tabs)")
         }
         guard let runtimeIndex = tabs.firstIndex(of: .runtime) else {
             return XCTFail("Expected codex tabs to include runtime: \(tabs)")
         }
-        XCTAssertEqual(runtimeIndex, usageIndex + 1, "Expected runtime to appear immediately after usage, got: \(tabs)")
+        XCTAssertEqual(runtimeIndex, sessionsIndex + 1, "Expected runtime to appear immediately after sessions, got: \(tabs)")
     }
 
     @MainActor
-    func testBDD_GivenCodexXcodeProvider_WhenResolvingAvailableTabs_ThenRuntimeAppearsAfterBinary() throws {
+    func testBDD_GivenCodexXcodeProvider_WhenResolvingAvailableTabs_ThenRuntimeAppearsAfterSessions() throws {
         let provider = try XCTUnwrap(ProviderTemplate(rawValue: "codexXcode")).createProvider()
         let tabs = ProviderContentTabType.availableTabs(for: provider)
 
-        guard let binaryIndex = tabs.firstIndex(of: .binary) else {
-            return XCTFail("Expected codexXcode tabs to include binary: \(tabs)")
+        guard let sessionsIndex = tabs.firstIndex(of: .sessions) else {
+            return XCTFail("Expected codexXcode tabs to include sessions: \(tabs)")
         }
         guard let runtimeIndex = tabs.firstIndex(of: .runtime) else {
             return XCTFail("Expected codexXcode tabs to include runtime: \(tabs)")
         }
-        XCTAssertEqual(runtimeIndex, binaryIndex + 1, "Expected runtime to appear immediately after binary, got: \(tabs)")
+        XCTAssertEqual(runtimeIndex, sessionsIndex + 1, "Expected runtime to appear immediately after sessions, got: \(tabs)")
         XCTAssertFalse(tabs.contains(.usage), "codexXcode should not implicitly enable usage tab in this phase")
     }
 }

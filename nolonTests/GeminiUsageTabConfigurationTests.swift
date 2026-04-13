@@ -31,19 +31,19 @@ final class GeminiUsageTabConfigurationTests: XCTestCase {
         XCTAssertFalse(tabs.contains(.agents), "Expected antigravity tabs not to include agents")
     }
 
-    func testBDD_GivenClaudeTemplate_WhenReadingVendorTabs_ThenContainsRulesWithoutAgents() throws {
+    func testBDD_GivenClaudeTemplate_WhenReadingVendorTabs_ThenContainsRulesAndAgents() throws {
         let template = try XCTUnwrap(ProviderTemplate(rawValue: "claudeCode"))
         let tabs = template.config?.vendorTabs ?? []
         XCTAssertTrue(tabs.contains("rules"), "Expected claude vendorTabs to include 'rules', got: \(tabs)")
-        XCTAssertFalse(tabs.contains("agents"), "Expected claude vendorTabs not to include 'agents', got: \(tabs)")
+        XCTAssertTrue(tabs.contains("agents"), "Expected claude vendorTabs to include 'agents', got: \(tabs)")
     }
 
     @MainActor
-    func testBDD_GivenClaudeTemplate_WhenReadingAvailableTabs_ThenContainsRulesWithoutAgents() throws {
+    func testBDD_GivenClaudeTemplate_WhenReadingAvailableTabs_ThenContainsRulesAndAgents() throws {
         let provider = try XCTUnwrap(ProviderTemplate(rawValue: "claudeCode")).createProvider()
         let tabs = ProviderContentTabType.availableTabs(for: provider)
         XCTAssertTrue(tabs.contains(.rules), "Expected claude tabs to include rules")
-        XCTAssertFalse(tabs.contains(.agents), "Expected claude tabs not to include agents")
+        XCTAssertTrue(tabs.contains(.agents), "Expected claude tabs to include agents")
     }
 
     @MainActor

@@ -69,19 +69,6 @@ extension ProviderUsageEngine {
         let items: [ProviderAccountUsageOutcome]
     }
 
-    struct CodexGatewayMemberDisplay: Identifiable, Equatable {
-        let id: UUID
-        let title: String
-        let subtitle: String?
-        let plan: String?
-    }
-
-    struct CodexGatewayCandidateSection: Identifiable, Equatable {
-        let id: String
-        let title: String
-        let items: [CodexAuthAccount]
-    }
-
     enum CodexConfigEditorMode: Equatable {
         case newAPIKey
         case edit(accountID: UUID)
@@ -242,23 +229,12 @@ extension ProviderUsageEngine {
     }
 
     var codexSelectedAccountCount: Int {
-        selectedCodexAccountIDs.count
+        guard isCodexMultiSelectionEnabled else { return 0 }
+        return selectedCodexAccountIDs.count
     }
 
     var canExportSelectedCodexAccounts: Bool {
         isCodexMultiSelectionEnabled && !selectedCodexAccountIDs.isEmpty
-    }
-
-    var gatewayCards: [CodexGatewayCard] {
-        gatewayCardsState.cards
-    }
-
-    var canAddSelectedToGatewayCard: Bool {
-        isCodexMultiSelectionEnabled && !selectedCodexAccountIDs.isEmpty && !gatewayCards.isEmpty
-    }
-
-    var hasActiveGatewayCardSelection: Bool {
-        gatewayCardsState.lastUsedCardID != nil
     }
 
     var codexSelectedImportCandidateCount: Int {

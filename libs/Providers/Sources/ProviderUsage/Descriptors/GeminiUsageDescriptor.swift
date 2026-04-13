@@ -77,7 +77,9 @@ public struct GeminiUsageDescriptor: ProviderUsageDescribing {
                 do {
                     let runtimeHomeURL = try await loadRuntimeHomeURL(context.provider, account.id)
                     if let quota = try await fetchQuotaSnapshot(runtimeHomeURL, account.method, context.environment) {
-                        let windows = quota.buckets.map(Self.usageWindow)
+                        let windows = GeminiQuotaModelSupport
+                            .sortAndDeduplicate(quota.buckets)
+                            .map(Self.usageWindow)
                         usage = UsageSnapshot(
                             identity: baseIdentity,
                             windows: windows,
@@ -179,7 +181,7 @@ public struct GeminiUsageDescriptor: ProviderUsageDescribing {
     private static func usageWindow(from bucket: GeminiQuotaBucket) -> UsageWindow {
         UsageWindow(
             id: bucket.modelID,
-            title: bucket.modelID,
+            title: GeminiQuotaModelSupport.displayTitle(for: bucket.modelID),
             window: rateWindow(from: bucket)
         )
     }

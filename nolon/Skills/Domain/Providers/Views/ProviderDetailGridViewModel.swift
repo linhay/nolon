@@ -376,7 +376,26 @@ final class ProviderDetailGridViewModel {
     }
 
     func revealAgentsFolderInFinder() {
-        NSWorkspace.shared.activateFileViewerSelecting([NolonManager.shared.agentsURL])
+        guard let provider else {
+            NSWorkspace.shared.activateFileViewerSelecting([NolonManager.shared.agentsURL])
+            return
+        }
+
+        let targetURL: URL
+        switch provider.templateId {
+        case "codex", "codexXcode":
+            targetURL = provider.codexAgentsFileURL
+        case ProviderTemplate.claudeCode.rawValue:
+            targetURL = provider.claudeInstructionsFileURL
+        case "opencode", "copilot":
+            targetURL = URL(fileURLWithPath: provider.defaultSkillsPath)
+                .deletingLastPathComponent()
+                .appendingPathComponent("AGENTS.md")
+        default:
+            targetURL = NolonManager.shared.agentsURL
+        }
+
+        NSWorkspace.shared.activateFileViewerSelecting([targetURL])
     }
     
     func displayPath(for path: String) -> String {
@@ -860,7 +879,8 @@ final class ProviderDetailGridViewModel {
 
     private func supportsAgentDocsProvider(_ provider: Provider) -> Bool {
         guard let templateId = provider.templateId else { return false }
-        return templateId == "codex"
+        return templateId == ProviderTemplate.claudeCode.rawValue
+            || templateId == "codex"
             || templateId == "codexXcode"
             || templateId == "opencode"
             || templateId == "copilot"

@@ -138,7 +138,9 @@ public struct GeminiQuotaFetcher: Sendable {
         }
 
         let buckets = payload.quota.buckets ?? []
-        let allBuckets = buckets.map { $0.toSnapshotBucket() }
+        let allBuckets = GeminiQuotaModelSupport.sortAndDeduplicate(
+            buckets.map { $0.toSnapshotBucket() }
+        )
         let pro = selectBucket(from: buckets, preferredModelIDs: Self.proModelPreference, fallback: { bucket in
             let id = bucket.modelID.lowercased()
             return id.contains("pro") && !id.contains("_vertex")

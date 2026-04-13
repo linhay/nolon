@@ -12,7 +12,6 @@ final class OversizedViewFileGuardTests: XCTestCase {
             "nolon/Skills/Domain/Providers/Views/CodexAdvancedConfigSupport.swift",
             "libs/NolonUI/Sources/NolonUI/Components/UnifiedDomainCardViews.swift",
             "libs/NolonUI/Sources/NolonUI/Components/AccountCard/UnifiedAccountCardComponents.swift",
-            "nolon/Skills/Domain/Providers/Usage/Views/Common/ProviderUsageView+Gateway.swift",
             "libs/NolonUI/Sources/NolonUI/Components/UnifiedResourceCardViews.swift",
             "libs/NolonUI/Sources/NolonUI/Components/AccountCard/UnifiedCodexCompactAccountComponents.swift",
             "libs/NolonUI/Sources/NolonUI/Components/Remote/UnifiedRemoteComponents.swift",

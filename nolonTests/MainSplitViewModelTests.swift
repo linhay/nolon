@@ -361,7 +361,7 @@ final class MainSplitViewModelTests: XCTestCase {
         XCTAssertEqual(selection?.tab, .agents)
     }
 
-    func testBDD_GivenUITestLaunchSelectionForClaudeAgents_WhenResolved_ThenFallsBackWithoutInvalidAgentsTab() {
+    func testBDD_GivenUITestLaunchSelectionForClaudeAgents_WhenResolved_ThenAgentsTabIsApplied() {
         let providerIndex = fixture.providerSettings.providers.firstIndex { $0.templateId == "claudeCode" }
         guard let providerIndex else {
             XCTFail("Missing claudeCode provider fixture")
@@ -376,7 +376,7 @@ final class MainSplitViewModelTests: XCTestCase {
         )
 
         XCTAssertEqual(selection?.provider.templateId, "claudeCode")
-        XCTAssertNil(selection?.tab)
+        XCTAssertEqual(selection?.tab, .agents)
     }
 
     func testBDD_GivenPersistedProviderSelectionKey_WhenValidating_ThenKeepSelection() {

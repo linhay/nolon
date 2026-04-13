@@ -7,6 +7,97 @@ import SQLite3
 @testable import ProviderUsage
 
 extension CodexAuthManagerTests {
+    @Test("Given canonical and stable codex provider ids, when activating account, then managed active auth path stays under canonical codex folder")
+    func activateAccountUsesCanonicalManagedActiveAuthFolderForCodexTemplate() async throws {
+        let root = try makeTempRoot("codex-auth-activate-canonical-folder")
+        defer { try? root.delete() }
+
+        let manager = CodexAuthManager(rootURL: root.url)
+        let account = try await manager.addAccount(
+            name: "fresh",
+            authJSONString: #"{"tokens":{"id_token":"id-fresh","access_token":"access-fresh"},"email":"fresh@example.com"}"#
+        )
+
+        let providerRoot = root.folder("provider")
+        _ = providerRoot.createIfNotExists()
+        let stableProvider = Provider(
+            id: ProviderTemplate.codex.stableProviderUUID,
+            name: "Codex",
+            defaultSkillsPath: providerRoot.folder("skills").url.path,
+            workflowPath: providerRoot.folder("prompts").url.path,
+            installMethod: .symlink,
+            templateId: "codex"
+        )
+
+        try await manager.activateAccountAndMarkActive(account, for: stableProvider)
+
+        let providerAuth = try #require(await manager.authFile(for: stableProvider))
+        #expect(providerAuth.isSymbolicLink == true)
+        let destination = try providerAuth.destinationOfSymbolicLink().url.standardizedFileURL.path
+        let canonicalManagedPath = manager
+            .managedActiveAuthFolder(for: "codex")
+            .file("auth.json")
+            .url
+            .standardizedFileURL
+            .path
+        #expect(destination == canonicalManagedPath)
+    }
+
+    @Test("Given registry points to newer codex account but symlink still points to old snapshot, when preflight reconciles, then provider auth is relinked to registry active snapshot")
+    func reconcileSymlinkDriftPrefersRegistryActiveAccount() async throws {
+        let root = try makeTempRoot("codex-auth-reconcile-symlink-drift")
+        defer { try? root.delete() }
+
+        let manager = CodexAuthManager(rootURL: root.url)
+        let stale = try await manager.addAccount(
+            name: "stale",
+            authJSONString: #"{"tokens":{"id_token":"id-stale","access_token":"access-stale"},"email":"stale@example.com"}"#
+        )
+        let fresh = try await manager.addAccount(
+            name: "fresh",
+            authJSONString: #"{"tokens":{"id_token":"id-fresh","access_token":"access-fresh"},"email":"fresh@example.com"}"#
+        )
+
+        let providerRoot = root.folder("provider")
+        _ = providerRoot.createIfNotExists()
+        let stableProvider = Provider(
+            id: ProviderTemplate.codex.stableProviderUUID,
+            name: "Codex",
+            defaultSkillsPath: providerRoot.folder("skills").url.path,
+            workflowPath: providerRoot.folder("prompts").url.path,
+            installMethod: .symlink,
+            templateId: "codex"
+        )
+        let legacyManagedFolder = manager.managedActiveAuthFolder(for: stableProvider.id)
+        _ = legacyManagedFolder.createIfNotExists()
+        let legacyManagedAuth = legacyManagedFolder.file("auth.json")
+        let staleData = try #require(manager.accountAuthData(for: stale))
+        try legacyManagedAuth.overlay(with: staleData)
+
+        let providerAuth = try #require(await manager.authFile(for: stableProvider))
+        _ = providerAuth.parentFolder()?.createIfNotExists()
+        try FileManager.default.createSymbolicLink(
+            atPath: providerAuth.url.path,
+            withDestinationPath: legacyManagedAuth.url.path
+        )
+        try await manager.setActiveAccount(fresh, for: stableProvider)
+
+        let affected = try await manager.preflightManagedAuthIfNeeded(for: stableProvider, forceBackup: false, reason: "test")
+        #expect(affected?.id == fresh.id)
+
+        let activeID = await manager.activeAccountId(for: stableProvider)
+        #expect(activeID == fresh.id)
+
+        let destination = try providerAuth.destinationOfSymbolicLink().url.standardizedFileURL.path
+        let freshPath = manager
+            .managedActiveAuthFolder(for: stableProvider)
+            .file("auth.json")
+            .url
+            .standardizedFileURL
+            .path
+        #expect(destination == freshPath)
+    }
+
     @Test("Given detached provider auth with same account id but different email, when reconciling detached auth, then a new snapshot is created instead of overwriting existing one")
     func reconcileDetachedProviderAuthCreatesNewWhenAccountIDMatchesButEmailDiffers() async throws {
         let root = try makeTempRoot("codex-auth-reconcile-accountid-email-diff")
@@ -473,5 +564,64 @@ extension CodexAuthManagerTests {
             bind: "codex"
         )
         #expect(canonicalCount == 1)
+    }
+
+    @Test("Given codexXcode active sqlite row, when resolving active account then unsupported provider row is pruned")
+    func activeAccountLookupPrunesUnsupportedProviderRows() async throws {
+        let root = try makeTempRoot("codex-auth-active-map-prune-codex-xcode")
+        defer { try? root.delete() }
+
+        let codexProvider = Provider(
+            id: "codex",
+            kind: .vendor,
+            name: "Codex",
+            defaultSkillsPath: root.folder("codex-skills").url.path,
+            workflowPath: root.folder("codex-prompts").url.path,
+            iconName: "terminal",
+            installMethod: .symlink,
+            skillsLinkEnabled: false,
+            vendorCategory: .original,
+            templateId: ProviderTemplate.codex.rawValue
+        )
+        let codexXcodeProvider = Provider(
+            id: "codex-xcode",
+            kind: .vendor,
+            name: "Codex Xcode",
+            defaultSkillsPath: root.folder("codex-xcode-skills").url.path,
+            workflowPath: root.folder("codex-xcode-prompts").url.path,
+            iconName: "hammer",
+            installMethod: .symlink,
+            skillsLinkEnabled: false,
+            vendorCategory: .integrated,
+            templateId: ProviderTemplate.codexXcode.rawValue
+        )
+        _ = try root.file("providers.json").overlay(with: JSONEncoder().encode([codexProvider, codexXcodeProvider]))
+
+        let manager = CodexAuthManager(rootURL: root.url)
+        let account = try await manager.addAccount(
+            name: "A",
+            authJSONString: #"{"tokens":{"id_token":"id-a","access_token":"access-a"},"email":"a@example.com"}"#
+        )
+
+        let dbURL = manager.accountsSQLiteFile().url
+        try sqliteExecute(
+            databaseURL: dbURL,
+            sql: "INSERT INTO codex_active_accounts (provider_id, account_id, updated_at) VALUES (?, ?, ?);",
+            bindings: [
+                "codex-xcode",
+                account.id.uuidString,
+                "2026-04-01T09:53:49.463Z",
+            ]
+        )
+
+        let activeId = await manager.activeAccountId(for: codexXcodeProvider)
+        #expect(activeId == nil)
+
+        let remainingCount = try sqliteCount(
+            databaseURL: dbURL,
+            sql: "SELECT COUNT(*) FROM codex_active_accounts WHERE provider_id = ?;",
+            bind: "codex-xcode"
+        )
+        #expect(remainingCount == 0)
     }
 }

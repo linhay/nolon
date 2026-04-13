@@ -16,8 +16,8 @@ public struct ProviderMCPSnapshot: Sendable {
 public final class ProviderMCPMaintenanceService: @unchecked Sendable {
     private let manager: NolonManager
 
-    public init(manager: NolonManager = .shared) {
-        self.manager = manager
+    public init(manager: NolonManager? = nil) {
+        self.manager = manager ?? NolonManager()
     }
 
     public func listServers(template: ProviderTemplate) throws -> [MCPServerInfo] {

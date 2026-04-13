@@ -1,5 +1,9 @@
 # ProviderUsageViewModel 业务域拆分设计（2026-03-25）
 
+## 状态更新（2026-04-10）
+1. 文中的 `CodexGatewayCardsViewModel` 已随 Codex gateway 剥离一并删除。
+2. 该图中的 gateway 子域仅代表当时的拆分方案，当前主线 `ProviderUsageRootViewModel` 不再暴露该子 VM。
+
 ## 1. 现状问题
 1. `ProviderUsageViewModel` 体量过大（约 4.8k 行），包含账号、登录、导入导出、网关、趋势图等多域职责。
 2. `ProviderUsageView`、`NolonAccountsViewModel`、`CodexQuickSwitchMenuBarViewModel` 同时耦合到同一个 VM，跨页面影响面大。

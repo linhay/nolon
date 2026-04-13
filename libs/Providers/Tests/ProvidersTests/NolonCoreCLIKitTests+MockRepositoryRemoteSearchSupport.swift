@@ -145,7 +145,18 @@ struct FutureDateRemoteSearchMockSkillsRepositoryService: DelegatingMockSkillsRe
 }
 
 struct DryRunInstallGuardMockSkillsRepositoryService: DelegatingMockSkillsRepositoryService {
-    let base = makeRemoteSearchBaseService()
+    let base: MockSkillsRepositoryService
+
+    init(
+        repositoryResources: NolonRepositoryResources? = nil,
+        localRepositories: [NolonLocalRepositorySummary]? = nil
+    ) {
+        let fallbackBase = makeRemoteSearchBaseService()
+        self.base = MockSkillsRepositoryService(
+            repositoryResources: repositoryResources ?? fallbackBase.repositoryResources,
+            localRepositories: localRepositories ?? fallbackBase.localRepositories
+        )
+    }
 
     func installSkill(
         skillPath: STPath,

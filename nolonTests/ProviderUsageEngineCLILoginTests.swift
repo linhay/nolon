@@ -122,7 +122,7 @@ final class ProviderUsageEngineCLILoginTests: XCTestCase {
         XCTAssertNotNil(viewModel.cliLoginPreferredAccountId)
     }
 
-    func testBDD_GivenGatewayCardIsSelected_WhenPreparingCLILogin_ThenGatewayStopsAndSelectionClears() async throws {
+    func testBDD_GivenReloginPreferredAccount_WhenLoginCompletes_ThenUpdatedAccountIsActivated() async {
         let provider = Provider(
             name: "Codex",
             defaultSkillsPath: "/tmp/codex-skills",
@@ -130,48 +130,127 @@ final class ProviderUsageEngineCLILoginTests: XCTestCase {
             installMethod: .symlink,
             templateId: "codex"
         )
-        let stoppedGatewayProviderID = LockedBox<String?>(nil)
+        let account = CodexAuthAccount(name: "target", relativeAuthPath: "auth/target.json")
+        let activated = LoginActivationBox()
         let viewModel = ProviderUsageEngine(
             provider: provider,
-            codexGatewayStopAction: { providerID in
-                await stoppedGatewayProviderID.set(providerID)
+            codexActivateAction: { passedAccount, passedProvider in
+                await activated.record(account: passedAccount, provider: passedProvider)
             }
         )
-        let card = viewModel.createGatewayCard(name: "网关 1")
-        _ = viewModel.activateGatewayCard(cardID: try XCTUnwrap(card?.id))
+        viewModel.cliLoginPreferredAccountId = account.id
 
-        try await viewModel.prepareGatewayModeForCLILoginIfNeeded()
+        try? await viewModel.activateCodexAccountAfterLoginIfNeeded(account)
 
-        XCTAssertNil(viewModel.gatewayCardsState.lastUsedCardID)
-        let stoppedProviderID = await stoppedGatewayProviderID.value()
-        XCTAssertEqual(stoppedProviderID, "codex")
+        let activation = await activated.value()
+        XCTAssertEqual(activation?.account.id, account.id)
+        XCTAssertEqual(activation?.provider.templateId, provider.templateId)
     }
 
-    func testBDD_GivenCodexXcodeGatewayCardIsSelected_WhenPreparingCLILogin_ThenStopsCodexXcodeGateway() async throws {
+    func testBDD_GivenAddAccountLogin_WhenLoginCompletes_ThenDoesNotActivateImmediately() async {
         let provider = Provider(
-            id: "codex-xcode-provider",
-            kind: .vendor,
-            name: "Codex (Xcode)",
-            defaultSkillsPath: "/tmp/codex-xcode-skills",
-            workflowPath: "/tmp/codex-xcode-prompts",
-            vendorCategory: .original,
-            templateId: ProviderTemplate.codexXcode.rawValue
+            name: "Codex",
+            defaultSkillsPath: "/tmp/codex-skills",
+            workflowPath: "/tmp/codex-prompts",
+            installMethod: .symlink,
+            templateId: "codex"
         )
-        let stoppedGatewayProviderID = LockedBox<String?>(nil)
+        let account = CodexAuthAccount(name: "added", relativeAuthPath: "auth/added.json")
+        let activated = LoginActivationBox()
         let viewModel = ProviderUsageEngine(
             provider: provider,
-            codexGatewayStopAction: { providerID in
-                await stoppedGatewayProviderID.set(providerID)
+            codexActivateAction: { passedAccount, passedProvider in
+                await activated.record(account: passedAccount, provider: passedProvider)
             }
         )
-        let card = viewModel.createGatewayCard(name: "Xcode 网关")
-        _ = viewModel.activateGatewayCard(cardID: try XCTUnwrap(card?.id))
+        viewModel.cliLoginPreferredAccountId = nil
 
-        try await viewModel.prepareGatewayModeForCLILoginIfNeeded()
+        try? await viewModel.activateCodexAccountAfterLoginIfNeeded(account)
 
-        XCTAssertNil(viewModel.gatewayCardsState.lastUsedCardID)
-        let stoppedProviderID = await stoppedGatewayProviderID.value()
-        XCTAssertEqual(stoppedProviderID, "codex-xcode")
+        let activation = await activated.value()
+        XCTAssertNil(activation)
+    }
+
+    func testBDD_GivenReloginPostLoginReload_WhenScheduled_ThenOnlyTargetAccountRefreshes() async throws {
+        let isolatedRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent("nolon-cli-login-relogin-reload-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: isolatedRoot, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: isolatedRoot) }
+
+        let provider = Provider(
+            name: "Codex",
+            defaultSkillsPath: isolatedRoot.appendingPathComponent("provider/skills").path,
+            workflowPath: isolatedRoot.appendingPathComponent("provider/prompts").path,
+            installMethod: .symlink,
+            templateId: "codex"
+        )
+        let authManager = CodexAuthManager(rootURL: isolatedRoot)
+        let target = try await authManager.addAccount(
+            name: "target",
+            authJSONString: #"{"tokens":{"id_token":"target-id","access_token":"target-access"},"user":{"email":"target@example.com"}}"#
+        )
+        let other = try await authManager.addAccount(
+            name: "other",
+            authJSONString: #"{"tokens":{"id_token":"other-id","access_token":"other-access"},"user":{"email":"other@example.com"}}"#
+        )
+
+        let refreshedIDs = LockedBox<[UUID]>([])
+        let viewModel = ProviderUsageEngine(
+            provider: provider,
+            codexAuthManager: authManager,
+            codexOutcomeFetchAction: { account, _, _ in
+                await refreshedIDs.set((await refreshedIDs.value()) + [account.id])
+                return ProviderAccountUsageOutcome(
+                    provider: .codex,
+                    account: .tokenAccount(
+                        .init(
+                            id: account.id,
+                            label: account.name,
+                            token: "",
+                            addedAt: account.createdAt.timeIntervalSince1970,
+                            lastUsed: nil
+                        )
+                    ),
+                    outcome: ProviderFetchOutcome(
+                        fetchKind: .web,
+                        result: .success(
+                            .init(
+                                usage: UsageSnapshot(
+                                    identity: UsageIdentity(
+                                        accountEmail: "\(account.name)@example.com",
+                                        accountOrganization: nil,
+                                        loginMethod: "oauth",
+                                        plan: "plus"
+                                    ),
+                                    primary: RateWindow(usedPercent: 10, windowMinutes: 60),
+                                    secondary: nil,
+                                    tertiary: nil,
+                                    updatedAt: Date()
+                                ),
+                                credits: CreditsSnapshot(remaining: 10, updatedAt: Date()),
+                                cost: nil,
+                                sourceLabel: "HTTP",
+                                fetchKind: .web,
+                                strategyKind: .direct
+                            )
+                        )
+                    )
+                )
+            }
+        )
+        viewModel.cliLoginPreferredAccountId = target.id
+        await viewModel.reloadCodexFromDisk(refreshUsage: false)
+
+        viewModel.schedulePostLoginReload(preferredBackfillAccount: target)
+
+        try await waitUntilAsync {
+            let ids = await refreshedIDs.value()
+            return ids.count >= 2
+        }
+
+        let ids = await refreshedIDs.value()
+        XCTAssertEqual(Set(ids), Set([target.id]))
+        XCTAssertFalse(ids.contains(other.id))
     }
 
     func testBDD_GivenCLILoginRunning_WhenLoginURLSheetDismisses_ThenLoginFlowCancelsImmediately() {
@@ -291,4 +370,30 @@ final class ProviderUsageEngineCLILoginTests: XCTestCase {
             NSLocalizedString("remote.error.copied", value: "Copied", comment: "Copied tooltip")
         )
     }
+}
+
+private actor LoginActivationBox {
+    private var stored: (account: CodexAuthAccount, provider: Provider)?
+
+    func record(account: CodexAuthAccount, provider: Provider) {
+        stored = (account, provider)
+    }
+
+    func value() -> (account: CodexAuthAccount, provider: Provider)? {
+        stored
+    }
+}
+
+@MainActor
+private func waitUntilAsync(
+    timeout: TimeInterval = 2.0,
+    pollIntervalNanoseconds: UInt64 = 20_000_000,
+    condition: () async -> Bool
+) async throws {
+    let deadline = Date().addingTimeInterval(timeout)
+    while Date() < deadline {
+        if await condition() { return }
+        try await Task.sleep(nanoseconds: pollIntervalNanoseconds)
+    }
+    XCTFail("Condition was not met before timeout")
 }

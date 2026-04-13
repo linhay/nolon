@@ -544,6 +544,76 @@ struct ProviderUsageUnifiedAccountsPipelineTests {
         #expect(targetModel.presentation.selectionStyle == .transitioning)
     }
 
+    @Test("BDD: Given stale Codex selection residue outside multi-selection when building usage cards then ignores selected styling")
+    func testBDD_GivenStaleCodexSelectionResidueOutsideMultiSelection_WhenBuildingUsageCards_ThenOnlyActiveCardStaysHighlighted() {
+        let provider = Provider(
+            id: "codex",
+            kind: .vendor,
+            name: "Codex",
+            defaultSkillsPath: "/tmp/codex/skills",
+            workflowPath: "/tmp/codex/prompts",
+            vendorCategory: .original,
+            templateId: ProviderTemplate.codex.rawValue
+        )
+        let root = ProviderUsageRootViewModel(provider: provider)
+        let staleSelectedAccount = CodexAuthAccount(
+            id: UUID(uuidString: "11111111-2222-3333-4444-555555555555")!,
+            name: "OAuth",
+            createdAt: Date(timeIntervalSince1970: 1_700_000_000),
+            relativeAuthPath: "auth/oauth.json"
+        )
+        let activeAccount = CodexAuthAccount(
+            id: UUID(uuidString: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")!,
+            name: "API Key",
+            createdAt: Date(timeIntervalSince1970: 1_700_000_100),
+            relativeAuthPath: "auth/apikey.json"
+        )
+        root.state.codexEngine.codexAccounts = [staleSelectedAccount, activeAccount]
+        root.state.codexEngine.activeCodexAccountId = activeAccount.id
+        root.state.codexEngine.selectedCodexAccountIDs = [staleSelectedAccount.id]
+        root.state.codexEngine.isCodexMultiSelectionEnabled = false
+
+        let staleSelectedOutcome = ProviderAccountUsageOutcome(
+            provider: .codex,
+            account: .tokenAccount(
+                .init(
+                    id: staleSelectedAccount.id,
+                    label: staleSelectedAccount.name,
+                    token: "",
+                    addedAt: staleSelectedAccount.createdAt.timeIntervalSince1970,
+                    lastUsed: nil
+                )
+            ),
+            outcome: .init(fetchKind: .oauth, result: .failure(ProviderUsageError.missingAccount(.codex)))
+        )
+        let activeOutcome = ProviderAccountUsageOutcome(
+            provider: .codex,
+            account: .tokenAccount(
+                .init(
+                    id: activeAccount.id,
+                    label: activeAccount.name,
+                    token: "",
+                    addedAt: activeAccount.createdAt.timeIntervalSince1970,
+                    lastUsed: nil
+                )
+            ),
+            outcome: .init(fetchKind: .web, result: .failure(ProviderUsageError.missingAccount(.codex)))
+        )
+
+        let staleSelectedModel = root.accountsViewModel.codex.makeUsageCardModel(
+            outcome: staleSelectedOutcome,
+            isRunningCLILogin: false
+        )
+        let activeModel = root.accountsViewModel.codex.makeUsageCardModel(
+            outcome: activeOutcome,
+            isRunningCLILogin: false
+        )
+
+        #expect(staleSelectedModel.presentation.selectionStyle == .neutral)
+        #expect(staleSelectedModel.presentation.showsSelectionBadge == false)
+        #expect(activeModel.presentation.selectionStyle == .active)
+    }
+
     @Test("BDD: Given Codex account switch in progress when building usage card then does not show switching badge")
     func testBDD_GivenCodexSwitchInProgress_WhenBuildingUsageCard_ThenDoesNotShowSwitchingBadge() {
         let provider = Provider(

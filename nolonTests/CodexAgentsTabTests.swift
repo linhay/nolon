@@ -171,7 +171,7 @@ final class CodexAgentsTabTests: XCTestCase {
 
     func testBDD_GivenCopilotProvider_WhenLoadingData_ThenReadsHomeAndCustomDirsAGENTSmd() async throws {
         let copilotHome = fixture.tempRoot.appendingPathComponent(".copilot")
-        let skills = copilotHome.appendingPathComponent("agents")
+        let skills = copilotHome.appendingPathComponent("skills")
         try fixture.fileManager.createDirectory(at: skills, withIntermediateDirectories: true)
         try "# Copilot Home".write(to: copilotHome.appendingPathComponent("AGENTS.md"), atomically: true, encoding: .utf8)
 
@@ -215,6 +215,46 @@ final class CodexAgentsTabTests: XCTestCase {
         let createdURL = viewModel.createAgentDocDraft()
 
         XCTAssertEqual(createdURL?.path, opencodeHome.appendingPathComponent("AGENTS.md").path)
+        XCTAssertTrue(fixture.fileManager.fileExists(atPath: createdURL?.path ?? ""))
+    }
+
+    func testBDD_GivenClaudeProvider_WhenLoadingData_ThenReadsClaudeInstructionFile() async throws {
+        let claudeHome = fixture.tempRoot.appendingPathComponent(".claude")
+        let skills = claudeHome.appendingPathComponent("skills")
+        try fixture.fileManager.createDirectory(at: skills, withIntermediateDirectories: true)
+        try "# Claude Code".write(to: claudeHome.appendingPathComponent("CLAUDE.md"), atomically: true, encoding: .utf8)
+
+        let provider = Provider(
+            name: "Claude Code",
+            defaultSkillsPath: skills.path,
+            workflowPath: claudeHome.appendingPathComponent("workflows").path,
+            installMethod: .symlink,
+            templateId: ProviderTemplate.claudeCode.rawValue
+        )
+        viewModel = ProviderDetailGridViewModel(provider: provider, settings: fixture.providerSettings)
+
+        await viewModel.loadData()
+
+        XCTAssertEqual(viewModel.agentsFiles.map(\.fileName), ["CLAUDE.md"])
+    }
+
+    func testBDD_GivenClaudeProvider_WhenCreateDraft_ThenCreatesClaudeInstructionFile() throws {
+        let claudeHome = fixture.tempRoot.appendingPathComponent(".claude")
+        let skills = claudeHome.appendingPathComponent("skills")
+        try fixture.fileManager.createDirectory(at: skills, withIntermediateDirectories: true)
+
+        let provider = Provider(
+            name: "Claude Code",
+            defaultSkillsPath: skills.path,
+            workflowPath: claudeHome.appendingPathComponent("workflows").path,
+            installMethod: .symlink,
+            templateId: ProviderTemplate.claudeCode.rawValue
+        )
+        viewModel = ProviderDetailGridViewModel(provider: provider, settings: fixture.providerSettings)
+
+        let createdURL = viewModel.createAgentDocDraft()
+
+        XCTAssertEqual(createdURL?.path, claudeHome.appendingPathComponent("CLAUDE.md").path)
         XCTAssertTrue(fixture.fileManager.fileExists(atPath: createdURL?.path ?? ""))
     }
 }

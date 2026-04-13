@@ -7,7 +7,7 @@ import Testing
 struct CodexTokenTrendServiceTests {
     @Test("maps daily token entries and computes rolling summaries")
     func mapsDailyEntriesAndSummaries() async throws {
-        let now = Date(timeIntervalSince1970: 1_746_000_000)
+        let now = Self.makeLocalDate(year: 2026, month: 2, day: 26, hour: 12, minute: 0)
         let snapshot = CostUsageTokenSnapshot(
             sessionTokens: 120,
             sessionCostUSD: nil,
@@ -74,7 +74,7 @@ struct CodexTokenTrendServiceTests {
 
     @Test("keeps summary metrics stable while slicing chart range")
     func keepsSummaryMetricsStableWhileSlicingChartRange() async throws {
-        let now = Date(timeIntervalSince1970: 1_746_000_000)
+        let now = Self.makeLocalDate(year: 2026, month: 2, day: 28, hour: 12, minute: 0)
         let entries = (1...40).map { index in
             CostUsageDailyReport.Entry(
                 date: String(format: "2026-02-%02d", min(index, 28)),
@@ -122,7 +122,7 @@ struct CodexTokenTrendServiceTests {
 
     @Test("returns empty snapshot when scanner has no daily entries")
     func returnsEmptySnapshotWhenNoDailyEntries() async throws {
-        let now = Date(timeIntervalSince1970: 1_746_000_000)
+        let now = Self.makeLocalDate(year: 2026, month: 2, day: 26, hour: 12, minute: 0)
         let snapshot = CostUsageTokenSnapshot(
             sessionTokens: nil,
             sessionCostUSD: nil,
@@ -144,10 +144,60 @@ struct CodexTokenTrendServiceTests {
         let result = try await service.fetchGlobalSnapshot(trailingDays: nil, environment: [:])
 
         #expect(result.points.isEmpty)
-        #expect(result.todayTokens == nil)
+        #expect(result.todayTokens == 0)
         #expect(result.last7DaysTokens == nil)
         #expect(result.last30DaysTokens == nil)
         #expect(result.allDaysTokens == nil)
+    }
+
+    @Test("returns zero for today when latest history point is before current date")
+    func returnsZeroForTodayWhenLatestHistoryPointIsBeforeCurrentDate() async throws {
+        let now = Self.makeLocalDate(year: 2026, month: 3, day: 1, hour: 9, minute: 0)
+        let snapshot = CostUsageTokenSnapshot(
+            sessionTokens: nil,
+            sessionCostUSD: nil,
+            todayInputTokens: nil,
+            todayOutputTokens: nil,
+            todayCachedInputTokens: nil,
+            rangeDays: 30,
+            rangeTokens: 390,
+            rangeCostUSD: nil,
+            rangeInputTokens: nil,
+            rangeOutputTokens: nil,
+            rangeCachedInputTokens: nil,
+            daily: [
+                CostUsageDailyReport.Entry(
+                    date: "2026-02-27",
+                    inputTokens: 80,
+                    outputTokens: 20,
+                    cacheReadTokens: 0,
+                    totalTokens: 100,
+                    costUSD: nil,
+                    modelsUsed: nil,
+                    modelBreakdowns: nil
+                ),
+                CostUsageDailyReport.Entry(
+                    date: "2026-02-28",
+                    inputTokens: 200,
+                    outputTokens: 90,
+                    cacheReadTokens: 0,
+                    totalTokens: 290,
+                    costUSD: nil,
+                    modelsUsed: nil,
+                    modelBreakdowns: nil
+                ),
+            ],
+            updatedAt: now,
+            source: .scopedSessions
+        )
+
+        let service = CodexTokenTrendService { _, _, _, _ in snapshot }
+        let result = try await service.fetchGlobalSnapshot(trailingDays: 30, environment: [:])
+
+        #expect(result.todayTokens == 0)
+        #expect(result.last7DaysTokens == 390)
+        #expect(result.last30DaysTokens == 390)
+        #expect(result.allDaysTokens == 390)
     }
 }
 
@@ -160,5 +210,20 @@ private actor TrailingDaysRecorder {
 
     func values() -> [Int?] {
         storage
+    }
+}
+
+private extension CodexTokenTrendServiceTests {
+    static func makeLocalDate(year: Int, month: Int, day: Int, hour: Int, minute: Int) -> Date {
+        var comps = DateComponents()
+        comps.calendar = Calendar.current
+        comps.timeZone = TimeZone.current
+        comps.year = year
+        comps.month = month
+        comps.day = day
+        comps.hour = hour
+        comps.minute = minute
+        comps.second = 0
+        return comps.date ?? Date(timeIntervalSince1970: 0)
     }
 }

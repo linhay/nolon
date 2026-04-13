@@ -124,7 +124,7 @@ final class ProviderAgentsLinkServiceTests: XCTestCase {
         let service = ProviderAgentsLinkService(nolonManager: manager)
 
         let copilotHome = root.appendingPathComponent(".copilot", isDirectory: true)
-        let skills = copilotHome.appendingPathComponent("agents", isDirectory: true)
+        let skills = copilotHome.appendingPathComponent("skills", isDirectory: true)
         try FileManager.default.createDirectory(at: skills, withIntermediateDirectories: true)
         let provider = Provider(
             name: "GitHub Copilot",
@@ -154,7 +154,7 @@ final class ProviderAgentsLinkServiceTests: XCTestCase {
         let service = ProviderAgentsLinkService(nolonManager: manager)
 
         let copilotHome = root.appendingPathComponent(".copilot", isDirectory: true)
-        let skills = copilotHome.appendingPathComponent("agents", isDirectory: true)
+        let skills = copilotHome.appendingPathComponent("skills", isDirectory: true)
         try FileManager.default.createDirectory(at: skills, withIntermediateDirectories: true)
         let provider = Provider(
             name: "GitHub Copilot",
@@ -172,5 +172,42 @@ final class ProviderAgentsLinkServiceTests: XCTestCase {
 
         XCTAssertFalse(providerAgents.isExists)
         XCTAssertFalse(STPath(providerAgents.url).isSymbolicLink)
+    }
+
+    func testEnableAndDisableAgentsLinkForClaudePreservesLocalClaudeFileAndLinksToGlobalAgents() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(
+            "nolon-agents-link-claude-\(UUID().uuidString)",
+            isDirectory: true
+        )
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let manager = NolonManager(rootURL: root.appendingPathComponent(".nolon", isDirectory: true))
+        let service = ProviderAgentsLinkService(nolonManager: manager)
+
+        let claudeHome = root.appendingPathComponent(".claude", isDirectory: true)
+        let skills = claudeHome.appendingPathComponent("skills", isDirectory: true)
+        try FileManager.default.createDirectory(at: skills, withIntermediateDirectories: true)
+        let provider = Provider(
+            name: "Claude Code",
+            defaultSkillsPath: skills.path,
+            workflowPath: claudeHome.appendingPathComponent("workflows", isDirectory: true).path,
+            templateId: ProviderTemplate.claudeCode.rawValue
+        )
+
+        let providerInstructions = STFile(claudeHome.appendingPathComponent("CLAUDE.md", isDirectory: false))
+        try "local-claude".write(to: providerInstructions.url, atomically: true, encoding: .utf8)
+
+        try service.applyEnable(provider: provider)
+
+        XCTAssertTrue(STPath(providerInstructions.url).isSymbolicLink)
+        XCTAssertTrue(manager.agentsFolder.file("AGENTS.md").isExists)
+        let destination = try STPath(providerInstructions.url).destinationOfSymbolicLink().url.standardizedFileURL.path
+        XCTAssertEqual(destination, manager.agentsFolder.file("AGENTS.md").url.standardizedFileURL.path)
+
+        try service.applyDisable(provider: provider)
+
+        XCTAssertFalse(STPath(providerInstructions.url).isSymbolicLink)
+        XCTAssertEqual(try providerInstructions.read(), "local-claude")
     }
 }

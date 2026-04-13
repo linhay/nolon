@@ -130,6 +130,25 @@ struct CodexConfiguredAccountTests {
         #expect(json["nolon"]["account"]["name"] == JSON.null)
     }
 
+    @Test("Given relay configuration without model provider, when adding configured account, then validation fails")
+    func addConfiguredRelayAccountRequiresModelProvider() async throws {
+        let root = try makeTempRoot("codex-config-relay-missing-provider")
+        defer { try? root.delete() }
+
+        let manager = CodexAuthManager(rootURL: root.url)
+
+        await #expect(throws: NSError.self) {
+            try await manager.addConfiguredAccount(
+                name: "Broken Relay",
+                apiKey: "rk-live-12345678",
+                relay: .init(
+                    baseURL: "https://relay.example.com/v1",
+                    modelProvider: "   "
+                )
+            )
+        }
+    }
+
     @Test("Given usage query config, when adding and updating configured account, then persists usage query block")
     func persistConfiguredAccountUsageQuery() async throws {
         let root = try makeTempRoot("codex-config-http-usage")
@@ -170,6 +189,28 @@ struct CodexConfiguredAccountTests {
         #expect(resolved?.query.mapping?.creditsRemainingPath == "data.remaining")
         #expect(resolved?.defaultCredentials.apiKey == "sk-live-87654321")
         #expect(json["nolon"]["account"]["name"] == JSON.null)
+    }
+
+    @Test("Given direct API key account without relay or usage query, when materialized, then auth json omits SQLite-managed nolon metadata")
+    func directConfiguredAccountOmitsNolonContainerWhenUnused() async throws {
+        let root = try makeTempRoot("codex-config-direct-minimal")
+        defer { try? root.delete() }
+
+        let manager = CodexAuthManager(rootURL: root.url)
+        let account = try await manager.addConfiguredAccount(
+            name: "OpenAI Direct",
+            apiKey: "sk-live-12345678",
+            relay: nil,
+            usageQuery: nil
+        )
+
+        let data = try #require(await manager.accountAuthData(for: account))
+        let json = try JSON(data: data)
+
+        #expect(CodexAuthSummary.fromJSONData(data).cardKind == .officialAPIKey)
+        #expect(json["auth_mode"].string == "apikey")
+        #expect(json["OPENAI_API_KEY"].string == "sk-live-12345678")
+        #expect(json["nolon"] == JSON.null)
     }
 
     @Test("Given legacy nolon account name, when loading account, then removes persisted name and keeps runtime display label")

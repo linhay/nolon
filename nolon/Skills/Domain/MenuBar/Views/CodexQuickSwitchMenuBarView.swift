@@ -323,7 +323,6 @@ final class CodexQuickSwitchMenuBarViewModel {
         let mapped: [(sortEntry: CodexQuickSwitchAccountSorter.Entry, item: NolonUI.AccountListModeItem)] = accountsViewModel.codex.accountOutcomes.map { outcome in
             let model = accountsViewModel.codex.makeUsageCardModel(
                 outcome: outcome,
-                hasActiveGatewayCardSelection: false,
                 isRunningCLILogin: isRunningCLILogin
             )
             let item = NolonUI.AccountListModeItem(
@@ -591,6 +590,8 @@ struct CodexQuickSwitchMenuBarView: View, DebugPageLocatable {
             return DesignSystem.Colors.primary
         case .pending:
             return DesignSystem.Colors.Status.warning
+        case .transitioning:
+            return DesignSystem.Colors.primary
         case .selected:
             return DesignSystem.Colors.primary
         case .neutral:

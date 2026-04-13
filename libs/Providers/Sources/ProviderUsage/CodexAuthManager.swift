@@ -188,7 +188,6 @@ public actor CodexAuthManager {
     }
 
     static let logger = Logger(subsystem: "com.nolon", category: "CodexAuthManager")
-    static let gatewayVirtualAPIKey = "nolon-gateway-virtual-api-key"
     nonisolated static let canonicalCodexActiveProviderKeys: Set<String> = ["codex", "codex-xcode"]
     nonisolated static func isCodexTemplate(_ templateID: String?) -> Bool {
         templateID == ProviderTemplate.codex.rawValue || templateID == ProviderTemplate.codexXcode.rawValue
@@ -261,10 +260,6 @@ public actor CodexAuthManager {
         nolonCodexRootFolder().folder(PathName.authFolder.rawValue)
     }
 
-    public nonisolated func nolonCodexGatewayVirtualAuthFolder() -> STFolder {
-        nolonCodexRootFolder().folder("gateway").folder("virtual-auth")
-    }
-
     public nonisolated func cliLoginCodexHomeFolder(providerID: String) -> STFolder {
         let sanitized = providerID.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         let fallback = "codex"
@@ -300,13 +295,14 @@ public actor CodexAuthManager {
 
     nonisolated func configuredActiveAccountProviderKeys() -> Set<String> {
         let providers = configuredProviders()
-        guard !providers.isEmpty else { return Self.canonicalCodexActiveProviderKeys }
+        guard !providers.isEmpty else { return ["codex"] }
 
         var keys = Set<String>()
         for provider in providers {
+            guard providerSupportsActiveAccountRegistry(provider) else { continue }
             keys.insert(activeAccountProviderKey(for: provider))
         }
-        keys.formUnion(Self.canonicalCodexActiveProviderKeys)
+        keys.formUnion(["codex"])
         return keys
     }
 
@@ -320,6 +316,15 @@ public actor CodexAuthManager {
             return []
         }
         return providers
+    }
+
+    nonisolated func providerSupportsActiveAccountRegistry(_ provider: Provider) -> Bool {
+        guard let templateId = provider.templateId,
+              let template = ProviderTemplate(rawValue: templateId)
+        else {
+            return true
+        }
+        return template.supportsAccounts
     }
 
     nonisolated func sanitizeActiveAccountMap(_ map: [String: String]) -> [String: String] {
@@ -465,7 +470,10 @@ public actor CodexAuthManager {
 
     /// Reads account auth payload directly from SQLite-backed storage.
     public nonisolated func accountAuthDataWithoutMaterialization(for account: CodexAuthAccount) -> Data? {
-        accountAuthData(for: account)
+        guard let data = try? loadCodexAccountAuthDataFromSQLite(accountID: account.id, includeManagedMetadata: true),
+              !data.isEmpty
+        else { return nil }
+        return data
     }
 
     nonisolated func sqliteAccountID(fromRelativeAuthPath relativeAuthPath: String) -> UUID? {
@@ -481,8 +489,8 @@ public actor CodexAuthManager {
         "auth/\(accountID.uuidString.lowercased()).json"
     }
 
-    nonisolated func managedActiveAuthFolder(for providerID: String) -> STFolder {
-        let normalizedProviderID = providerID
+    nonisolated func managedActiveAuthFolder(for providerKey: String) -> STFolder {
+        let normalizedProviderID = providerKey
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .lowercased()
             .replacingOccurrences(of: "[^a-z0-9_-]+", with: "-", options: .regularExpression)
@@ -493,8 +501,12 @@ public actor CodexAuthManager {
             .folder(folderName)
     }
 
+    nonisolated func managedActiveAuthFolder(for provider: Provider) -> STFolder {
+        managedActiveAuthFolder(for: activeAccountProviderKey(for: provider))
+    }
+
     func materializeManagedActiveAuthFile(for account: CodexAuthAccount, provider: Provider) throws -> STFile {
-        let folder = managedActiveAuthFolder(for: provider.id)
+        let folder = managedActiveAuthFolder(for: provider)
         _ = folder.createIfNotExists()
         let file = folder.file("auth.json")
         let data = try readAccountAuthData(account)
@@ -751,84 +763,6 @@ public actor CodexAuthManager {
         try upsertCodexAccountInSQLite(reloaded, authData: payload)
     }
 
-    public func upsertGatewayVirtualAccount(
-        providerID: String,
-        name: String,
-        apiKey: String,
-        relay: ConfiguredRelay
-    ) async throws -> CodexAuthAccount {
-        try await migrateLegacyIfNeeded()
-        try migrateAccountsStoreToSQLiteIfNeeded()
-        let trimmedProviderID = providerID.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        guard !trimmedProviderID.isEmpty else {
-            throw CocoaError(.fileNoSuchFile)
-        }
-
-        let fileName = "__gateway_reply__-\(sanitizeFileStem(trimmedProviderID)).json"
-        let virtualFolder = nolonCodexGatewayVirtualAuthFolder()
-        _ = virtualFolder.createIfNotExists()
-        let relativePath = "gateway/virtual-auth/\(fileName)"
-        let file = accountAuthFile(relativeAuthPath: relativePath)
-
-        let legacyRelativePath = "auth/\(fileName)"
-        let legacyFile = accountAuthFile(relativeAuthPath: legacyRelativePath)
-        if !file.isExists, legacyFile.isExists {
-            _ = file.parentFolder()?.createIfNotExists()
-            do {
-                try FileManager.default.moveItem(at: legacyFile.url, to: file.url)
-            } catch {
-                _ = try? legacyFile.copy(to: file)
-                _ = try? legacyFile.delete()
-            }
-        }
-
-        let existing = try? loadAccount(file: file, relativeAuthPath: relativePath)
-        let now = Date()
-        let payload = try makeConfiguredAccountPayload(
-            name: sanitizedConfiguredAccountName(name: name, relay: relay),
-            apiKey: apiKey,
-            relay: relay,
-            usageQuery: nil,
-            preferredId: existing?.id ?? UUID(),
-            relativeAuthPath: relativePath,
-            createdAt: existing?.createdAt ?? now,
-            updatedAt: now,
-            existingRootObject: (try? file.data()).flatMap { Self.decodeJSONObject(from: $0) }
-        )
-        try file.overlay(with: payload)
-        let account = try loadAccount(file: file, relativeAuthPath: relativePath)
-        try upsertCodexAccountInSQLite(account)
-        return account
-    }
-
-    public func gatewayVirtualAccount(providerID: String) async -> CodexAuthAccount? {
-        let trimmedProviderID = providerID.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        guard !trimmedProviderID.isEmpty else { return nil }
-
-        let fileName = "__gateway_reply__-\(sanitizeFileStem(trimmedProviderID)).json"
-        let relativePath = "gateway/virtual-auth/\(fileName)"
-        let file = accountAuthFile(relativeAuthPath: relativePath)
-        if file.isExists {
-            return try? loadAccount(file: file, relativeAuthPath: relativePath)
-        }
-
-        let legacyRelativePath = "auth/\(fileName)"
-        let legacyFile = accountAuthFile(relativeAuthPath: legacyRelativePath)
-        if !legacyFile.isExists {
-            return nil
-        }
-
-        _ = nolonCodexGatewayVirtualAuthFolder().createIfNotExists()
-        do {
-            _ = file.parentFolder()?.createIfNotExists()
-            try FileManager.default.moveItem(at: legacyFile.url, to: file.url)
-        } catch {
-            _ = try? legacyFile.copy(to: file)
-            _ = try? legacyFile.delete()
-        }
-        return try? loadAccount(file: file, relativeAuthPath: relativePath)
-    }
-
     @discardableResult
     public func exportAccountsArchive(accountIDs: [UUID], destinationURL: URL) async throws -> Int {
         try await migrateLegacyIfNeeded()
@@ -940,11 +874,6 @@ public actor CodexAuthManager {
     /// - Else, use `matchAccount` strict identity rules to decide update vs create.
     /// - If no match, create a new snapshot account.
     public func upsertAccountFromCLILogin(authJSONString: String, preferredAccountID: UUID?) async throws -> CodexAuthAccount {
-        let data = Data(authJSONString.utf8)
-        if isGatewayVirtualAuthPayload(data) {
-            throw CLILoginError.gatewayVirtualAuthPayload
-        }
-
         if let preferredAccountID {
             let accounts = try await loadAccounts()
             if let preferred = accounts.first(where: { $0.id == preferredAccountID }) {
@@ -953,6 +882,7 @@ public actor CodexAuthManager {
             }
         }
 
+        let data = Data(authJSONString.utf8)
         let accounts = try await loadAccounts()
         if let matchedByAuth = matchAccount(authData: data, accounts: accounts) {
             try await updateAccount(matchedByAuth, authJSONString: authJSONString)
@@ -1072,7 +1002,7 @@ public actor CodexAuthManager {
         guard let raw = String(data: data, encoding: .utf8) else {
             return false
         }
-        if isGatewayVirtualAuthPayload(data) || !hasImportableCredentials(authJSONString: raw) {
+        if !hasImportableCredentials(authJSONString: raw) {
             try? file.delete()
             Self.logger.warning("Pruned non-importable Codex snapshot file before load. file=\(relativeAuthPath, privacy: .public)")
             return true
@@ -1181,6 +1111,17 @@ public actor CodexAuthManager {
             failureAt: date,
             failureMessage: trimmed.isEmpty ? nil : trimmed,
             clearFailure: false
+        )
+    }
+
+    public func clearSyncFailure(for account: CodexAuthAccount) throws {
+        try updateSyncMetadata(
+            account: account,
+            loginAt: nil,
+            successAt: nil,
+            failureAt: nil,
+            failureMessage: nil,
+            clearFailure: true
         )
     }
 
@@ -1317,7 +1258,11 @@ public actor CodexAuthManager {
         guard Self.isCodexTemplate(provider.templateId) else { return nil }
         try await migrateLegacyIfNeeded()
         let reconciled = try withAuthFileLock {
-            try reconcileProviderAuthWithSnapshotsIfNeeded(for: provider)
+            let resolved = try reconcileProviderAuthWithSnapshotsIfNeeded(for: provider)
+            if let resolved {
+                try syncActiveProviderConfig(for: resolved, provider: provider)
+            }
+            return resolved
         }
         try withAuthFileLock {
             _ = try reconcileActiveSymlinkDriftIfNeeded(for: provider)
@@ -1392,8 +1337,9 @@ public actor CodexAuthManager {
         try withAuthFileLock {
             try activateAccount(account, for: provider)
             try setActiveAccount(account, for: provider)
-            _ = try reconcileProviderAuthWithSnapshotsIfNeeded(for: provider)
+            let resolved = try reconcileProviderAuthWithSnapshotsIfNeeded(for: provider) ?? account
             // Establish a fresh restore baseline immediately after activation.
+            try syncActiveProviderConfig(for: resolved, provider: provider)
             try backupActiveSnapshotIfNeeded(for: provider, force: true, reason: "activate_account")
             try persistActiveFingerprintIfNeeded(for: provider)
             startProviderAuthPolling(for: provider)
@@ -1406,7 +1352,11 @@ public actor CodexAuthManager {
     @discardableResult
     public func reconcileDetachedProviderAuthIfNeeded(for provider: Provider) throws -> CodexAuthAccount? {
         try withAuthFileLock {
-            try reconcileProviderAuthWithSnapshotsIfNeeded(for: provider)
+            let resolved = try reconcileProviderAuthWithSnapshotsIfNeeded(for: provider)
+            if let resolved {
+                try syncActiveProviderConfig(for: resolved, provider: provider)
+            }
+            return resolved
         }
     }
 
@@ -1416,7 +1366,6 @@ public actor CodexAuthManager {
         case codexHomeUnavailable
         case authFileNotFound
         case authFileInvalidEncoding
-        case gatewayVirtualAuthPayload
 
         public var errorDescription: String? {
             switch self {
@@ -1426,8 +1375,6 @@ public actor CodexAuthManager {
                 return "No auth.json found."
             case .authFileInvalidEncoding:
                 return "auth.json is not valid UTF-8."
-            case .gatewayVirtualAuthPayload:
-                return "CLI login returned a gateway virtual auth payload. Stop gateway mode and login again."
             }
         }
     }

@@ -8,13 +8,30 @@ import SQLite3
 
 @Suite("CodexAuthManager")
 struct CodexAuthManagerTests {
-    private func makeTempRoot(_ prefix: String) throws -> STFolder {
+    func makeTempRoot(_ prefix: String) throws -> STFolder {
         let root = STFolder("/tmp").folder("\(prefix)-\(UUID().uuidString)")
         _ = root.createIfNotExists()
         return root
     }
 
-    private static func makeJWT(payload: String) -> String {
+    func makeCodexProvider(
+        root: STFolder,
+        id: String = "codex",
+        templateID: String = "codex"
+    ) -> Provider {
+        let providerRoot = root.folder("provider")
+        _ = providerRoot.createIfNotExists()
+        return Provider(
+            id: id,
+            name: "Codex",
+            defaultSkillsPath: providerRoot.folder("skills").url.path,
+            workflowPath: providerRoot.folder("prompts").url.path,
+            installMethod: .symlink,
+            templateId: templateID
+        )
+    }
+
+    static func makeJWT(payload: String) -> String {
         func encode(_ string: String) -> String {
             Data(string.utf8)
                 .base64EncodedString()
@@ -27,7 +44,7 @@ struct CodexAuthManagerTests {
         return "\(encode(header)).\(encode(payload)).signature"
     }
 
-    private func sqliteCount(databaseURL: URL, sql: String, bind: String) throws -> Int {
+    func sqliteCount(databaseURL: URL, sql: String, bind: String) throws -> Int {
         var db: OpaquePointer?
         guard sqlite3_open_v2(databaseURL.path, &db, SQLITE_OPEN_READONLY | SQLITE_OPEN_FULLMUTEX, nil) == SQLITE_OK else {
             let message = String(cString: sqlite3_errmsg(db))
@@ -51,7 +68,7 @@ struct CodexAuthManagerTests {
         return Int(sqlite3_column_int(statement, 0))
     }
 
-    private func sqliteCount(databaseURL: URL, sql: String) throws -> Int {
+    func sqliteCount(databaseURL: URL, sql: String) throws -> Int {
         var db: OpaquePointer?
         guard sqlite3_open_v2(databaseURL.path, &db, SQLITE_OPEN_READONLY | SQLITE_OPEN_FULLMUTEX, nil) == SQLITE_OK else {
             let message = String(cString: sqlite3_errmsg(db))
@@ -74,7 +91,7 @@ struct CodexAuthManagerTests {
         return Int(sqlite3_column_int(statement, 0))
     }
 
-    private func sqliteString(databaseURL: URL, sql: String, bind: String) throws -> String? {
+    func sqliteString(databaseURL: URL, sql: String, bind: String) throws -> String? {
         var db: OpaquePointer?
         guard sqlite3_open_v2(databaseURL.path, &db, SQLITE_OPEN_READONLY | SQLITE_OPEN_FULLMUTEX, nil) == SQLITE_OK else {
             let message = String(cString: sqlite3_errmsg(db))
@@ -98,9 +115,14 @@ struct CodexAuthManagerTests {
         return String(cString: value)
     }
 
-    private func sqliteExecute(databaseURL: URL, sql: String, bindings: [String] = []) throws {
+    func sqliteExecute(databaseURL: URL, sql: String, bindings: [String] = []) throws {
         var db: OpaquePointer?
-        guard sqlite3_open_v2(databaseURL.path, &db, SQLITE_OPEN_READWRITE | SQLITE_OPEN_FULLMUTEX, nil) == SQLITE_OK else {
+        guard sqlite3_open_v2(
+            databaseURL.path,
+            &db,
+            SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_FULLMUTEX,
+            nil
+        ) == SQLITE_OK else {
             let message = String(cString: sqlite3_errmsg(db))
             sqlite3_close(db)
             throw NSError(domain: "CodexAuthManagerTests.sqlite", code: 31, userInfo: [NSLocalizedDescriptionKey: message])
@@ -124,7 +146,99 @@ struct CodexAuthManagerTests {
         }
     }
 
-    private func accountAuthDataFromSQLite(
+    func writeRolloutSessionMeta(
+        codexHome: STFolder,
+        threadID: String,
+        modelProvider: String,
+        archived: Bool = false,
+        timestamp: String = "2026-04-10T10-00-00"
+    ) throws -> STFile {
+        let rootFolder = archived ? codexHome.folder("archived_sessions") : codexHome.folder("sessions")
+        let dayFolder = rootFolder.folder("2026").folder("04").folder("10")
+        _ = dayFolder.createIfNotExists()
+
+        let file = dayFolder.file("rollout-\(timestamp)-\(threadID).jsonl")
+        let sessionMeta = """
+        {"timestamp":"2026-04-10T10:00:00Z","type":"session_meta","payload":{"id":"\(threadID)","timestamp":"2026-04-10T10:00:00Z","cwd":"/tmp/project","source":"cli","model_provider":"\(modelProvider)"}}
+        """
+        let userEvent = """
+        {"timestamp":"2026-04-10T10:00:01Z","type":"response_item","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"hello"}]}}
+        """
+        try file.overlay(with: sessionMeta + "\n" + userEvent + "\n")
+        return file
+    }
+
+    func rolloutSessionMetaProvider(file: STFile) throws -> String? {
+        let content = try file.read()
+        for rawLine in content.split(separator: "\n") {
+            let line = rawLine.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !line.isEmpty,
+                  let data = line.data(using: .utf8),
+                  let object = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  (object["type"] as? String) == "session_meta",
+                  let payload = object["payload"] as? [String: Any]
+            else {
+                continue
+            }
+            return payload["model_provider"] as? String
+        }
+        return nil
+    }
+
+    func createCodexStateDatabase(
+        codexHome: STFolder,
+        threads: [(id: String, rolloutPath: String, modelProvider: String, archived: Bool)]
+    ) throws -> URL {
+        _ = codexHome.createIfNotExists()
+        let databaseURL = codexHome.file("state_4.sqlite").url
+        try sqliteExecute(
+            databaseURL: databaseURL,
+            sql: """
+            CREATE TABLE threads (
+                id TEXT PRIMARY KEY,
+                rollout_path TEXT NOT NULL,
+                created_at INTEGER NOT NULL,
+                updated_at INTEGER NOT NULL,
+                source TEXT NOT NULL,
+                model_provider TEXT NOT NULL,
+                cwd TEXT NOT NULL,
+                title TEXT NOT NULL,
+                sandbox_policy TEXT NOT NULL,
+                approval_mode TEXT NOT NULL,
+                tokens_used INTEGER NOT NULL DEFAULT 0,
+                has_user_event INTEGER NOT NULL DEFAULT 0,
+                archived INTEGER NOT NULL DEFAULT 0,
+                archived_at INTEGER,
+                git_sha TEXT,
+                git_branch TEXT,
+                git_origin_url TEXT
+            );
+            """
+        )
+
+        for thread in threads {
+            try sqliteExecute(
+                databaseURL: databaseURL,
+                sql: """
+                INSERT INTO threads (
+                    id, rollout_path, created_at, updated_at, source, model_provider, cwd, title,
+                    sandbox_policy, approval_mode, tokens_used, has_user_event, archived
+                ) VALUES (?, ?, 1712743200, 1712743200, 'cli', ?, '/tmp/project', 'Existing thread',
+                          'workspace-write', 'on-request', 0, 1, ?);
+                """,
+                bindings: [
+                    thread.id,
+                    thread.rolloutPath,
+                    thread.modelProvider,
+                    thread.archived ? "1" : "0",
+                ]
+            )
+        }
+
+        return databaseURL
+    }
+
+    func accountAuthDataFromSQLite(
         manager: CodexAuthManager,
         account: CodexAuthAccount
     ) throws -> Data {
@@ -397,6 +511,65 @@ struct CodexAuthManagerTests {
         let json = try #require(try? JSON(data: accountAuthDataFromSQLite(manager: manager, account: account)))
         #expect(json["auth_mode"].string == "chatgpt")
     }
+
+    @Test("Given sqlite-backed metadata fields, when materializing account auth, then auth json keeps only runtime-required fields")
+    func accountAuthMaterializationOmitsSQLiteManagedMetadata() async throws {
+        let root = try makeTempRoot("codex-auth-minimal-materialization")
+        defer { try? root.delete() }
+
+        let manager = CodexAuthManager(rootURL: root.url)
+        let account = try await manager.addAccount(
+            name: "minimal",
+            authJSONString: #"""
+            {
+              "auth_mode": "chatgpt",
+              "tokens": {
+                "id_token": "id-token",
+                "access_token": "access-token"
+              },
+              "email": "minimal@example.com",
+              "nolon": {
+                "account": {
+                  "id": "11111111-1111-1111-1111-111111111111",
+                  "kind": "chatgptAccount",
+                  "relativeAuthPath": "auth/minimal.json",
+                  "email": "minimal@example.com"
+                },
+                "custom_group_name": "Work",
+                "usage_cache": {
+                  "fetch_kind": "api"
+                },
+                "usage_query": {
+                  "enabled": true,
+                  "request": {
+                    "method": "GET",
+                    "url": "https://api.example.com/usage"
+                  }
+                }
+              }
+            }
+            """#
+        )
+
+        let materializedData = try #require(manager.accountAuthData(for: account))
+        let json = try #require(try? JSON(data: materializedData))
+
+        #expect(json["auth_mode"].string == "chatgpt")
+        #expect(json["email"].string == "minimal@example.com")
+        #expect(json["nolon"]["account"] == JSON.null)
+        #expect(json["nolon"]["custom_group_name"] == JSON.null)
+        #expect(json["nolon"]["usage_cache"] == JSON.null)
+        #expect(json["nolon"]["usage_query"]["enabled"].boolValue == true)
+        #expect(json["nolon"]["usage_query"]["request"]["url"].string == "https://api.example.com/usage")
+
+        let storedData = try #require(manager.accountAuthDataWithoutMaterialization(for: account))
+        let storedJSON = try #require(try? JSON(data: storedData))
+        #expect(storedJSON["nolon"]["account"]["id"].string == account.id.uuidString)
+        #expect(storedJSON["nolon"]["account"]["kind"].string == "chatgptAccount")
+        #expect(storedJSON["nolon"]["custom_group_name"].string == "Work")
+        #expect(storedJSON["nolon"]["usage_cache"]["fetch_kind"].string == "api")
+    }
+
     @Test("Given sqlite-only account payload, when requesting account auth file path, then manager does not materialize legacy snapshot file")
     func accountAuthFileDoesNotMaterializeSQLiteMirror() async throws {
         let root = try makeTempRoot("codex-auth-no-mirror")
@@ -498,45 +671,6 @@ struct CodexAuthManagerTests {
         let activeId = await manager.activeAccountId(for: provider)
         #expect(activeId == account.id)
     }
-    @Test("Given provider auth still points to chatgpt snapshot, when registry switches to relay profile, then active account prefers relay registry")
-    func activeAccountPrefersRelayRegistryOverProviderAuthSnapshot() async throws {
-        let root = try makeTempRoot("codex-auth-relay-registry-priority")
-        defer { try? root.delete() }
-
-        let manager = CodexAuthManager(rootURL: root.url)
-        let primary = try await manager.addAccount(
-            name: "primary",
-            authJSONString: #"{"tokens":{"id_token":"id-primary","access_token":"access-primary"},"email":"primary@example.com"}"#
-        )
-        let providerRoot = root.folder("provider")
-        _ = providerRoot.createIfNotExists()
-        let provider = Provider(
-            id: "codex",
-            name: "Codex",
-            defaultSkillsPath: providerRoot.folder("skills").url.path,
-            workflowPath: providerRoot.folder("prompts").url.path,
-            installMethod: .symlink,
-            templateId: "codex"
-        )
-        try await manager.activateAccountAndMarkActive(primary, for: provider)
-
-        let relay = try await manager.addConfiguredAccount(
-            name: "__gateway_reply__-codex",
-            apiKey: "nolon-gateway-virtual-api-key",
-            relay: .init(
-                baseURL: "http://127.0.0.1:18083",
-                modelProvider: "openai",
-                queryParams: [
-                    "nolon_gateway_virtual": "1",
-                    "provider_id": "codex",
-                ]
-            )
-        )
-        try await manager.setActiveAccount(relay, for: provider)
-
-        let activeID = await manager.activeAccountId(for: provider)
-        #expect(activeID == relay.id)
-    }
     @Test("Given snapshot drift right after activation, when preflight runs then active snapshot is restored from activation baseline")
     func activateAccountAndMarkActiveSeedsDriftRestoreBaseline() async throws {
         let root = try makeTempRoot("codex-auth-activate-drift-baseline")
@@ -588,6 +722,334 @@ struct CodexAuthManagerTests {
         }
         #expect(driftedFound == true)
     }
+
+    @Test("Given relay profile activation followed by oauth activation, when account switching syncs auth, then config.toml patches to relay provider and restores original config")
+    func relayActivationPatchesConfigAndOAuthActivationRestoresOriginalConfig() async throws {
+        let root = try makeTempRoot("codex-auth-relay-config-switch")
+        defer { try? root.delete() }
+
+        let manager = CodexAuthManager(rootURL: root.url)
+        let provider = makeCodexProvider(root: root)
+        let configFile = root.folder("provider").file("config.toml")
+        let originalConfig = """
+        model = "o3"
+        approval_policy = "on-request"
+
+        [features]
+        web_search = true
+        """
+        try configFile.overlay(with: originalConfig + "\n")
+
+        let relay = try await manager.addConfiguredAccount(
+            name: "Relay",
+            apiKey: "rk-live-12345678",
+            relay: .init(
+                baseURL: "https://relay.example.com/v1",
+                modelProvider: "provider-relay",
+                queryParams: ["api-version": "2025-01-01-preview"],
+                headers: ["X-Workspace": "ios"]
+            )
+        )
+        let oauth = try await manager.addAccount(
+            name: "oauth",
+            authJSONString: #"{"auth_mode":"chatgpt","tokens":{"id_token":"id-oauth","access_token":"access-oauth"},"email":"oauth@example.com"}"#
+        )
+
+        try await manager.activateAccountAndMarkActive(relay, for: provider)
+
+        let patched = try configFile.read()
+        #expect(patched.contains(#"model = "gpt-5.4""#))
+        #expect(patched.contains(#"model_reasoning_effort = "xhigh""#))
+        #expect(patched.contains(#"model_provider = "provider-relay""#))
+        #expect(patched.contains(#"[model_providers.provider-relay]"#))
+        #expect(patched.contains(#"name = "provider-relay""#))
+        #expect(patched.contains(#"base_url = "https://relay.example.com/v1""#))
+        #expect(patched.contains(#"wire_api = "responses""#))
+        #expect(patched.contains(#"requires_openai_auth = true"#))
+        #expect(patched.contains(#"query_params = { "api-version" = "2025-01-01-preview" }"#))
+        #expect(patched.contains(#"http_headers = { "X-Workspace" = "ios" }"#))
+
+        try await manager.activateAccountAndMarkActive(oauth, for: provider)
+
+        let restored = try configFile.read()
+        #expect(restored == originalConfig + "\n")
+    }
+
+    @Test("Given active oauth with stale managed relay config and missing state, when refreshing active provider config, then config.toml self-heals by removing managed relay patch")
+    func refreshActiveProviderConfigRestoresPatchedConfigWhenManagedStateIsMissing() async throws {
+        let root = try makeTempRoot("codex-auth-preflight-missing-managed-state")
+        defer { try? root.delete() }
+
+        let manager = CodexAuthManager(rootURL: root.url)
+        let provider = makeCodexProvider(root: root)
+        let configFile = root.folder("provider").file("config.toml")
+        let originalConfig = """
+        approval_policy = "on-request"
+
+        [features]
+        web_search = true
+        """
+        try configFile.overlay(with: originalConfig + "\n")
+
+        let relay = try await manager.addConfiguredAccount(
+            name: "Relay",
+            apiKey: "rk-live-12345678",
+            relay: .init(
+                baseURL: "https://relay.example.com/v1",
+                modelProvider: "provider-relay"
+            )
+        )
+        let oauth = try await manager.addAccount(
+            name: "oauth",
+            authJSONString: #"{"auth_mode":"chatgpt","tokens":{"id_token":"id-oauth","access_token":"access-oauth"},"email":"oauth@example.com"}"#
+        )
+
+        try await manager.activateAccountAndMarkActive(relay, for: provider)
+
+        let stateFile = manager
+            .nolonCodexRootFolder()
+            .folder("active-provider-config")
+            .file("config.json")
+        _ = stateFile.parentFolder()?.createIfNotExists()
+        try stateFile.overlay(with: "{}\n")
+
+        try await manager.setActiveAccount(oauth, for: provider)
+
+        try await manager.refreshActiveProviderConfigIfNeeded(for: oauth, provider: provider)
+
+        let restored = try configFile.read()
+        #expect(restored == originalConfig + "\n")
+    }
+
+    @Test("Given managed relay config loses restore state, when switching to another relay and back to oauth, then original config is preserved")
+    func relayActivationRecoversBaselineWhenManagedStateIsMissing() async throws {
+        let root = try makeTempRoot("codex-auth-recover-missing-managed-state")
+        defer { try? root.delete() }
+
+        let manager = CodexAuthManager(rootURL: root.url)
+        let provider = makeCodexProvider(root: root)
+        let configFile = root.folder("provider").file("config.toml")
+        let originalConfig = """
+        approval_policy = "on-request"
+
+        [features]
+        web_search = true
+        """
+        try configFile.overlay(with: originalConfig + "\n")
+
+        let relayOne = try await manager.addConfiguredAccount(
+            name: "Relay One",
+            apiKey: "rk-live-11111111",
+            relay: .init(
+                baseURL: "https://relay-one.example.com/v1",
+                modelProvider: "provider-one"
+            )
+        )
+        let relayTwo = try await manager.addConfiguredAccount(
+            name: "Relay Two",
+            apiKey: "rk-live-22222222",
+            relay: .init(
+                baseURL: "https://relay-two.example.com/v1",
+                modelProvider: "provider-two"
+            )
+        )
+        let oauth = try await manager.addAccount(
+            name: "oauth",
+            authJSONString: #"{"auth_mode":"chatgpt","tokens":{"id_token":"id-oauth","access_token":"access-oauth"},"email":"oauth@example.com"}"#
+        )
+
+        try await manager.activateAccountAndMarkActive(relayOne, for: provider)
+
+        let stateFile = manager
+            .nolonCodexRootFolder()
+            .folder("active-provider-config")
+            .file("config.json")
+        _ = stateFile.parentFolder()?.createIfNotExists()
+        try stateFile.overlay(with: "{}\n")
+
+        try await manager.activateAccountAndMarkActive(relayTwo, for: provider)
+
+        let repatched = try configFile.read()
+        #expect(repatched.contains(#"model_provider = "provider-two""#))
+        #expect(repatched.contains(#"[model_providers.provider-two]"#))
+        #expect(repatched.contains(#"[model_providers.provider-one]"#) == false)
+
+        try await manager.activateAccountAndMarkActive(oauth, for: provider)
+
+        let restored = try configFile.read()
+        #expect(restored == originalConfig + "\n")
+    }
+
+    @Test("Given active relay profile is updated, when refreshing active provider config, then config.toml rewrites managed relay fields")
+    func refreshActiveRelayConfigUpdatesManagedProviderSection() async throws {
+        let root = try makeTempRoot("codex-auth-refresh-active-relay")
+        defer { try? root.delete() }
+
+        let manager = CodexAuthManager(rootURL: root.url)
+        let provider = makeCodexProvider(root: root)
+        let configFile = root.folder("provider").file("config.toml")
+        try configFile.overlay(with: "approval_policy = \"on-request\"\n")
+
+        let relay = try await manager.addConfiguredAccount(
+            name: "Relay One",
+            apiKey: "rk-live-12345678",
+            relay: .init(
+                baseURL: "https://relay-one.example.com/v1",
+                modelProvider: "provider-one",
+                queryParams: ["api-version": "2025-01-01-preview"],
+                headers: ["X-Workspace": "ios"]
+            )
+        )
+        try await manager.activateAccountAndMarkActive(relay, for: provider)
+
+        try await manager.updateConfiguredAccount(
+            relay,
+            name: "Relay Two",
+            apiKey: "rk-live-87654321",
+            relay: .init(
+                baseURL: "https://relay-two.example.com/v1",
+                modelProvider: "provider-two",
+                queryParams: ["api-version": "2025-04-01-preview"],
+                headers: ["X-Workspace": "mac"]
+            )
+        )
+        let refreshed = try #require((try await manager.loadAccounts()).first(where: { $0.id == relay.id }))
+
+        try await manager.refreshActiveProviderConfigIfNeeded(for: refreshed, provider: provider)
+
+        let rewritten = try configFile.read()
+        #expect(rewritten.contains(#"model_provider = "provider-two""#))
+        #expect(rewritten.contains(#"[model_providers.provider-two]"#))
+        #expect(rewritten.contains(#"base_url = "https://relay-two.example.com/v1""#))
+        #expect(rewritten.contains(#"query_params = { "api-version" = "2025-04-01-preview" }"#))
+        #expect(rewritten.contains(#"http_headers = { "X-Workspace" = "mac" }"#))
+        #expect(rewritten.contains(#"[model_providers.provider-one]"#) == false)
+    }
+
+    @Test("Given openai history exists, when relay activation and oauth restoration switch active provider, then rollout files and state db migrate with the visible provider")
+    func relayActivationMigratesHistoryProviderMetadataAndOAuthRestoresIt() async throws {
+        let root = try makeTempRoot("codex-auth-history-provider-migration")
+        defer { try? root.delete() }
+
+        let manager = CodexAuthManager(rootURL: root.url)
+        let provider = makeCodexProvider(root: root)
+        let codexHome = root.folder("provider")
+        let configFile = codexHome.file("config.toml")
+        let originalConfig = """
+        model = "o3"
+        approval_policy = "on-request"
+        """
+        try configFile.overlay(with: originalConfig + "\n")
+
+        let liveThreadID = UUID().uuidString.lowercased()
+        let archivedThreadID = UUID().uuidString.lowercased()
+        let liveRollout = try writeRolloutSessionMeta(
+            codexHome: codexHome,
+            threadID: liveThreadID,
+            modelProvider: "openai",
+            archived: false,
+            timestamp: "2026-04-10T10-00-00"
+        )
+        let archivedRollout = try writeRolloutSessionMeta(
+            codexHome: codexHome,
+            threadID: archivedThreadID,
+            modelProvider: "openai",
+            archived: true,
+            timestamp: "2026-04-10T09-00-00"
+        )
+        let stateDBURL = try createCodexStateDatabase(
+            codexHome: codexHome,
+            threads: [
+                (id: liveThreadID, rolloutPath: "sessions/2026/04/10/\(liveRollout.attributes.name)", modelProvider: "openai", archived: false),
+                (id: archivedThreadID, rolloutPath: "archived_sessions/2026/04/10/\(archivedRollout.attributes.name)", modelProvider: "openai", archived: true),
+            ]
+        )
+
+        let relay = try await manager.addConfiguredAccount(
+            name: "Relay",
+            apiKey: "rk-live-12345678",
+            relay: .init(
+                baseURL: "https://relay.example.com/v1",
+                modelProvider: "provider-relay",
+                queryParams: ["api-version": "2025-01-01-preview"],
+                headers: ["X-Workspace": "ios"]
+            )
+        )
+        let oauth = try await manager.addAccount(
+            name: "oauth",
+            authJSONString: #"{"auth_mode":"chatgpt","tokens":{"id_token":"id-oauth","access_token":"access-oauth"},"email":"oauth@example.com"}"#
+        )
+
+        try await manager.activateAccountAndMarkActive(relay, for: provider)
+
+        #expect(try rolloutSessionMetaProvider(file: liveRollout) == "provider-relay")
+        #expect(try rolloutSessionMetaProvider(file: archivedRollout) == "provider-relay")
+        #expect(try sqliteString(databaseURL: stateDBURL, sql: "SELECT model_provider FROM threads WHERE id = ?;", bind: liveThreadID) == "provider-relay")
+        #expect(try sqliteString(databaseURL: stateDBURL, sql: "SELECT model_provider FROM threads WHERE id = ?;", bind: archivedThreadID) == "provider-relay")
+
+        try await manager.activateAccountAndMarkActive(oauth, for: provider)
+
+        #expect(try rolloutSessionMetaProvider(file: liveRollout) == "openai")
+        #expect(try rolloutSessionMetaProvider(file: archivedRollout) == "openai")
+        #expect(try sqliteString(databaseURL: stateDBURL, sql: "SELECT model_provider FROM threads WHERE id = ?;", bind: liveThreadID) == "openai")
+        #expect(try sqliteString(databaseURL: stateDBURL, sql: "SELECT model_provider FROM threads WHERE id = ?;", bind: archivedThreadID) == "openai")
+        #expect(try configFile.read() == originalConfig + "\n")
+    }
+
+    @Test("Given historical threads already belong to an older relay provider, when the active relay provider id changes, then rollout files and state db migrate to the new relay provider")
+    func refreshActiveRelayConfigMigratesHistoricalProviderMetadata() async throws {
+        let root = try makeTempRoot("codex-auth-refresh-history-provider-migration")
+        defer { try? root.delete() }
+
+        let manager = CodexAuthManager(rootURL: root.url)
+        let provider = makeCodexProvider(root: root)
+        let codexHome = root.folder("provider")
+        try codexHome.file("config.toml").overlay(with: "approval_policy = \"on-request\"\n")
+
+        let liveThreadID = UUID().uuidString.lowercased()
+        let liveRollout = try writeRolloutSessionMeta(
+            codexHome: codexHome,
+            threadID: liveThreadID,
+            modelProvider: "provider-one"
+        )
+        let stateDBURL = try createCodexStateDatabase(
+            codexHome: codexHome,
+            threads: [
+                (id: liveThreadID, rolloutPath: "sessions/2026/04/10/\(liveRollout.attributes.name)", modelProvider: "provider-one", archived: false),
+            ]
+        )
+
+        let relay = try await manager.addConfiguredAccount(
+            name: "Relay One",
+            apiKey: "rk-live-12345678",
+            relay: .init(
+                baseURL: "https://relay-one.example.com/v1",
+                modelProvider: "provider-one",
+                queryParams: ["api-version": "2025-01-01-preview"],
+                headers: ["X-Workspace": "ios"]
+            )
+        )
+        try await manager.activateAccountAndMarkActive(relay, for: provider)
+
+        try await manager.updateConfiguredAccount(
+            relay,
+            name: "Relay Two",
+            apiKey: "rk-live-87654321",
+            relay: .init(
+                baseURL: "https://relay-two.example.com/v1",
+                modelProvider: "provider-two",
+                queryParams: ["api-version": "2025-04-01-preview"],
+                headers: ["X-Workspace": "mac"]
+            )
+        )
+        let refreshed = try #require((try await manager.loadAccounts()).first(where: { $0.id == relay.id }))
+
+        try await manager.refreshActiveProviderConfigIfNeeded(for: refreshed, provider: provider)
+
+        #expect(try rolloutSessionMetaProvider(file: liveRollout) == "provider-two")
+        #expect(try sqliteString(databaseURL: stateDBURL, sql: "SELECT model_provider FROM threads WHERE id = ?;", bind: liveThreadID) == "provider-two")
+    }
+
     @Test("Given fresh CLI login, when finalizing, then account is active and provider auth contains new token")
     func finalizeCLILoginSyncsAndMarksActive() async throws {
         let root = try makeTempRoot("codex-auth-finalize")

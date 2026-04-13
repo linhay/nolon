@@ -1,5 +1,10 @@
 # Codex 账号池统一网关与自动切号技术设计（2026-03-13）
 
+## 状态更新（2026-04-10）
+1. `CodexGatewayKit`、`nolon codex gateway ...` 命令面、App gateway UI 与 Vapor/XCTVapor 依赖已从主工程移除。
+2. 当前仓库只保留 direct auto-switch 相关实现；gateway 设计内容转为独立 SPM 的历史参考。
+3. 本文档中关于 gateway target、Vapor 选型、daemon 生命周期和控制面接口的描述，不再代表当前主线代码状态。
+
 ## 目标
 在保持 `nolon` app 层只做编排的前提下，为 Codex 账号池增加两条自动调度路径：
 1. 本地 HTTP gateway 调度。

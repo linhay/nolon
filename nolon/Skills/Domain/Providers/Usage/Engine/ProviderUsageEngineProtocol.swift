@@ -58,6 +58,7 @@ protocol ProviderUsageCodexEngineProtocol: AnyObject {
     var selectedCodexAccountIDs: Set<UUID> { get set }
     var codexSelectedAccountCount: Int { get }
     var pendingActivateCodexAccount: CodexAuthAccount? { get set }
+    var activatingCodexAccountId: UUID? { get set }
     var codexManagementStatus: CodexAuthManager.CodexManagementStatus? { get set }
     var codexConfigEditorDraft: CodexConfigEditorDraft? { get set }
     var codexConfigEditorModelProviderOptions: [String] { get set }
@@ -74,11 +75,9 @@ protocol ProviderUsageCodexEngineProtocol: AnyObject {
     var collapsedCodexSectionIDs: Set<String> { get set }
     var isCodexHeaderRefreshing: Bool { get set }
     var canExportSelectedCodexAccounts: Bool { get }
-    var canAddSelectedToGatewayCard: Bool { get }
     var isShowingActivateConfirm: Bool { get set }
     var isShowingDeleteConfirm: Bool { get set }
     var pendingDeleteCodexAccount: CodexAuthAccount? { get set }
-    var isShowingGatewayCardPicker: Bool { get set }
     var cliLoginPreferredAccountId: UUID? { get set }
     var codexImportCandidateSections: [CodexImportCandidateSection] { get }
     var hasCodexImportCandidates: Bool { get }
@@ -91,11 +90,6 @@ protocol ProviderUsageCodexEngineProtocol: AnyObject {
     var codexImportDestinationOption: CodexImportDestinationOption { get set }
     var codexImportCustomGroupName: String { get set }
     var isShowingCodexImportSheet: Bool { get set }
-    var gatewayCards: [CodexGatewayCard] { get }
-    var gatewayCardsState: CodexGatewayCardsState { get set }
-    var isGatewayCardsSectionCollapsed: Bool { get set }
-    var hasActiveGatewayCardSelection: Bool { get }
-    var pendingGatewaySelectionAccountIDs: [UUID] { get set }
 
     func selectedCodexAccountIDsInDisplayOrder() -> [UUID]
     func requestActivateCodexAccount(id: UUID)
@@ -104,7 +98,8 @@ protocol ProviderUsageCodexEngineProtocol: AnyObject {
     func confirmDeleteCodexAccount() async
     func refreshCodexAccountImmediately(id: UUID) async
     func isCodexAccountSelected(id: UUID?) -> Bool
-    func shouldActivateCodexAccountOnTap(id: UUID, hasActiveGatewayCardSelection: Bool) -> Bool
+    func codexInteractionState(accountID: UUID?) -> CodexAccountInteractionState
+    func shouldActivateCodexAccountOnTap(id: UUID) -> Bool
     func setCodexMultiSelectionEnabled(_ enabled: Bool)
     func isActiveCodexAccount(_ account: CodexAuthAccount) -> Bool
     func codexAccountSupportsLogin(accountID: UUID?) -> Bool
@@ -134,10 +129,8 @@ protocol ProviderUsageCodexEngineProtocol: AnyObject {
     func isCodexSectionCollapsed(_ sectionID: String) -> Bool
     func isCodexSectionFullySelected(_ section: CodexAccountDisplaySection) -> Bool
     func codexDirection(for option: CodexAccountSortOption) -> CodexSortDirection
-    func addSelectedToGatewayCard()
     func beginImportAuthFiles()
     func copyErrorText(_ text: String)
-    func gatewayMembers(for card: CodexGatewayCard) -> [CodexGatewayMemberDisplay]
     func presentCodexImportFilePicker() async
     func pasteCodexImportFromClipboard() async
     func handleCodexImportURLs(_ urls: [URL]) async
@@ -150,18 +143,6 @@ protocol ProviderUsageCodexEngineProtocol: AnyObject {
     func exportSelectedCodexImportCandidatesAsZIP() async
     func applySelectedCodexImports() async
     func dismissCodexImportSheet()
-    func clearActiveGatewayCardSelection()
-    func toggleGatewayCardsSectionCollapsed()
-    func activateGatewayCard(cardID: UUID) -> Bool
-    func startGatewayForCardSelection(cardID: UUID) async
-    func renameGatewayCard(cardID: UUID, name: String)
-    func deleteGatewayCard(cardID: UUID)
-    func confirmAddPendingAccounts(to cardID: UUID)
-    func dismissGatewayCardPicker()
-    func gatewayCandidateAccounts(for cardID: UUID) -> [CodexAuthAccount]
-    func gatewayCandidateSections(for cardID: UUID) -> [CodexGatewayCandidateSection]
-    func addAccountsToGatewayCard(accountIDs: [UUID], cardID: UUID)
-    func createGatewayCard(name: String) -> CodexGatewayCard?
 }
 
 @MainActor

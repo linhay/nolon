@@ -104,99 +104,6 @@ enum CostUsageScanner {
             .folder("sessions")
     }
 
-    private static func codexSessionsRoots(options: Options) -> [STFolder] {
-        let root = self.defaultCodexSessionsRoot(options: options)
-        if let archived = self.codexArchivedSessionsRoot(sessionsRoot: root) {
-            return [root, archived]
-        }
-        return [root]
-    }
-
-    private static func codexArchivedSessionsRoot(sessionsRoot: STFolder) -> STFolder? {
-        guard sessionsRoot.url.lastPathComponent == "sessions" else { return nil }
-        return sessionsRoot.parentFolder()?.folder("archived_sessions")
-    }
-
-    private static func listCodexSessionFiles(root: STFolder, scanSinceKey: String, scanUntilKey: String) -> [STFile] {
-        let partitioned = self.listCodexSessionFilesByDatePartition(
-            root: root,
-            scanSinceKey: scanSinceKey,
-            scanUntilKey: scanUntilKey)
-        let flat = self.listCodexSessionFilesFlat(root: root, scanSinceKey: scanSinceKey, scanUntilKey: scanUntilKey)
-        var seen: Set<String> = []
-        var out: [STFile] = []
-        for item in partitioned + flat where !seen.contains(item.url.path) {
-            seen.insert(item.url.path)
-            out.append(item)
-        }
-        return out
-    }
-
-    private static func listCodexSessionFilesByDatePartition(
-        root: STFolder,
-        scanSinceKey: String,
-        scanUntilKey: String) -> [STFile]
-    {
-        guard root.isExists else { return [] }
-        var out: [STFile] = []
-        var date = Self.parseDayKey(scanSinceKey) ?? Date()
-        let untilDate = Self.parseDayKey(scanUntilKey) ?? date
-
-        while date <= untilDate {
-            let comps = Calendar.current.dateComponents([.year, .month, .day], from: date)
-            let y = String(format: "%04d", comps.year ?? 1970)
-            let m = String(format: "%02d", comps.month ?? 1)
-            let d = String(format: "%02d", comps.day ?? 1)
-
-            let dayDir = root.folder(y).folder(m).folder(d)
-
-            if let items = try? dayDir.files([.skipsHiddenFiles]) {
-                for item in items where item.url.pathExtension.lowercased() == "jsonl" {
-                    out.append(item)
-                }
-            }
-
-            date = Calendar.current.date(byAdding: .day, value: 1, to: date) ?? untilDate.addingTimeInterval(1)
-        }
-
-        return out
-    }
-
-    private static func listCodexSessionFilesFlat(root: STFolder, scanSinceKey: String, scanUntilKey: String) -> [STFile] {
-        guard root.isExists else { return [] }
-        guard let items = try? root.files([.skipsHiddenFiles, .skipsPackageDescendants]) else { return [] }
-
-        var out: [STFile] = []
-        for item in items where item.url.pathExtension.lowercased() == "jsonl" {
-            if let dayKey = Self.dayKeyFromFilename(item.url.lastPathComponent) {
-                if !CostUsageDayRange.isInRange(dayKey: dayKey, since: scanSinceKey, until: scanUntilKey) {
-                    continue
-                }
-            }
-            out.append(item)
-        }
-        return out
-    }
-
-    private static let codexFilenameDateRegex = try? NSRegularExpression(pattern: "(\\d{4}-\\d{2}-\\d{2})")
-
-    private static func dayKeyFromFilename(_ filename: String) -> String? {
-        guard let regex = self.codexFilenameDateRegex else { return nil }
-        let range = NSRange(filename.startIndex..<filename.endIndex, in: filename)
-        guard let match = regex.firstMatch(in: filename, range: range) else { return nil }
-        guard let matchRange = Range(match.range(at: 1), in: filename) else { return nil }
-        return String(filename[matchRange])
-    }
-
-    private static func fileIdentityString(file: STFile) -> String? {
-        guard let values = try? file.url.resourceValues(forKeys: [.fileResourceIdentifierKey]) else { return nil }
-        guard let identifier = values.fileResourceIdentifier else { return nil }
-        if let data = identifier as? Data {
-            return data.base64EncodedString()
-        }
-        return String(describing: identifier)
-    }
-
     static func parseCodexFile(
         file: STFile,
         range: CostUsageDayRange,
@@ -297,6 +204,7 @@ enum CostUsageScanner {
 
     private static func scanCodexFile(
         file: STFile,
+        fileIdentity: String?,
         range: CostUsageDayRange,
         cache: inout CostUsageCache,
         state: inout CodexScanState)
@@ -305,7 +213,7 @@ enum CostUsageScanner {
         let mtime = file.attributes.modificationDate.timeIntervalSince1970
         let size = Int64(file.attributes.size)
         let mtimeMs = Int64(mtime * 1000)
-        let fileId = Self.fileIdentityString(file: file)
+        let fileId = fileIdentity
 
         func dropCachedFile(_ cached: CostUsageFileUsage?) {
             if let cached {
@@ -417,29 +325,22 @@ enum CostUsageScanner {
         let refreshMs = Int64(max(0, options.refreshMinIntervalSeconds) * 1000)
         let shouldRefresh = refreshMs == 0 || cache.lastScanUnixMs == 0 || nowMs - cache.lastScanUnixMs > refreshMs
 
-        let roots = self.codexSessionsRoots(options: options)
-        var seenPaths: Set<String> = []
-        var files: [STFile] = []
-        for root in roots {
-            let rootFiles = Self.listCodexSessionFiles(
-                root: root,
-                scanSinceKey: range.scanSinceKey,
-                scanUntilKey: range.scanUntilKey)
-            for file in rootFiles.sorted(by: { $0.url.path < $1.url.path }) where !seenPaths.contains(file.url.path) {
-                seenPaths.insert(file.url.path)
-                files.append(file)
-            }
-        }
-        let filePathsInScan = Set(files.map(\.path))
+        let scannedFiles = CodexSessionScanner.scanFiles(
+            sessionsRoot: defaultCodexSessionsRoot(options: options),
+            includeArchivedSibling: true,
+            dayRange: .init(sinceKey: range.scanSinceKey, untilKey: range.scanUntilKey)
+        )
+        let filePathsInScan = Set(scannedFiles.map { $0.file.path })
 
         if shouldRefresh {
             if options.forceRescan {
                 cache = CostUsageCache()
             }
             var scanState = CodexScanState()
-            for file in files {
+            for scannedFile in scannedFiles {
                 Self.scanCodexFile(
-                    file: file,
+                    file: scannedFile.file,
+                    fileIdentity: scannedFile.fileIdentity,
                     range: range,
                     cache: &cache,
                     state: &scanState)

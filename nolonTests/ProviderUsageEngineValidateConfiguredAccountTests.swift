@@ -63,7 +63,98 @@ final class ProviderUsageEngineValidateConfiguredAccountTests: XCTestCase {
         )
     }
 
-    func testBDD_GivenNewConfigEditor_WhenOpening_ThenLoadsModelProviderOptionsFromModelsCache() throws {
+    func testBDD_GivenOfficialAPIKeyAccount_WhenEditingFromCardMenu_ThenOpensConfigEditorSheet() async throws {
+        let root = try makeTempDirectory()
+        let manager = CodexAuthManager(rootURL: root)
+        let provider = Provider(
+            name: "Codex",
+            defaultSkillsPath: root.appendingPathComponent("skills", isDirectory: true).path,
+            workflowPath: "/tmp/codex-prompts",
+            installMethod: .symlink,
+            templateId: "codex"
+        )
+        let account = try await manager.addConfiguredAccount(
+            name: "OpenAI Direct",
+            apiKey: "sk-live-12345678",
+            relay: nil
+        )
+        let viewModel = ProviderUsageEngine(provider: provider, codexAuthManager: manager)
+        viewModel.codexAccounts = [account]
+        viewModel.codexAccountSummaries[account.id] = CodexAuthSummary(cardKind: .officialAPIKey)
+
+        viewModel.editCodexAccountAuthJSON(id: account.id)
+
+        XCTAssertTrue(viewModel.isShowingCodexConfigEditor)
+        XCTAssertEqual(viewModel.codexConfigEditorDraft?.mode, .edit(accountID: account.id))
+        XCTAssertEqual(viewModel.codexConfigEditorDraft?.apiKey, "sk-live-12345678")
+        XCTAssertEqual(viewModel.codexConfigEditorDraft?.baseURL, "")
+        XCTAssertEqual(
+            viewModel.codexConfigEditorDraft?.modelProvider,
+            ProviderUsageEngine.codexDefaultModelProvider
+        )
+    }
+
+    func testBDD_GivenRelayAccount_WhenEditingFromCardMenu_ThenOpensConfigEditorSheetWithRelayFields() async throws {
+        let root = try makeTempDirectory()
+        let manager = CodexAuthManager(rootURL: root)
+        let provider = Provider(
+            name: "Codex",
+            defaultSkillsPath: root.appendingPathComponent("skills", isDirectory: true).path,
+            workflowPath: "/tmp/codex-prompts",
+            installMethod: .symlink,
+            templateId: "codex"
+        )
+        let relay = CodexAuthManager.ConfiguredRelay(
+            baseURL: "https://relay.example.com/v1",
+            modelProvider: "jobmd"
+        )
+        let account = try await manager.addConfiguredAccount(
+            name: "Relay",
+            apiKey: "rk-live-12345678",
+            relay: relay
+        )
+        let viewModel = ProviderUsageEngine(provider: provider, codexAuthManager: manager)
+        viewModel.codexAccounts = [account]
+        viewModel.codexAccountSummaries[account.id] = CodexAuthSummary(
+            cardKind: .relayProfile,
+            relayBaseURL: relay.baseURL,
+            relayModelProvider: relay.modelProvider
+        )
+
+        viewModel.editCodexAccountAuthJSON(id: account.id)
+
+        XCTAssertTrue(viewModel.isShowingCodexConfigEditor)
+        XCTAssertEqual(viewModel.codexConfigEditorDraft?.mode, .edit(accountID: account.id))
+        XCTAssertEqual(viewModel.codexConfigEditorDraft?.apiKey, "rk-live-12345678")
+        XCTAssertEqual(viewModel.codexConfigEditorDraft?.baseURL, relay.baseURL)
+        XCTAssertEqual(viewModel.codexConfigEditorDraft?.modelProvider, relay.modelProvider)
+    }
+
+    func testBDD_GivenChatGPTSnapshot_WhenEditingAuthJSON_ThenDoesNotPresentConfigEditorSheet() async throws {
+        let root = try makeTempDirectory()
+        let manager = CodexAuthManager(rootURL: root)
+        let provider = Provider(
+            name: "Codex",
+            defaultSkillsPath: root.appendingPathComponent("skills", isDirectory: true).path,
+            workflowPath: "/tmp/codex-prompts",
+            installMethod: .symlink,
+            templateId: "codex"
+        )
+        let account = try await manager.addAccount(
+            name: "ChatGPT",
+            authJSONString: #"{"tokens":{"id_token":"id","access_token":"access"}}"#
+        )
+        let viewModel = ProviderUsageEngine(provider: provider, codexAuthManager: manager)
+        viewModel.codexAccounts = [account]
+        viewModel.codexAccountSummaries[account.id] = CodexAuthSummary(cardKind: .chatgptAccount)
+
+        viewModel.editCodexAccountAuthJSON(id: account.id)
+
+        XCTAssertFalse(viewModel.isShowingCodexConfigEditor)
+        XCTAssertNil(viewModel.codexConfigEditorDraft)
+    }
+
+    func testBDD_GivenNewConfigEditor_WhenOpening_ThenLoadsModelProviderOptionsFromConfigFile() throws {
         let root = try makeTempDirectory()
         let providerHome = root.appendingPathComponent("provider-home", isDirectory: true)
         let skillsPath = providerHome.appendingPathComponent("skills", isDirectory: true).path
@@ -73,19 +164,19 @@ final class ProviderUsageEngineValidateConfiguredAccountTests: XCTestCase {
             at: URL(fileURLWithPath: homePath).appendingPathComponent(".codex", isDirectory: true),
             withIntermediateDirectories: true
         )
+        try writeConfig(
+            to: providerHome.appendingPathComponent("config.toml"),
+            content: #"""
+            model_provider = "jobmd"
 
-        try writeModelsCache(
-            to: providerHome.appendingPathComponent("models_cache.json"),
-            models: [
-                #"{"slug":"gpt-5.4","display_name":"gpt-5.4","visibility":"list"}"#,
-                #"{"slug":"gpt-5.4-mini","display_name":"gpt-5.4-mini","visibility":"hide"}"#
-            ]
-        )
-        try writeModelsCache(
-            to: URL(fileURLWithPath: homePath).appendingPathComponent(".codex/models_cache.json"),
-            models: [
-                #"{"slug":"gpt-5.2-codex","display_name":"gpt-5.2-codex","visibility":"list"}"#
-            ]
+            [model_providers.jobmd]
+            name = "jobmd"
+            base_url = "https://relay.example.com/v1"
+
+            [model_providers.fallback]
+            name = "fallback"
+            base_url = "https://fallback.example.com/v1"
+            """#
         )
 
         let provider = Provider(
@@ -100,10 +191,13 @@ final class ProviderUsageEngineValidateConfiguredAccountTests: XCTestCase {
 
         viewModel.beginNewCodexAPIKeyAccount()
 
-        XCTAssertEqual(viewModel.codexConfigEditorModelProviderOptions, ["gpt-5.4", "gpt-5.2-codex"])
+        XCTAssertEqual(viewModel.codexConfigEditorModelProviderOptions, ["nolon", "jobmd", "fallback"])
+        XCTAssertEqual(viewModel.codexConfigEditorDraft?.modelProvider, ProviderUsageEngine.codexDefaultModelProvider)
+        XCTAssertEqual(viewModel.codexConfigEditorDraft?.baseURL, "")
+        XCTAssertEqual(viewModel.codexConfigEditorDraft?.apiKey, "")
     }
 
-    func testBDD_GivenEditConfigEditor_WhenCurrentProviderNotInCache_ThenCurrentProviderIsKeptInOptions() throws {
+    func testBDD_GivenEditConfigEditor_WhenCurrentProviderNotInConfig_ThenCurrentProviderIsKeptInOptions() throws {
         let root = try makeTempDirectory()
         let providerHome = root.appendingPathComponent("provider-home", isDirectory: true)
         let skillsPath = providerHome.appendingPathComponent("skills", isDirectory: true).path
@@ -113,12 +207,15 @@ final class ProviderUsageEngineValidateConfiguredAccountTests: XCTestCase {
             at: URL(fileURLWithPath: homePath).appendingPathComponent(".codex", isDirectory: true),
             withIntermediateDirectories: true
         )
+        try writeConfig(
+            to: providerHome.appendingPathComponent("config.toml"),
+            content: #"""
+            model_provider = "jobmd"
 
-        try writeModelsCache(
-            to: providerHome.appendingPathComponent("models_cache.json"),
-            models: [
-                #"{"slug":"gpt-5.4","display_name":"gpt-5.4","visibility":"list"}"#
-            ]
+            [model_providers.jobmd]
+            name = "jobmd"
+            base_url = "https://relay.example.com/v1"
+            """#
         )
 
         let provider = Provider(
@@ -141,8 +238,79 @@ final class ProviderUsageEngineValidateConfiguredAccountTests: XCTestCase {
 
         XCTAssertEqual(
             viewModel.codexConfigEditorModelProviderOptions,
-            ["custom-provider", "gpt-5.4"]
+            ["custom-provider", "jobmd"]
         )
+    }
+
+    func testBDD_GivenBlankModelProvider_WhenResolving_ThenFallsBackToNolon() {
+        XCTAssertEqual(
+            ProviderUsageEngine.resolvedCodexModelProvider("   "),
+            ProviderUsageEngine.codexDefaultModelProvider
+        )
+    }
+
+    func testBDD_GivenExplicitModelProvider_WhenResolving_ThenKeepsTrimmedValue() {
+        XCTAssertEqual(
+            ProviderUsageEngine.resolvedCodexModelProvider("  relay-prod  "),
+            "relay-prod"
+        )
+    }
+
+    func testBDD_GivenLegacyRelayAccountMissingProvider_WhenActivatingWithMatchingCurrentConfig_ThenBackfillsProviderIntoSnapshot() async throws {
+        let root = try makeTempDirectory()
+        let providerHome = root.appendingPathComponent("provider-home", isDirectory: true)
+        let skillsPath = providerHome.appendingPathComponent("skills", isDirectory: true).path
+        try FileManager.default.createDirectory(at: providerHome, withIntermediateDirectories: true)
+        try writeConfig(
+            to: providerHome.appendingPathComponent("config.toml"),
+            content: #"""
+            approval_policy = "on-request"
+            model_provider = "jobmd"
+
+            [model_providers.jobmd]
+            name = "jobmd"
+            base_url = "https://relay.example.com/v1"
+            requires_openai_auth = true
+            wire_api = "responses"
+            """#
+        )
+
+        let provider = Provider(
+            name: "Codex",
+            defaultSkillsPath: skillsPath,
+            workflowPath: "/tmp/codex-prompts",
+            installMethod: .symlink,
+            templateId: "codex"
+        )
+        let manager = CodexAuthManager(rootURL: root)
+        let account = try await manager.addAccount(
+            name: "Legacy Relay",
+            authJSONString: #"""
+            {
+              "auth_mode": "apikey",
+              "OPENAI_API_KEY": "rk-live-12345678",
+              "nolon": {
+                "relay": {
+                  "base_url": "https://relay.example.com/v1"
+                }
+              }
+            }
+            """#
+        )
+
+        try await manager.activateAccountAndMarkActive(account, for: provider)
+
+        let persistedConfig = try String(
+            contentsOf: providerHome.appendingPathComponent("config.toml"),
+            encoding: .utf8
+        )
+        XCTAssertTrue(persistedConfig.contains(#"model_provider = "jobmd""#))
+        XCTAssertTrue(persistedConfig.contains(#"[model_providers.jobmd]"#))
+
+        let repairedData = try XCTUnwrap(manager.accountAuthData(for: account))
+        let repairedJSON = try JSON(data: repairedData)
+        XCTAssertEqual(repairedJSON["nolon"]["relay"]["model_provider"].string, "jobmd")
+        XCTAssertEqual(repairedJSON["base_url"].string, "https://relay.example.com/v1")
     }
 
     private func waitUntil(
@@ -166,13 +334,7 @@ final class ProviderUsageEngineValidateConfiguredAccountTests: XCTestCase {
         return directory
     }
 
-    private func writeModelsCache(to fileURL: URL, models: [String]) throws {
-        let payload = """
-        {
-          "fetched_at": "2026-04-01T00:00:00Z",
-          "models":[\(models.joined(separator: ","))]
-        }
-        """
-        try Data(payload.utf8).write(to: fileURL, options: .atomic)
+    private func writeConfig(to fileURL: URL, content: String) throws {
+        try Data((content + "\n").utf8).write(to: fileURL, options: .atomic)
     }
 }

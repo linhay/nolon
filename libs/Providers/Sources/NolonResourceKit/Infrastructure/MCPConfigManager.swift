@@ -32,9 +32,17 @@ public struct MCPCacheMigrationResult: Sendable, Equatable {
 }
 
 public enum MCPConfigManager {
+    @discardableResult
+    public static func repairProviderMCPStateIfNeeded(for template: ProviderTemplate) throws -> Bool {
+        let cacheChanged = try repairCacheEntriesIfNeeded()
+        guard template.supportsNativeMcpConfig else { return cacheChanged }
+        let providerChanged = try repairProviderConfigIfNeeded(for: template)
+        return cacheChanged || providerChanged
+    }
+
     public static func listServers(for template: ProviderTemplate) throws -> [MCPServerInfo] {
         guard template.supportsNativeMcpConfig else { return [] }
-        let servers = try synchronizedServers(for: template)
+        let servers = try effectiveServers(for: template)
         return servers.keys.sorted().map { name in
             let fields = MCPJsonFile.serverFields(from: servers[name] ?? [:])
             return MCPServerInfo(
@@ -51,7 +59,7 @@ public enum MCPConfigManager {
     public static func setEnabled(for template: ProviderTemplate, name: String, enabled: Bool) throws {
         guard template.supportsNativeMcpConfig else { return }
         let serverName = try validateComponent(name, field: "name")
-        var projected = try synchronizedServers(for: template)
+        var projected = try effectiveServers(for: template)
         var server = projected[serverName] ?? [:]
         if enabled {
             server["disabled"] = nil
@@ -60,6 +68,7 @@ public enum MCPConfigManager {
             server["enabled"] = nil
             server["disabled"] = true
         }
+        server = sanitizeServerForProviderStorage(server, template: template)
         projected[serverName] = server
         try writeCacheServer(name: serverName, server: server, provider: template.rawValue, mergeProviders: true)
         try writeServersDict(for: template, servers: projected)
@@ -72,9 +81,12 @@ public enum MCPConfigManager {
     ) throws {
         guard template.supportsNativeMcpConfig else { return }
         let serverName = try validateComponent(name, field: "name")
-        var projected = try synchronizedServers(for: template)
+        var projected = try effectiveServers(for: template)
         let base = projected[serverName] ?? [:]
-        let merged = normalizeServerConfigForStorage(base.merging(serverConfig, uniquingKeysWith: { _, new in new }))
+        let merged = sanitizeServerForProviderStorage(
+            normalizeServerConfigForStorage(base.merging(serverConfig, uniquingKeysWith: { _, new in new })),
+            template: template
+        )
         projected[serverName] = merged
         try writeCacheServer(name: serverName, server: merged, provider: template.rawValue, mergeProviders: true)
         try writeServersDict(for: template, servers: projected)
@@ -83,7 +95,7 @@ public enum MCPConfigManager {
     public static func removeServer(for template: ProviderTemplate, name: String) throws {
         guard template.supportsNativeMcpConfig else { return }
         let serverName = try validateComponent(name, field: "name")
-        var projected = try synchronizedServers(for: template)
+        var projected = try effectiveServers(for: template)
         projected[serverName] = nil
         try writeServersDict(for: template, servers: projected)
         try unbindProviderFromCacheServer(name: serverName, provider: template.rawValue)
@@ -96,7 +108,7 @@ public enum MCPConfigManager {
         guard template.supportsNativeMcpConfig else {
             return MCPCacheMigrationResult(migrated: 0, skipped: 0, updated: 0)
         }
-        let servers = try synchronizedServers(for: template)
+        let servers = try effectiveServers(for: template)
         var migrated = 0
         var skipped = 0
         var updated = 0
@@ -129,7 +141,7 @@ public enum MCPConfigManager {
 
     public static func cacheStatus(for template: ProviderTemplate, name: String? = nil) throws -> [MCPCacheStatusInfo] {
         guard template.supportsNativeMcpConfig else { return [] }
-        let servers = try synchronizedServers(for: template)
+        let servers = try effectiveServers(for: template)
         let filtered: [String: [String: Any]]
         if let name, !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             let normalized = try validateComponent(name, field: "name")
@@ -160,16 +172,22 @@ public enum MCPConfigManager {
     @discardableResult
     public static func syncAllCacheServersToProvider(for template: ProviderTemplate) throws -> Int {
         guard template.supportsNativeMcpConfig else { return 0 }
+        _ = try repairProviderMCPStateIfNeeded(for: template)
         let entries = readCacheEntriesIndexedByName()
         var projected: [String: [String: Any]] = [:]
+        let providerID = template.rawValue
         for name in entries.keys.sorted() {
             guard let entry = entries[name] else { continue }
-            let normalized = normalizeServerConfigForStorage(entry.server)
+            guard entry.applies(to: providerID) else { continue }
+            let normalized = sanitizeServerForProviderStorage(
+                normalizeServerConfigForStorage(entry.server),
+                template: template
+            )
             projected[name] = normalized
             try writeCacheServer(
                 name: name,
                 server: normalized,
-                provider: template.rawValue,
+                provider: providerID,
                 mergeProviders: true
             )
         }
@@ -190,28 +208,20 @@ private extension MCPConfigManager {
         }
     }
 
-    static func synchronizedServers(for template: ProviderTemplate) throws -> [String: [String: Any]] {
+    static func effectiveServers(for template: ProviderTemplate) throws -> [String: [String: Any]] {
         var providerServers = try readProviderServersDict(for: template)
         let cacheEntries = readCacheEntriesIndexedByName()
         let providerID = template.rawValue
 
-        // Import provider-native entries into fragment source when missing.
-        for (name, server) in providerServers where cacheEntries[name] == nil {
-            try writeCacheServer(name: name, server: server, provider: providerID, mergeProviders: true)
-        }
-
-        let refreshedCacheEntries = readCacheEntriesIndexedByName()
-
-        // Fragment source is authoritative for entries bound to this provider.
-        for (name, entry) in refreshedCacheEntries where entry.applies(to: providerID) {
+        // Read path must be side-effect free. Linked projection back to provider config
+        // is handled explicitly via syncAllCacheServersToProvider(...).
+        for (name, entry) in cacheEntries where entry.applies(to: providerID) {
             if let existing = providerServers[name] {
                 providerServers[name] = existing.merging(entry.server, uniquingKeysWith: { _, cacheValue in cacheValue })
             } else {
                 providerServers[name] = entry.server
             }
         }
-
-        try writeServersDict(for: template, servers: providerServers)
         return providerServers
     }
 
@@ -260,26 +270,10 @@ private extension MCPConfigManager {
         _ = STFolder(path.deletingLastPathComponent()).createIfNotExists()
 
         if ext == "toml" {
-            var config: CodexMCPConfig
-            if STFile(path).isExists,
-               let data = try? Data(contentsOf: path),
-               let parsed = try? TOMLDecoder().decode(CodexMCPConfig.self, from: data) {
-                config = parsed
-            } else {
-                config = .init(model: nil, modelReasoningEffort: nil, projects: nil, notice: nil, mcpServers: [:])
-            }
-            var mapped: [String: CodexMCPServer] = [:]
-            for name in servers.keys.sorted() {
-                guard let server = servers[name] else { continue }
-                mapped[name] = codexServer(from: server)
-            }
-            let existingMapped = (config.mcpServers ?? [:]).mapValues(codexServerDictionary)
-            let desiredMapped = mapped.mapValues(codexServerDictionary)
-            if canonicalJSON(existingMapped) == canonicalJSON(desiredMapped) {
-                return
-            }
-            config.mcpServers = mapped
-            let output = try TOMLEncoder().encode(config)
+            let existingText = (try? String(contentsOf: path, encoding: .utf8)) ?? ""
+            let renderedSection = renderCodexMCPServersSection(servers)
+            let patchedText = replaceCodexMCPServersSection(in: existingText, with: renderedSection)
+            let output = Data(patchedText.utf8)
             if let existing = try? Data(contentsOf: path), existing == output {
                 return
             }
@@ -396,7 +390,49 @@ private extension MCPConfigManager {
             dict["enabled"] = nil
             dict["disabled"] = true
         }
+        return sanitizeCanonicalServer(dict)
+    }
+
+    static func sanitizeCanonicalServer(_ input: [String: Any]) -> [String: Any] {
+        var dict = input
+        if dict["http_headers"] == nil, let legacyHeaders = dict["headers"] {
+            dict["http_headers"] = legacyHeaders
+        }
+        dict.removeValue(forKey: "headers")
+        let explicitType = (dict["type"] as? String)?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        let isStdio: Bool = {
+            if let explicitType {
+                return explicitType == "stdio" || explicitType == "local"
+            }
+            return dict["command"] != nil
+        }()
+
+        guard isStdio else { return dict }
+
+        dict.removeValue(forKey: "url")
+        dict.removeValue(forKey: "http_headers")
+        dict.removeValue(forKey: "env_http_headers")
+        dict.removeValue(forKey: "oauth_resource")
+        dict.removeValue(forKey: "scopes")
         return dict
+    }
+
+    static func sanitizeServerForProviderStorage(
+        _ input: [String: Any],
+        template: ProviderTemplate
+    ) -> [String: Any] {
+        switch template {
+        case .codex, .codexXcode:
+            return sanitizeCodexServer(input)
+        default:
+            return input
+        }
+    }
+
+    static func sanitizeCodexServer(_ input: [String: Any]) -> [String: Any] {
+        sanitizeCanonicalServer(input)
     }
 
     static func normalizeServerConfigForComparison(_ input: [String: Any], name: String) -> [String: Any] {
@@ -416,11 +452,11 @@ private extension MCPConfigManager {
             }
         }
         _ = name
-        return dict
+        return sanitizeCanonicalServer(dict)
     }
 
     static func readCacheEntriesIndexedByName() -> [String: CacheServerEntry] {
-        let manager = NolonManager.shared
+        let manager = currentManager()
         _ = manager.mcpsFolder.createIfNotExists()
         guard let files = try? manager.mcpsFolder.files() else { return [:] }
         var result: [String: CacheServerEntry] = [:]
@@ -445,12 +481,48 @@ private extension MCPConfigManager {
         return result
     }
 
+    static func repairCacheEntriesIfNeeded() throws -> Bool {
+        let entries = readCacheEntriesIndexedByName()
+        var changed = false
+        for (name, entry) in entries {
+            let sanitized = normalizeServerConfigForStorage(entry.server)
+            if canonicalJSON(entry.server) == canonicalJSON(sanitized) {
+                continue
+            }
+            try writeCacheServer(name: name, server: sanitized, provider: nil, mergeProviders: false)
+            changed = true
+        }
+        return changed
+    }
+
     static func cacheEntry(for name: String) -> CacheServerEntry? {
         readCacheEntriesIndexedByName()[name]
     }
 
     static func cacheFileURL(for name: String) -> URL {
-        NolonManager.shared.mcpsURL.appendingPathComponent("\(safeMcpCacheFileStem(for: name)).json")
+        currentManager().mcpsURL.appendingPathComponent("\(safeMcpCacheFileStem(for: name)).json")
+    }
+
+    static func repairProviderConfigIfNeeded(for template: ProviderTemplate) throws -> Bool {
+        let current = try readProviderServersDict(for: template)
+        guard !current.isEmpty else { return false }
+
+        var repaired: [String: [String: Any]] = [:]
+        var changed = false
+        for (name, server) in current {
+            let sanitized = sanitizeServerForProviderStorage(
+                normalizeServerConfigForStorage(server),
+                template: template
+            )
+            repaired[name] = sanitized
+            if canonicalJSON(server) != canonicalJSON(sanitized) {
+                changed = true
+            }
+        }
+
+        guard changed else { return false }
+        try writeServersDict(for: template, servers: repaired)
+        return true
     }
 
     static func writeCacheServer(
@@ -459,7 +531,7 @@ private extension MCPConfigManager {
         provider: String?,
         mergeProviders: Bool
     ) throws {
-        let manager = NolonManager.shared
+        let manager = currentManager()
         _ = manager.mcpsFolder.createIfNotExists()
         let fileURL = cacheFileURL(for: name)
         var root: [String: Any] = [:]
@@ -497,13 +569,13 @@ private extension MCPConfigManager {
         guard var entry = cacheEntry(for: name) else { return }
         guard !entry.providers.isEmpty else { return } // legacy/global entry: keep as-is
         entry.providers.remove(provider)
+        if entry.providers.isEmpty {
+            try STFile(entry.fileURL).deleteIncludingBrokenSymlink()
+            return
+        }
         let data = try Data(contentsOf: entry.fileURL)
         var root = (try JSONSerialization.jsonObject(with: data) as? [String: Any]) ?? [:]
-        if entry.providers.isEmpty {
-            root["x-nolon"] = nil
-        } else {
-            root["x-nolon"] = ["providers": entry.providers.sorted()]
-        }
+        root["x-nolon"] = ["providers": entry.providers.sorted()]
         let output = try JSONSerialization.data(
             withJSONObject: root,
             options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
@@ -584,6 +656,201 @@ private extension MCPConfigManager {
         return result.isEmpty ? UUID().uuidString : result
     }
 
+    static func renderCodexMCPServersSection(_ servers: [String: [String: Any]]) -> String {
+        guard !servers.isEmpty else { return "" }
+
+        var sections: [String] = ["[mcp_servers]"]
+        for name in servers.keys.sorted() {
+            guard let rawServer = servers[name] else { continue }
+            let server = normalizeServerConfigForStorage(rawServer)
+            let rendered = renderCodexMCPServer(name: name, server: server)
+            if !rendered.isEmpty {
+                sections.append(rendered)
+            }
+        }
+        return sections.joined(separator: "\n\n")
+    }
+
+    static func renderCodexMCPServer(name: String, server: [String: Any]) -> String {
+        var lines = ["[mcp_servers.\(tomlTableKey(name))]"]
+        let normalized = normalizeServerConfigForStorage(server)
+        let explicitType = (normalized["type"] as? String)?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        let inferredType: String? = {
+            if normalized["command"] != nil { return "stdio" }
+            if normalized["url"] != nil { return "http" }
+            return nil
+        }()
+        let effectiveType = explicitType ?? inferredType
+
+        if let url = normalized["url"] as? String {
+            lines.append("url = \(tomlString(url))")
+        }
+        if let command = normalized["command"] as? String {
+            lines.append("command = \(tomlString(command))")
+        }
+        if let args = (normalized["args"] as? [String]) ?? (normalized["args"] as? [Any])?.compactMap({ $0 as? String }),
+           !args.isEmpty {
+            lines.append("args = \(tomlArray(args.map(tomlString)))")
+        }
+        if let env = (normalized["env"] as? [String: String]) ?? (normalized["env"] as? [String: Any])?.compactMapValues({ $0 as? String }),
+           !env.isEmpty {
+            lines.append("env = \(tomlInlineTable(env))")
+        }
+        if let httpHeaders = (normalized["http_headers"] as? [String: String]) ?? (normalized["http_headers"] as? [String: Any])?.compactMapValues({ $0 as? String }),
+           !httpHeaders.isEmpty {
+            lines.append("http_headers = \(tomlInlineTable(httpHeaders))")
+        }
+        if let envHTTPHeaders = (normalized["env_http_headers"] as? [String: String]) ?? (normalized["env_http_headers"] as? [String: Any])?.compactMapValues({ $0 as? String }),
+           !envHTTPHeaders.isEmpty {
+            lines.append("env_http_headers = \(tomlInlineTable(envHTTPHeaders))")
+        }
+        if let oauthResource = normalized["oauth_resource"] as? String {
+            lines.append("oauth_resource = \(tomlString(oauthResource))")
+        }
+        if let scopes = (normalized["scopes"] as? [String]) ?? (normalized["scopes"] as? [Any])?.compactMap({ $0 as? String }),
+           !scopes.isEmpty {
+            lines.append("scopes = \(tomlArray(scopes.map(tomlString)))")
+        }
+        if let enabledTools = (normalized["enabled_tools"] as? [String]) ?? (normalized["enabled_tools"] as? [Any])?.compactMap({ $0 as? String }),
+           !enabledTools.isEmpty {
+            lines.append("enabled_tools = \(tomlArray(enabledTools.map(tomlString)))")
+        }
+        if let disabledTools = (normalized["disabled_tools"] as? [String]) ?? (normalized["disabled_tools"] as? [Any])?.compactMap({ $0 as? String }),
+           !disabledTools.isEmpty {
+            lines.append("disabled_tools = \(tomlArray(disabledTools.map(tomlString)))")
+        }
+        if let envVars = (normalized["env_vars"] as? [String]) ?? (normalized["env_vars"] as? [Any])?.compactMap({ $0 as? String }),
+           !envVars.isEmpty {
+            lines.append("env_vars = \(tomlArray(envVars.map(tomlString)))")
+        }
+        if let required = normalized["required"] as? Bool {
+            lines.append("required = \(required ? "true" : "false")")
+        }
+        if let startupTimeoutSec = numberValue(normalized["startup_timeout_sec"]) {
+            lines.append("startup_timeout_sec = \(tomlNumber(startupTimeoutSec))")
+        }
+        if let startupTimeoutMs = numberValue(normalized["startup_timeout_ms"]) {
+            lines.append("startup_timeout_ms = \(tomlNumber(startupTimeoutMs))")
+        }
+        if let toolTimeoutSec = numberValue(normalized["tool_timeout_sec"]) {
+            lines.append("tool_timeout_sec = \(tomlNumber(toolTimeoutSec))")
+        }
+        if let type = explicitType,
+           type != effectiveType || (type != "stdio" && type != "http") {
+            lines.append("type = \(tomlString(type))")
+        }
+        if let transport = normalized["transport"] as? String {
+            lines.append("transport = \(tomlString(transport))")
+        }
+        if let identity = (normalized["identity"] as? [String: String]) ?? (normalized["identity"] as? [String: Any])?.compactMapValues({ $0 as? String }),
+           !identity.isEmpty {
+            lines.append("identity = \(tomlInlineTable(identity))")
+        }
+
+        let isEnabled = MCPJsonFile.serverFields(from: normalized).isEnabled
+        if !isEnabled {
+            lines.append("enabled = false")
+        }
+
+        return lines.joined(separator: "\n")
+    }
+
+    static func replaceCodexMCPServersSection(in text: String, with renderedSection: String) -> String {
+        let normalizedInput = text.replacingOccurrences(of: "\r\n", with: "\n")
+        let lines = normalizedInput.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
+        var startIndex: Int?
+        var endIndex = lines.count
+
+        for index in lines.indices {
+            let trimmed = lines[index].trimmingCharacters(in: .whitespaces)
+            guard trimmed.hasPrefix("[mcp_servers") else { continue }
+            guard trimmed == "[mcp_servers]" || (trimmed.hasPrefix("[mcp_servers.") && trimmed.hasSuffix("]")) else { continue }
+            startIndex = index
+            break
+        }
+
+        if let startIndex {
+            for index in lines.index(after: startIndex)..<lines.count {
+                let trimmed = lines[index].trimmingCharacters(in: .whitespaces)
+                guard trimmed.hasPrefix("[") && trimmed.hasSuffix("]") else { continue }
+                if trimmed == "[mcp_servers]" || trimmed.hasPrefix("[mcp_servers.") {
+                    continue
+                }
+                endIndex = index
+                break
+            }
+
+            var rebuilt = Array(lines[..<startIndex])
+            if let last = rebuilt.last, !last.isEmpty {
+                rebuilt.append("")
+            }
+            if !renderedSection.isEmpty {
+                rebuilt.append(contentsOf: renderedSection.split(separator: "\n", omittingEmptySubsequences: false).map(String.init))
+            }
+            let trailing = Array(lines[endIndex...])
+            if !trailing.isEmpty, !renderedSection.isEmpty, let last = rebuilt.last, !last.isEmpty, !(trailing.first?.isEmpty ?? true) {
+                rebuilt.append("")
+            }
+            rebuilt.append(contentsOf: trailing)
+            return trimTomlTrailingWhitespace(rebuilt.joined(separator: "\n"))
+        }
+
+        guard !renderedSection.isEmpty else { return trimTomlTrailingWhitespace(normalizedInput) }
+        var result = normalizedInput
+        if !result.isEmpty, !result.hasSuffix("\n") {
+            result.append("\n")
+        }
+        if !result.isEmpty, !result.hasSuffix("\n\n") {
+            result.append("\n")
+        }
+        result.append(renderedSection)
+        return trimTomlTrailingWhitespace(result)
+    }
+
+    static func trimTomlTrailingWhitespace(_ text: String) -> String {
+        let trimmed = text.replacingOccurrences(of: "\n{3,}", with: "\n\n", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? "" : trimmed + "\n"
+    }
+
+    static func tomlTableKey(_ value: String) -> String {
+        let allowed = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "-_"))
+        if !value.isEmpty,
+           value.unicodeScalars.allSatisfy({ allowed.contains($0) }) {
+            return value
+        }
+        return tomlString(value)
+    }
+
+    static func tomlString(_ value: String) -> String {
+        let escaped = value
+            .replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "\"", with: "\\\"")
+            .replacingOccurrences(of: "\n", with: "\\n")
+        return "\"\(escaped)\""
+    }
+
+    static func tomlArray(_ values: [String]) -> String {
+        "[\(values.joined(separator: ", "))]"
+    }
+
+    static func tomlInlineTable(_ values: [String: String]) -> String {
+        let pairs = values.keys.sorted().compactMap { key -> String? in
+            guard let value = values[key] else { return nil }
+            return "\(tomlString(key)) = \(tomlString(value))"
+        }
+        return "{ \(pairs.joined(separator: ", ")) }"
+    }
+
+    static func tomlNumber(_ value: Double) -> String {
+        if value.rounded(.towardZero) == value {
+            return String(Int(value))
+        }
+        return String(value)
+    }
+
     static func canonicalJSON(_ object: Any) -> Data? {
         try? JSONSerialization.data(withJSONObject: object, options: [.sortedKeys, .withoutEscapingSlashes])
     }
@@ -628,5 +895,9 @@ private extension MCPConfigManager {
             throw NSError(domain: "nolon.mcp.config", code: 2, userInfo: [NSLocalizedDescriptionKey: "\(field) must be a single path component: \(value)"])
         }
         return trimmed
+    }
+
+    static func currentManager() -> NolonManager {
+        NolonManager()
     }
 }

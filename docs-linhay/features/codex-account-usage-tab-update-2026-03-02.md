@@ -43,15 +43,17 @@
    - 未选中的排序项不显示方向箭头
    - 切换到其他排序项后，之前排序项的方向状态不保留
    - 缺少当前排序值的卡片排在有值卡片之后
-10. `新增 API Key / 新增 Relay / 编辑配置` 弹框采用基础信息优先的分层结构：
-   - 顶部使用标题 + 副标题说明当前模式
-   - 基础信息单独放在首屏 section
-   - `新增 API Key` 仅 `名称 + API Key` 为必填
-   - `新增 API Key` 的 `Base URL` 收进可选高级项，并默认预填官方地址 `https://api.openai.com/v1`
-   - Relay 的 query/header 收进 `Advanced`
-   - HTTP 用量查询收进独立折叠区，`Credentials Override` 与 `Mapping` 再次折叠
-   - `Test Request` 放在 HTTP 区块内部，不再占用顶部 toolbar
-   - 底部主按钮文案按模式切换为 `Create` / `Save`
+10. `新增 API Key / 编辑配置` 弹框采用简化直出表单：
+   - 顶部继续使用标题 + 副标题说明当前模式
+   - 关闭按钮使用统一的右上角浮动关闭组件
+   - `新增 API Key` 表单字段固定为：`model_provider`、`API Key`、`Base URL`
+   - `model_provider` 选填，默认值为 `nolon`
+   - `API Key` 为唯一必填项
+   - `Base URL` 选填，直接显示，不放进高级折叠区
+   - 移除 `HTTP Usage Query`、`Credentials Override`、`Mapping` 与 `Test Request`
+   - 三个字段都直接显示，不使用 `Advanced` / `DisclosureGroup`
+   - 底部只保留 `Validate` 与主按钮；主按钮文案按模式切换为 `Create` / `Save`
+   - 从配置型账号卡片菜单点击 `编辑` 时，必须打开同一套 `CodexConfigEditorSheet`，不能直接打开临时 `auth.json` 文件
 11. Codex 卡片支持批量选择模式：
    - 仅在 Codex 页面生效
    - 进入批量模式后，点击卡片改为勾选/取消勾选，不再触发激活
@@ -124,31 +126,34 @@
 7. Given 配置型卡片认证失败，When 查看卡片操作区，Then 只显示配置/校验相关动作，不显示 `Re-login`。
 8. Given Codex 页面存在多个分组，When 点击某个 section 标题，Then 当前组折叠或展开，其它组状态保持不变。
 9. Given 用户选择 `按额度` 排序并指定某个时间窗口，When 切换为升序或降序，Then 当前列表按所选窗口额度百分比正序或逆序排列。
-10. Given 用户打开 `新增 API Key` 或 `新增 Relay` 弹框，When 进入编辑器，Then 先看到最小可用的基础字段，而不是被 HTTP 和高级配置淹没。
-11. Given 用户打开 `新增 API Key` 弹框，When 未展开高级项直接填写，Then 只需填写 `名称 + API Key`，且 `Base URL` 默认使用官方地址。
-12. Given 用户需要配置 HTTP 用量查询，When 展开 HTTP 区块，Then 仍可以在同一弹框中完成配置和测试请求。
-13. Given 用户进入 Codex 批量选择模式，When 点击多张卡片，Then 这些卡片进入选中态，且不会触发账号激活。
-14. Given 用户在批量选择模式下已选中多张卡片，When 执行导出，Then 生成一个包含这些 auth.json 快照的 ZIP 文件。
-15. Given 用户导入一个包含多个 auth.json 的 ZIP，When 导入完成，Then 所有合法账号被新增为卡片，非法文件被忽略并显示校验摘要。
-16. Given 用户点击 `导入`，When 导入 modal 打开，Then 可以在 modal 内拖拽或选择 `.json` / `.zip` 文件。
-17. Given 文件进入导入 modal，When 校验完成，Then 下方先显示候选账号列表，而不是立即导入。
-18. Given 存在合法候选项，When 列表渲染完成，Then 系统自动测试全部候选项的连接状态。
-19. Given 某个候选项连接测试失败，When 用户查看列表，Then 该项仍可被勾选或取消勾选。
-20. Given 用户取消勾选部分候选项，When 点击 `导入选中`，Then 只导入当前勾选且合法的项。
-21. Given 用户关闭导入 modal，When 再次打开，Then 上一次候选列表和测试状态不会残留。
-22. Given 旧 auth 文件仍包含 `nolon.account.name`，When 系统加载或重写该文件，Then 该字段会被自动清理且卡片仍能正常显示。
-23. Given 新建或更新官方 API key / Relay 卡，When 写盘完成，Then auth 文件中不再持久化 `nolon.account.name`。
-24. Given 页面需要展示 Codex 卡片名称，When 生成显示名，Then 按“邮箱优先，随后 provider/host 或 key suffix，最后文件名/account”派生，而不是依赖持久化 `name` 字段。
-26. Given 用户导入一个 ZIP 且其中包含多个合法账号，When 候选列表渲染完成，Then 这些候选项按同一来源组展示，并可通过组按钮一次性勾选整组。
-27. Given 候选列表存在多个来源组，When 用户点击顶部 `全选`，Then 所有合法候选项都会被勾选，而不仅是当前组。
-28. Given 导入 modal 正在校验或测试连接，When 用户观察底部操作区，Then 可以看到全局处理中状态，并且主导入按钮不会在校验阶段误触发。
-29. Given 导入 modal 出现全局错误，When 页面渲染，Then 错误以显著 banner 展示，而不是淹没在普通说明文案里。
-30. Given 用户在 Codex 卡片菜单点击 `Copy Auth JSON`，When 打开导入 modal 并执行粘贴，Then 该账号先以候选项形式出现，而不是直接导入。
-31. Given 登录成功后只拿到 `http://localhost:1455/success?id_token=...` 回调 URL，When 在导入 modal 粘贴该 URL，Then 系统会解析成候选账号并自动测试连接。
-32. Given 本地登录服务最终落在任意合法 loopback 回调地址（如 `http://localhost:<port>/auth/callback?...`、`http://127.0.0.1:<port>/success?...` 或 `http://[::1]:<port>/auth/callback?...`），When 在导入 modal 粘贴该 URL，Then 系统会复用 Codex callback 解析器按相同规则解析成候选账号。
-33. Given 用户点击 Codex 登录，When app-server 登录失败，Then 页面直接显示错误，不再 fallback 到 direct CLI 并自动打开浏览器。
-34. Given 用户看到 Codex 登录 URL 弹窗，When 需要结束登录，Then 界面只提供一个明确的 `取消登录` 动作，而不是两个等价按钮。
-35. Given UI 验证需要直接进入 Codex 用量页，When 通过 UI Test 环境变量指定 provider index 与 tab，Then app 启动后会直接落在对应 Provider 的目标 tab，避免人工点击切页。
+10. Given 用户打开 `新增 API Key` 弹框，When 进入编辑器，Then 直接看到 `model_provider`、`API Key`、`Base URL` 三个字段，不存在高级折叠区。
+11. Given 用户打开 `新增 API Key` 弹框，When 表单初始化，Then `model_provider` 默认值为 `nolon`，`API Key` 为空，`Base URL` 为空。
+12. Given 用户填写 `API Key` 但不填写 `model_provider` 与 `Base URL`，When 保存，Then 仍允许创建账号。
+13. Given 用户填写 `API Key` 与 `Base URL`，When 保存，Then 表单会使用用户填写的 `Base URL`，且 `model_provider` 留空时按默认 `nolon` 处理。
+14. Given 用户打开 `新增 API Key` 弹框，When 查看关闭动作，Then 右上角显示统一关闭组件，底部不再重复出现 `Cancel` 按钮。
+15. Given 用户在官方 API Key 或 Relay 账号卡片菜单点击 `编辑`，When 系统处理该动作，Then 打开 `CodexConfigEditorSheet` 并载入当前账号配置，而不是直接打开 `auth.json` 文件。
+16. Given 用户进入 Codex 批量选择模式，When 点击多张卡片，Then 这些卡片进入选中态，且不会触发账号激活。
+17. Given 用户在批量选择模式下已选中多张卡片，When 执行导出，Then 生成一个包含这些 auth.json 快照的 ZIP 文件。
+18. Given 用户导入一个包含多个 auth.json 的 ZIP，When 导入完成，Then 所有合法账号被新增为卡片，非法文件被忽略并显示校验摘要。
+19. Given 用户点击 `导入`，When 导入 modal 打开，Then 可以在 modal 内拖拽或选择 `.json` / `.zip` 文件。
+20. Given 文件进入导入 modal，When 校验完成，Then 下方先显示候选账号列表，而不是立即导入。
+21. Given 存在合法候选项，When 列表渲染完成，Then 系统自动测试全部候选项的连接状态。
+22. Given 某个候选项连接测试失败，When 用户查看列表，Then 该项仍可被勾选或取消勾选。
+23. Given 用户取消勾选部分候选项，When 点击 `导入选中`，Then 只导入当前勾选且合法的项。
+24. Given 用户关闭导入 modal，When 再次打开，Then 上一次候选列表和测试状态不会残留。
+25. Given 旧 auth 文件仍包含 `nolon.account.name`，When 系统加载或重写该文件，Then 该字段会被自动清理且卡片仍能正常显示。
+26. Given 新建或更新官方 API key / Relay 卡，When 写盘完成，Then auth 文件中不再持久化 `nolon.account.name`。
+27. Given 页面需要展示 Codex 卡片名称，When 生成显示名，Then 按“邮箱优先，随后 provider/host 或 key suffix，最后文件名/account”派生，而不是依赖持久化 `name` 字段。
+28. Given 用户导入一个 ZIP 且其中包含多个合法账号，When 候选列表渲染完成，Then 这些候选项按同一来源组展示，并可通过组按钮一次性勾选整组。
+29. Given 候选列表存在多个来源组，When 用户点击顶部 `全选`，Then 所有合法候选项都会被勾选，而不仅是当前组。
+30. Given 导入 modal 正在校验或测试连接，When 用户观察底部操作区，Then 可以看到全局处理中状态，并且主导入按钮不会在校验阶段误触发。
+31. Given 导入 modal 出现全局错误，When 页面渲染，Then 错误以显著 banner 展示，而不是淹没在普通说明文案里。
+32. Given 用户在 Codex 卡片菜单点击 `Copy Auth JSON`，When 打开导入 modal 并执行粘贴，Then 该账号先以候选项形式出现，而不是直接导入。
+33. Given 登录成功后只拿到 `http://localhost:1455/success?id_token=...` 回调 URL，When 在导入 modal 粘贴该 URL，Then 系统会解析成候选账号并自动测试连接。
+34. Given 本地登录服务最终落在任意合法 loopback 回调地址（如 `http://localhost:<port>/auth/callback?...`、`http://127.0.0.1:<port>/success?...` 或 `http://[::1]:<port>/auth/callback?...`），When 在导入 modal 粘贴该 URL，Then 系统会复用 Codex callback 解析器按相同规则解析成候选账号。
+35. Given 用户点击 Codex 登录，When app-server 登录失败，Then 页面直接显示错误，不再 fallback 到 direct CLI 并自动打开浏览器。
+36. Given 用户看到 Codex 登录 URL 弹窗，When 需要结束登录，Then 界面只提供一个明确的 `取消登录` 动作，而不是两个等价按钮。
+37. Given UI 验证需要直接进入 Codex 用量页，When 通过 UI Test 环境变量指定 provider index 与 tab，Then app 启动后会直接落在对应 Provider 的目标 tab，避免人工点击切页。
 
 ## 影响实现点
 - `ProviderContentTabType`：新增按 Provider 解析 usage 名称能力。
@@ -165,7 +170,7 @@
 - `CodexAuthManager`：弃用 `nolon.account.name` 的持久化写入；旧文件在加载/保存时自动清理该字段。
 - `ProviderUsageViewModel`：新增 `CodexAccountGroupingOption`、`CodexAccountSortOption`、`CodexPrimaryHeaderAction`、`codexAccountDisplaySections`、分组折叠状态，并抽出配置编辑器标题/副标题/主按钮文案。
 - `ProviderUsageViewModel`：新增导入 modal 状态、候选项分组/选择状态、自动连接测试与按选中项导入逻辑。
-- `CodexConfigEditorSheet`：改成基础信息优先的分层编辑器，支持 Advanced / HTTP / Mapping 折叠。
+- `CodexConfigEditorSheet`：改成简化直出编辑器，只保留 `model_provider / API Key / Base URL` 三个字段。
 
 ## 后续扩展
 - HTTP 用量查询能力已单独落到 [codex-http-usage-query-2026-03-07.md](/Users/linhey/Desktop/FlowUp-Libs/nolon/docs-linhay/features/codex-http-usage-query-2026-03-07.md)，并作为配置型卡片的可选能力接在 Codex CLI 用量链路前面。
