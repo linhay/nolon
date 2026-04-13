@@ -15888,6 +15888,18 @@
         }
       }
     },
+    "usage.monitor.codex.failure.cached" : {
+      "comment" : "Fallback message for persisted Codex sync failure",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Last sync failed."
+          }
+        }
+      }
+    },
     "usage.monitor.codex.missing_auth_source" : {
       "comment" : "Codex auth source missing message",
       "extractionState" : "extracted_with_value",
