@@ -73,6 +73,51 @@ final class ProviderUsageEngineActivationTests: XCTestCase {
         XCTAssertTrue(persistedTransitioning)
     }
 
+    func testBDD_GivenActivationSuccessWithoutCustomPostLoad_WhenConfirmActivate_ThenUsesTargetedDiskReloadInsteadOfFullLoad() async throws {
+        let isolatedRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent("nolon-codex-activation-targeted-reload-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: isolatedRoot, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: isolatedRoot) }
+
+        let provider = Provider(
+            name: "Codex",
+            defaultSkillsPath: isolatedRoot.appendingPathComponent("provider/skills").path,
+            workflowPath: isolatedRoot.appendingPathComponent("provider/prompts").path,
+            installMethod: .symlink,
+            templateId: "codex"
+        )
+        let authManager = CodexAuthManager(rootURL: isolatedRoot)
+        let account = try await authManager.addConfiguredAccount(
+            name: "direct",
+            apiKey: "sk-live-12345678",
+            relay: nil
+        )
+        let preflightCalled = AsyncFlagBox()
+        let viewModel = ProviderUsageEngine(
+            provider: provider,
+            codexAuthManager: authManager,
+            codexActivateAction: { passedAccount, passedProvider in
+                try await authManager.setActiveAccount(passedAccount, for: passedProvider)
+            },
+            codexPreflightAction: { _, _, _ in
+                await preflightCalled.setTrue()
+                return nil
+            }
+        )
+        viewModel.pendingActivateCodexAccount = account
+
+        await viewModel.confirmActivate()
+
+        XCTAssertNil(viewModel.pendingActivateCodexAccount)
+        XCTAssertNil(viewModel.activatingCodexAccountId)
+        XCTAssertEqual(viewModel.codexDiskReloadCountForTesting, 1)
+        XCTAssertFalse(viewModel.didStartInitialLoad)
+        XCTAssertEqual(viewModel.activeCodexAccountId, account.id)
+        XCTAssertEqual(viewModel.codexAccounts.map(\.id), [account.id])
+        let didRunPreflight = await preflightCalled.value()
+        XCTAssertFalse(didRunPreflight)
+    }
+
     func testBDD_GivenPreviousActiveAccount_WhenActivationSucceedsBeforeReload_ThenOldAccountBecomesTappableImmediately() async {
         let provider = Provider(
             name: "Codex",

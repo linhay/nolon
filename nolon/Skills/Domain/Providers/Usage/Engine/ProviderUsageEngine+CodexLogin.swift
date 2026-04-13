@@ -618,7 +618,7 @@ extension ProviderUsageEngine {
             if let postActivationLoadAction {
                 await postActivationLoadAction()
             } else {
-                await load()
+                await reloadCodexFromDisk(refreshUsage: false)
             }
             activatingCodexAccountId = nil
         } catch {
