@@ -338,8 +338,10 @@ final class MainSplitViewModel {
     }
 
     @MainActor
-    func installRemoteSkill(_ skill: RemoteSkill, to provider: Provider) async {
-        guard let installer = installer else { return }
+    func installRemoteSkill(_ skill: RemoteSkill, to provider: Provider) async throws {
+        guard let installer = installer else {
+            throw SkillError.fileOperationFailed("Skill installer unavailable")
+        }
         let remoteBaseURL = currentRemoteBaseURL()
         Self.logger.info(
             "Remote skill install start. slug=\(skill.slug, privacy: .public) provider=\(provider.id, privacy: .public) baseURL=\(remoteBaseURL, privacy: .public)"
@@ -364,18 +366,20 @@ final class MainSplitViewModel {
                 baseURL: remoteBaseURL,
                 error: error
             )
-            // Ideally show an alert here
+            throw error
         }
     }
     
     @MainActor
-    func installRemoteWorkflow(_ workflow: RemoteWorkflow, to provider: Provider) async {
+    func installRemoteWorkflow(_ workflow: RemoteWorkflow, to provider: Provider) async throws {
         let remoteBaseURL = currentRemoteBaseURL()
         Self.logger.info(
             "Remote workflow install start. slug=\(workflow.slug, privacy: .public) provider=\(provider.id, privacy: .public) baseURL=\(remoteBaseURL, privacy: .public)"
         )
         do {
-            guard let installer else { return }
+            guard let installer else {
+                throw SkillError.fileOperationFailed("Skill installer unavailable")
+            }
             try await remoteInstallOrchestrator.installWorkflow(
                 workflow,
                 to: provider,
@@ -394,12 +398,12 @@ final class MainSplitViewModel {
                 baseURL: remoteBaseURL,
                 error: error
             )
-            // Ideally show an alert here
+            throw error
         }
     }
     
     @MainActor
-    func installRemoteMCP(_ mcp: RemoteMCP, to provider: Provider) async {
+    func installRemoteMCP(_ mcp: RemoteMCP, to provider: Provider) async throws {
         let remoteBaseURL = currentRemoteBaseURL()
         Self.logger.info(
             "Remote mcp install start. slug=\(mcp.slug, privacy: .public) provider=\(provider.id, privacy: .public) baseURL=\(remoteBaseURL, privacy: .public)"
@@ -422,7 +426,7 @@ final class MainSplitViewModel {
                 baseURL: remoteBaseURL,
                 error: error
             )
-            // Ideally show an alert here
+            throw error
         }
     }
 
@@ -859,19 +863,13 @@ public struct MainSplitView: View, DebugPageLocatable {
                             refreshTrigger: viewModel.nolonCenterViewModel.refreshTrigger,
                             targetProvider: nil,
                             onInstall: { skill, provider in
-                                Task {
-                                    await viewModel.installRemoteSkill(skill, to: provider)
-                                }
+                                try await viewModel.installRemoteSkill(skill, to: provider)
                             },
                             onInstallWorkflow: { workflow, provider in
-                                Task {
-                                    await viewModel.installRemoteWorkflow(workflow, to: provider)
-                                }
+                                try await viewModel.installRemoteWorkflow(workflow, to: provider)
                             },
                             onInstallMCP: { mcp, provider in
-                                Task {
-                                    await viewModel.installRemoteMCP(mcp, to: provider)
-                                }
+                                try await viewModel.installRemoteMCP(mcp, to: provider)
                             },
                             onRegisterDeleteRequest: { slug, resourceType, providerIndex, removeGlobalCache, globalCachePathHint in
                                 viewModel.registerDeleteRequest(
@@ -1007,19 +1005,13 @@ public struct MainSplitView: View, DebugPageLocatable {
             targetProvider: viewModel.selectedProvider,
             selectedTab: selectedTab,
             onInstall: { skill, provider in
-                Task {
-                    await viewModel.installRemoteSkill(skill, to: provider)
-                }
+                try await viewModel.installRemoteSkill(skill, to: provider)
             },
             onInstallWorkflow: { workflow, provider in
-                Task {
-                    await viewModel.installRemoteWorkflow(workflow, to: provider)
-                }
+                try await viewModel.installRemoteWorkflow(workflow, to: provider)
             },
             onInstallMCP: { mcp, provider in
-                Task {
-                    await viewModel.installRemoteMCP(mcp, to: provider)
-                }
+                try await viewModel.installRemoteMCP(mcp, to: provider)
             },
             onRegisterDeleteRequest: { slug, resourceType, providerIndex, removeGlobalCache, globalCachePathHint in
                 viewModel.registerDeleteRequest(

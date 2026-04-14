@@ -49,23 +49,11 @@ public final class SkillInstaller {
 
     /// Install a skill to a provider
     public func install(skill: Skill, to provider: Provider) throws {
-        let providerPath = provider.defaultSkillsPath
-        let targetPath = "\(providerPath)/\(skill.id)"
-
-        // If already exists, remove it first to allow reinstall/update
-        try STPath(targetPath).deleteIncludingBrokenSymlink()
-
-        // Ensure provider directory exists
-        _ = STFolder(providerPath).createIfNotExists()
-        // Check installation method
-        let method = provider.installMethod
-
-        switch method {
-        case .symlink:
-            try STPath(targetPath).createSymbolicLink(to: STPath(skill.globalPath))
-        case .copy:
-            try STPath(skill.globalPath).copy(to: STPath(targetPath), isOverlay: true)
-        }
+        try installSkillContent(
+            skillID: skill.id,
+            sourcePath: STPath(skill.globalPath),
+            to: provider
+        )
     }
 
     /// Install a remote skill from a zip file
@@ -648,12 +636,11 @@ public final class SkillInstaller {
 
         // Install back to provider based on settings
         let method = provider.installMethod
-        switch method {
-        case .symlink:
-            try STPath(sourcePath).createSymbolicLink(to: STPath(globalPath))
-        case .copy:
-            try STPath(globalPath).copy(to: STPath(sourcePath), isOverlay: true)
-        }
+        try installSkillContent(
+            skillID: skillName,
+            sourcePath: STPath(globalPath),
+            to: provider
+        )
 
         // Parse and return the skill
         let skillMdPath = "\(globalPath)/SKILL.md"
@@ -749,13 +736,81 @@ public final class SkillInstaller {
         }
 
         // Recreate based on provider's install method
-        let method = provider.installMethod
-        switch method {
-        case .symlink:
-            try STPath(targetPath).createSymbolicLink(to: STPath(globalPath))
-        case .copy:
-            try STPath(globalPath).copy(to: STPath(targetPath), isOverlay: true)
+        try installSkillContent(
+            skillID: skillName,
+            sourcePath: STPath(globalPath),
+            to: provider
+        )
+    }
+
+    private func installSkillContent(
+        skillID: String,
+        sourcePath: STPath,
+        to provider: Provider
+    ) throws {
+        let providerPath = provider.defaultSkillsPath
+        let providerFolder = STFolder(providerPath)
+        let targetPath = providerFolder.subpath(skillID)
+
+        _ = providerFolder.createIfNotExists()
+
+        if provider.installMethod == .symlink,
+           let linkedProviderRoot = resolvedProviderRootIfMirrorsSourceRoot(
+               providerPath: providerFolder,
+               sourcePath: sourcePath
+           ),
+           let finalTarget = linkedProviderTarget(linkedProviderRoot: linkedProviderRoot, skillID: skillID) {
+            let sourceURL = sourcePath.url.standardizedFileURL
+            let finalTargetURL = finalTarget.url.standardizedFileURL
+
+            if sourceURL.path != finalTargetURL.path {
+                if finalTarget.isExists || finalTarget.isSymbolicLink {
+                    try finalTarget.deleteIncludingBrokenSymlink()
+                }
+                try SkillContentMaterializer.copyMaterializingSymlinks(
+                    from: sourcePath,
+                    to: finalTarget
+                )
+            }
+            return
         }
+
+        if targetPath.isExists || targetPath.isSymbolicLink {
+            try targetPath.deleteIncludingBrokenSymlink()
+        }
+
+        switch provider.installMethod {
+        case .symlink:
+            try targetPath.createSymbolicLink(to: sourcePath)
+        case .copy:
+            try SkillContentMaterializer.copyMaterializingSymlinks(
+                from: sourcePath,
+                to: targetPath
+            )
+        }
+    }
+
+    private func resolvedProviderRootIfMirrorsSourceRoot(
+        providerPath: STFolder,
+        sourcePath: STPath
+    ) -> STFolder? {
+        let resolvedProviderRootURL = providerPath.url.resolvingSymlinksInPath().standardizedFileURL
+        let resolvedSourceRootURL = sourcePath.url
+            .deletingLastPathComponent()
+            .resolvingSymlinksInPath()
+            .standardizedFileURL
+
+        guard resolvedProviderRootURL.path == resolvedSourceRootURL.path else {
+            return nil
+        }
+
+        return STFolder(resolvedProviderRootURL)
+    }
+
+    private func linkedProviderTarget(linkedProviderRoot: STFolder, skillID: String) -> STPath? {
+        let trimmed = skillID.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        return linkedProviderRoot.subpath(trimmed)
     }
 
     // MARK: - Workflow Installation

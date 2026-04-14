@@ -9,6 +9,18 @@ import ProvidersShared
 import SQLite3
 
 extension CodexAuthManager {
+    func clearReadOnlyRelayEvidenceFlag(for providerID: String) {
+        readOnlyRelayEvidenceProviderIDs.remove(providerID)
+    }
+
+    func markReadOnlyRelayEvidenceUsed(for providerID: String) {
+        readOnlyRelayEvidenceProviderIDs.insert(providerID)
+    }
+
+    func consumeReadOnlyRelayEvidenceFlag(for providerID: String) -> Bool {
+        readOnlyRelayEvidenceProviderIDs.remove(providerID) != nil
+    }
+
     func withAuthFileLock<T>(_ body: () throws -> T) throws -> T {
         let lockFile = nolonCodexRootFolder().file(PathName.authLockFile.rawValue)
         _ = lockFile.parentFolder()?.createIfNotExists()
@@ -113,6 +125,7 @@ extension CodexAuthManager {
                 authData: providerData,
                 providerRaw: providerRaw,
                 snapshots: snapshots,
+                provider: provider,
                 excludedAccountID: nil
             ) else {
                 Self.logger.warning(
@@ -127,6 +140,7 @@ extension CodexAuthManager {
                     authData: providerData,
                     providerRaw: providerRaw,
                     snapshots: snapshots,
+                    provider: provider,
                     excludedAccountID: nil
                 ) else {
                     Self.logger.warning(
@@ -253,30 +267,38 @@ extension CodexAuthManager {
         authData: Data,
         providerRaw: String?,
         snapshots: [CodexAuthAccount],
+        provider: Provider,
         excludedAccountID: UUID?
     ) throws -> CodexAuthAccount {
         guard !authData.isEmpty else {
             throw CocoaError(.fileReadCorruptFile)
         }
+        let preparedPayload = try prepareProviderPayloadForSnapshotUpsert(
+            authData: authData,
+            providerRaw: providerRaw,
+            snapshots: snapshots,
+            provider: provider
+        )
+
         let raw: String
-        if let providerRaw, !providerRaw.isEmpty {
+        if let providerRaw = preparedPayload.raw, !providerRaw.isEmpty {
             raw = providerRaw
-        } else if let converted = String(data: authData, encoding: .utf8), !converted.isEmpty {
+        } else if let converted = String(data: preparedPayload.data, encoding: .utf8), !converted.isEmpty {
             raw = converted
         } else {
             throw CocoaError(.fileReadInapplicableStringEncoding)
         }
 
         guard hasImportableCredentials(authJSONString: raw) else {
-            if let matched = matchAccount(authData: authData, accounts: snapshots),
+            if let matched = matchAccount(authData: preparedPayload.data, accounts: snapshots),
                matched.id != excludedAccountID {
                 return matched
             }
             throw CocoaError(.validationMissingMandatoryProperty)
         }
 
-        let authSummary = CodexAuthSummary.fromJSONData(authData)
-        let authIdentity = accountIdentity(from: authData, summary: authSummary)
+        let authSummary = CodexAuthSummary.fromJSONData(preparedPayload.data)
+        let authIdentity = accountIdentity(from: preparedPayload.data, summary: authSummary)
         if let strictMatch = matchAccountByStrictIdentity(
             authIdentity: authIdentity,
             snapshots: loadAccountSnapshots(for: snapshots),
@@ -292,7 +314,7 @@ extension CodexAuthManager {
             return accountFromNormalizedPayloadData(normalized, fallbackRelativeAuthPath: strictMatch.relativeAuthPath)
         }
 
-        if let matched = matchAccount(authData: authData, accounts: snapshots),
+        if let matched = matchAccount(authData: preparedPayload.data, accounts: snapshots),
            matched.id != excludedAccountID {
             let normalized = try normalizeAccountPayloadData(
                 authJSONString: raw,
@@ -304,6 +326,57 @@ extension CodexAuthManager {
             return accountFromNormalizedPayloadData(normalized, fallbackRelativeAuthPath: matched.relativeAuthPath)
         }
         return try createSnapshotAccount(authJSONString: raw)
+    }
+
+    func prepareProviderPayloadForSnapshotUpsert(
+        authData: Data,
+        providerRaw: String?,
+        snapshots: [CodexAuthAccount],
+        provider: Provider
+    ) throws -> (data: Data, raw: String?) {
+        let baseData = authData
+        let raw: String?
+        if let providerRaw, !providerRaw.isEmpty {
+            raw = providerRaw
+        } else {
+            raw = String(data: authData, encoding: .utf8)
+        }
+
+        guard let raw,
+              let rawData = raw.data(using: .utf8),
+              let authJSON = try? JSON(data: rawData),
+              Self.canonicalAuthMode(authJSON["auth_mode"].string) == "apikey",
+              authJSON["nolon"]["relay"] == JSON.null
+        else {
+            return (baseData, raw)
+        }
+
+        guard let matchedAccount = matchAccount(authData: baseData, accounts: snapshots),
+              let relay = readOnlyRelayConfigEvidence(for: provider, matchedAccountID: matchedAccount.id)
+        else {
+            return (baseData, raw)
+        }
+
+        var rootObject = authJSON.dictionaryObject ?? [:]
+        rootObject["base_url"] = relay.baseURL
+        rootObject.removeValue(forKey: "baseURL")
+        var nolon = (rootObject["nolon"] as? JSONObject) ?? [:]
+        var relayObject: JSONObject = [
+            "base_url": relay.baseURL,
+            "model_provider": relay.modelProvider,
+        ]
+        if !relay.queryParams.isEmpty {
+            relayObject["query_params"] = relay.queryParams
+        }
+        if !relay.headers.isEmpty {
+            relayObject["headers"] = relay.headers
+        }
+        nolon["relay"] = relayObject
+        rootObject["nolon"] = nolon
+
+        let mergedData = try Self.encodeJSONObject(rootObject)
+        markReadOnlyRelayEvidenceUsed(for: provider.id)
+        return (mergedData, String(data: mergedData, encoding: .utf8))
     }
 
     @discardableResult
@@ -375,6 +448,7 @@ extension CodexAuthManager {
             authData: activeData,
             providerRaw: String(data: activeData, encoding: .utf8),
             snapshots: refreshedSnapshots,
+            provider: provider,
             excludedAccountID: refreshedRestoredAccount.id
         )
         try relinkProviderAuth(providerAuthFile: providerAuthFile, resolved: refreshedRestoredAccount, provider: provider)

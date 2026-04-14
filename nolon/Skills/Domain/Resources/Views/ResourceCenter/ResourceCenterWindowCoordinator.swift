@@ -17,9 +17,9 @@ final class ResourceCenterWindowCoordinator {
         let repository: SkillRepository
         let targetProvider: Provider?
         let selectedTab: ResourceCenterTabID?
-        let onInstall: (RemoteSkill, Provider) -> Void
-        let onInstallWorkflow: ((RemoteWorkflow, Provider) -> Void)?
-        let onInstallMCP: ((RemoteMCP, Provider) -> Void)?
+        let onInstall: (RemoteSkill, Provider) async throws -> Void
+        let onInstallWorkflow: ((RemoteWorkflow, Provider) async throws -> Void)?
+        let onInstallMCP: ((RemoteMCP, Provider) async throws -> Void)?
         let onRegisterDeleteRequest: ((String, RemoteContentType, Int?, Bool, String?) -> Int)?
         let onMakeDeleteRequestExecutor: ((Int) -> ResourceCatalogGridViewModel.DeleteRequestExecutor)?
         let onClose: (() -> Void)?

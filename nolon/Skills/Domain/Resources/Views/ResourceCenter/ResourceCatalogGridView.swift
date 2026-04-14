@@ -35,9 +35,9 @@ struct ResourceCatalogGridView: View {
     let providers: [Provider]
     var refreshTrigger: Int
     let targetProvider: Provider?
-    let onInstall: (RemoteSkill, Provider) -> Void
-    let onInstallWorkflow: ((RemoteWorkflow, Provider) -> Void)?
-    let onInstallMCP: ((RemoteMCP, Provider) -> Void)?
+    let onInstall: (RemoteSkill, Provider) async throws -> Void
+    let onInstallWorkflow: ((RemoteWorkflow, Provider) async throws -> Void)?
+    let onInstallMCP: ((RemoteMCP, Provider) async throws -> Void)?
     let onRegisterDeleteRequest: ((String, RemoteContentType, Int?, Bool, String?) -> Int)?
     let onMakeDeleteRequestExecutor: ((Int) -> ResourceCatalogGridViewModel.DeleteRequestExecutor)?
     let onRefresh: (() -> Void)?
@@ -67,9 +67,9 @@ struct ResourceCatalogGridView: View {
         providers: [Provider],
         refreshTrigger: Int,
         targetProvider: Provider?,
-        onInstall: @escaping (RemoteSkill, Provider) -> Void,
-        onInstallWorkflow: ((RemoteWorkflow, Provider) -> Void)? = nil,
-        onInstallMCP: ((RemoteMCP, Provider) -> Void)? = nil,
+        onInstall: @escaping (RemoteSkill, Provider) async throws -> Void,
+        onInstallWorkflow: ((RemoteWorkflow, Provider) async throws -> Void)? = nil,
+        onInstallMCP: ((RemoteMCP, Provider) async throws -> Void)? = nil,
         onRegisterDeleteRequest: ((String, RemoteContentType, Int?, Bool, String?) -> Int)? = nil,
         onMakeDeleteRequestExecutor: ((Int) -> ResourceCatalogGridViewModel.DeleteRequestExecutor)? = nil,
         onRefresh: (() -> Void)? = nil,
@@ -201,7 +201,7 @@ struct ResourceCatalogGridView: View {
                 data: workflowDetailData(workflow),
                 onInstall: { providerID in
                     guard let provider = providers.first(where: { $0.id == providerID }) else { return }
-                    onInstallWorkflow?(workflow, provider)
+                    beginWorkflowInstall(workflow, provider: provider)
                 },
                 onClose: {
                     viewModel.selectedWorkflowForDetail = nil
@@ -213,7 +213,7 @@ struct ResourceCatalogGridView: View {
                 data: mcpDetailData(mcp),
                 onInstall: { providerID in
                     guard let provider = providers.first(where: { $0.id == providerID }) else { return }
-                    onInstallMCP?(mcp, provider)
+                    beginMCPInstall(mcp, provider: provider)
                 },
                 onClose: {
                     viewModel.selectedMCPForDetail = nil
@@ -260,7 +260,7 @@ struct ResourceCatalogGridView: View {
                     providers: providers,
                     targetProvider: targetProvider,
                     onInstall: { provider in
-                        onInstall(skill, provider)
+                        beginSkillInstall(skill, provider: provider)
                     }
                 )
                 openWindow(id: SkillDetailWindowCoordinator.windowID)
@@ -455,7 +455,9 @@ struct ResourceCatalogGridView: View {
                     targetProvider: targetProvider,
                     providers: providers,
                     onInstall: { provider in
-                        onInstall(skill, provider)
+                        Task {
+                            try? await onInstall(skill, provider)
+                        }
                     },
                     onDeleteRequest: {
                         viewModel.requestDelete(
@@ -529,7 +531,9 @@ struct ResourceCatalogGridView: View {
                     targetProvider: targetProvider,
                     providers: providers,
                     onInstall: { provider in
-                        onInstallWorkflow?(workflow, provider)
+                        Task {
+                            try? await onInstallWorkflow?(workflow, provider)
+                        }
                     },
                     onDeleteRequest: {
                         viewModel.requestDelete(
@@ -605,7 +609,9 @@ struct ResourceCatalogGridView: View {
                     targetProvider: targetProvider,
                     providers: providers,
                     onInstall: { provider in
-                        onInstallMCP?(mcp, provider)
+                        Task {
+                            try? await onInstallMCP?(mcp, provider)
+                        }
                     },
                     onDeleteRequest: {
                         viewModel.requestDelete(
@@ -793,7 +799,20 @@ struct ResourceCatalogGridView: View {
         )
         skillInstallErrors.removeValue(forKey: skill.slug)
         pendingSkillInstalls.insert(skill.slug)
-        onInstall(skill, provider)
+        Task { @MainActor in
+            do {
+                try await onInstall(skill, provider)
+            } catch {
+                let state = Self.applyInstallFailure(
+                    slug: skill.slug,
+                    pending: pendingSkillInstalls,
+                    errors: skillInstallErrors,
+                    error: error
+                )
+                pendingSkillInstalls = state.pending
+                skillInstallErrors = state.errors
+            }
+        }
         Task { @MainActor in
             try? await Task.sleep(nanoseconds: Self.installTimeoutNanoseconds)
             guard pendingSkillInstalls.contains(skill.slug) else { return }
@@ -817,7 +836,22 @@ struct ResourceCatalogGridView: View {
         )
         workflowInstallErrors.removeValue(forKey: workflow.slug)
         pendingWorkflowInstalls.insert(workflow.slug)
-        onInstallWorkflow?(workflow, provider)
+        Task { @MainActor in
+            do {
+                if let onInstallWorkflow {
+                    try await onInstallWorkflow(workflow, provider)
+                }
+            } catch {
+                let state = Self.applyInstallFailure(
+                    slug: workflow.slug,
+                    pending: pendingWorkflowInstalls,
+                    errors: workflowInstallErrors,
+                    error: error
+                )
+                pendingWorkflowInstalls = state.pending
+                workflowInstallErrors = state.errors
+            }
+        }
         Task { @MainActor in
             try? await Task.sleep(nanoseconds: Self.installTimeoutNanoseconds)
             guard pendingWorkflowInstalls.contains(workflow.slug) else { return }
@@ -841,7 +875,22 @@ struct ResourceCatalogGridView: View {
         )
         mcpInstallErrors.removeValue(forKey: mcp.slug)
         pendingMcpInstalls.insert(mcp.slug)
-        onInstallMCP?(mcp, provider)
+        Task { @MainActor in
+            do {
+                if let onInstallMCP {
+                    try await onInstallMCP(mcp, provider)
+                }
+            } catch {
+                let state = Self.applyInstallFailure(
+                    slug: mcp.slug,
+                    pending: pendingMcpInstalls,
+                    errors: mcpInstallErrors,
+                    error: error
+                )
+                pendingMcpInstalls = state.pending
+                mcpInstallErrors = state.errors
+            }
+        }
         Task { @MainActor in
             try? await Task.sleep(nanoseconds: Self.installTimeoutNanoseconds)
             guard pendingMcpInstalls.contains(mcp.slug) else { return }
@@ -857,6 +906,41 @@ struct ResourceCatalogGridView: View {
                 )
             }
         }
+    }
+
+    static func applyInstallFailure(
+        slug: String,
+        pending: Set<String>,
+        errors: [String: String],
+        error: Error
+    ) -> (pending: Set<String>, errors: [String: String]) {
+        var updatedPending = pending
+        var updatedErrors = errors
+        updatedPending.remove(slug)
+        updatedErrors[slug] = installFailureMessage(for: error)
+        return (updatedPending, updatedErrors)
+    }
+
+    static func installFailureMessage(for error: Error) -> String {
+        if let localizedError = error as? LocalizedError,
+           let description = localizedError.errorDescription?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !description.isEmpty {
+            return description
+        }
+
+        let nsError = error as NSError
+        if let description = nsError.userInfo[NSLocalizedDescriptionKey] as? String {
+            let trimmed = description.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmed.isEmpty {
+                return trimmed
+            }
+        }
+
+        return NSLocalizedString(
+            "remote.install.failed.hint",
+            value: "Install timed out. Click Retry.",
+            comment: "Remote install failed hint"
+        )
     }
 
     @MainActor

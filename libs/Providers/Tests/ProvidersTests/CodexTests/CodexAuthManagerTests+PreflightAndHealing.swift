@@ -7,6 +7,129 @@ import SQLite3
 @testable import ProviderUsage
 
 extension CodexAuthManagerTests {
+    @Test("Given detached apikey auth plus relay config without provenance, when preflight runs then snapshot stays official api key")
+    func preflightKeepsOfficialAPIKeyWithoutRelayProvenance() async throws {
+        let root = try makeTempRoot("codex-auth-preflight-dual-read-no-provenance")
+        defer { try? root.delete() }
+
+        let manager = CodexAuthManager(rootURL: root.url)
+        let provider = makeCodexProvider(root: root)
+        let providerRoot = root.folder("provider")
+        let configFile = providerRoot.file("config.toml")
+        try configFile.overlay(with: #"""
+        model_provider = "provider-relay"
+
+        [model_providers.provider-relay]
+        name = "Relay"
+        base_url = "https://relay.example.com/v1"
+        """# + "\n")
+        try providerRoot.file("auth.json").overlay(with: Data(#"""
+        {
+          "auth_mode": "apikey",
+          "OPENAI_API_KEY": "sk-provenance-missing"
+        }
+        """#.utf8))
+
+        let affected = try await manager.preflightManagedAuthIfNeeded(for: provider, forceBackup: false, reason: "test_no_provenance")
+        let resolved = try #require(affected)
+        let summary = CodexAuthSummary.fromJSONData(try #require(manager.accountAuthData(for: resolved)))
+
+        #expect(summary.cardKind == .officialAPIKey)
+        #expect(summary.relayBaseURL == nil)
+    }
+
+    @Test("Given detached apikey auth plus relay config with matching managed provenance, when preflight runs then matched snapshot upgrades to relay profile")
+    func preflightUpgradesToRelayProfileWhenManagedRelayProvenanceMatches() async throws {
+        let root = try makeTempRoot("codex-auth-preflight-dual-read-with-provenance")
+        defer { try? root.delete() }
+
+        let manager = CodexAuthManager(rootURL: root.url)
+        let provider = makeCodexProvider(root: root)
+        let providerRoot = root.folder("provider")
+        let configFile = providerRoot.file("config.toml")
+        try configFile.overlay(with: #"""
+        model_provider = "provider-relay"
+
+        [model_providers.provider-relay]
+        name = "Relay"
+        base_url = "https://relay.example.com/v1"
+        query_params = { api-version = "2025-01-01-preview" }
+        http_headers = { X-Workspace = "ios" }
+        """# + "\n")
+
+        let account = try await manager.addConfiguredAccount(
+            name: "Direct",
+            apiKey: "sk-managed-relay",
+            relay: nil
+        )
+        try seedManagedRelayConfigState(
+            manager: manager,
+            configFile: configFile,
+            accountID: account.id,
+            providerID: "provider-relay"
+        )
+        try providerRoot.file("auth.json").overlay(with: Data(#"""
+        {
+          "auth_mode": "apikey",
+          "OPENAI_API_KEY": "sk-managed-relay"
+        }
+        """#.utf8))
+
+        let affected = try await manager.preflightManagedAuthIfNeeded(for: provider, forceBackup: false, reason: "test_with_provenance")
+        let resolved = try #require(affected)
+        let summary = CodexAuthSummary.fromJSONData(try #require(manager.accountAuthData(for: resolved)))
+
+        #expect(resolved.id == account.id)
+        #expect(summary.cardKind == .relayProfile)
+        #expect(summary.relayBaseURL == "https://relay.example.com/v1")
+        #expect(summary.relayModelProvider == "provider-relay")
+    }
+
+    @Test("Given detached apikey auth plus relay config, when preflight dual-reads provider state then config toml stays byte-for-byte untouched")
+    func preflightDualReadLeavesConfigTomlUntouched() async throws {
+        let root = try makeTempRoot("codex-auth-preflight-dual-read-readonly-config")
+        defer { try? root.delete() }
+
+        let manager = CodexAuthManager(rootURL: root.url)
+        let provider = makeCodexProvider(root: root)
+        let providerRoot = root.folder("provider")
+        let configFile = providerRoot.file("config.toml")
+        try configFile.overlay(with: #"""
+        model_provider = "provider-relay"
+
+        [model_providers.provider-relay]
+        name = "Relay"
+        base_url = "https://relay.example.com/v1"
+        query_params = { api-version = "2025-01-01-preview" }
+        http_headers = { X-Workspace = "ios" }
+        """# + "\n")
+        let before = try configSnapshot(for: configFile)
+
+        let account = try await manager.addConfiguredAccount(
+            name: "Direct",
+            apiKey: "sk-readonly-relay",
+            relay: nil
+        )
+        try seedManagedRelayConfigState(
+            manager: manager,
+            configFile: configFile,
+            accountID: account.id,
+            providerID: "provider-relay"
+        )
+        try providerRoot.file("auth.json").overlay(with: Data(#"""
+        {
+          "auth_mode": "apikey",
+          "OPENAI_API_KEY": "sk-readonly-relay"
+        }
+        """#.utf8))
+
+        _ = try await manager.preflightManagedAuthIfNeeded(for: provider, forceBackup: false, reason: "test_config_readonly")
+
+        let after = try configSnapshot(for: configFile)
+        #expect(after.raw == before.raw)
+        #expect(after.modificationDate == before.modificationDate)
+    }
+
     @Test("Given detached provider auth with invalid json and healthy snapshot, when preflight runs then snapshot is kept as source of truth")
     func preflightPrefersHealthySnapshotWhenProviderAuthBroken() async throws {
         let root = try makeTempRoot("codex-auth-preflight-prefer-snapshot")
@@ -416,5 +539,34 @@ extension CodexAuthManagerTests {
         #expect(roundTripped[0].email == "selected@example.com")
         #expect(roundTripped[0].fileURL.lastPathComponent.contains("selected"))
         #expect(roundTripped.allSatisfy { $0.email != unselected.email })
+    }
+
+    private func configSnapshot(for file: STFile) throws -> (raw: String, modificationDate: Date?) {
+        let values = try file.url.resourceValues(forKeys: [.contentModificationDateKey])
+        return (try file.read(), values.contentModificationDate)
+    }
+
+    private func seedManagedRelayConfigState(
+        manager: CodexAuthManager,
+        configFile: STFile,
+        accountID: UUID,
+        providerID: String
+    ) throws {
+        let stateFile = manager
+            .nolonCodexRootFolder()
+            .folder("active-provider-config")
+            .file("config.json")
+        _ = stateFile.parentFolder()?.createIfNotExists()
+        let state: [String: Any] = [
+            configFile.url.standardizedFileURL.path: [
+                "configFilePath": configFile.url.standardizedFileURL.path,
+                "configExistedBeforePatch": true,
+                "originalRawConfig": try configFile.read(),
+                "managedProviderID": providerID,
+                "managedAccountID": accountID.uuidString,
+            ]
+        ]
+        let data = try JSONSerialization.data(withJSONObject: state, options: [.prettyPrinted, .sortedKeys])
+        try stateFile.overlay(with: data)
     }
 }

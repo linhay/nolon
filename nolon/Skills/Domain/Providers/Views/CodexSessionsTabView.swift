@@ -17,82 +17,27 @@ struct CodexSessionsTabView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        LazyVStack(
+            alignment: .leading,
+            spacing: 16,
+            pinnedViews: showsPinnedControlsBar ? [.sectionHeaders] : []
+        ) {
             NolonUI.CodexSessionsOverviewCardView(
                 data: overviewData,
                 onRefresh: {
                     Task { await viewModel.refresh() }
                 },
-                onSelectGroupingID: { groupingID in
-                    guard let groupingMode = CodexSessionsTabViewModel.SessionGroupingMode(rawValue: groupingID) else {
-                        return
-                    }
-                    viewModel.setGroupingMode(groupingMode)
-                }
+                onSelectGroupingID: nil
             )
 
-            if viewModel.showsInitialSkeleton && viewModel.sections.isEmpty {
-                skeletonContent
-            } else if viewModel.isLoading && viewModel.sections.isEmpty {
-                skeletonContent
-            } else if viewModel.sections.isEmpty {
-                ContentUnavailableView {
-                    Label(
-                        NSLocalizedString(
-                            "codex.sessions.empty.title",
-                            value: "No Sessions Found",
-                            comment: "Empty sessions title"
-                        ),
-                        systemImage: "bubble.left.and.bubble.right"
-                    )
-                } description: {
-                    Text(
-                        NSLocalizedString(
-                            "codex.sessions.empty.message",
-                            value: "No live or archived Codex sessions were found in this provider home.",
-                            comment: "Empty sessions description"
-                        )
-                    )
+            if showsPinnedControlsBar {
+                Section {
+                    sessionsContent
+                } header: {
+                    stickyControlsBar
                 }
-                .frame(maxWidth: .infinity, minHeight: 240)
             } else {
-                LazyVStack(alignment: .leading, spacing: 16) {
-                    ForEach(viewModel.sections) { section in
-                        NolonUI.CodexSessionsSectionCardView(
-                            data: CodexSessionsSectionDataBuilder.buildSectionData(
-                                section,
-                                groupingMode: viewModel.groupingMode,
-                                targetProviders: { viewModel.targetProviders(for: $0) }
-                            ),
-                            onTapSectionAction: { targetProviderID in
-                                Task {
-                                    await viewModel.requestRewrite(for: section, targetProviderID: targetProviderID)
-                                }
-                            },
-                            onTapRowAction: { row, targetProviderID in
-                                guard let session = section.sessions.first(where: { $0.id == row.id }) else { return }
-                                Task {
-                                    await viewModel.requestRewrite(for: session, targetProviderID: targetProviderID)
-                                }
-                            },
-                            onRevealInFinder: { row in
-                                revealInFinder(for: row)
-                            },
-                            onToggleCollapse: { sectionID in
-                                viewModel.toggleSectionCollapse(sectionID)
-                            }
-                        )
-                    }
-
-                    if viewModel.canLoadMore {
-                        NolonUI.CodexSessionsLoadMoreButton(
-                            data: loadMoreData,
-                            onTap: {
-                                viewModel.loadNextPage()
-                            }
-                        )
-                    }
-                }
+                sessionsContent
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -129,7 +74,8 @@ struct CodexSessionsTabView: View {
                     data: .init(
                         id: "skeleton-section-\(sectionIndex)",
                         title: "openai",
-                        subtitle: "All editable sessions in this provider can be rewritten together.",
+                        titleSecondaryText: "openai",
+                        subtitle: nil,
                         badges: [
                             .init(id: "live", text: "Live 0"),
                             .init(id: "archived", text: "Archived 0"),
@@ -151,6 +97,8 @@ struct CodexSessionsTabView: View {
                                 ],
                                 rolloutPath: "sessions/2026/04/11/example.jsonl",
                                 showInFinderTitle: nil,
+                                copyPathTitle: "Copy Path",
+                                stateRowCount: 0,
                                 actions: [],
                                 actionMenuTitle: nil,
                                 readOnlyText: nil
@@ -163,6 +111,73 @@ struct CodexSessionsTabView: View {
                     onToggleCollapse: { _ in }
                 )
                 .redacted(reason: .placeholder)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var sessionsContent: some View {
+        if viewModel.showsInitialSkeleton && viewModel.sections.isEmpty {
+            skeletonContent
+        } else if viewModel.isLoading && viewModel.sections.isEmpty {
+            skeletonContent
+        } else if viewModel.sections.isEmpty {
+            ContentUnavailableView {
+                Label(
+                    NSLocalizedString(
+                        "codex.sessions.empty.title",
+                        value: "No Sessions Found",
+                        comment: "Empty sessions title"
+                    ),
+                    systemImage: "bubble.left.and.bubble.right"
+                )
+            } description: {
+                Text(
+                    NSLocalizedString(
+                        "codex.sessions.empty.message",
+                        value: "No live or archived Codex sessions were found in this provider home.",
+                        comment: "Empty sessions description"
+                    )
+                )
+            }
+            .frame(maxWidth: .infinity, minHeight: 240)
+        } else {
+            LazyVStack(alignment: .leading, spacing: 16) {
+                ForEach(viewModel.sections) { section in
+                    NolonUI.CodexSessionsSectionCardView(
+                        data: CodexSessionsSectionDataBuilder.buildSectionData(
+                            section,
+                            groupingMode: viewModel.groupingMode,
+                            targetProviders: { viewModel.targetProviders(for: $0) }
+                        ),
+                        onTapSectionAction: { targetProviderID in
+                            Task {
+                                await viewModel.requestRewrite(for: section, targetProviderID: targetProviderID)
+                            }
+                        },
+                        onTapRowAction: { row, targetProviderID in
+                            guard let session = section.sessions.first(where: { $0.id == row.id }) else { return }
+                            Task {
+                                await viewModel.requestRewrite(for: session, targetProviderID: targetProviderID)
+                            }
+                        },
+                        onRevealInFinder: { row in
+                            revealInFinder(for: row)
+                        },
+                        onToggleCollapse: { sectionID in
+                            viewModel.toggleSectionCollapse(sectionID)
+                        }
+                    )
+                }
+
+                if viewModel.canLoadMore {
+                    NolonUI.CodexSessionsLoadMoreButton(
+                        data: loadMoreData,
+                        onTap: {
+                            viewModel.loadNextPage()
+                        }
+                    )
+                }
             }
         }
     }
@@ -186,30 +201,9 @@ struct CodexSessionsTabView: View {
                     comment: "Codex sessions header subtitle for time and project grouping"
                 ),
             refreshTitle: NSLocalizedString("Refresh", value: "Refresh", comment: "Refresh"),
-            groupingTitle: NSLocalizedString(
-                "codex.sessions.grouping.title",
-                value: "Group By",
-                comment: "Codex sessions grouping title"
-            ),
-            groupingOptions: [
-                .init(
-                    id: CodexSessionsTabViewModel.SessionGroupingMode.provider.rawValue,
-                    title: NSLocalizedString(
-                        "codex.sessions.grouping.provider",
-                        value: "Provider",
-                        comment: "Codex sessions provider grouping title"
-                    )
-                ),
-                .init(
-                    id: CodexSessionsTabViewModel.SessionGroupingMode.timeProject.rawValue,
-                    title: NSLocalizedString(
-                        "codex.sessions.grouping.time_project",
-                        value: "Time + Project",
-                        comment: "Codex sessions time and project grouping title"
-                    )
-                ),
-            ],
-            selectedGroupingID: viewModel.groupingMode.rawValue,
+            groupingTitle: nil,
+            groupingOptions: [],
+            selectedGroupingID: nil,
             statusMessage: viewModel.statusMessage,
             backgroundScanningMessage: viewModel.isLoading && !viewModel.sections.isEmpty
                 ? NSLocalizedString(
@@ -231,24 +225,24 @@ struct CodexSessionsTabView: View {
                 : nil,
             metrics: [
                 .init(
-                    id: "total",
+                    id: "sessions",
                     title: NSLocalizedString("codex.sessions.metric.total", value: "Total", comment: "Total sessions"),
                     value: "\(viewModel.totalSessionCount)"
                 ),
                 .init(
-                    id: "live",
-                    title: NSLocalizedString("codex.sessions.metric.live", value: "Live", comment: "Live sessions"),
-                    value: "\(viewModel.totalLiveCount)"
+                    id: "groups",
+                    title: NSLocalizedString("codex.sessions.metric.groups", value: "Groups", comment: "Group count"),
+                    value: "\(viewModel.groupCount)"
                 ),
                 .init(
-                    id: "archived",
-                    title: NSLocalizedString("codex.sessions.metric.archived", value: "Archived", comment: "Archived sessions"),
-                    value: "\(viewModel.totalArchivedCount)"
+                    id: "rewritable",
+                    title: NSLocalizedString("codex.sessions.metric.rewritable", value: "Rewritable", comment: "Rewritable group count"),
+                    value: "\(viewModel.rewritableGroupCount)"
                 ),
                 .init(
-                    id: "targets",
-                    title: NSLocalizedString("codex.sessions.metric.providers", value: "Targets", comment: "Target provider count"),
-                    value: "\(viewModel.availableTargetProviderIDs.count)"
+                    id: "attention",
+                    title: NSLocalizedString("codex.sessions.metric.needs_attention", value: "Needs Attention", comment: "Needs attention group count"),
+                    value: "\(viewModel.needsAttentionGroupCount)"
                 ),
             ],
             isRefreshDisabled: viewModel.isLoading || viewModel.isPreparingRewrite || viewModel.isApplyingRewrite
@@ -277,5 +271,82 @@ struct CodexSessionsTabView: View {
             targetURL = provider.codexHomeFolder.file(row.rolloutPath).url
         }
         NSWorkspace.shared.activateFileViewerSelecting([targetURL])
+    }
+
+    private var showsPinnedControlsBar: Bool {
+        viewModel.showsInitialSkeleton || viewModel.isLoading || !viewModel.sections.isEmpty
+    }
+
+    private var stickyControlsBar: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .firstTextBaseline, spacing: 12) {
+                Text(
+                    NSLocalizedString(
+                        "codex.sessions.grouping.title",
+                        value: "Group By",
+                        comment: "Codex sessions grouping title"
+                    )
+                )
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(DesignSystem.Colors.Text.tertiary)
+
+                Spacer(minLength: 12)
+
+                if let paginationMessage = overviewData.paginationMessage {
+                    Text(paginationMessage)
+                        .font(.caption)
+                        .foregroundStyle(DesignSystem.Colors.Text.tertiary)
+                }
+            }
+
+            Picker(
+                NSLocalizedString(
+                    "codex.sessions.grouping.title",
+                    value: "Group By",
+                    comment: "Codex sessions grouping title"
+                ),
+                selection: Binding(
+                    get: { viewModel.groupingMode.rawValue },
+                    set: { groupingID in
+                        guard let groupingMode = CodexSessionsTabViewModel.SessionGroupingMode(rawValue: groupingID) else {
+                            return
+                        }
+                        viewModel.setGroupingMode(groupingMode)
+                    }
+                )
+            ) {
+                Text(
+                    NSLocalizedString(
+                        "codex.sessions.grouping.provider",
+                        value: "Provider",
+                        comment: "Codex sessions provider grouping title"
+                    )
+                )
+                .tag(CodexSessionsTabViewModel.SessionGroupingMode.provider.rawValue)
+
+                Text(
+                    NSLocalizedString(
+                        "codex.sessions.grouping.time_project",
+                        value: "Time + Project",
+                        comment: "Codex sessions time and project grouping title"
+                    )
+                )
+                .tag(CodexSessionsTabViewModel.SessionGroupingMode.timeProject.rawValue)
+            }
+            .pickerStyle(.segmented)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: DesignSystem.Metrics.cornerRadiusM, style: .continuous)
+                .fill(DesignSystem.Colors.Background.canvas.opacity(0.96))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: DesignSystem.Metrics.cornerRadiusM, style: .continuous)
+                .stroke(DesignSystem.Colors.Component.border.opacity(0.2), lineWidth: 1)
+        )
+        .padding(.top, 2)
+        .padding(.bottom, 4)
     }
 }

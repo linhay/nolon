@@ -590,6 +590,24 @@
         }
       }
     },
+    "action.copy_path" : {
+      "comment" : "Copy a file path",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Copy Path"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "复制路径"
+          }
+        }
+      }
+    },
     "action.delete" : {
       "comment" : "Delete action",
       "extractionState" : "extracted_with_value",
@@ -8894,6 +8912,24 @@
         }
       }
     },
+    "codex.sessions.action.more" : {
+      "comment" : "Codex sessions more actions label",
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "More actions"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "更多操作"
+          }
+        }
+      }
+    },
     "codex.sessions.action.move_group" : {
       "comment" : "Move provider group",
       "extractionState" : "extracted_with_value",
@@ -8968,7 +9004,7 @@
     },
     "codex.sessions.badge.archived" : {
       "comment" : "Archived badge",
-      "extractionState" : "extracted_with_value",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -8986,7 +9022,7 @@
     },
     "codex.sessions.badge.db_rows" : {
       "comment" : "Database row count badge",
-      "extractionState" : "extracted_with_value",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -9004,7 +9040,7 @@
     },
     "codex.sessions.badge.live" : {
       "comment" : "Live badge",
-      "extractionState" : "extracted_with_value",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -9052,6 +9088,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "将“%1$@”迁移到“%2$@”？\n\n会话数：%3$d\n当前会话：%4$d\n归档会话：%5$d\n数据库行：%6$d"
+          }
+        }
+      }
+    },
+    "codex.sessions.confirm.message.section" : {
+      "comment" : "Codex sessions rewrite confirmation message for group rewrite",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Move sessions from \"%1$@\" to \"%2$@\"?\n\nSessions: %3$d\nLive: %4$d\nArchived: %5$d\nDB rows: %6$d"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "将来自“%1$@”的会话迁移到“%2$@”？\n\n会话数：%3$d\n当前会话：%4$d\n归档会话：%5$d\n数据库行：%6$d"
+          }
+        }
+      }
+    },
+    "codex.sessions.confirm.message.session" : {
+      "comment" : "Codex sessions rewrite confirmation message for single-session rewrite",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Move \"%1$@\" from \"%2$@\" to \"%3$@\"?\n\nSessions: %4$d\nLive: %5$d\nArchived: %6$d\nDB rows: %7$d"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "将“%1$@”从“%2$@”迁移到“%3$@”？\n\n会话数：%4$d\n当前会话：%5$d\n归档会话：%6$d\n数据库行：%7$d"
           }
         }
       }
@@ -9292,7 +9364,7 @@
     },
     "codex.sessions.metric.archived" : {
       "comment" : "Archived sessions",
-      "extractionState" : "extracted_with_value",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -9308,9 +9380,27 @@
         }
       }
     },
+    "codex.sessions.metric.groups" : {
+      "comment" : "Group count",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Groups"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "分组"
+          }
+        }
+      }
+    },
     "codex.sessions.metric.live" : {
       "comment" : "Live sessions",
-      "extractionState" : "extracted_with_value",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -9326,9 +9416,27 @@
         }
       }
     },
+    "codex.sessions.metric.needs_attention" : {
+      "comment" : "Needs attention group count",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Needs Attention"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "需关注"
+          }
+        }
+      }
+    },
     "codex.sessions.metric.providers" : {
       "comment" : "Target provider count",
-      "extractionState" : "extracted_with_value",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -9340,6 +9448,24 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "目标 Provider"
+          }
+        }
+      }
+    },
+    "codex.sessions.metric.rewritable" : {
+      "comment" : "Rewritable group count",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Rewritable"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "可整组迁移"
           }
         }
       }
@@ -9358,6 +9484,24 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "总数"
+          }
+        }
+      }
+    },
+    "codex.sessions.more.db_rows" : {
+      "comment" : "Codex sessions more menu DB rows",
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "DB rows: %d"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "数据库行：%d"
           }
         }
       }
@@ -9476,18 +9620,6 @@
         }
       }
     },
-    "codex.sessions.section.subtitle.provider_group" : {
-      "comment" : "Provider-group section subtitle",
-      "extractionState" : "extracted_with_value",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "All editable sessions in this provider can be rewritten together."
-          }
-        }
-      }
-    },
     "codex.sessions.section.subtitle.read_only" : {
       "comment" : "Read-only section subtitle",
       "extractionState" : "extracted_with_value",
@@ -9496,18 +9628,6 @@
           "stringUnit" : {
             "state" : "new",
             "value" : "This section only contains read-only sessions."
-          }
-        }
-      }
-    },
-    "codex.sessions.section.subtitle.time_project" : {
-      "comment" : "Time/project section subtitle",
-      "extractionState" : "extracted_with_value",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "All editable sessions in this day/project group can be rewritten together."
           }
         }
       }

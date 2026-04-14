@@ -228,7 +228,10 @@ public final class ProviderSkillMaintenanceService: @unchecked Sendable {
         let targetPath = providerPath.subpath(resolvedSkillID)
 
         if installMethod == .symlink,
-           let linkedProviderRoot = resolvedLinkedProviderRoot(providerPath),
+           let linkedProviderRoot = resolvedProviderRootIfMirrorsSourceRoot(
+               providerPath: providerPath,
+               sourcePath: source
+           ),
            let finalTarget = linkedProviderTarget(
                linkedProviderRoot: linkedProviderRoot,
                skillID: resolvedSkillID
@@ -270,14 +273,21 @@ public final class ProviderSkillMaintenanceService: @unchecked Sendable {
         )
     }
 
-    private func resolvedLinkedProviderRoot(_ providerPath: STFolder) -> STFolder? {
-        let path = STPath(providerPath.url)
-        guard path.isSymbolicLink,
-              let destination = try? path.destinationOfSymbolicLink()
-        else {
+    private func resolvedProviderRootIfMirrorsSourceRoot(
+        providerPath: STFolder,
+        sourcePath: STPath
+    ) -> STFolder? {
+        let resolvedProviderRootURL = providerPath.url.resolvingSymlinksInPath().standardizedFileURL
+        let resolvedSourceRootURL = sourcePath.url
+            .deletingLastPathComponent()
+            .resolvingSymlinksInPath()
+            .standardizedFileURL
+
+        guard resolvedProviderRootURL.path == resolvedSourceRootURL.path else {
             return nil
         }
-        return STFolder(destination.url)
+
+        return STFolder(resolvedProviderRootURL)
     }
 
     private func linkedProviderTarget(linkedProviderRoot: STFolder, skillID: String) -> STPath? {

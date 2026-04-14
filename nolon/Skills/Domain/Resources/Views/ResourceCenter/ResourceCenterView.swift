@@ -14,9 +14,9 @@ struct ResourceCenterView: View, DebugPageLocatable {
     let repository: SkillRepository
     let targetProvider: Provider?
     let onClose: () -> Void
-    let onInstall: (RemoteSkill, Provider) -> Void
-    let onInstallWorkflow: ((RemoteWorkflow, Provider) -> Void)?
-    let onInstallMCP: ((RemoteMCP, Provider) -> Void)?
+    let onInstall: (RemoteSkill, Provider) async throws -> Void
+    let onInstallWorkflow: ((RemoteWorkflow, Provider) async throws -> Void)?
+    let onInstallMCP: ((RemoteMCP, Provider) async throws -> Void)?
     let onRegisterDeleteRequest: ((String, RemoteContentType, Int?, Bool, String?) -> Int)?
     let onMakeDeleteRequestExecutor: ((Int) -> ResourceCatalogGridViewModel.DeleteRequestExecutor)?
     
@@ -29,9 +29,9 @@ struct ResourceCenterView: View, DebugPageLocatable {
         targetProvider: Provider? = nil,
         selectedTab: ResourceCenterTabID? = .skills,
         onClose: @escaping () -> Void = {},
-        onInstall: @escaping (RemoteSkill, Provider) -> Void,
-        onInstallWorkflow: ((RemoteWorkflow, Provider) -> Void)? = nil,
-        onInstallMCP: ((RemoteMCP, Provider) -> Void)? = nil,
+        onInstall: @escaping (RemoteSkill, Provider) async throws -> Void,
+        onInstallWorkflow: ((RemoteWorkflow, Provider) async throws -> Void)? = nil,
+        onInstallMCP: ((RemoteMCP, Provider) async throws -> Void)? = nil,
         onRegisterDeleteRequest: ((String, RemoteContentType, Int?, Bool, String?) -> Int)? = nil,
         onMakeDeleteRequestExecutor: ((Int) -> ResourceCatalogGridViewModel.DeleteRequestExecutor)? = nil
     ) {
@@ -263,7 +263,7 @@ struct ResourceCenterView: View, DebugPageLocatable {
                 refreshTrigger: viewModel.refreshTrigger,
                 targetProvider: effectiveTargetProvider,
                 onInstall: { skill, provider in
-                    onInstall(skill, provider)
+                    try await onInstall(skill, provider)
                     viewModel.schedulePostInstallRefresh(
                         kind: .skill,
                         repository: repository,
@@ -273,7 +273,9 @@ struct ResourceCenterView: View, DebugPageLocatable {
                     )
                 },
                 onInstallWorkflow: { workflow, provider in
-                    onInstallWorkflow?(workflow, provider)
+                    if let onInstallWorkflow {
+                        try await onInstallWorkflow(workflow, provider)
+                    }
                     viewModel.schedulePostInstallRefresh(
                         kind: .workflow,
                         repository: repository,
@@ -283,7 +285,9 @@ struct ResourceCenterView: View, DebugPageLocatable {
                     )
                 },
                 onInstallMCP: { mcp, provider in
-                    onInstallMCP?(mcp, provider)
+                    if let onInstallMCP {
+                        try await onInstallMCP(mcp, provider)
+                    }
                     viewModel.schedulePostInstallRefresh(
                         kind: .mcp,
                         repository: repository,
@@ -339,7 +343,7 @@ struct ResourceCenterView: View, DebugPageLocatable {
             settings: ProviderSettings(),
             repository: SkillRepository(),
             selectedTab: .skills,
-            onInstall: { skill, provider in
+            onInstall: { skill, provider async throws in
                 _ = skill
                 _ = provider
             }

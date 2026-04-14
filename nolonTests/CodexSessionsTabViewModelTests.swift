@@ -1,6 +1,7 @@
 import XCTest
 import ProviderCatalog
 import CodexProvider
+import NolonUIFoundation
 @testable import nolon
 
 @MainActor
@@ -498,6 +499,99 @@ final class CodexSessionsTabViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.pendingRewrite?.preview.sessionCount, 3)
     }
 
+    func testBDD_GivenSectionRewritePreview_WhenReadingConfirmationAlert_ThenSourceAndTargetUseDisplayNamePlusRawID() async throws {
+        let provider = makeCodexProvider()
+        let serviceState = MockCodexSessionsServiceState(
+            snapshots: [
+                .init(
+                    sessions: [
+                        .init(
+                            id: "sessions/live-a.jsonl",
+                            threadID: "thread-live",
+                            title: "Live Session",
+                            summary: nil,
+                            modelProvider: "openai",
+                            archived: false,
+                            rolloutPath: "sessions/live-a.jsonl",
+                            cwd: "/tmp/live",
+                            updatedAt: Date(timeIntervalSince1970: 1_000),
+                            stateRowCount: 1,
+                            editable: true
+                        ),
+                    ],
+                    availableProviderIDs: ["openai", "anthropic"]
+                )
+            ],
+            previewResult: .success(
+                .init(sessionCount: 1, liveSessionCount: 1, archivedSessionCount: 0, stateRowCount: 1)
+            )
+        )
+        let viewModel = CodexSessionsTabViewModel(
+            provider: provider,
+            service: MockCodexSessionsService(state: serviceState)
+        )
+
+        await viewModel.load()
+        let section = try XCTUnwrap(viewModel.sections.first)
+
+        await viewModel.requestRewrite(for: section, targetProviderID: "anthropic")
+
+        XCTAssertTrue(
+            viewModel.confirmationAlertData.message.contains("OpenAI (openai)") == true
+        )
+        XCTAssertTrue(
+            viewModel.confirmationAlertData.message.contains("Anthropic (anthropic)") == true
+        )
+    }
+
+    func testBDD_GivenSingleSessionRewritePreview_WhenReadingConfirmationAlert_ThenSessionTitleAndSourceProviderAreBothVisible() async throws {
+        let provider = makeCodexProvider()
+        let serviceState = MockCodexSessionsServiceState(
+            snapshots: [
+                .init(
+                    sessions: [
+                        .init(
+                            id: "sessions/live-a.jsonl",
+                            threadID: "thread-live",
+                            title: "Investigate rollout drift",
+                            summary: nil,
+                            modelProvider: "openai",
+                            archived: false,
+                            rolloutPath: "sessions/live-a.jsonl",
+                            cwd: "/tmp/live",
+                            updatedAt: Date(timeIntervalSince1970: 1_000),
+                            stateRowCount: 1,
+                            editable: true
+                        ),
+                    ],
+                    availableProviderIDs: ["openai", "anthropic"]
+                )
+            ],
+            previewResult: .success(
+                .init(sessionCount: 1, liveSessionCount: 1, archivedSessionCount: 0, stateRowCount: 1)
+            )
+        )
+        let viewModel = CodexSessionsTabViewModel(
+            provider: provider,
+            service: MockCodexSessionsService(state: serviceState)
+        )
+
+        await viewModel.load()
+        let session = try XCTUnwrap(viewModel.sections.first?.sessions.first)
+
+        await viewModel.requestRewrite(for: session, targetProviderID: "anthropic")
+
+        XCTAssertTrue(
+            viewModel.confirmationAlertData.message.contains("Investigate rollout drift") == true
+        )
+        XCTAssertTrue(
+            viewModel.confirmationAlertData.message.contains("OpenAI (openai)") == true
+        )
+        XCTAssertTrue(
+            viewModel.confirmationAlertData.message.contains("Anthropic (anthropic)") == true
+        )
+    }
+
     func testBDD_GivenStreamingSnapshots_WhenLoading_ThenPublishesFirstBatchBeforeFinalSnapshot() async throws {
         let provider = makeCodexProvider()
         let firstSnapshot = CodexSessionSnapshot(
@@ -682,6 +776,185 @@ final class CodexSessionsTabViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.sections.first?.providerCount, 2)
         XCTAssertEqual(viewModel.sections.first?.editableThreadIDs, [])
         XCTAssertTrue(viewModel.sections.first?.title.contains("project-alpha") == true)
+    }
+
+    func testBDD_GivenManyRowsAcrossSections_WhenLoadingFirstPage_ThenEachSectionGetsTwoRowsBeforeExtraRowsAreAssigned() async throws {
+        let provider = makeCodexProvider()
+        let serviceState = MockCodexSessionsServiceState(
+            snapshots: [
+                .init(
+                    sessions: [
+                        .init(
+                            id: "sessions/openai-1.jsonl",
+                            threadID: "thread-openai-1",
+                            title: "OpenAI Session 1",
+                            summary: nil,
+                            modelProvider: "openai",
+                            archived: false,
+                            rolloutPath: "sessions/openai-1.jsonl",
+                            cwd: nil,
+                            updatedAt: Date(timeIntervalSince1970: 1_000),
+                            stateRowCount: 1,
+                            editable: true
+                        ),
+                        .init(
+                            id: "sessions/openai-2.jsonl",
+                            threadID: "thread-openai-2",
+                            title: "OpenAI Session 2",
+                            summary: nil,
+                            modelProvider: "openai",
+                            archived: false,
+                            rolloutPath: "sessions/openai-2.jsonl",
+                            cwd: nil,
+                            updatedAt: Date(timeIntervalSince1970: 999),
+                            stateRowCount: 1,
+                            editable: true
+                        ),
+                        .init(
+                            id: "sessions/openai-3.jsonl",
+                            threadID: "thread-openai-3",
+                            title: "OpenAI Session 3",
+                            summary: nil,
+                            modelProvider: "openai",
+                            archived: true,
+                            rolloutPath: "sessions/openai-3.jsonl",
+                            cwd: nil,
+                            updatedAt: Date(timeIntervalSince1970: 998),
+                            stateRowCount: 1,
+                            editable: true
+                        ),
+                        .init(
+                            id: "sessions/anthropic-1.jsonl",
+                            threadID: "thread-anthropic-1",
+                            title: "Anthropic Session 1",
+                            summary: nil,
+                            modelProvider: "anthropic",
+                            archived: false,
+                            rolloutPath: "sessions/anthropic-1.jsonl",
+                            cwd: nil,
+                            updatedAt: Date(timeIntervalSince1970: 997),
+                            stateRowCount: 1,
+                            editable: true
+                        ),
+                        .init(
+                            id: "sessions/anthropic-2.jsonl",
+                            threadID: "thread-anthropic-2",
+                            title: "Anthropic Session 2",
+                            summary: nil,
+                            modelProvider: "anthropic",
+                            archived: false,
+                            rolloutPath: "sessions/anthropic-2.jsonl",
+                            cwd: nil,
+                            updatedAt: Date(timeIntervalSince1970: 996),
+                            stateRowCount: 1,
+                            editable: true
+                        ),
+                        .init(
+                            id: "sessions/anthropic-3.jsonl",
+                            threadID: "thread-anthropic-3",
+                            title: "Anthropic Session 3",
+                            summary: nil,
+                            modelProvider: "anthropic",
+                            archived: true,
+                            rolloutPath: "sessions/anthropic-3.jsonl",
+                            cwd: nil,
+                            updatedAt: Date(timeIntervalSince1970: 995),
+                            stateRowCount: 1,
+                            editable: true
+                        ),
+                    ],
+                    availableProviderIDs: ["openai", "anthropic"]
+                )
+            ]
+        )
+        let viewModel = CodexSessionsTabViewModel(
+            provider: provider,
+            service: MockCodexSessionsService(state: serviceState),
+            pageSize: 4
+        )
+
+        await viewModel.load()
+
+        XCTAssertEqual(viewModel.sections.count, 2)
+        XCTAssertEqual(viewModel.visibleSessionCount, 4)
+        XCTAssertEqual(viewModel.sections[0].visibleSessionCount, 2)
+        XCTAssertEqual(viewModel.sections[1].visibleSessionCount, 2)
+    }
+
+    func testBDD_GivenMixedSectionStates_WhenLoading_ThenOverviewMetricsExposeDecisionCounts() async throws {
+        let provider = makeCodexProvider()
+        let serviceState = MockCodexSessionsServiceState(
+            snapshots: [
+                .init(
+                    sessions: [
+                        .init(
+                            id: "sessions/openai-live.jsonl",
+                            threadID: "thread-openai",
+                            title: "OpenAI Session",
+                            summary: nil,
+                            modelProvider: "openai",
+                            archived: false,
+                            rolloutPath: "sessions/openai-live.jsonl",
+                            cwd: "/tmp/project-alpha",
+                            updatedAt: Date(timeIntervalSince1970: 1_000),
+                            stateRowCount: 1,
+                            editable: true
+                        ),
+                        .init(
+                            id: "sessions/mixed-openai.jsonl",
+                            threadID: "thread-mixed-openai",
+                            title: "Mixed Group OpenAI",
+                            summary: nil,
+                            modelProvider: "openai",
+                            archived: false,
+                            rolloutPath: "sessions/mixed-openai.jsonl",
+                            cwd: "/tmp/project-beta",
+                            updatedAt: Date(timeIntervalSince1970: 900),
+                            stateRowCount: 1,
+                            editable: true
+                        ),
+                        .init(
+                            id: "sessions/mixed-custom.jsonl",
+                            threadID: "thread-mixed-custom",
+                            title: "Mixed Group Custom",
+                            summary: nil,
+                            modelProvider: "custom-relay",
+                            archived: true,
+                            rolloutPath: "sessions/mixed-custom.jsonl",
+                            cwd: "/tmp/project-beta",
+                            updatedAt: Date(timeIntervalSince1970: 899),
+                            stateRowCount: 1,
+                            editable: true
+                        ),
+                        .init(
+                            id: "archived_sessions/read-only.jsonl",
+                            threadID: nil,
+                            title: "Read Only Archive",
+                            summary: nil,
+                            modelProvider: "anthropic",
+                            archived: true,
+                            rolloutPath: "archived_sessions/read-only.jsonl",
+                            cwd: "/tmp/project-gamma",
+                            updatedAt: Date(timeIntervalSince1970: 800),
+                            stateRowCount: 1,
+                            editable: false
+                        ),
+                    ],
+                    availableProviderIDs: ["openai", "anthropic", "custom-relay"]
+                )
+            ]
+        )
+        let viewModel = CodexSessionsTabViewModel(
+            provider: provider,
+            service: MockCodexSessionsService(state: serviceState)
+        )
+
+        await viewModel.load()
+        viewModel.setGroupingMode(.timeProject)
+
+        XCTAssertEqual(viewModel.groupCount, 3)
+        XCTAssertEqual(viewModel.rewritableGroupCount, 1)
+        XCTAssertEqual(viewModel.needsAttentionGroupCount, 2)
     }
 
     private func makeCodexProvider() -> Provider {

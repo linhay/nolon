@@ -8,6 +8,13 @@ extension CodexAuthManager {
         let inferredProviderID: String?
     }
 
+    private struct ParsedManagedProviderConfig {
+        let currentProviderID: String?
+        let baseURLsByProviderID: [String: String]
+        let queryParamsByProviderID: [String: [String: String]]
+        let httpHeadersByProviderID: [String: [String: String]]
+    }
+
     private enum ActiveProviderConfigIntent {
         case apply(CodexActiveProviderConfigManager.RelayConfig)
         case restore
@@ -30,6 +37,38 @@ extension CodexAuthManager {
 
     public func configFile(for provider: Provider) -> STFile? {
         codexHomeFolder(for: provider)?.file("config.toml")
+    }
+
+    func readOnlyRelayConfigEvidence(
+        for provider: Provider,
+        matchedAccountID: UUID?
+    ) -> ConfiguredRelay? {
+        guard let matchedAccountID,
+              let configFile = configFile(for: provider),
+              let managedState = activeProviderConfigManager().managedState(configFile: configFile),
+              managedState.managedAccountID == matchedAccountID,
+              configFile.isExists,
+              let raw = try? configFile.read(),
+              !raw.isEmpty
+        else {
+            return nil
+        }
+
+        let parsed = parseManagedProviderConfig(raw)
+        guard let currentProviderID = parsed.currentProviderID,
+              normalizedManagedProviderID(managedState.managedProviderID) == currentProviderID,
+              let baseURL = parsed.baseURLsByProviderID[currentProviderID],
+              normalizedBaseURL(baseURL) != nil
+        else {
+            return nil
+        }
+
+        return ConfiguredRelay(
+            baseURL: baseURL,
+            modelProvider: currentProviderID,
+            queryParams: parsed.queryParamsByProviderID[currentProviderID] ?? [:],
+            headers: parsed.httpHeadersByProviderID[currentProviderID] ?? [:]
+        )
     }
 
     func syncActiveProviderConfig(for account: CodexAuthAccount, provider: Provider) throws {
@@ -237,12 +276,12 @@ extension CodexAuthManager {
         return matches[0]
     }
 
-    private func parseManagedProviderConfig(
-        _ raw: String
-    ) -> (currentProviderID: String?, baseURLsByProviderID: [String: String]) {
+    private func parseManagedProviderConfig(_ raw: String) -> ParsedManagedProviderConfig {
         var currentProviderID: String?
         var currentSectionProviderID: String?
         var baseURLsByProviderID: [String: String] = [:]
+        var queryParamsByProviderID: [String: [String: String]] = [:]
+        var httpHeadersByProviderID: [String: [String: String]] = [:]
 
         for rawLine in raw.split(separator: "\n", omittingEmptySubsequences: false) {
             let line = String(rawLine).trimmingCharacters(in: .whitespacesAndNewlines)
@@ -265,9 +304,24 @@ extension CodexAuthManager {
             {
                 baseURLsByProviderID[currentSectionProviderID] = baseURL
             }
+            if let currentSectionProviderID,
+               let queryParams = inlineTableAssignmentValue(from: line, key: "query_params")
+            {
+                queryParamsByProviderID[currentSectionProviderID] = queryParams
+            }
+            if let currentSectionProviderID,
+               let httpHeaders = inlineTableAssignmentValue(from: line, key: "http_headers")
+            {
+                httpHeadersByProviderID[currentSectionProviderID] = httpHeaders
+            }
         }
 
-        return (currentProviderID, baseURLsByProviderID)
+        return ParsedManagedProviderConfig(
+            currentProviderID: currentProviderID,
+            baseURLsByProviderID: baseURLsByProviderID,
+            queryParamsByProviderID: queryParamsByProviderID,
+            httpHeadersByProviderID: httpHeadersByProviderID
+        )
     }
 
     private func modelProviderSectionID(from line: String) -> String? {
@@ -293,6 +347,41 @@ extension CodexAuthManager {
         }
 
         return String(rawValue[rawValue.index(after: rawValue.startIndex)..<closingQuote])
+    }
+
+    private func inlineTableAssignmentValue(from line: String, key: String) -> [String: String]? {
+        guard let separatorIndex = line.firstIndex(of: "=") else { return nil }
+        let left = line[..<separatorIndex].trimmingCharacters(in: .whitespacesAndNewlines)
+        guard left == key else { return nil }
+
+        let rawValue = line[line.index(after: separatorIndex)...].trimmingCharacters(in: .whitespacesAndNewlines)
+        guard rawValue.first == "{", rawValue.last == "}" else {
+            return nil
+        }
+
+        let content = rawValue.dropFirst().dropLast().trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !content.isEmpty else { return [:] }
+
+        var result: [String: String] = [:]
+        for pair in content.split(separator: ",", omittingEmptySubsequences: true) {
+            guard let pairSeparator = pair.firstIndex(of: "=") else { continue }
+            let rawKey = pair[..<pairSeparator].trimmingCharacters(in: .whitespacesAndNewlines)
+            let rawQuotedValue = pair[pair.index(after: pairSeparator)...].trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !rawKey.isEmpty,
+                  rawQuotedValue.first == "\"",
+                  let closingQuote = rawQuotedValue.dropFirst().firstIndex(of: "\"")
+            else {
+                continue
+            }
+            let rawStringValue = String(rawQuotedValue[rawQuotedValue.index(after: rawQuotedValue.startIndex)..<closingQuote])
+            guard let key = trimmedString(rawKey),
+                  let value = trimmedString(rawStringValue)
+            else {
+                continue
+            }
+            result[key] = value
+        }
+        return result
     }
 
     private func normalizedBaseURL(_ raw: String?) -> String? {

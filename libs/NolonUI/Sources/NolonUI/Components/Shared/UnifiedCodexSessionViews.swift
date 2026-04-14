@@ -1,3 +1,4 @@
+import AppKit
 import NolonUIFoundation
 import SwiftUI
 
@@ -110,12 +111,6 @@ public struct CodexSessionsOverviewCardView: View {
                 message: data.backgroundScanningMessage,
                 systemImage: "arrow.clockwise.circle.fill",
                 tint: DesignSystem.Colors.Status.info
-            ),
-            bannerEntry(
-                id: "pagination",
-                message: data.paginationMessage,
-                systemImage: "line.3.horizontal.decrease.circle.fill",
-                tint: DesignSystem.Colors.Text.secondary
             ),
         ].compactMap { $0 }
 
@@ -249,9 +244,7 @@ public struct CodexSessionsSectionCardView: View {
         .dsCard(
             background: DesignSystem.Colors.Background.elevated.opacity(0.94),
             cornerRadius: DesignSystem.Metrics.cornerRadiusL,
-            borderColor: data.actions.isEmpty
-                ? DesignSystem.Colors.Component.border.opacity(0.28)
-                : DesignSystem.Colors.primary.opacity(0.24),
+            borderColor: sectionBorderColor,
             shadow: .subtle
         )
         .animation(.snappy(duration: 0.2), value: data.isCollapsed)
@@ -274,7 +267,7 @@ public struct CodexSessionsSectionCardView: View {
                             .fill(sectionAccentColor.opacity(0.12))
                             .frame(width: 44, height: 44)
 
-                        Image(systemName: data.actions.isEmpty ? "square.stack.3d.down.forward" : "arrow.left.arrow.right.circle.fill")
+                        Image(systemName: sectionSymbolName)
                             .font(.system(size: 20, weight: .semibold))
                             .foregroundStyle(sectionAccentColor)
                     }
@@ -284,6 +277,12 @@ public struct CodexSessionsSectionCardView: View {
                             .font(.title3.weight(.semibold))
                             .foregroundStyle(DesignSystem.Colors.Text.primary)
                             .fixedSize(horizontal: false, vertical: true)
+
+                        if let titleSecondaryText = data.titleSecondaryText, !titleSecondaryText.isEmpty {
+                            Text(titleSecondaryText)
+                                .font(.caption.monospaced())
+                                .foregroundStyle(DesignSystem.Colors.Text.tertiary)
+                        }
                     }
                 }
                 .contentShape(Rectangle())
@@ -323,7 +322,7 @@ public struct CodexSessionsSectionCardView: View {
 
     private func capabilityBanner(_ subtitle: String) -> some View {
         HStack(alignment: .top, spacing: 10) {
-            Image(systemName: data.actions.isEmpty ? "info.circle.fill" : "sparkles")
+            Image(systemName: capabilitySymbolName)
                 .font(.system(size: 14, weight: .semibold))
                 .foregroundStyle(sectionAccentColor)
                 .padding(.top, 1)
@@ -348,13 +347,11 @@ public struct CodexSessionsSectionCardView: View {
             Text(NSLocalizedString("codex.sessions.table.session", value: "Session", comment: "Session table column header"))
                 .frame(maxWidth: .infinity, alignment: .leading)
             Text(NSLocalizedString("codex.sessions.table.status", value: "Status", comment: "Status table column header"))
-                .frame(width: 110, alignment: .leading)
+                .frame(width: statusColumnWidth, alignment: .leading)
             Text(NSLocalizedString("codex.sessions.table.context", value: "Context", comment: "Context table column header"))
-                .frame(width: 150, alignment: .leading)
-            Text(NSLocalizedString("codex.sessions.table.path", value: "Path", comment: "Path table column header"))
-                .frame(width: 180, alignment: .leading)
+                .frame(width: contextColumnWidth, alignment: .leading)
             Text(NSLocalizedString("codex.sessions.table.actions", value: "Actions", comment: "Actions table column header"))
-                .frame(width: 110, alignment: .trailing)
+                .frame(minWidth: 40, idealWidth: 130, maxWidth: 160, alignment: .trailing)
         }
         .font(.caption.weight(.semibold))
         .foregroundStyle(DesignSystem.Colors.Text.tertiary)
@@ -391,14 +388,11 @@ public struct CodexSessionsSectionCardView: View {
                 if let providerName = row.providerName, !providerName.isEmpty {
                     pill(text: providerName, tint: DesignSystem.Colors.primary)
                 }
-                if let dbBadge = row.badges.first(where: { $0.id == "db" }) {
-                    pill(text: dbBadge.text, tint: DesignSystem.Colors.Text.secondary)
-                }
                 if !row.isEditable, let readOnlyText = row.readOnlyText, !readOnlyText.isEmpty {
                     pill(text: readOnlyText, tint: DesignSystem.Colors.Status.warning)
                 }
             }
-            .frame(width: 110, alignment: .leading)
+            .frame(width: statusColumnWidth, alignment: .leading)
 
             // Context column
             VStack(alignment: .leading, spacing: 4) {
@@ -420,43 +414,23 @@ public struct CodexSessionsSectionCardView: View {
                     }
                 }
             }
-            .frame(width: 150, alignment: .leading)
-
-            // Path column
-            HStack(spacing: 5) {
-                Image(systemName: "doc.text")
-                    .font(.caption.weight(.medium))
-                    .foregroundStyle(DesignSystem.Colors.Text.tertiary)
-                Text(row.rolloutPath)
-                    .font(.caption.monospaced())
-                    .foregroundStyle(DesignSystem.Colors.Text.tertiary)
-                    .lineLimit(2)
-            }
-            .frame(width: 180, alignment: .leading)
+            .frame(width: contextColumnWidth, alignment: .leading)
 
             // Actions column
-            HStack {
+            HStack(spacing: 6) {
                 Spacer(minLength: 0)
-                if row.actions.isEmpty {
-                    if let showInFinderTitle = row.showInFinderTitle, !showInFinderTitle.isEmpty {
-                        Button {
-                            onRevealInFinder(row)
-                        } label: {
-                            Image(systemName: "folder")
-                        }
-                        .buttonStyle(.bordered)
-                        .help(showInFinderTitle)
+                if row.actions.count == 1, let primaryAction = row.actions.first {
+                    Button {
+                        onTapRowAction(row, primaryAction.targetProviderID)
+                    } label: {
+                        providerActionLabel(primaryAction)
                     }
-                } else if let actionMenuTitle = row.actionMenuTitle, !actionMenuTitle.isEmpty {
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .help(primaryAction.title)
+                    .accessibilityLabel(primaryAction.title)
+                } else if let actionMenuTitle = row.actionMenuTitle, row.actions.count > 1, !actionMenuTitle.isEmpty {
                     Menu {
-                        if let showInFinderTitle = row.showInFinderTitle, !showInFinderTitle.isEmpty {
-                            Button(showInFinderTitle) {
-                                onRevealInFinder(row)
-                            }
-                        }
-                        if row.showsRevealInFinder {
-                            Divider()
-                        }
                         ForEach(row.actions) { action in
                             Button(action.title) {
                                 onTapRowAction(row, action.targetProviderID)
@@ -466,12 +440,86 @@ public struct CodexSessionsSectionCardView: View {
                         Label(actionMenuTitle, systemImage: "arrow.triangle.swap")
                     }
                     .menuStyle(.button)
+                    .controlSize(.small)
                 }
+
+                EllipsisMenuButton {
+                    if let showInFinderTitle = row.showInFinderTitle, !showInFinderTitle.isEmpty {
+                        Button(showInFinderTitle) {
+                            onRevealInFinder(row)
+                        }
+                    }
+                    if let copyPathTitle = row.copyPathTitle, !copyPathTitle.isEmpty {
+                        Button(copyPathTitle) {
+                            copyToPasteboard(row.rolloutPath)
+                        }
+                    }
+                    if row.showsRevealInFinder || row.copyPathTitle != nil {
+                        Divider()
+                    }
+                    Text(row.rolloutPath)
+                        .font(.caption.monospaced())
+                        .foregroundStyle(DesignSystem.Colors.Text.secondary)
+                    if row.stateRowCount > 0 {
+                        Text(
+                            String(
+                                format: NSLocalizedString(
+                                    "codex.sessions.more.db_rows",
+                                    value: "DB rows: %d",
+                                    comment: "Codex sessions more menu DB rows"
+                                ),
+                                row.stateRowCount
+                            )
+                        )
+                        .font(.caption)
+                        .foregroundStyle(DesignSystem.Colors.Text.secondary)
+                    }
+                }
+                .help(
+                    NSLocalizedString(
+                        "codex.sessions.action.more",
+                        value: "More actions",
+                        comment: "Codex sessions more actions label"
+                    )
+                )
+                .accessibilityLabel(
+                    NSLocalizedString(
+                        "codex.sessions.action.more",
+                        value: "More actions",
+                        comment: "Codex sessions more actions label"
+                    )
+                )
             }
-            .frame(width: 110)
+            .frame(minWidth: 40, idealWidth: 130, maxWidth: 160, alignment: .trailing)
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 10)
+        .contextMenu {
+            if let showInFinderTitle = row.showInFinderTitle, !showInFinderTitle.isEmpty {
+                Button(showInFinderTitle) {
+                    onRevealInFinder(row)
+                }
+            }
+            if let copyPathTitle = row.copyPathTitle, !copyPathTitle.isEmpty {
+                Button(copyPathTitle) {
+                    copyToPasteboard(row.rolloutPath)
+                }
+            }
+            Divider()
+            Text(row.rolloutPath)
+            if row.stateRowCount > 0 {
+                Text(
+                    String(
+                        format: NSLocalizedString(
+                            "codex.sessions.more.db_rows",
+                            value: "DB rows: %d",
+                            comment: "Codex sessions more menu DB rows"
+                        ),
+                        row.stateRowCount
+                    )
+                )
+            }
+        }
     }
 
     private func pill(text: String, tint: Color) -> some View {
@@ -484,7 +532,70 @@ public struct CodexSessionsSectionCardView: View {
     }
 
     private var sectionAccentColor: Color {
-        data.actions.isEmpty ? DesignSystem.Colors.Status.warning : DesignSystem.Colors.primary
+        switch data.presentationKind {
+        case .rewritableGroup:
+            return DesignSystem.Colors.primary
+        case .singleSessionOnly:
+            return DesignSystem.Colors.Text.secondary
+        case .readOnly:
+            return DesignSystem.Colors.Status.warning
+        }
+    }
+
+    private var sectionBorderColor: Color {
+        switch data.presentationKind {
+        case .rewritableGroup:
+            return DesignSystem.Colors.primary.opacity(0.24)
+        case .singleSessionOnly:
+            return DesignSystem.Colors.Component.border.opacity(0.28)
+        case .readOnly:
+            return DesignSystem.Colors.Status.warning.opacity(0.22)
+        }
+    }
+
+    private var sectionSymbolName: String {
+        switch data.presentationKind {
+        case .rewritableGroup:
+            return "arrow.left.arrow.right.circle.fill"
+        case .singleSessionOnly:
+            return "square.stack.3d.down.forward"
+        case .readOnly:
+            return "lock.fill"
+        }
+    }
+
+    private var capabilitySymbolName: String {
+        switch data.presentationKind {
+        case .rewritableGroup:
+            return "sparkles"
+        case .singleSessionOnly:
+            return "info.circle.fill"
+        case .readOnly:
+            return "exclamationmark.triangle.fill"
+        }
+    }
+
+    private var statusColumnWidth: CGFloat { 132 }
+    private var contextColumnWidth: CGFloat { 220 }
+
+    private func providerActionLabel(_ action: CodexSessionsActionItemData) -> some View {
+        VStack(alignment: .trailing, spacing: 1) {
+            Text(action.primaryText)
+                .font(.caption.weight(.semibold))
+                .lineLimit(1)
+            if let secondaryText = action.secondaryText, !secondaryText.isEmpty {
+                Text(secondaryText)
+                    .font(.caption2.monospaced())
+                    .foregroundStyle(DesignSystem.Colors.Text.tertiary)
+                    .lineLimit(1)
+            }
+        }
+        .frame(minWidth: 0, alignment: .trailing)
+    }
+
+    private func copyToPasteboard(_ value: String) {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(value, forType: .string)
     }
 }
 

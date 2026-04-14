@@ -2,14 +2,30 @@ import Foundation
 import NolonUIFoundation
 
 enum CodexSessionsSectionDataBuilder {
-    static func buildSectionData(
+    struct ProviderPresentation: Equatable {
+        let primaryText: String
+        let secondaryText: String?
+
+        nonisolated var inlineText: String {
+            guard let secondaryText, !secondaryText.isEmpty else { return primaryText }
+            return "\(primaryText) (\(secondaryText))"
+        }
+    }
+
+    nonisolated static func buildSectionData(
         _ section: CodexSessionsTabViewModel.SessionSection,
         groupingMode: CodexSessionsTabViewModel.SessionGroupingMode,
         targetProviders: (String) -> [String]
     ) -> CodexSessionsSectionData {
-        let actions = section.rewriteSourceProviderID.map { sourceProviderID in
-            targetProviders(sourceProviderID).map { targetProviderID in
-                CodexSessionsActionItemData(
+        let presentationKind = sectionPresentationKind(for: section)
+        let sectionProviderPresentation = groupingMode == .provider
+            ? section.rewriteSourceProviderID.map(providerPresentation(for:))
+            : nil
+        let actions: [CodexSessionsActionItemData]
+        if let sourceProviderID = section.rewriteSourceProviderID {
+            actions = targetProviders(sourceProviderID).map { targetProviderID in
+                let targetPresentation = providerPresentation(for: targetProviderID)
+                return CodexSessionsActionItemData(
                     id: "section-\(section.id)-\(targetProviderID)",
                     title: String(
                         format: NSLocalizedString(
@@ -17,17 +33,23 @@ enum CodexSessionsSectionDataBuilder {
                             value: "Move Group to %@",
                             comment: "Move provider group to target provider"
                         ),
-                        targetProviderID
+                        targetPresentation.inlineText
                     ),
-                    targetProviderID: targetProviderID
+                    targetProviderID: targetProviderID,
+                    primaryText: targetPresentation.primaryText,
+                    secondaryText: targetPresentation.secondaryText
                 )
             }
-        } ?? []
+        } else {
+            actions = []
+        }
 
         return CodexSessionsSectionData(
             id: section.id,
-            title: section.title,
-            subtitle: makeSectionSubtitle(section, groupingMode: groupingMode),
+            title: sectionProviderPresentation?.primaryText ?? section.title,
+            titleSecondaryText: sectionProviderPresentation?.secondaryText,
+            subtitle: makeSectionSubtitle(section, groupingMode: groupingMode, presentationKind: presentationKind),
+            presentationKind: presentationKind,
             badges: makeSectionBadges(section),
             actions: actions,
             actionMenuTitle: actions.isEmpty
@@ -48,7 +70,7 @@ enum CodexSessionsSectionDataBuilder {
         )
     }
 
-    private static func makeSectionBadges(
+    nonisolated private static func makeSectionBadges(
         _ section: CodexSessionsTabViewModel.SessionSection
     ) -> [CodexSessionsBadgeData] {
         var badges = [
@@ -112,35 +134,11 @@ enum CodexSessionsSectionDataBuilder {
         return badges
     }
 
-    private static func makeRowData(
+    nonisolated private static func makeRowData(
         _ session: CodexSessionsTabViewModel.SessionRow,
         groupingMode: CodexSessionsTabViewModel.SessionGroupingMode,
         targetProviders: (String) -> [String]
     ) -> CodexSessionsRowData {
-        var badges = [
-            CodexSessionsBadgeData(
-                id: "archive",
-                text: session.archived
-                    ? NSLocalizedString("codex.sessions.badge.archived", value: "Archived", comment: "Archived badge")
-                    : NSLocalizedString("codex.sessions.badge.live", value: "Live", comment: "Live badge")
-            )
-        ]
-        if session.stateRowCount > 0 {
-            badges.append(
-                CodexSessionsBadgeData(
-                    id: "db",
-                    text: String(
-                        format: NSLocalizedString(
-                            "codex.sessions.badge.db_rows",
-                            value: "DB %d",
-                            comment: "Database row count badge"
-                        ),
-                        session.stateRowCount
-                    )
-                )
-            )
-        }
-
         var metadataItems: [CodexSessionsMetadataItemData] = []
         if let updatedText = relativeDateText(session.updatedAt) {
             metadataItems.append(
@@ -163,7 +161,8 @@ enum CodexSessionsSectionDataBuilder {
         }
 
         let actions = targetProviders(session.modelProvider).map { targetProviderID in
-            CodexSessionsActionItemData(
+            let targetPresentation = providerPresentation(for: targetProviderID)
+            return CodexSessionsActionItemData(
                 id: "row-\(session.id)-\(targetProviderID)",
                 title: String(
                     format: NSLocalizedString(
@@ -171,20 +170,22 @@ enum CodexSessionsSectionDataBuilder {
                         value: "Move Session to %@",
                         comment: "Move single session to target provider"
                     ),
-                    targetProviderID
+                    targetPresentation.inlineText
                 ),
-                targetProviderID: targetProviderID
+                targetProviderID: targetProviderID,
+                primaryText: targetPresentation.primaryText,
+                secondaryText: targetPresentation.secondaryText
             )
         }
 
         return CodexSessionsRowData(
             id: session.id,
             title: session.title,
-            providerName: groupingMode == .timeProject ? session.modelProvider : nil,
+            providerName: groupingMode == .timeProject ? providerPresentation(for: session.modelProvider).inlineText : nil,
             isArchived: session.archived,
             isEditable: session.editable,
             summary: session.summary,
-            badges: badges,
+            badges: [],
             metadataItems: metadataItems,
             rolloutPath: session.rolloutPath,
             showInFinderTitle: NSLocalizedString(
@@ -192,8 +193,14 @@ enum CodexSessionsSectionDataBuilder {
                 value: "Show in Finder",
                 comment: "Show in Finder"
             ),
+            copyPathTitle: NSLocalizedString(
+                "action.copy_path",
+                value: "Copy Path",
+                comment: "Copy a file path"
+            ),
+            stateRowCount: session.stateRowCount,
             actions: session.editable ? actions : [],
-            actionMenuTitle: session.editable
+            actionMenuTitle: session.editable && actions.count > 1
                 ? NSLocalizedString(
                     "codex.sessions.action.move_session",
                     value: "Move Session",
@@ -210,49 +217,65 @@ enum CodexSessionsSectionDataBuilder {
         )
     }
 
-    private static func makeSectionSubtitle(
+    nonisolated private static func makeSectionSubtitle(
         _ section: CodexSessionsTabViewModel.SessionSection,
-        groupingMode: CodexSessionsTabViewModel.SessionGroupingMode
+        groupingMode: CodexSessionsTabViewModel.SessionGroupingMode,
+        presentationKind: CodexSessionsSectionPresentationKind
     ) -> String? {
-        if section.editableThreadIDs.isEmpty {
+        switch presentationKind {
+        case .readOnly:
             return NSLocalizedString(
                 "codex.sessions.section.subtitle.read_only",
                 value: "This section only contains read-only sessions.",
                 comment: "Read-only section subtitle"
             )
-        }
-
-        if section.providerCount > 1 {
+        case .singleSessionOnly:
             return NSLocalizedString(
                 "codex.sessions.section.subtitle.multi_provider",
                 value: "This group contains multiple providers, so only single-session rewrite is available.",
                 comment: "Multi-provider section subtitle"
             )
+        case .rewritableGroup:
+            _ = groupingMode
+            return nil
         }
-
-        if groupingMode == .provider {
-            return NSLocalizedString(
-                "codex.sessions.section.subtitle.provider_group",
-                value: "All editable sessions in this provider can be rewritten together.",
-                comment: "Provider-group section subtitle"
-            )
-        }
-
-        return NSLocalizedString(
-            "codex.sessions.section.subtitle.time_project",
-            value: "All editable sessions in this day/project group can be rewritten together.",
-            comment: "Time/project section subtitle"
-        )
     }
 
-    private static func relativeDateText(_ date: Date?) -> String? {
+    nonisolated static func providerPresentation(for providerID: String) -> ProviderPresentation {
+        let normalizedID = providerID.trimmingCharacters(in: .whitespacesAndNewlines)
+        let lowercasedID = normalizedID.lowercased()
+        switch lowercasedID {
+        case "openai":
+            return .init(primaryText: "OpenAI", secondaryText: normalizedID)
+        case "anthropic":
+            return .init(primaryText: "Anthropic", secondaryText: normalizedID)
+        case "gemini":
+            return .init(primaryText: "Gemini", secondaryText: normalizedID)
+        case "claude":
+            return .init(primaryText: "Claude", secondaryText: normalizedID)
+        case "azure":
+            return .init(primaryText: "Azure OpenAI", secondaryText: normalizedID)
+        default:
+            return .init(primaryText: normalizedID, secondaryText: nil)
+        }
+    }
+
+    nonisolated static func sectionPresentationKind(
+        for section: CodexSessionsTabViewModel.SessionSection
+    ) -> CodexSessionsSectionPresentationKind {
+        if !section.hasEditableSessions {
+            return .readOnly
+        }
+        if section.providerCount > 1 {
+            return .singleSessionOnly
+        }
+        return .rewritableGroup
+    }
+
+    nonisolated private static func relativeDateText(_ date: Date?) -> String? {
         guard let date else { return nil }
-        return relativeFormatter.localizedString(for: date, relativeTo: Date())
-    }
-
-    private static let relativeFormatter: RelativeDateTimeFormatter = {
         let formatter = RelativeDateTimeFormatter()
         formatter.unitsStyle = .short
-        return formatter
-    }()
+        return formatter.localizedString(for: date, relativeTo: Date())
+    }
 }

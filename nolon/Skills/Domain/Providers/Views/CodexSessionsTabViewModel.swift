@@ -96,18 +96,33 @@ final class CodexSessionsTabViewModel {
             self.isCollapsed = isCollapsed
         }
 
-        var modelProvider: String { rewriteSourceProviderID ?? title }
-        var visibleSessionCount: Int { sessions.count }
-        var hasHiddenSessions: Bool { visibleSessionCount < totalSessionCount }
-        var remainingSessionCount: Int { max(0, totalSessionCount - visibleSessionCount) }
+        nonisolated var modelProvider: String { rewriteSourceProviderID ?? title }
+        nonisolated var visibleSessionCount: Int { sessions.count }
+        nonisolated var hasHiddenSessions: Bool { visibleSessionCount < totalSessionCount }
+        nonisolated var remainingSessionCount: Int { max(0, totalSessionCount - visibleSessionCount) }
+        nonisolated var hasEditableSessions: Bool { sessions.contains(where: \.editable) }
     }
 
     struct PendingRewrite: Identifiable, Equatable, Sendable {
         let id = UUID()
-        let sourceLabel: String
+        let source: RewriteSourceContext
         let targetProviderID: String
         let request: CodexSessionProviderRewriteRequest
         let preview: CodexSessionRewritePreview
+    }
+
+    enum RewriteSourceContext: Equatable, Sendable {
+        case section(label: String, providerID: String?)
+        case session(title: String, providerID: String)
+
+        var analyticsLabel: String {
+            switch self {
+            case .section(let label, _):
+                return label
+            case .session(let title, _):
+                return title
+            }
+        }
     }
 
     private struct SessionSectionState: Equatable, Sendable {
@@ -122,8 +137,12 @@ final class CodexSessionsTabViewModel {
         let providerCount: Int
         let latestUpdatedAt: Date?
 
-        var totalSessionCount: Int {
+        nonisolated var totalSessionCount: Int {
             sessions.count
+        }
+
+        nonisolated var hasEditableSessions: Bool {
+            sessions.contains(where: \.editable)
         }
     }
 
@@ -189,6 +208,29 @@ final class CodexSessionsTabViewModel {
         max(0, totalSessionCount - visibleSessionCount)
     }
 
+    var groupCount: Int {
+        allSectionStates.count
+    }
+
+    var rewritableGroupCount: Int {
+        allSectionStates.filter {
+            sectionPresentationKind(
+                hasEditableSessions: $0.hasEditableSessions,
+                providerCount: $0.providerCount
+            ) == .rewritableGroup
+        }.count
+    }
+
+    var needsAttentionGroupCount: Int {
+        allSectionStates.filter {
+            let kind = sectionPresentationKind(
+                hasEditableSessions: $0.hasEditableSessions,
+                providerCount: $0.providerCount
+            )
+            return kind != .rewritableGroup
+        }.count
+    }
+
     var canLoadMore: Bool {
         visibleSessionCount < totalSessionCount
     }
@@ -196,33 +238,80 @@ final class CodexSessionsTabViewModel {
     var confirmationAlertData: ConfirmationAlertData {
         let pending = pendingRewrite
         let targetProviderID = pending?.targetProviderID ?? ""
-        let sourceLabel = pending?.sourceLabel ?? ""
         let preview = pending?.preview ?? .init(
             sessionCount: 0,
             liveSessionCount: 0,
             archivedSessionCount: 0,
             stateRowCount: 0
         )
-        let format = NSLocalizedString(
-            "codex.sessions.confirm.message",
-            value: "Move \"%@\" to \"%@\"?\n\nSessions: %d\nLive: %d\nArchived: %d\nDB rows: %d",
-            comment: "Codex sessions rewrite confirmation message"
-        )
+        let targetLabel = Self.inlineProviderLabel(for: targetProviderID)
+        let message: String
+        switch pending?.source {
+        case .some(.section(_, let providerID?)):
+            message = String(
+                format: NSLocalizedString(
+                    "codex.sessions.confirm.message.section",
+                    value: "Move sessions from \"%@\" to \"%@\"?\n\nSessions: %d\nLive: %d\nArchived: %d\nDB rows: %d",
+                    comment: "Codex sessions rewrite confirmation message for group rewrite"
+                ),
+                Self.inlineProviderLabel(for: providerID),
+                targetLabel,
+                preview.sessionCount,
+                preview.liveSessionCount,
+                preview.archivedSessionCount,
+                preview.stateRowCount
+            )
+        case .some(.session(let title, let providerID)):
+            message = String(
+                format: NSLocalizedString(
+                    "codex.sessions.confirm.message.session",
+                    value: "Move \"%@\" from \"%@\" to \"%@\"?\n\nSessions: %d\nLive: %d\nArchived: %d\nDB rows: %d",
+                    comment: "Codex sessions rewrite confirmation message for single-session rewrite"
+                ),
+                title,
+                Self.inlineProviderLabel(for: providerID),
+                targetLabel,
+                preview.sessionCount,
+                preview.liveSessionCount,
+                preview.archivedSessionCount,
+                preview.stateRowCount
+            )
+        case .some(.section(let label, nil)):
+            message = String(
+                format: NSLocalizedString(
+                    "codex.sessions.confirm.message",
+                    value: "Move \"%@\" to \"%@\"?\n\nSessions: %d\nLive: %d\nArchived: %d\nDB rows: %d",
+                    comment: "Codex sessions rewrite confirmation message"
+                ),
+                label,
+                targetLabel,
+                preview.sessionCount,
+                preview.liveSessionCount,
+                preview.archivedSessionCount,
+                preview.stateRowCount
+            )
+        case .none:
+            message = String(
+                format: NSLocalizedString(
+                    "codex.sessions.confirm.message",
+                    value: "Move \"%@\" to \"%@\"?\n\nSessions: %d\nLive: %d\nArchived: %d\nDB rows: %d",
+                    comment: "Codex sessions rewrite confirmation message"
+                ),
+                "",
+                targetLabel,
+                preview.sessionCount,
+                preview.liveSessionCount,
+                preview.archivedSessionCount,
+                preview.stateRowCount
+            )
+        }
         return .init(
             title: NSLocalizedString(
                 "codex.sessions.confirm.title",
                 value: "Confirm Session Rewrite",
                 comment: "Codex sessions rewrite confirmation title"
             ),
-            message: String(
-                format: format,
-                sourceLabel,
-                targetProviderID,
-                preview.sessionCount,
-                preview.liveSessionCount,
-                preview.archivedSessionCount,
-                preview.stateRowCount
-            ),
+            message: message,
             confirmTitle: NSLocalizedString(
                 "codex.sessions.confirm.apply",
                 value: "Apply",
@@ -356,7 +445,7 @@ final class CodexSessionsTabViewModel {
             return
         }
         await prepareRewrite(
-            sourceLabel: session.title,
+            source: .session(title: session.title, providerID: session.modelProvider),
             threadIDs: [threadID],
             targetProviderID: targetProviderID
         )
@@ -364,7 +453,10 @@ final class CodexSessionsTabViewModel {
 
     func requestRewrite(for section: SessionSection, targetProviderID: String) async {
         await prepareRewrite(
-            sourceLabel: section.rewriteSourceLabel,
+            source: .section(
+                label: section.rewriteSourceLabel,
+                providerID: section.rewriteSourceProviderID
+            ),
             threadIDs: section.editableThreadIDs,
             targetProviderID: targetProviderID
         )
@@ -430,7 +522,7 @@ final class CodexSessionsTabViewModel {
     }
 
     private func prepareRewrite(
-        sourceLabel: String,
+        source: RewriteSourceContext,
         threadIDs: [String],
         targetProviderID: String
     ) async {
@@ -464,7 +556,7 @@ final class CodexSessionsTabViewModel {
                 return
             }
             pendingRewrite = .init(
-                sourceLabel: sourceLabel,
+                source: source,
                 targetProviderID: targetProviderID,
                 request: request,
                 preview: preview
@@ -475,7 +567,7 @@ final class CodexSessionsTabViewModel {
                 providerID: provider.templateId ?? provider.id,
                 startedAt: startedAt,
                 extra: [
-                    "source_label": sourceLabel,
+                    "source_label": source.analyticsLabel,
                     "state_row_count": preview.stateRowCount,
                     "target_provider_id": targetProviderID,
                     "thread_count": threadIDs.count,
@@ -525,12 +617,14 @@ final class CodexSessionsTabViewModel {
         var visibleCounts = Array(repeating: 0, count: sectionCount)
         var remaining = min(visibleSessionLimit, totalSessionCount)
 
-        let guaranteedSectionCount = min(remaining, sectionCount)
-        if guaranteedSectionCount > 0 {
-            for index in 0..<guaranteedSectionCount {
-                visibleCounts[index] = 1
+        let minimumVisibleRowsPerSection = 2
+        for _ in 0..<minimumVisibleRowsPerSection where remaining > 0 {
+            for index in 0..<sectionCount where remaining > 0 {
+                let section = allSectionStates[index]
+                guard visibleCounts[index] < section.totalSessionCount else { continue }
+                visibleCounts[index] += 1
+                remaining -= 1
             }
-            remaining -= guaranteedSectionCount
         }
 
         if remaining > 0 {
@@ -742,7 +836,7 @@ final class CodexSessionsTabViewModel {
         return String(
             format: format,
             result.preview.sessionCount,
-            targetProviderID,
+            Self.inlineProviderLabel(for: targetProviderID),
             result.liveRolloutFilesUpdated,
             result.archivedRolloutFilesUpdated,
             result.stateRowsUpdated
@@ -778,6 +872,23 @@ final class CodexSessionsTabViewModel {
             object: nil,
             userInfo: payload
         )
+    }
+
+    nonisolated private static func inlineProviderLabel(for providerID: String) -> String {
+        CodexSessionsSectionDataBuilder.providerPresentation(for: providerID).inlineText
+    }
+
+    private func sectionPresentationKind(
+        hasEditableSessions: Bool,
+        providerCount: Int
+    ) -> CodexSessionsSectionPresentationKind {
+        if !hasEditableSessions {
+            return .readOnly
+        }
+        if providerCount > 1 {
+            return .singleSessionOnly
+        }
+        return .rewritableGroup
     }
 
     nonisolated private static let dayFormatter: DateFormatter = {

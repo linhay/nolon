@@ -1,6 +1,7 @@
 import XCTest
 import ProviderCatalog
 import NolonResourceKit
+import STFilePath
 @testable import nolon
 
 @MainActor
@@ -149,5 +150,61 @@ final class SkillInstallerTests: XCTestCase {
         XCTAssertEqual(attributes[.type] as? FileAttributeType, .typeSymbolicLink)
         let destination = try fixture.fileManager.destinationOfSymbolicLink(atPath: targetPath)
         XCTAssertEqual(destination, skill.globalPath)
+    }
+
+    func testBDD_GivenLinkedProviderRoot_WhenInstallLocal_ThenKeepGlobalSkillAsRealDirectory() throws {
+        let sourceURL = try fixture.createSampleSkill(id: "scale", name: "Scale")
+        let providerHome = fixture.tempRoot.appendingPathComponent("providers/LinkedRoot", isDirectory: true)
+        let providerSkillsPath = providerHome.appendingPathComponent("skills", isDirectory: true)
+
+        try fixture.fileManager.createDirectory(at: providerHome, withIntermediateDirectories: true)
+        try fixture.fileManager.createSymbolicLink(
+            at: providerSkillsPath,
+            withDestinationURL: URL(fileURLWithPath: fixture.nolonManager.skillsPath)
+        )
+
+        let provider = Provider(
+            name: "LinkedRoot",
+            defaultSkillsPath: providerSkillsPath.path,
+            workflowPath: fixture.tempRoot
+                .appendingPathComponent("providers/LinkedRoot-workflows", isDirectory: true).path,
+            installMethod: .symlink
+        )
+
+        try installer.installLocal(from: sourceURL.path, slug: "scale", to: provider)
+
+        let globalPath = "\(fixture.nolonManager.skillsPath)/scale"
+        XCTAssertTrue(fixture.fileManager.fileExists(atPath: globalPath))
+        XCTAssertFalse(STPath(globalPath).isSymbolicLink)
+        XCTAssertTrue(fixture.fileManager.fileExists(atPath: "\(globalPath)/SKILL.md"))
+    }
+
+    func testBDD_GivenParentLinkedProviderRoot_WhenInstallLocal_ThenKeepGlobalSkillAsRealDirectory() throws {
+        let sourceURL = try fixture.createSampleSkill(id: "scale-parent", name: "Scale Parent")
+        let providerHome = fixture.tempRoot.appendingPathComponent("providers/ParentLinkedRoot", isDirectory: true)
+        let linkedHomePath = providerHome.appendingPathComponent("linked-home", isDirectory: true)
+        let providerSkillsPath = linkedHomePath.appendingPathComponent("skills", isDirectory: true)
+        let globalHomeURL = URL(fileURLWithPath: fixture.nolonManager.skillsPath).deletingLastPathComponent()
+
+        try fixture.fileManager.createDirectory(at: providerHome, withIntermediateDirectories: true)
+        try fixture.fileManager.createSymbolicLink(
+            at: linkedHomePath,
+            withDestinationURL: globalHomeURL
+        )
+
+        let provider = Provider(
+            name: "ParentLinkedRoot",
+            defaultSkillsPath: providerSkillsPath.path,
+            workflowPath: fixture.tempRoot
+                .appendingPathComponent("providers/ParentLinkedRoot-workflows", isDirectory: true).path,
+            installMethod: .symlink
+        )
+
+        try installer.installLocal(from: sourceURL.path, slug: "scale-parent", to: provider)
+
+        let globalPath = "\(fixture.nolonManager.skillsPath)/scale-parent"
+        XCTAssertTrue(fixture.fileManager.fileExists(atPath: globalPath))
+        XCTAssertFalse(STPath(globalPath).isSymbolicLink)
+        XCTAssertTrue(fixture.fileManager.fileExists(atPath: "\(globalPath)/SKILL.md"))
     }
 }

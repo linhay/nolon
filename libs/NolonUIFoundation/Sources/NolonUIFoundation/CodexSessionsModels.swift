@@ -1,5 +1,11 @@
 import Foundation
 
+public enum CodexSessionsSectionPresentationKind: Equatable, Sendable {
+    case rewritableGroup
+    case singleSessionOnly
+    case readOnly
+}
+
 public struct CodexSessionsMetricData: Identifiable, Equatable, Sendable {
     public let id: String
     public let title: String
@@ -26,11 +32,21 @@ public struct CodexSessionsActionItemData: Identifiable, Equatable, Sendable {
     public let id: String
     public let title: String
     public let targetProviderID: String
+    public let primaryText: String
+    public let secondaryText: String?
 
-    public init(id: String, title: String, targetProviderID: String) {
+    public init(
+        id: String,
+        title: String,
+        targetProviderID: String,
+        primaryText: String? = nil,
+        secondaryText: String? = nil
+    ) {
         self.id = id
         self.title = title
         self.targetProviderID = targetProviderID
+        self.primaryText = primaryText ?? targetProviderID
+        self.secondaryText = secondaryText
     }
 }
 
@@ -119,6 +135,8 @@ public struct CodexSessionsRowData: Identifiable, Equatable, Sendable {
     public let metadataItems: [CodexSessionsMetadataItemData]
     public let rolloutPath: String
     public let showInFinderTitle: String?
+    public let copyPathTitle: String?
+    public let stateRowCount: Int
     public let actions: [CodexSessionsActionItemData]
     public let actionMenuTitle: String?
     public let readOnlyText: String?
@@ -134,6 +152,8 @@ public struct CodexSessionsRowData: Identifiable, Equatable, Sendable {
         metadataItems: [CodexSessionsMetadataItemData],
         rolloutPath: String,
         showInFinderTitle: String?,
+        copyPathTitle: String? = nil,
+        stateRowCount: Int = 0,
         actions: [CodexSessionsActionItemData],
         actionMenuTitle: String?,
         readOnlyText: String?
@@ -148,6 +168,8 @@ public struct CodexSessionsRowData: Identifiable, Equatable, Sendable {
         self.metadataItems = metadataItems
         self.rolloutPath = rolloutPath
         self.showInFinderTitle = showInFinderTitle
+        self.copyPathTitle = copyPathTitle
+        self.stateRowCount = stateRowCount
         self.actions = actions
         self.actionMenuTitle = actionMenuTitle
         self.readOnlyText = readOnlyText
@@ -162,7 +184,9 @@ public struct CodexSessionsRowData: Identifiable, Equatable, Sendable {
 public struct CodexSessionsSectionData: Identifiable, Equatable, Sendable {
     public let id: String
     public let title: String
+    public let titleSecondaryText: String?
     public let subtitle: String?
+    public let presentationKind: CodexSessionsSectionPresentationKind
     public let badges: [CodexSessionsBadgeData]
     public let actions: [CodexSessionsActionItemData]
     public let actionMenuTitle: String?
@@ -172,7 +196,9 @@ public struct CodexSessionsSectionData: Identifiable, Equatable, Sendable {
     public init(
         id: String,
         title: String,
+        titleSecondaryText: String? = nil,
         subtitle: String?,
+        presentationKind: CodexSessionsSectionPresentationKind = .rewritableGroup,
         badges: [CodexSessionsBadgeData],
         actions: [CodexSessionsActionItemData],
         actionMenuTitle: String?,
@@ -181,7 +207,9 @@ public struct CodexSessionsSectionData: Identifiable, Equatable, Sendable {
     ) {
         self.id = id
         self.title = title
+        self.titleSecondaryText = titleSecondaryText
         self.subtitle = subtitle
+        self.presentationKind = presentationKind
         self.badges = badges
         self.actions = actions
         self.actionMenuTitle = actionMenuTitle

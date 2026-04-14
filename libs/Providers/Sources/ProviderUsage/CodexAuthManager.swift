@@ -235,6 +235,7 @@ public actor CodexAuthManager {
     nonisolated let fetchCodexAccountInfoAction: @Sendable (_ accessToken: String) async throws -> FetchedOAuthAccountInfo?
     var providerAuthPollingTasks: [String: Task<Void, Never>] = [:]
     var providerAuthLastHashes: [String: String] = [:]
+    var readOnlyRelayEvidenceProviderIDs: Set<String> = []
     let providerAuthPollIntervalNanoseconds: UInt64 = 2_000_000_000
 
     public init(
@@ -1258,8 +1259,9 @@ public actor CodexAuthManager {
         guard Self.isCodexTemplate(provider.templateId) else { return nil }
         try await migrateLegacyIfNeeded()
         let reconciled = try withAuthFileLock {
+            clearReadOnlyRelayEvidenceFlag(for: provider.id)
             let resolved = try reconcileProviderAuthWithSnapshotsIfNeeded(for: provider)
-            if let resolved {
+            if let resolved, consumeReadOnlyRelayEvidenceFlag(for: provider.id) == false {
                 try syncActiveProviderConfig(for: resolved, provider: provider)
             }
             return resolved
@@ -1352,8 +1354,9 @@ public actor CodexAuthManager {
     @discardableResult
     public func reconcileDetachedProviderAuthIfNeeded(for provider: Provider) throws -> CodexAuthAccount? {
         try withAuthFileLock {
+            clearReadOnlyRelayEvidenceFlag(for: provider.id)
             let resolved = try reconcileProviderAuthWithSnapshotsIfNeeded(for: provider)
-            if let resolved {
+            if let resolved, consumeReadOnlyRelayEvidenceFlag(for: provider.id) == false {
                 try syncActiveProviderConfig(for: resolved, provider: provider)
             }
             return resolved
