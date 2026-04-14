@@ -15,6 +15,12 @@ protocol ProviderUsageCommonEngineProtocol: AnyObject {
     var tokenTrendSnapshot: ProviderTokenTrendSnapshot? { get set }
     var tokenTrendErrorMessage: String? { get set }
     var isLoadingTokenTrend: Bool { get set }
+    var tokenTrendCapability: ProviderUsageCurveCapability { get set }
+    var selectedTokenTrendDayKey: String? { get set }
+    var intradayBucket: ProviderIntradayBucket { get set }
+    var intradaySnapshot: ProviderIntradayUsageSnapshot? { get set }
+    var intradayErrorMessage: String? { get set }
+    var isLoadingIntraday: Bool { get set }
     var shouldShowTokenTrendLoadingSkeleton: Bool { get }
     var accountLayoutMode: UsageAccountLayoutMode { get set }
     var isRunningCLILogin: Bool { get set }
@@ -33,6 +39,9 @@ protocol ProviderUsageCommonEngineProtocol: AnyObject {
     func handleHeaderRefreshButtonTap()
     func setTokenTrendRange(_ range: UsageEngineTokenTrendRange)
     func refreshTokenTrendNow()
+    func selectTokenTrendDay(_ dayKey: String?)
+    func setIntradayBucket(_ bucket: ProviderIntradayBucket)
+    func refreshIntradayNow()
     func setAccountLayoutMode(_ mode: UsageAccountLayoutMode)
     func startLoginFlow()
     func cancelCLILoginIfNeeded()

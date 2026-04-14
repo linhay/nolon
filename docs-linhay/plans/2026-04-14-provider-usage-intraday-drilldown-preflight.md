@@ -26,6 +26,40 @@
    - 每完成一个阶段就定向验证
    - 文档与 memory 同步更新
 
+## 当前执行状态
+
+截至 2026-04-14 晚间，本轮 `Phase 0 - Phase 2` 的主干实现已经落地，当前剩余工作主要是扩大验证、同步 memory/qmd，并整理提交。
+
+### Phase 0
+
+已完成：
+
+1. `历史 Token 消耗` section 已支持单日点选。
+2. 钻取态以内联方式在同一 section 中展开。
+3. UI 默认 bucket 为 `30min`，并支持 `15min / 30min / 60min` 切换。
+4. `selected day` 已改为外部受控，避免在主图交互中丢失。
+
+### Phase 1
+
+已完成：
+
+1. Gemini 单日钻取已通过即时聚合接入。
+2. `ProviderUsageEngine -> ViewModel -> Section/UI` 状态链已打通。
+3. Gemini 继续保持“不做文件级 cache，只做按选中日即时聚合”的既定边界。
+
+### Phase 2
+
+已完成当前 scope：
+
+1. Codex 已新增 quarter-hour fetcher 与 intraday service。
+2. Codex 钻取复用既有正式链路，不走 App 层临时扫单日文件的旁路。
+3. `15min` 作为事实桶，`30/60min` 只做派生展示的实现口径已经成立。
+
+说明：
+
+1. 这里的完成指“本轮单日钻取功能所需的 Codex 链路已接通”。
+2. 若未来要继续扩展更长期、更重的分钟级缓存策略，仍可单独立项，不影响本轮结论。
+
 ## 目标
 
 1. 为现有 `历史 Token 消耗` section 增加单日钻取能力。

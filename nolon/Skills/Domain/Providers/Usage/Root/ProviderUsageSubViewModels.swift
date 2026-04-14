@@ -650,6 +650,12 @@ final class ProviderTokenTrendViewModel {
     var tokenTrendSnapshot: ProviderTokenTrendSnapshot? { engine.tokenTrendSnapshot }
     var tokenTrendErrorMessage: String? { engine.tokenTrendErrorMessage }
     var isLoadingTokenTrend: Bool { engine.isLoadingTokenTrend }
+    var tokenTrendCapability: ProviderUsageCurveCapability { engine.tokenTrendCapability }
+    var selectedDayKey: String? { engine.selectedTokenTrendDayKey }
+    var intradayBucket: ProviderIntradayBucket { engine.intradayBucket }
+    var intradaySnapshot: ProviderIntradayUsageSnapshot? { engine.intradaySnapshot }
+    var intradayErrorMessage: String? { engine.intradayErrorMessage }
+    var isLoadingIntraday: Bool { engine.isLoadingIntraday }
     var shouldShowLoadingSkeleton: Bool { engine.shouldShowTokenTrendLoadingSkeleton }
 
     func setRange(_ range: UsageEngineTokenTrendRange) {
@@ -658,6 +664,18 @@ final class ProviderTokenTrendViewModel {
 
     func refreshNow() {
         engine.refreshTokenTrendNow()
+    }
+
+    func selectDay(_ dayKey: String?) {
+        engine.selectTokenTrendDay(dayKey)
+    }
+
+    func setIntradayBucket(_ bucket: ProviderIntradayBucket) {
+        engine.setIntradayBucket(bucket)
+    }
+
+    func refreshIntradayNow() {
+        engine.refreshIntradayNow()
     }
 }
 

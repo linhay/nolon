@@ -45,6 +45,7 @@ final class ProviderUsageEngine: CopyToastPresenting {
     var codexExportSavePanelAction: CodexExportSavePanelAction { actions.codexExportSavePanel }
     var codexImportExportArchiveAction: CodexImportExportArchiveAction { actions.codexImportExportArchive }
     var geminiTokenTrendFetchAction: GeminiTokenTrendFetchAction { actions.geminiTokenTrendFetch }
+    var providerIntradayFetchAction: ProviderIntradayFetchAction { actions.providerIntradayFetch }
     let usageSnapshotService = ProviderUsageSnapshotService()
     @ObservationIgnored var usageWatcher: UsageMonitorFileWatcher? = nil
 
@@ -222,6 +223,7 @@ final class ProviderUsageEngine: CopyToastPresenting {
         codexExportSavePanelAction: CodexExportSavePanelAction? = nil,
         codexImportExportArchiveAction: CodexImportExportArchiveAction? = nil,
         geminiTokenTrendFetchAction: GeminiTokenTrendFetchAction? = nil,
+        providerIntradayFetchAction: ProviderIntradayFetchAction? = nil,
         postDeleteLoadAction: AsyncVoidAction? = nil,
         codexRefreshTimeoutGraceSeconds: TimeInterval = 5,
         initialSettingsOverride: UsageMonitorProviderSettings? = nil,
@@ -233,6 +235,7 @@ final class ProviderUsageEngine: CopyToastPresenting {
         self.provider = provider
         self.codexModelPreferenceService = codexModelPreferenceService
         self.usageProvider = ProviderUsageEngine.mapToUsageProvider(provider)
+        self.tokenTrendCapability = Self.tokenTrendCapability(for: self.usageProvider)
         self.codexRefreshTimeoutGraceSeconds = codexRefreshTimeoutGraceSeconds
         let initialSettings = initialSettingsOverride ?? settingsStore.settings(for: provider)
         self.settings = initialSettings
@@ -290,6 +293,24 @@ final class ProviderUsageEngine: CopyToastPresenting {
         let resolvedGeminiTokenTrendFetchAction = geminiTokenTrendFetchAction ?? { provider, trailingDays in
             try await GeminiTokenTrendService().fetchActiveSnapshot(provider: provider, trailingDays: trailingDays)
         }
+        let resolvedProviderIntradayFetchAction = providerIntradayFetchAction ?? { provider, dayKey, bucket in
+            switch provider {
+            case .codex:
+                return try await CodexIntradayUsageService().fetchGlobalSnapshot(
+                    dayKey: dayKey,
+                    bucket: bucket,
+                    environment: ProcessInfo.processInfo.environment
+                )
+            case .gemini:
+                return try await GeminiIntradayUsageService().fetchActiveSnapshot(
+                    provider: provider,
+                    dayKey: dayKey,
+                    bucket: bucket
+                )
+            default:
+                return nil
+            }
+        }
         self.actions = ActionDependencies(
             codexActivate: resolvedCodexActivateAction,
             postActivationLoad: postActivationLoadAction,
@@ -304,7 +325,8 @@ final class ProviderUsageEngine: CopyToastPresenting {
             codexImportOpenPanel: resolvedCodexImportOpenPanelAction,
             codexExportSavePanel: resolvedCodexExportSavePanelAction,
             codexImportExportArchive: resolvedCodexImportExportArchiveAction,
-            geminiTokenTrendFetch: resolvedGeminiTokenTrendFetchAction
+            geminiTokenTrendFetch: resolvedGeminiTokenTrendFetchAction,
+            providerIntradayFetch: resolvedProviderIntradayFetchAction
         )
         self.updateSupportedModes()
         self.configureCodexAuthReloadPipeline()
@@ -403,6 +425,15 @@ final class ProviderUsageEngine: CopyToastPresenting {
 
     static func codexGroupingOption(rawValue: String) -> CodexAccountGroupingOption {
         CodexAccountGroupingOption(rawValue: rawValue) ?? .typeInfo
+    }
+
+    static func tokenTrendCapability(for usageProvider: UsageProvider?) -> ProviderUsageCurveCapability {
+        switch usageProvider {
+        case .codex, .gemini:
+            return .dailyWithIntradayDrilldown
+        default:
+            return .dailyOnly
+        }
     }
 
     func loadCodexManagementStatus() async {
@@ -745,14 +776,50 @@ final class ProviderUsageEngine: CopyToastPresenting {
         refreshTokenTrendNow()
     }
 
+    func selectTokenTrendDay(_ dayKey: String?) {
+        guard tokenTrendCapability == .dailyWithIntradayDrilldown else { return }
+        guard selectedTokenTrendDayKey != dayKey else { return }
+
+        selectedTokenTrendDayKey = dayKey
+        intradayErrorMessage = nil
+
+        guard let dayKey else {
+            intradaySnapshot = nil
+            isLoadingIntraday = false
+            return
+        }
+
+        if intradaySnapshot?.dayKey != dayKey {
+            intradaySnapshot = nil
+        }
+        refreshIntradayNow()
+    }
+
+    func setIntradayBucket(_ bucket: ProviderIntradayBucket) {
+        guard intradayBucket != bucket else { return }
+        intradayBucket = bucket
+        guard selectedTokenTrendDayKey != nil else { return }
+        refreshIntradayNow()
+    }
+
     func refreshTokenTrendNow() {
         Task { [weak self] in
             await self?.refreshTokenTrend()
         }
     }
 
+    func refreshIntradayNow() {
+        Task { [weak self] in
+            await self?.refreshIntraday()
+        }
+    }
+
     func refreshTokenTrendForTesting() async {
         await refreshTokenTrend()
+    }
+
+    func refreshIntradayForTesting() async {
+        await refreshIntraday()
     }
 
     func refreshTokenTrend() async {
@@ -782,6 +849,31 @@ final class ProviderUsageEngine: CopyToastPresenting {
         } catch {
             tokenTrendSnapshot = nil
             tokenTrendErrorMessage = error.localizedDescription
+        }
+    }
+
+    func refreshIntraday() async {
+        guard let usageProvider else { return }
+        guard tokenTrendCapability == .dailyWithIntradayDrilldown else { return }
+        guard let dayKey = selectedTokenTrendDayKey else {
+            intradaySnapshot = nil
+            intradayErrorMessage = nil
+            return
+        }
+
+        isLoadingIntraday = true
+        intradayErrorMessage = nil
+        defer { isLoadingIntraday = false }
+
+        do {
+            intradaySnapshot = try await providerIntradayFetchAction(
+                usageProvider,
+                dayKey,
+                intradayBucket
+            )
+        } catch {
+            intradaySnapshot = nil
+            intradayErrorMessage = error.localizedDescription
         }
     }
 

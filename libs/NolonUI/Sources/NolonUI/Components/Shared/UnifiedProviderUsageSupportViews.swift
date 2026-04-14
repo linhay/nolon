@@ -108,44 +108,64 @@ public struct ProviderSkillsTopControlsView: View {
 public struct ProviderTokenTrendSectionView: View {
     private let data: ProviderTokenTrendSectionData
     private let onRangeChange: (String) -> Void
+    private let onSelectDay: (String?) -> Void
+    private let onIntradayBucketChange: (String) -> Void
     private let onRefresh: () -> Void
+    private let onRefreshIntraday: () -> Void
 
     @State private var sortKey: SortKey = .date
     @State private var sortAscending = false
-    @State private var selectedDate: String?
 
     public struct Config {
         public var data: ProviderTokenTrendSectionData
         public var onRangeChange: (String) -> Void
+        public var onSelectDay: (String?) -> Void
+        public var onIntradayBucketChange: (String) -> Void
         public var onRefresh: () -> Void
+        public var onRefreshIntraday: () -> Void
 
         public init(
             data: ProviderTokenTrendSectionData,
             onRangeChange: @escaping (String) -> Void,
-            onRefresh: @escaping () -> Void
+            onSelectDay: @escaping (String?) -> Void,
+            onIntradayBucketChange: @escaping (String) -> Void,
+            onRefresh: @escaping () -> Void,
+            onRefreshIntraday: @escaping () -> Void
         ) {
             self.data = data
             self.onRangeChange = onRangeChange
+            self.onSelectDay = onSelectDay
+            self.onIntradayBucketChange = onIntradayBucketChange
             self.onRefresh = onRefresh
+            self.onRefreshIntraday = onRefreshIntraday
         }
     }
 
     public init(config: Config) {
         self.data = config.data
         self.onRangeChange = config.onRangeChange
+        self.onSelectDay = config.onSelectDay
+        self.onIntradayBucketChange = config.onIntradayBucketChange
         self.onRefresh = config.onRefresh
+        self.onRefreshIntraday = config.onRefreshIntraday
     }
 
     public init(
         data: ProviderTokenTrendSectionData,
         onRangeChange: @escaping (String) -> Void,
-        onRefresh: @escaping () -> Void
+        onSelectDay: @escaping (String?) -> Void,
+        onIntradayBucketChange: @escaping (String) -> Void,
+        onRefresh: @escaping () -> Void,
+        onRefreshIntraday: @escaping () -> Void
     ) {
         self.init(
             config: Config(
                 data: data,
                 onRangeChange: onRangeChange,
-                onRefresh: onRefresh
+                onSelectDay: onSelectDay,
+                onIntradayBucketChange: onIntradayBucketChange,
+                onRefresh: onRefresh,
+                onRefreshIntraday: onRefreshIntraday
             )
         )
     }
@@ -157,6 +177,9 @@ public struct ProviderTokenTrendSectionView: View {
             if let snapshot = data.snapshot {
                 summary(snapshot: snapshot)
                 chartSection(snapshot: snapshot)
+                if let drilldown = data.drilldown {
+                    drilldownSection(drilldown)
+                }
                 tableSection(snapshot: snapshot)
             } else if let errorMessage = data.errorMessage, !errorMessage.isEmpty {
                 errorState(message: errorMessage)
@@ -218,7 +241,7 @@ public struct ProviderTokenTrendSectionView: View {
 
     private func summary(snapshot: ProviderTokenTrendSnapshotData) -> some View {
         LazyVGrid(columns: [GridItem(.adaptive(minimum: 140), spacing: 12)], spacing: 12) {
-            ForEach(summaryMetrics(snapshot: snapshot, selectedDate: selectedDate)) { item in
+            ForEach(summaryMetrics(snapshot: snapshot, selectedDate: data.selectedDayKey)) { item in
                 Button {
                     onRangeChange(item.targetRangeID)
                 } label: {
@@ -311,14 +334,12 @@ public struct ProviderTokenTrendSectionView: View {
     }
 
     private func stackedBar(point: ProviderTokenTrendPointData, maxValue: Int, width: CGFloat, maxHeight: CGFloat) -> some View {
-        let isSelected = point.date == selectedDate
+        let isSelected = point.date == data.selectedDayKey
         let totalRatio = CGFloat(point.totalTokens) / CGFloat(maxValue)
         let barHeight = max(4, totalRatio * maxHeight)
 
         return Button {
-            withAnimation(.spring(response: 0.3)) {
-                selectedDate = selectedDate == point.date ? nil : point.date
-            }
+            onSelectDay(data.selectedDayKey == point.date ? nil : point.date)
         } label: {
             VStack(spacing: 6) {
                 VStack(spacing: 0) {
@@ -332,7 +353,7 @@ public struct ProviderTokenTrendSectionView: View {
                     RoundedRectangle(cornerRadius: 4)
                         .stroke(DesignSystem.Colors.primary, lineWidth: isSelected ? 2 : 0)
                 )
-                .opacity(selectedDate == nil || isSelected ? 1.0 : 0.4)
+                .opacity(data.selectedDayKey == nil || isSelected ? 1.0 : 0.4)
 
                 Text(shortDate(point.date))
                     .font(.system(size: 9))
@@ -413,7 +434,7 @@ public struct ProviderTokenTrendSectionView: View {
     }
 
     private func dataRow(point: ProviderTokenTrendPointData) -> some View {
-        let isSelected = point.date == selectedDate
+        let isSelected = point.date == data.selectedDayKey
         return HStack(spacing: 0) {
             Text(point.date).frame(width: 90, alignment: .leading)
             Spacer()
@@ -428,9 +449,7 @@ public struct ProviderTokenTrendSectionView: View {
         .background(isSelected ? DesignSystem.Colors.primary.opacity(0.08) : .clear)
         .contentShape(Rectangle())
         .onTapGesture {
-            withAnimation(.easeInOut(duration: 0.2)) {
-                selectedDate = selectedDate == point.date ? nil : point.date
-            }
+            onSelectDay(data.selectedDayKey == point.date ? nil : point.date)
         }
         .overlay(alignment: .bottom) {
             Rectangle()
@@ -480,6 +499,143 @@ public struct ProviderTokenTrendSectionView: View {
         }
         .frame(maxWidth: .infinity, alignment: .center)
         .padding(.vertical, 40)
+    }
+
+    private func drilldownSection(_ drilldown: ProviderTokenTrendDrilldownData) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .top, spacing: 12) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Intraday Drilldown")
+                        .font(.subheadline.weight(.semibold))
+                    Text("\(drilldown.dayKey) · \(drilldown.rangeDescription)")
+                        .font(.caption)
+                        .foregroundStyle(DesignSystem.Colors.Text.secondary)
+                    if let freshnessText = drilldown.freshnessText, !freshnessText.isEmpty {
+                        Text(freshnessText)
+                            .font(.system(size: 10, weight: .medium))
+                            .foregroundStyle(DesignSystem.Colors.Text.tertiary)
+                    }
+                }
+
+                Spacer()
+
+                Button(action: onRefreshIntraday) {
+                    if drilldown.isLoading {
+                        ProgressView().controlSize(.small)
+                    } else {
+                        Image(systemName: "arrow.clockwise")
+                            .font(.system(size: 13, weight: .medium))
+                    }
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(DesignSystem.Colors.Text.secondary)
+            }
+
+            if !drilldown.availableBuckets.isEmpty {
+                Picker(
+                    "Bucket",
+                    selection: Binding(
+                        get: { drilldown.bucketID },
+                        set: { onIntradayBucketChange($0) }
+                    )
+                ) {
+                    ForEach(drilldown.availableBuckets) { option in
+                        Text(option.title).tag(option.id)
+                    }
+                }
+                .pickerStyle(.segmented)
+            }
+
+            if let errorMessage = drilldown.errorMessage, !errorMessage.isEmpty, drilldown.points.isEmpty {
+                drilldownErrorState(message: errorMessage)
+            } else if drilldown.isLoading, drilldown.points.isEmpty {
+                drilldownLoadingState
+            } else if drilldown.points.isEmpty {
+                drilldownEmptyState
+            } else {
+                drilldownChart(points: drilldown.points)
+            }
+        }
+        .padding(12)
+        .background(DesignSystem.Colors.Background.elevated.opacity(0.24), in: RoundedRectangle(cornerRadius: 12))
+    }
+
+    private func drilldownChart(points: [ProviderIntradayUsagePointData]) -> some View {
+        let maxValue = max(points.map(\.totalTokens).max() ?? 1, 1)
+        return GeometryReader { proxy in
+            let spacing: CGFloat = 6
+            let availableWidth = proxy.size.width - (CGFloat(max(0, points.count - 1)) * spacing)
+            let barWidth = max(6, min(20, availableWidth / CGFloat(max(1, points.count))))
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(alignment: .bottom, spacing: spacing) {
+                    ForEach(Array(points.enumerated()), id: \.offset) { _, point in
+                        VStack(spacing: 6) {
+                            VStack(spacing: 0) {
+                                barSegment(
+                                    value: point.inputTokens,
+                                    total: point.totalTokens,
+                                    height: max(6, CGFloat(point.totalTokens) / CGFloat(maxValue) * (proxy.size.height - 30)),
+                                    color: DesignSystem.Colors.primary
+                                )
+                                barSegment(
+                                    value: point.outputTokens,
+                                    total: point.totalTokens,
+                                    height: max(6, CGFloat(point.totalTokens) / CGFloat(maxValue) * (proxy.size.height - 30)),
+                                    color: DesignSystem.Colors.Status.success
+                                )
+                                barSegment(
+                                    value: point.cacheReadTokens,
+                                    total: point.totalTokens,
+                                    height: max(6, CGFloat(point.totalTokens) / CGFloat(maxValue) * (proxy.size.height - 30)),
+                                    color: DesignSystem.Colors.Status.warning
+                                )
+                            }
+                            .frame(width: barWidth, height: max(6, CGFloat(point.totalTokens) / CGFloat(maxValue) * (proxy.size.height - 30)))
+                            .clipShape(RoundedRectangle(cornerRadius: 4))
+
+                            Text(point.label)
+                                .font(.system(size: 9))
+                                .monospacedDigit()
+                                .foregroundStyle(DesignSystem.Colors.Text.tertiary)
+                        }
+                    }
+                }
+                .padding(.bottom, 4)
+            }
+        }
+        .frame(height: 150)
+    }
+
+    private func drilldownErrorState(message: String) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Label(message, systemImage: "exclamationmark.triangle")
+                .font(.caption)
+                .foregroundStyle(DesignSystem.Colors.Status.error)
+            Button(NSLocalizedString("generic.refresh", value: "Retry", comment: "Retry button")) {
+                onRefreshIntraday()
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+        }
+    }
+
+    private var drilldownLoadingState: some View {
+        HStack(spacing: 8) {
+            ProgressView()
+                .controlSize(.small)
+            Text("正在生成分钟级钻取…")
+                .font(.caption)
+                .foregroundStyle(DesignSystem.Colors.Text.secondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var drilldownEmptyState: some View {
+        Text("该日暂无分钟级使用数据。")
+            .font(.caption)
+            .foregroundStyle(DesignSystem.Colors.Text.secondary)
+            .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var emptyState: some View {

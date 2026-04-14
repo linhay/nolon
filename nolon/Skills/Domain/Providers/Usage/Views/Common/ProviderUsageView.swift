@@ -771,11 +771,20 @@ extension ProviderUsageView {
     private var tokenTrendSection: some View {
         ProviderTokenTrendSection(
             snapshot: tokenTrendViewModel.tokenTrendSnapshot,
+            capability: tokenTrendViewModel.tokenTrendCapability,
+            selectedDayKey: tokenTrendViewModel.selectedDayKey,
+            intradayBucket: tokenTrendViewModel.intradayBucket,
+            intradaySnapshot: tokenTrendViewModel.intradaySnapshot,
+            intradayErrorMessage: tokenTrendViewModel.intradayErrorMessage,
+            isLoadingIntraday: tokenTrendViewModel.isLoadingIntraday,
             isLoading: tokenTrendViewModel.isLoadingTokenTrend,
             errorMessage: tokenTrendViewModel.tokenTrendErrorMessage,
             range: tokenTrendViewModel.tokenTrendRange,
             onRangeChange: { tokenTrendViewModel.setRange($0) },
+            onSelectDay: { tokenTrendViewModel.selectDay($0) },
+            onIntradayBucketChange: { tokenTrendViewModel.setIntradayBucket($0) },
             onRefresh: { tokenTrendViewModel.refreshNow() },
+            onRefreshIntraday: { tokenTrendViewModel.refreshIntradayNow() },
             debugPageMarkerItems: tokenTrendDebugPageMarkerItems
         )
     }

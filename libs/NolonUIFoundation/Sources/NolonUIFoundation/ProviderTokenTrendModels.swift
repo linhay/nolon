@@ -63,6 +63,7 @@ public struct ProviderTokenTrendSnapshotData: Sendable {
 public struct ProviderTokenTrendSectionData: Sendable {
     public let snapshot: ProviderTokenTrendSnapshotData?
     public let drilldown: ProviderTokenTrendDrilldownData?
+    public let selectedDayKey: String?
     public let isLoading: Bool
     public let errorMessage: String?
     public let selectedRangeID: String
@@ -71,6 +72,7 @@ public struct ProviderTokenTrendSectionData: Sendable {
     public init(
         snapshot: ProviderTokenTrendSnapshotData?,
         drilldown: ProviderTokenTrendDrilldownData? = nil,
+        selectedDayKey: String? = nil,
         isLoading: Bool,
         errorMessage: String?,
         selectedRangeID: String,
@@ -78,6 +80,7 @@ public struct ProviderTokenTrendSectionData: Sendable {
     ) {
         self.snapshot = snapshot
         self.drilldown = drilldown
+        self.selectedDayKey = selectedDayKey
         self.isLoading = isLoading
         self.errorMessage = errorMessage
         self.selectedRangeID = selectedRangeID

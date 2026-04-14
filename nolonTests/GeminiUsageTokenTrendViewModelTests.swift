@@ -84,4 +84,55 @@ final class GeminiUsageTokenTrendViewModelTests: XCTestCase {
         XCTAssertNil(viewModel.tokenTrendErrorMessage)
         XCTAssertFalse(viewModel.isLoadingTokenTrend)
     }
+
+    func testBDD_GivenGeminiSelectedDay_WhenRefreshingIntraday_ThenPublishesIntradaySnapshot() async throws {
+        let provider = try XCTUnwrap(ProviderTemplate(rawValue: "gemini")).createProvider()
+        let expected = ProviderIntradayUsageSnapshot(
+            dayKey: "2026-03-08",
+            timezoneIdentifier: TimeZone.current.identifier,
+            bucket: .minute30,
+            actualBucketCount: 48,
+            rangeStart: Date(timeIntervalSince1970: 1_709_856_000),
+            rangeEnd: Date(timeIntervalSince1970: 1_709_942_400),
+            points: [
+                ProviderIntradayUsagePoint(
+                    start: Date(timeIntervalSince1970: 1_709_856_000),
+                    end: Date(timeIntervalSince1970: 1_709_857_800),
+                    totalTokens: 140,
+                    inputTokens: 100,
+                    outputTokens: 30,
+                    cacheReadTokens: 10
+                )
+            ] + Array(
+                repeating: ProviderIntradayUsagePoint(
+                    start: Date(timeIntervalSince1970: 1_709_857_800),
+                    end: Date(timeIntervalSince1970: 1_709_859_600),
+                    totalTokens: 0,
+                    inputTokens: 0,
+                    outputTokens: 0,
+                    cacheReadTokens: 0
+                ),
+                count: 47
+            ),
+            fetchedAt: Date(timeIntervalSince1970: 1_709_900_000),
+            sourceLabel: "session"
+        )
+
+        let viewModel = ProviderUsageEngine(
+            provider: provider,
+            providerIntradayFetchAction: { usageProvider, dayKey, bucket in
+                XCTAssertEqual(usageProvider, .gemini)
+                XCTAssertEqual(dayKey, expected.dayKey)
+                XCTAssertEqual(bucket, .minute30)
+                return expected
+            }
+        )
+        viewModel.selectTokenTrendDay(expected.dayKey)
+
+        await viewModel.refreshIntradayForTesting()
+
+        XCTAssertEqual(viewModel.intradaySnapshot, expected)
+        XCTAssertNil(viewModel.intradayErrorMessage)
+        XCTAssertFalse(viewModel.isLoadingIntraday)
+    }
 }
