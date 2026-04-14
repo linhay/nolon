@@ -113,6 +113,9 @@ extension CodexAuthManager {
         }
         try withAuthFileLock {
             try syncActiveProviderConfig(for: account, provider: provider)
+            // Keep the provider-facing auth.json in sync with the latest SQLite snapshot
+            // after editing the currently active configured account.
+            try activateAccount(account, for: provider)
         }
     }
 

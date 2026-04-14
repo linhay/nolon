@@ -926,6 +926,55 @@ struct CodexAuthManagerTests {
         #expect(rewritten.contains(#"[model_providers.provider-one]"#) == false)
     }
 
+    @Test("Given active configured relay account is edited, when refreshing active provider config, then provider auth json is rematerialized with latest payload")
+    func refreshActiveRelayConfigRematerializesProviderAuthJSON() async throws {
+        let root = try makeTempRoot("codex-auth-refresh-active-relay-auth-json")
+        defer { try? root.delete() }
+
+        let manager = CodexAuthManager(rootURL: root.url)
+        let provider = makeCodexProvider(root: root)
+        let configFile = root.folder("provider").file("config.toml")
+        try configFile.overlay(with: "approval_policy = \"on-request\"\n")
+
+        let relay = try await manager.addConfiguredAccount(
+            name: "Relay One",
+            apiKey: "rk-live-12345678",
+            relay: .init(
+                baseURL: "https://relay-one.example.com/v1",
+                modelProvider: "provider-one",
+                queryParams: ["api-version": "2025-01-01-preview"],
+                headers: ["X-Workspace": "ios"]
+            )
+        )
+        try await manager.activateAccountAndMarkActive(relay, for: provider)
+
+        try await manager.updateConfiguredAccount(
+            relay,
+            name: "Relay Two",
+            apiKey: "rk-live-87654321",
+            relay: .init(
+                baseURL: "https://relay-two.example.com/v1",
+                modelProvider: "provider-two",
+                queryParams: ["api-version": "2025-04-01-preview"],
+                headers: ["X-Workspace": "mac"]
+            )
+        )
+        let refreshed = try #require((try await manager.loadAccounts()).first(where: { $0.id == relay.id }))
+
+        try await manager.refreshActiveProviderConfigIfNeeded(for: refreshed, provider: provider)
+
+        let providerAuth = try #require(await manager.authFile(for: provider))
+        #expect(providerAuth.isSymbolicLink == true)
+
+        let syncedRaw = try #require(await manager.readAuthJSONString(from: provider))
+        let syncedJSON = try #require(try? JSON(data: Data(syncedRaw.utf8)))
+        let syncedSummary = CodexAuthSummary.fromJSONString(syncedRaw)
+
+        #expect(syncedJSON["OPENAI_API_KEY"].string == "rk-live-87654321")
+        #expect(syncedSummary.relayBaseURL == "https://relay-two.example.com/v1")
+        #expect(syncedSummary.relayModelProvider == "provider-two")
+    }
+
     @Test("Given openai history exists, when relay activation and oauth restoration switch active provider, then rollout files and state db migrate with the visible provider")
     func relayActivationMigratesHistoryProviderMetadataAndOAuthRestoresIt() async throws {
         let root = try makeTempRoot("codex-auth-history-provider-migration")
