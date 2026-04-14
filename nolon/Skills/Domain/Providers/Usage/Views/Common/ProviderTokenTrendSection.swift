@@ -63,6 +63,7 @@ struct ProviderTokenTrendSection: View, DebugPageLocatable {
                     sourceLabel: snapshot.sourceLabel
                 )
             },
+            drilldown: nil,
             isLoading: isLoading,
             errorMessage: errorMessage,
             selectedRangeID: range.rawValue,

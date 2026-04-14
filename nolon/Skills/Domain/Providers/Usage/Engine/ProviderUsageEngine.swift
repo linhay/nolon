@@ -75,6 +75,12 @@ final class ProviderUsageEngine: CopyToastPresenting {
     var tokenTrendSnapshot: ProviderTokenTrendSnapshot?
     var tokenTrendErrorMessage: String?
     var isLoadingTokenTrend = false
+    var tokenTrendCapability: ProviderUsageCurveCapability = .dailyOnly
+    var selectedTokenTrendDayKey: String?
+    var intradayBucket: ProviderIntradayBucket = .minute30
+    var intradaySnapshot: ProviderIntradayUsageSnapshot?
+    var intradayErrorMessage: String?
+    var isLoadingIntraday = false
     var shouldShowTokenTrendLoadingSkeleton: Bool {
         guard usageProvider == .codex || usageProvider == .gemini else { return false }
         guard tokenTrendSnapshot == nil else { return false }
