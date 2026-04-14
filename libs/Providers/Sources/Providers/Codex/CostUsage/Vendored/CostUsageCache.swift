@@ -70,12 +70,16 @@ struct CostUsageCache: Codable, Sendable {
     // dayKey -> model -> packed usage
     var days: [String: [String: [Int]]] = [:]
 
+    // dayKey -> HH:mm -> packed usage
+    var quarterHours: [String: [String: [Int]]] = [:]
+
 }
 
 struct CostUsageFileUsage: Codable, Sendable {
     var mtimeUnixMs: Int64
     var size: Int64
     var days: [String: [String: [Int]]]
+    var quarterHours: [String: [String: [Int]]]
     var parsedBytes: Int64?
     var lastModel: String?
     var lastTotals: CostUsageCodexTotals?

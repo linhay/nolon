@@ -110,6 +110,19 @@ extension CostUsageScanner {
         return CostUsageDayRange.dayKey(from: date)
     }
 
+    static func quarterHourKeyFromParsedISO(_ text: String) -> String? {
+        guard let date = CostUsageTimestampParser.parseISO(text) else { return nil }
+        return Self.quarterHourKey(from: date)
+    }
+
+    private static func quarterHourKey(from date: Date) -> String {
+        let components = Calendar.current.dateComponents([.hour, .minute], from: date)
+        let hour = components.hour ?? 0
+        let minute = components.minute ?? 0
+        let flooredMinute = (minute / 15) * 15
+        return String(format: "%02d:%02d", hour, flooredMinute)
+    }
+
     private static func parse2(_ bytes: [UInt8], at index: Int) -> Int? {
         guard let d0 = parseDigit(bytes[safe: index]),
               let d1 = parseDigit(bytes[safe: index + 1]) else { return nil }

@@ -37,6 +37,7 @@ enum CostUsageScanner {
 
     struct CodexParseResult: Sendable {
         let days: [String: [String: [Int]]]
+        let quarterHours: [String: [String: [Int]]]
         let parsedBytes: Int64
         let lastModel: String?
         let lastTotals: CostUsageCodexTotals?
@@ -132,6 +133,7 @@ enum CostUsageScanner {
         var sessionId: String?
 
         var days: [String: [String: [Int]]] = [:]
+        var quarterHours: [String: [String: [Int]]] = [:]
 
         func add(dayKey: String, model: String, input: Int, cached: Int, output: Int) {
             guard CostUsageDayRange.isInRange(dayKey: dayKey, since: range.scanSinceKey, until: range.scanUntilKey)
@@ -145,6 +147,19 @@ enum CostUsageScanner {
             packed[2] = (packed[safe: 2] ?? 0) + output
             dayModels[normModel] = packed
             days[dayKey] = dayModels
+        }
+
+        func addQuarterHour(dayKey: String, bucketKey: String, input: Int, cached: Int, output: Int) {
+            guard CostUsageDayRange.isInRange(dayKey: dayKey, since: range.scanSinceKey, until: range.scanUntilKey)
+            else { return }
+
+            var dayBuckets = quarterHours[dayKey] ?? [:]
+            var packed = dayBuckets[bucketKey] ?? [0, 0, 0]
+            packed[0] = (packed[safe: 0] ?? 0) + input
+            packed[1] = (packed[safe: 1] ?? 0) + cached
+            packed[2] = (packed[safe: 2] ?? 0) + output
+            dayBuckets[bucketKey] = packed
+            quarterHours[dayKey] = dayBuckets
         }
 
         let maxLineBytes = 256 * 1024
@@ -192,10 +207,20 @@ enum CostUsageScanner {
                     input: delta.inputTokens,
                     cached: delta.cachedInputTokens,
                     output: delta.outputTokens)
+                if let bucketKey = Self.quarterHourKeyFromParsedISO(tsText) {
+                    addQuarterHour(
+                        dayKey: dayKey,
+                        bucketKey: bucketKey,
+                        input: delta.inputTokens,
+                        cached: delta.cachedInputTokens,
+                        output: delta.outputTokens
+                    )
+                }
             })) ?? startOffset
 
         return CodexParseResult(
             days: days,
+            quarterHours: quarterHours,
             parsedBytes: parsedBytes,
             lastModel: currentModel,
             lastTotals: previousTotals,
@@ -218,6 +243,7 @@ enum CostUsageScanner {
         func dropCachedFile(_ cached: CostUsageFileUsage?) {
             if let cached {
                 Self.applyFileDays(cache: &cache, fileDays: cached.days, sign: -1)
+                Self.applyFileQuarterHours(cache: &cache, fileQuarterHours: cached.quarterHours, sign: -1)
             }
             cache.files.removeValue(forKey: path)
         }
@@ -268,13 +294,19 @@ enum CostUsageScanner {
                 if !delta.days.isEmpty {
                     Self.applyFileDays(cache: &cache, fileDays: delta.days, sign: 1)
                 }
+                if !delta.quarterHours.isEmpty {
+                    Self.applyFileQuarterHours(cache: &cache, fileQuarterHours: delta.quarterHours, sign: 1)
+                }
 
                 var mergedDays = cached.days
                 Self.mergeFileDays(existing: &mergedDays, delta: delta.days)
+                var mergedQuarterHours = cached.quarterHours
+                Self.mergeFileQuarterHours(existing: &mergedQuarterHours, delta: delta.quarterHours)
                 cache.files[path] = Self.makeFileUsage(
                     mtimeUnixMs: mtimeMs,
                     size: size,
                     days: mergedDays,
+                    quarterHours: mergedQuarterHours,
                     parsedBytes: delta.parsedBytes,
                     lastModel: delta.lastModel,
                     lastTotals: delta.lastTotals,
@@ -304,12 +336,14 @@ enum CostUsageScanner {
             mtimeUnixMs: mtimeMs,
             size: size,
             days: parsed.days,
+            quarterHours: parsed.quarterHours,
             parsedBytes: parsed.parsedBytes,
             lastModel: parsed.lastModel,
             lastTotals: parsed.lastTotals,
             sessionId: sessionId)
         cache.files[path] = usage
         Self.applyFileDays(cache: &cache, fileDays: usage.days, sign: 1)
+        Self.applyFileQuarterHours(cache: &cache, fileQuarterHours: usage.quarterHours, sign: 1)
         if let sessionId {
             state.seenSessionIds.insert(sessionId)
         }
@@ -349,6 +383,7 @@ enum CostUsageScanner {
             for key in cache.files.keys where !filePathsInScan.contains(key) {
                 if let old = cache.files[key] {
                     Self.applyFileDays(cache: &cache, fileDays: old.days, sign: -1)
+                    Self.applyFileQuarterHours(cache: &cache, fileQuarterHours: old.quarterHours, sign: -1)
                 }
                 cache.files.removeValue(forKey: key)
             }
@@ -454,6 +489,7 @@ enum CostUsageScanner {
         mtimeUnixMs: Int64,
         size: Int64,
         days: [String: [String: [Int]]],
+        quarterHours: [String: [String: [Int]]],
         parsedBytes: Int64?,
         lastModel: String? = nil,
         lastTotals: CostUsageCodexTotals? = nil,
@@ -463,6 +499,7 @@ enum CostUsageScanner {
             mtimeUnixMs: mtimeUnixMs,
             size: size,
             days: days,
+            quarterHours: quarterHours,
             parsedBytes: parsedBytes,
             lastModel: lastModel,
             lastTotals: lastTotals,
@@ -514,9 +551,61 @@ enum CostUsageScanner {
         }
     }
 
+    static func mergeFileQuarterHours(
+        existing: inout [String: [String: [Int]]],
+        delta: [String: [String: [Int]]]
+    ) {
+        for (day, buckets) in delta {
+            var dayBuckets = existing[day] ?? [:]
+            for (bucketKey, packed) in buckets {
+                let existingPacked = dayBuckets[bucketKey] ?? []
+                let merged = Self.addPacked(a: existingPacked, b: packed, sign: 1)
+                if merged.allSatisfy({ $0 == 0 }) {
+                    dayBuckets.removeValue(forKey: bucketKey)
+                } else {
+                    dayBuckets[bucketKey] = merged
+                }
+            }
+
+            if dayBuckets.isEmpty {
+                existing.removeValue(forKey: day)
+            } else {
+                existing[day] = dayBuckets
+            }
+        }
+    }
+
+    static func applyFileQuarterHours(
+        cache: inout CostUsageCache,
+        fileQuarterHours: [String: [String: [Int]]],
+        sign: Int
+    ) {
+        for (day, buckets) in fileQuarterHours {
+            var dayBuckets = cache.quarterHours[day] ?? [:]
+            for (bucketKey, packed) in buckets {
+                let existing = dayBuckets[bucketKey] ?? []
+                let merged = Self.addPacked(a: existing, b: packed, sign: sign)
+                if merged.allSatisfy({ $0 == 0 }) {
+                    dayBuckets.removeValue(forKey: bucketKey)
+                } else {
+                    dayBuckets[bucketKey] = merged
+                }
+            }
+
+            if dayBuckets.isEmpty {
+                cache.quarterHours.removeValue(forKey: day)
+            } else {
+                cache.quarterHours[day] = dayBuckets
+            }
+        }
+    }
+
     static func pruneDays(cache: inout CostUsageCache, sinceKey: String, untilKey: String) {
         for key in cache.days.keys where !CostUsageDayRange.isInRange(dayKey: key, since: sinceKey, until: untilKey) {
             cache.days.removeValue(forKey: key)
+        }
+        for key in cache.quarterHours.keys where !CostUsageDayRange.isInRange(dayKey: key, since: sinceKey, until: untilKey) {
+            cache.quarterHours.removeValue(forKey: key)
         }
     }
 
