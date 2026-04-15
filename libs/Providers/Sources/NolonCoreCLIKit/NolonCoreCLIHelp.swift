@@ -9,6 +9,8 @@ enum NolonCoreCLIHelpResolver {
             return skillsHelpText()
         case .skillsRepo:
             return skillsRepoHelpText()
+        case .copilot:
+            return copilotHelpText()
         case .workflow:
             return workflowHelpText()
         case .mcp:
@@ -176,6 +178,24 @@ enum NolonCoreCLIHelpResolver {
 
         场景: 修复异常
           nolon workflow list --provider codex --state broken
+        """
+    }
+
+    private static func copilotHelpText() -> String {
+        """
+        Usage: nolon copilot auth <action> [options]
+
+        Actions:
+          login
+            --token <token>                             # GitHub token（必填）
+            --label <name>                              # 本地展示名称（可选）
+            --provider copilot                          # provider，默认 copilot
+          status
+            --provider copilot                          # provider，默认 copilot
+          usage
+            --provider copilot                          # provider，默认 copilot
+          delete
+            --provider copilot                          # provider，默认 copilot
         """
     }
 
@@ -371,6 +391,7 @@ enum NolonCoreCLIHelpResolver {
 private enum NolonCoreCLIHelpPath {
     case skills
     case skillsRepo
+    case copilot
     case workflow
     case mcp
     case plugin
@@ -382,6 +403,8 @@ private enum NolonCoreCLIHelpPath {
             self = .skills
         case ["skills", "repo"], ["skills", "repo", "help"], ["skills", "repo", "-h"], ["skills", "repo", "--help"]:
             self = .skillsRepo
+        case ["copilot"], ["copilot", "help"], ["copilot", "-h"], ["copilot", "--help"], ["copilot", "auth"], ["copilot", "auth", "help"], ["copilot", "auth", "-h"], ["copilot", "auth", "--help"]:
+            self = .copilot
         case ["workflow"], ["workflow", "help"], ["workflow", "-h"], ["workflow", "--help"]:
             self = .workflow
         case ["mcp"], ["mcp", "help"], ["mcp", "-h"], ["mcp", "--help"]:

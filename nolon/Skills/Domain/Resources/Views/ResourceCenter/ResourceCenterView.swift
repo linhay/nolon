@@ -99,6 +99,15 @@ struct ResourceCenterView: View, DebugPageLocatable {
     private func applyUITestInitialStateIfNeeded() {
         guard UITestSupport.isEnabled else { return }
 
+        if let repositoryName = UITestSupport.initialRepositoryName?.lowercased() {
+            if let selectedRepository = settings.remoteRepositories.first(where: { repository in
+                repository.name.lowercased() == repositoryName
+                    || (repository.gitURL?.lowercased().contains(repositoryName) ?? false)
+            }) {
+                viewModel.selectedRepository = selectedRepository
+            }
+        }
+
         if let template = UITestSupport.initialRepositoryTemplate {
             if let selectedRepository = settings.remoteRepositories.first(where: { $0.templateType == template }) {
                 viewModel.selectedRepository = selectedRepository
@@ -269,6 +278,7 @@ struct ResourceCenterView: View, DebugPageLocatable {
                         repository: repository,
                         selectedRepository: viewModel.selectedRepository,
                         fallbackTargetProvider: targetProvider,
+                        installedToProvider: provider,
                         settings: settings
                     )
                 },
@@ -281,6 +291,7 @@ struct ResourceCenterView: View, DebugPageLocatable {
                         repository: repository,
                         selectedRepository: viewModel.selectedRepository,
                         fallbackTargetProvider: targetProvider,
+                        installedToProvider: provider,
                         settings: settings
                     )
                 },
@@ -293,6 +304,7 @@ struct ResourceCenterView: View, DebugPageLocatable {
                         repository: repository,
                         selectedRepository: viewModel.selectedRepository,
                         fallbackTargetProvider: targetProvider,
+                        installedToProvider: provider,
                         settings: settings
                     )
                 },

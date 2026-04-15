@@ -357,7 +357,10 @@ enum CostUsageScanner {
         let nowMs = Int64(now.timeIntervalSince1970 * 1000)
 
         let refreshMs = Int64(max(0, options.refreshMinIntervalSeconds) * 1000)
-        let shouldRefresh = refreshMs == 0 || cache.lastScanUnixMs == 0 || nowMs - cache.lastScanUnixMs > refreshMs
+        let shouldRefresh = refreshMs == 0
+            || cache.lastScanUnixMs == 0
+            || nowMs - cache.lastScanUnixMs > refreshMs
+            || cacheNeedsExpandedCoverage(cache: cache, range: range)
 
         let scannedFiles = CodexSessionScanner.scanFiles(
             sessionsRoot: defaultCodexSessionsRoot(options: options),
@@ -388,7 +391,9 @@ enum CostUsageScanner {
                 cache.files.removeValue(forKey: key)
             }
 
-            Self.pruneDays(cache: &cache, sinceKey: range.scanSinceKey, untilKey: range.scanUntilKey)
+            // Keep historical day aggregates in cache across narrower scans.
+            // Range filtering happens when building the report, otherwise a prior 30d read
+            // can permanently hide older history from a later all-time read until a full rescan.
             cache.lastScanUnixMs = nowMs
             CostUsageCacheIO.save(provider: .codex, cache: cache, cacheRoot: options.cacheRoot)
         }
@@ -481,6 +486,19 @@ enum CostUsageScanner {
                 totalCostUSD: costSeen ? totalCost : nil)
 
         return CostUsageDailyReport(data: entries, summary: summary)
+    }
+
+    private static func cacheNeedsExpandedCoverage(cache: CostUsageCache, range: CostUsageDayRange) -> Bool {
+        guard !cache.days.isEmpty else { return false }
+        let cachedDayKeys = cache.days.keys.sorted()
+        guard let earliest = cachedDayKeys.first, let latest = cachedDayKeys.last else { return false }
+        if range.scanSinceKey < earliest {
+            return true
+        }
+        if range.scanUntilKey > latest {
+            return true
+        }
+        return false
     }
 
     // MARK: - Shared cache mutations

@@ -99,4 +99,51 @@ final class ResourceCenterViewModelTests: XCTestCase {
 
         XCTAssertEqual(installedSlugs, ["global-only"])
     }
+
+    func testBDD_GivenProviderSelectedInInstallSheet_WhenResolvePostInstallRefreshTarget_ThenUseSelectedProvider() async {
+        let viewModel = ResourceCenterViewModel(selectedTab: .skills)
+        let selectedProvider = Provider(
+            id: "provider-b",
+            name: "Provider B",
+            defaultSkillsPath: "/tmp/provider-b/skills",
+            workflowPath: "/tmp/provider-b/workflows",
+            installMethod: .symlink,
+            templateId: nil
+        )
+        let repository = RemoteRepository(
+            id: "repo-clawhub",
+            name: "Clawhub",
+            baseURL: "https://clawhub.ai",
+            templateType: .clawdhub,
+            isBuiltIn: true
+        )
+
+        let effectiveProvider = viewModel.postInstallRefreshTargetProvider(
+            for: repository,
+            fallback: nil,
+            installedTo: selectedProvider
+        )
+
+        XCTAssertEqual(effectiveProvider?.id, "provider-b")
+    }
+
+    func testBDD_GivenGlobalSkillsRepository_WhenResolvePostInstallRefreshTarget_ThenIgnoreInstalledProvider() async {
+        let viewModel = ResourceCenterViewModel(selectedTab: .skills)
+        let selectedProvider = Provider(
+            id: "provider-b",
+            name: "Provider B",
+            defaultSkillsPath: "/tmp/provider-b/skills",
+            workflowPath: "/tmp/provider-b/workflows",
+            installMethod: .symlink,
+            templateId: nil
+        )
+
+        let effectiveProvider = viewModel.postInstallRefreshTargetProvider(
+            for: .globalSkills,
+            fallback: nil,
+            installedTo: selectedProvider
+        )
+
+        XCTAssertNil(effectiveProvider)
+    }
 }

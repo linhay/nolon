@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		4A5D4B4C15B34B0E8CF31A01 /* RemoteInstallLiveSmokeUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A5D4B4B15B34B0E8CF31A01 /* RemoteInstallLiveSmokeUITests.swift */; };
 		884533C077E316D7F34C88F3 /* ResourceDeletionUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA35295FA3E270778EF4E1B7 /* ResourceDeletionUITests.swift */; };
 		8858B1CB1A8D4D90B1A6F001 /* ResourceDeletionUITestSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8858B1CA1A8D4D90B1A6F001 /* ResourceDeletionUITestSupport.swift */; };
 		90B6C9DC20DF7E28E3E8F607 /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = D959A527C9BF92468F647E82 /* Cocoa.framework */; };
@@ -54,6 +55,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		4A5D4B4B15B34B0E8CF31A01 /* RemoteInstallLiveSmokeUITests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RemoteInstallLiveSmokeUITests.swift; sourceTree = "<group>"; };
 		8858B1CA1A8D4D90B1A6F001 /* ResourceDeletionUITestSupport.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ResourceDeletionUITestSupport.swift; sourceTree = "<group>"; };
 		8A66B8791493C61D673BA71D /* nolonUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = nolonUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		CD2B1A922F1F624900DF4A2B /* nolon.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = nolon.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -144,6 +146,7 @@
 		B455D52DBBDBCE75AA78766A /* nolonUITests */ = {
 			isa = PBXGroup;
 			children = (
+				4A5D4B4B15B34B0E8CF31A01 /* RemoteInstallLiveSmokeUITests.swift */,
 				EA35295FA3E270778EF4E1B7 /* ResourceDeletionUITests.swift */,
 				8858B1CA1A8D4D90B1A6F001 /* ResourceDeletionUITestSupport.swift */,
 			);
@@ -366,6 +369,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				4A5D4B4C15B34B0E8CF31A01 /* RemoteInstallLiveSmokeUITests.swift in Sources */,
 				884533C077E316D7F34C88F3 /* ResourceDeletionUITests.swift in Sources */,
 				8858B1CB1A8D4D90B1A6F001 /* ResourceDeletionUITestSupport.swift in Sources */,
 			);

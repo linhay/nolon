@@ -36,6 +36,15 @@ enum UITestSupport {
         return raw
     }
 
+    static var initialRepositoryName: String? {
+        guard let raw = environment["NOLON_UI_TEST_RESOURCE_REPOSITORY_NAME"]?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+              !raw.isEmpty else {
+            return nil
+        }
+        return raw
+    }
+
     static var initialResourceTab: ResourceCenterTabID? {
         guard let raw = environment["NOLON_UI_TEST_RESOURCE_TAB"]?
             .trimmingCharacters(in: .whitespacesAndNewlines)

@@ -207,4 +207,77 @@ final class SkillInstallerTests: XCTestCase {
         XCTAssertFalse(STPath(globalPath).isSymbolicLink)
         XCTAssertTrue(fixture.fileManager.fileExists(atPath: "\(globalPath)/SKILL.md"))
     }
+
+    func testBDD_GivenManagedStaleProviderRoot_WhenInstallLocal_ThenHealLinkToCurrentGlobalRoot() throws {
+        let sourceURL = try fixture.createSampleSkill(id: "waza-learn", name: "Waza Learn")
+        let staleRoot = fixture.tempRoot.appendingPathComponent("stale-nolon-home", isDirectory: true)
+        let staleSkillsRoot = staleRoot.appendingPathComponent("skills", isDirectory: true)
+        let staleRepositories = staleRoot.appendingPathComponent("repositories", isDirectory: true)
+        let staleMcps = staleRoot.appendingPathComponent("mcps", isDirectory: true)
+        let staleAgents = staleRoot.appendingPathComponent("agents", isDirectory: true)
+        let providerHome = fixture.tempRoot.appendingPathComponent("providers/ManagedStaleRoot", isDirectory: true)
+        let providerSkillsPath = providerHome.appendingPathComponent("skills", isDirectory: true)
+
+        try fixture.fileManager.createDirectory(at: staleSkillsRoot, withIntermediateDirectories: true)
+        try fixture.fileManager.createDirectory(at: staleRepositories, withIntermediateDirectories: true)
+        try fixture.fileManager.createDirectory(at: staleMcps, withIntermediateDirectories: true)
+        try fixture.fileManager.createDirectory(at: staleAgents, withIntermediateDirectories: true)
+        try fixture.fileManager.createDirectory(at: providerHome, withIntermediateDirectories: true)
+        try fixture.fileManager.createSymbolicLink(
+            at: providerSkillsPath,
+            withDestinationURL: staleSkillsRoot
+        )
+
+        let provider = Provider(
+            name: "ManagedStaleRoot",
+            defaultSkillsPath: providerSkillsPath.path,
+            workflowPath: fixture.tempRoot
+                .appendingPathComponent("providers/ManagedStaleRoot-workflows", isDirectory: true).path,
+            installMethod: .symlink,
+            skillsLinkEnabled: true
+        )
+
+        try installer.installLocal(from: sourceURL.path, slug: "waza-learn", to: provider)
+
+        let relinkedRoot = try fixture.fileManager.destinationOfSymbolicLink(atPath: provider.defaultSkillsPath)
+        XCTAssertEqual(
+            URL(fileURLWithPath: relinkedRoot).standardizedFileURL.path,
+            URL(fileURLWithPath: fixture.nolonManager.skillsPath).standardizedFileURL.path
+        )
+
+        let globalPath = "\(fixture.nolonManager.skillsPath)/waza-learn"
+        XCTAssertTrue(fixture.fileManager.fileExists(atPath: globalPath))
+        XCTAssertFalse(STPath(globalPath).isSymbolicLink)
+        XCTAssertTrue(fixture.fileManager.fileExists(atPath: "\(globalPath)/SKILL.md"))
+    }
+
+    func testBDD_GivenParentLinkedProviderRoot_WhenScanningInstalledSkill_ThenMarkInstalled() throws {
+        let sourceURL = try fixture.createSampleSkill(id: "scale-parent", name: "Scale Parent")
+        let skill = try repository.importSkill(from: sourceURL)
+
+        let providerHome = fixture.tempRoot.appendingPathComponent("providers/ParentLinkedScan", isDirectory: true)
+        let linkedHomePath = providerHome.appendingPathComponent("linked-home", isDirectory: true)
+        let providerSkillsPath = linkedHomePath.appendingPathComponent("skills", isDirectory: true)
+        let globalHomeURL = URL(fileURLWithPath: fixture.nolonManager.skillsPath).deletingLastPathComponent()
+
+        try fixture.fileManager.createDirectory(at: providerHome, withIntermediateDirectories: true)
+        try fixture.fileManager.createSymbolicLink(
+            at: linkedHomePath,
+            withDestinationURL: globalHomeURL
+        )
+
+        let provider = Provider(
+            name: "ParentLinkedScan",
+            defaultSkillsPath: providerSkillsPath.path,
+            workflowPath: fixture.tempRoot
+                .appendingPathComponent("providers/ParentLinkedScan-workflows", isDirectory: true).path,
+            installMethod: .symlink
+        )
+
+        try installer.install(skill: skill, to: provider)
+
+        let states = try installer.scanProvider(provider: provider)
+
+        XCTAssertEqual(states.first { $0.skillName == "scale-parent" }?.state, .installed)
+    }
 }

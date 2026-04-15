@@ -6,6 +6,7 @@ struct NolonRootCommand: ParsableCommand {
         subcommands: [
             NolonCodexRootCommand.self,
             NolonGeminiRootCommand.self,
+            NolonCopilotRootCommand.self,
             NolonProviderRootCommand.self,
             NolonSkillsRootCommand.self,
             NolonWorkflowRootCommand.self,
@@ -412,6 +413,59 @@ struct NolonGeminiAuthDoctorCommand: ParsableCommand {
 
     @Option(name: .long, help: "Provider id: gemini or antigravity (required).")
     var provider: String
+}
+
+struct NolonCopilotRootCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "copilot",
+        subcommands: [NolonCopilotAuthGroupCommand.self]
+    )
+}
+
+struct NolonCopilotAuthGroupCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "auth",
+        subcommands: [
+            NolonCopilotAuthLoginCommand.self,
+            NolonCopilotAuthStatusCommand.self,
+            NolonCopilotAuthUsageCommand.self,
+            NolonCopilotAuthDeleteCommand.self,
+        ]
+    )
+}
+
+struct NolonCopilotAuthLoginCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(commandName: "login")
+
+    @Option(name: .long, help: "Provider id, default is copilot.")
+    var provider: String = "copilot"
+
+    @Option(name: .long, help: "GitHub token used to query Copilot usage.")
+    var token: String
+
+    @Option(name: .long, help: "Display label for the stored token account.")
+    var label: String?
+}
+
+struct NolonCopilotAuthStatusCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(commandName: "status")
+
+    @Option(name: .long, help: "Provider id, default is copilot.")
+    var provider: String = "copilot"
+}
+
+struct NolonCopilotAuthUsageCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(commandName: "usage")
+
+    @Option(name: .long, help: "Provider id, default is copilot.")
+    var provider: String = "copilot"
+}
+
+struct NolonCopilotAuthDeleteCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(commandName: "delete")
+
+    @Option(name: .long, help: "Provider id, default is copilot.")
+    var provider: String = "copilot"
 }
 
 struct NolonProviderRootCommand: ParsableCommand {

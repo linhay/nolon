@@ -115,6 +115,15 @@ public final class ProviderSkillsLinkService: @unchecked Sendable {
 
         _ = STFolder(provider.defaultSkillsPath).createIfNotExists()
     }
+
+    @discardableResult
+    public func healManagedLinkIfNeeded(provider: Provider) throws -> Bool {
+        guard provider.skillsLinkEnabled else { return false }
+        return try SkillInstallRootResolver.healManagedProviderRootIfNeeded(
+            providerPath: STFolder(provider.defaultSkillsPath),
+            activeGlobalRoot: nolonManager.skillsFolder
+        )
+    }
 }
 
 private extension ProviderSkillsLinkService {
@@ -150,5 +159,75 @@ private extension ProviderSkillsLinkService {
         guard STFolder(targetURL).isExists else { return true }
         let contents = (try? STFolder(targetURL).subFilePaths()) ?? []
         return contents.contains { !$0.url.lastPathComponent.hasPrefix(".") }
+    }
+}
+
+enum SkillInstallRootResolver {
+    static func resolvedProviderRootIfLinked(providerPath: STFolder) -> STFolder? {
+        let standardizedProviderURL = providerPath.url.standardizedFileURL
+        let resolvedProviderRootURL = providerPath.url.resolvingSymlinksInPath().standardizedFileURL
+
+        guard standardizedProviderURL.path != resolvedProviderRootURL.path else {
+            return nil
+        }
+
+        return STFolder(resolvedProviderRootURL)
+    }
+
+    static func resolvedProviderRootIfMatchesExpectedRoot(
+        providerPath: STFolder,
+        expectedRoot: STFolder
+    ) -> STFolder? {
+        let resolvedProviderRootURL = providerPath.url.resolvingSymlinksInPath().standardizedFileURL
+        let resolvedExpectedRootURL = expectedRoot.url.resolvingSymlinksInPath().standardizedFileURL
+
+        guard resolvedProviderRootURL.path == resolvedExpectedRootURL.path else {
+            return nil
+        }
+
+        return STFolder(resolvedProviderRootURL)
+    }
+
+    static func resolvedProviderRootIfMirrorsSourceRoot(
+        providerPath: STFolder,
+        sourcePath: STPath
+    ) -> STFolder? {
+        resolvedProviderRootIfMatchesExpectedRoot(
+            providerPath: providerPath,
+            expectedRoot: STFolder(sourcePath.url.deletingLastPathComponent())
+        )
+    }
+
+    @discardableResult
+    static func healManagedProviderRootIfNeeded(
+        providerPath: STFolder,
+        activeGlobalRoot: STFolder
+    ) throws -> Bool {
+        let providerRootPath = STPath(providerPath.url)
+        guard providerRootPath.isSymbolicLink else { return false }
+
+        let activeGlobalRootPath = activeGlobalRoot.url.standardizedFileURL.path
+        guard let destinationURL = try? providerRootPath.destinationOfSymbolicLink().url.standardizedFileURL else {
+            return false
+        }
+        guard destinationURL.path != activeGlobalRootPath else { return false }
+
+        let destinationFolder = STFolder(destinationURL)
+        guard looksLikeManagedNolonSkillsRoot(destinationFolder) else {
+            return false
+        }
+
+        try providerRootPath.deleteIncludingBrokenSymlink()
+        try providerRootPath.createSymbolicLink(to: STPath(activeGlobalRootPath))
+        return true
+    }
+
+    private static func looksLikeManagedNolonSkillsRoot(_ folder: STFolder) -> Bool {
+        guard folder.url.lastPathComponent == "skills" else { return false }
+
+        let homeFolder = STFolder(folder.url.deletingLastPathComponent())
+        return homeFolder.folder("repositories").isExists
+            && homeFolder.folder("mcps").isExists
+            && homeFolder.folder("agents").isExists
     }
 }

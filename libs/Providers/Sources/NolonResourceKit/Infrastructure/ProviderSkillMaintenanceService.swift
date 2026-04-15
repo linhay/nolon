@@ -82,7 +82,11 @@ public struct ProviderSkillUninstallResult: Sendable, Equatable {
 }
 
 public final class ProviderSkillMaintenanceService: @unchecked Sendable {
-    public init() {}
+    private let nolonManager: NolonManager
+
+    public init(nolonManager: NolonManager = .shared) {
+        self.nolonManager = nolonManager
+    }
 
     public func scanProviderSkills(providerPath: STFolder, globalSkillsPath: STFolder) throws -> ProviderSkillScanResult {
         guard providerPath.isExists else {
@@ -93,15 +97,10 @@ public final class ProviderSkillMaintenanceService: @unchecked Sendable {
         let globalRoot = globalSkillsPath.url.path.hasSuffix("/")
             ? globalSkillsPath.url.path
             : "\(globalSkillsPath.url.path)/"
-        let providerRootResolvedPath: String = {
-            if STPath(providerPath.url).isSymbolicLink,
-               let destination = try? STPath(providerPath.url).destinationOfSymbolicLink() {
-                return destination.url.standardizedFileURL.path
-            }
-            return providerPath.url.standardizedFileURL.path
-        }()
-        let globalRootResolvedPath = globalSkillsPath.url.standardizedFileURL.path
-        let providerUsesGlobalRoot = providerRootResolvedPath == globalRootResolvedPath
+        let providerUsesGlobalRoot = SkillInstallRootResolver.resolvedProviderRootIfMatchesExpectedRoot(
+            providerPath: providerPath,
+            expectedRoot: globalSkillsPath
+        ) != nil
 
         let states = entries.map { path -> ProviderSkillStateItem in
             let skillID = path.url.lastPathComponent
@@ -224,14 +223,22 @@ public final class ProviderSkillMaintenanceService: @unchecked Sendable {
             resolvedSkillID = try validateSinglePathComponent(source.url.lastPathComponent, field: "skill-id")
         }
 
+        let activeGlobalRoot = nolonManager.skillsFolder
+        _ = activeGlobalRoot.createIfNotExists()
+        _ = try? SkillInstallRootResolver.healManagedProviderRootIfNeeded(
+            providerPath: providerPath,
+            activeGlobalRoot: activeGlobalRoot
+        )
         _ = providerPath.createIfNotExists()
         let targetPath = providerPath.subpath(resolvedSkillID)
+        let linkedProviderRoot = SkillInstallRootResolver.resolvedProviderRootIfLinked(providerPath: providerPath)
+            ?? SkillInstallRootResolver.resolvedProviderRootIfMatchesExpectedRoot(
+                providerPath: providerPath,
+                expectedRoot: activeGlobalRoot
+            )
 
         if installMethod == .symlink,
-           let linkedProviderRoot = resolvedProviderRootIfMirrorsSourceRoot(
-               providerPath: providerPath,
-               sourcePath: source
-           ),
+           let linkedProviderRoot,
            let finalTarget = linkedProviderTarget(
                linkedProviderRoot: linkedProviderRoot,
                skillID: resolvedSkillID
@@ -271,23 +278,6 @@ public final class ProviderSkillMaintenanceService: @unchecked Sendable {
             targetPath: targetPath.url.path,
             installMethod: installMethod
         )
-    }
-
-    private func resolvedProviderRootIfMirrorsSourceRoot(
-        providerPath: STFolder,
-        sourcePath: STPath
-    ) -> STFolder? {
-        let resolvedProviderRootURL = providerPath.url.resolvingSymlinksInPath().standardizedFileURL
-        let resolvedSourceRootURL = sourcePath.url
-            .deletingLastPathComponent()
-            .resolvingSymlinksInPath()
-            .standardizedFileURL
-
-        guard resolvedProviderRootURL.path == resolvedSourceRootURL.path else {
-            return nil
-        }
-
-        return STFolder(resolvedProviderRootURL)
     }
 
     private func linkedProviderTarget(linkedProviderRoot: STFolder, skillID: String) -> STPath? {

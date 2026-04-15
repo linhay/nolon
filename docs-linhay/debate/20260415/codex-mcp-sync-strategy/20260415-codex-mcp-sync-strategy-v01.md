@@ -2,9 +2,9 @@
 
 **日期**：20260415
 **模式**：合作型
-**参与者**：Gemini（福尔摩斯）/ Codex（Beauvoir，法医）/ Claude（波洛，CLI 未返回有效内容，未纳入裁定）
-**总轮次**：2 / 60
-**结束原因**：第 2 轮达成有效参与者共识
+**参与者**：Gemini（福尔摩斯）/ Codex（Beauvoir，法医）/ Codex（Mencius，审校）/ Codex（Carson，审校）/ Claude（波洛，CLI 未返回有效内容，未纳入裁定）
+**总轮次**：4 / 60
+**结束原因**：第 4 轮达成有效参与者完全共识
 
 ## 辩论背景
 > 用户要求就 “Nolon 将 `~/.nolon/mcps` 同步到 Codex 后，Codex 启动出现一批 MCP warnings” 商量解决方案。争议点不在 TOML 语法本身，而在同步边界与启用策略：哪些 server 应该被 Nolon 持续托管，哪些 server 应该因环境不可用而自动降级。
@@ -55,6 +55,38 @@
   代码事实：现有测试在保护旧的全覆盖语义。  
   结论：必须同时引入托管名单。
 
+### 第 3 轮
+**[Codex - Mencius]**
+- 新分歧点 1：虽然“保留非托管项”是正确目标，但当时缺少代码证据证明当前已经存在可靠的“托管 / 非托管”判定来源。  
+  引用：[MCPConfigManager.swift](/Users/linhey/Desktop/FlowUp-Libs/nolon/libs/Providers/Sources/NolonResourceKit/Infrastructure/MCPConfigManager.swift#L173) 、[MCPConfigManager.swift](/Users/linhey/Desktop/FlowUp-Libs/nolon/libs/Providers/Sources/NolonResourceKit/Infrastructure/MCPConfigManager.swift#L267)  
+  结论：需要补证“托管集合到底从哪里来”。
+- 新分歧点 2：虽然“不可用时写 `enabled = false`”方向明确，但触发条件还不够闭合。  
+  引用：[MCPConfigManager.swift](/Users/linhey/Desktop/FlowUp-Libs/nolon/libs/Providers/Sources/NolonResourceKit/Infrastructure/MCPConfigManager.swift#L674) 、[config.toml](/Users/linhey/.codex/config.toml#L46)  
+  结论：需要把 P0 环境判定规则限定到最窄、最确定的范围。
+
+### 第 4 轮
+**[主持人补证]**
+- 论点：`~/.nolon/mcps/*.json` 已经带有 `x-nolon.providers`，当前代码会读取并持续写回这份 provider 归属元数据。  
+  引用：[MCPConfigManager.swift](/Users/linhey/Desktop/FlowUp-Libs/nolon/libs/Providers/Sources/NolonResourceKit/Infrastructure/MCPConfigManager.swift#L199) 、[MCPConfigManager.swift](/Users/linhey/Desktop/FlowUp-Libs/nolon/libs/Providers/Sources/NolonResourceKit/Infrastructure/MCPConfigManager.swift#L458) 、[MCPConfigManager.swift](/Users/linhey/Desktop/FlowUp-Libs/nolon/libs/Providers/Sources/NolonResourceKit/Infrastructure/MCPConfigManager.swift#L528) 、[xcode-tools.json](/Users/linhey/.nolon/mcps/xcode-tools.json#L15) 、[figma-desktop.json](/Users/linhey/.nolon/mcps/figma-desktop.json#L8)  
+  代码事实：`CacheServerEntry.providers` + `applies(to:)` 已能表达“这个 cache fragment 属于哪些 provider”。  
+  结论：P0 可以直接以 `x-nolon.providers` 作为“托管集合来源”，再额外增加一个 Nolon 本地状态文件记录“上次已投影到 Codex 的托管 server 名单”，用于只删除托管项、不删除手工项。
+- 论点：Nolon 与上游 Codex 对未写 `enabled` / `disabled` 的 server 都默认按启用态处理。  
+  引用：[MCPJsonFile.swift](/Users/linhey/Desktop/FlowUp-Libs/nolon/libs/Providers/Sources/NolonResourceKit/Infrastructure/MCPJsonFile.swift#L88) 、[types.rs](/Users/linhey/Desktop/FlowUp-Libs/nolon/docs-linhay/references/codex/codex-rs/core/src/config/types.rs#L44)  
+  代码事实：当前 `.codex/config.toml` 中 `figma-desktop` / `xcode-tools` 没有 `enabled = false`，因此都会被上游初始化。  
+  结论：P0 的 availability gate 只需收敛到两条确定性规则即可闭环：loopback HTTP 连不通就禁用；带 `MCP_XCODE_PID` / `MCP_XCODE_SESSION_ID` 的会话型 env 不完整或 PID 不存活就禁用。
+
+**[Gemini - 福尔摩斯，最终表态]**
+- 已共识：认可 A-E 已构成完整收口方案。  
+  结论：`用户锁定/冲突提示` 不再阻塞本轮实现，可降为 P1。
+
+**[Codex - Mencius，最终表态]**
+- 已共识：在补上 `x-nolon.providers` 这条证据后，`托管集合来源` 已闭合。  
+  结论：不再存在实质剩余分歧。
+
+**[Codex - Carson，最终表态]**
+- 已共识：`用户锁定/冲突提示` 只是优先级分层问题，不影响当前 warning 主因闭环。  
+  结论：P0 / P1 边界最终明确。
+
 ## 最终结论与行动项
 
 ### 达成共识 / 裁定结论
@@ -62,9 +94,15 @@
   引用：[types.rs](/Users/linhey/Desktop/FlowUp-Libs/nolon/docs-linhay/references/codex/codex-rs/core/src/config/types.rs#L49) 、[mcp_connection_manager.rs](/Users/linhey/Desktop/FlowUp-Libs/nolon/docs-linhay/references/codex/codex-rs/core/src/mcp_connection_manager.rs#L287)
 - 共识 2：**首选方案不是单点修补，而是组合方案**：  
   1. 把 Codex 同步改成“仅更新 Nolon 托管集合”的增量同步；  
-  2. 对 loopback HTTP 与会话型 Xcode MCP 做可用性判断，不可用时保留配置但写 `enabled = false`；  
-  3. 补齐 `cwd`、`bearer_token_env_var` 的模型/渲染支持。  
-- 共识 3：不推荐只靠 `startup_timeout_sec` 兜底，也不推荐继续整段覆盖 `mcp_servers`。
+  2. 托管集合来源直接使用 cache fragment 的 `x-nolon.providers`；  
+  3. 额外增加一个 Nolon 本地状态文件记录“上次已投影到 Codex 的托管 server 名单”，用于只删除托管项、不删除手工项；  
+  4. 对 loopback HTTP 与会话型 Xcode MCP 做可用性判断，不可用时保留配置但写 `enabled = false`；  
+  5. 补齐 `cwd`、`bearer_token_env_var` 的模型/渲染支持。  
+- 共识 3：P0 的环境判定规则只限定在两类确定性场景：  
+  - host 为 `127.0.0.1` / `localhost` 的 loopback HTTP server，连接失败时禁用。  
+  - env 中包含 `MCP_XCODE_PID` / `MCP_XCODE_SESSION_ID` 的会话型 stdio server，关键 env 缺失或 PID 不存活时禁用。  
+- 共识 4：`用户锁定/冲突提示` 不再视为本轮阻塞项，统一降为 P1 后续增强。  
+- 共识 5：不推荐只靠 `startup_timeout_sec` 兜底，也不推荐继续整段覆盖 `mcp_servers`。
 
 ### 行动项
 | # | 行动 | 负责方 | 截止 |
@@ -73,8 +111,8 @@
 | 2 | 为 `figma-desktop`、`xcode-tools` 增加同步期 availability gate，不可用时写 `enabled = false` | Codex / Nolon | 下一个实现轮次 |
 | 3 | 给 `CodexMCPServer` 补 `cwd`、`bearer_token_env_var`，并打通读写与 TOML 渲染 | Codex / Nolon | 下一个实现轮次 |
 | 4 | 改写覆盖旧语义的回归测试：保留非托管项、仅删除托管项、不可用时自动禁用但不删除 | Codex / Nolon | 下一个实现轮次 |
-| 5 | 评估是否需要“用户锁定/冲突提示”保护，防止 Nolon 覆盖用户在 Codex 侧手工改过的托管项 | 待定 | 后续设计轮次 |
+| 5 | 评估并设计“用户锁定/冲突提示”保护，防止 Nolon 覆盖用户在 Codex 侧手工改过的托管项 | 待定 | 后续设计轮次 |
 
 ### 未解问题
 - 托管名单状态文件应放在 `~/.nolon` 还是 provider 专属目录，尚未最终裁定，但共识是不应嵌回 `config.toml`。
-- “环境不可用”的自动降级范围目前只对两类 server 达成共识：loopback HTTP、依赖 `MCP_XCODE_PID` / `MCP_XCODE_SESSION_ID` 的会话型 stdio。是否扩展到更多模式，需后续按误伤风险再定。
+- “环境不可用”的自动降级范围在 P0 只对两类 server 达成共识：loopback HTTP、依赖 `MCP_XCODE_PID` / `MCP_XCODE_SESSION_ID` 的会话型 stdio。是否扩展到更多模式，需后续按误伤风险再定。

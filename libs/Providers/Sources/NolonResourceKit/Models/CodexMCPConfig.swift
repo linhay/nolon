@@ -96,7 +96,9 @@ public struct CodexMCPServer: Codable, Sendable {
     public var url: String?
     public var command: String?
     public var args: [String]?
+    public var cwd: String?
     public var env: [String: String]?
+    public var bearerTokenEnvVar: String?
     public var enabled: Bool?
     public var enabledTools: [String]?
     public var disabledTools: [String]?
@@ -117,7 +119,9 @@ public struct CodexMCPServer: Codable, Sendable {
         case url
         case command
         case args
+        case cwd
         case env
+        case bearerTokenEnvVar = "bearer_token_env_var"
         case enabled
         case enabledTools = "enabled_tools"
         case disabledTools = "disabled_tools"
@@ -139,7 +143,9 @@ public struct CodexMCPServer: Codable, Sendable {
         url: String? = nil,
         command: String? = nil,
         args: [String]? = nil,
+        cwd: String? = nil,
         env: [String: String]? = nil,
+        bearerTokenEnvVar: String? = nil,
         enabled: Bool? = nil,
         enabledTools: [String]? = nil,
         disabledTools: [String]? = nil,
@@ -159,7 +165,9 @@ public struct CodexMCPServer: Codable, Sendable {
         self.url = url
         self.command = command
         self.args = args
+        self.cwd = cwd
         self.env = env
+        self.bearerTokenEnvVar = bearerTokenEnvVar
         self.enabled = enabled
         self.enabledTools = enabledTools
         self.disabledTools = disabledTools
@@ -182,7 +190,9 @@ public struct CodexMCPServer: Codable, Sendable {
         self.url = try container.decodeIfPresent(String.self, forKey: .url)
         self.command = try container.decodeIfPresent(String.self, forKey: .command)
         self.args = try container.decodeIfPresent([String].self, forKey: .args)
+        self.cwd = try container.decodeIfPresent(String.self, forKey: .cwd)
         self.env = try container.decodeIfPresent([String: String].self, forKey: .env)
+        self.bearerTokenEnvVar = try container.decodeIfPresent(String.self, forKey: .bearerTokenEnvVar)
         self.enabled = try container.decodeIfPresent(Bool.self, forKey: .enabled)
         self.enabledTools = try container.decodeIfPresent([String].self, forKey: .enabledTools)
         self.disabledTools = try container.decodeIfPresent([String].self, forKey: .disabledTools)
@@ -205,7 +215,9 @@ public struct CodexMCPServer: Codable, Sendable {
         try container.encodeIfPresent(url, forKey: .url)
         try container.encodeIfPresent(command, forKey: .command)
         try container.encodeIfPresent(args, forKey: .args)
+        try container.encodeIfPresent(cwd, forKey: .cwd)
         try container.encodeIfPresent(env, forKey: .env)
+        try container.encodeIfPresent(bearerTokenEnvVar, forKey: .bearerTokenEnvVar)
         try container.encodeIfPresent(enabled, forKey: .enabled)
         try container.encodeIfPresent(enabledTools, forKey: .enabledTools)
         try container.encodeIfPresent(disabledTools, forKey: .disabledTools)
@@ -230,7 +242,9 @@ public extension CodexMCPServer {
         self.url = dict["url"] as? String
         self.command = dict["command"] as? String
         self.args = dict["args"] as? [String]
+        self.cwd = dict["cwd"] as? String
         self.env = dict["env"] as? [String: String]
+        self.bearerTokenEnvVar = dict["bearer_token_env_var"] as? String
         self.enabled = dict["enabled"] as? Bool
         self.enabledTools = dict["enabled_tools"] as? [String]
         self.disabledTools = dict["disabled_tools"] as? [String]

@@ -119,6 +119,7 @@ enum ProviderTemplateEmbeddedJSON {
         "supportsMultiAccount": false,
         "secondaryResourceLabel": "Workflows",
         "vendorTabs": [
+            "usage",
             "agents"
         ]
     },

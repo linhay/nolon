@@ -1,4 +1,6 @@
 import Foundation
+import Darwin
+import Network
 import STFilePath
 import TOML
 import STJSON
@@ -173,26 +175,37 @@ public enum MCPConfigManager {
     public static func syncAllCacheServersToProvider(for template: ProviderTemplate) throws -> Int {
         guard template.supportsNativeMcpConfig else { return 0 }
         _ = try repairProviderMCPStateIfNeeded(for: template)
+        var mergedServers = try readProviderServersDict(for: template)
         let entries = readCacheEntriesIndexedByName()
-        var projected: [String: [String: Any]] = [:]
+        var projectedManaged: [String: [String: Any]] = [:]
         let providerID = template.rawValue
         for name in entries.keys.sorted() {
             guard let entry = entries[name] else { continue }
-            guard entry.applies(to: providerID) else { continue }
+            guard entry.isManaged(by: providerID) else { continue }
             let normalized = sanitizeServerForProviderStorage(
                 normalizeServerConfigForStorage(entry.server),
                 template: template
             )
-            projected[name] = normalized
             try writeCacheServer(
                 name: name,
                 server: normalized,
                 provider: providerID,
                 mergeProviders: true
             )
+            projectedManaged[name] = projectedServerForProvider(normalized, template: template)
         }
-        try writeServersDict(for: template, servers: projected)
-        return projected.count
+
+        let previousManagedNames = readManagedProjectionNames(for: template)
+        for name in previousManagedNames.subtracting(projectedManaged.keys) {
+            mergedServers.removeValue(forKey: name)
+        }
+        for (name, server) in projectedManaged {
+            mergedServers[name] = server
+        }
+
+        try writeServersDict(for: template, servers: mergedServers)
+        try writeManagedProjectionNames(Set(projectedManaged.keys), for: template)
+        return projectedManaged.count
     }
 }
 
@@ -205,6 +218,10 @@ private extension MCPConfigManager {
 
         func applies(to provider: String) -> Bool {
             providers.isEmpty || providers.contains(provider)
+        }
+
+        func isManaged(by provider: String) -> Bool {
+            providers.contains(provider)
         }
     }
 
@@ -435,6 +452,19 @@ private extension MCPConfigManager {
         sanitizeCanonicalServer(input)
     }
 
+    static func projectedServerForProvider(
+        _ input: [String: Any],
+        template: ProviderTemplate
+    ) -> [String: Any] {
+        guard template == .codex || template == .codexXcode else { return input }
+        guard shouldDisableUnavailableProjectedServer(input) else { return input }
+
+        var disabled = input
+        disabled["enabled"] = false
+        disabled["disabled"] = nil
+        return disabled
+    }
+
     static func normalizeServerConfigForComparison(_ input: [String: Any], name: String) -> [String: Any] {
         var dict = input
         let fields = MCPJsonFile.serverFields(from: dict)
@@ -501,6 +531,43 @@ private extension MCPConfigManager {
 
     static func cacheFileURL(for name: String) -> URL {
         currentManager().mcpsURL.appendingPathComponent("\(safeMcpCacheFileStem(for: name)).json")
+    }
+
+    static func managedProjectionStateURL(for template: ProviderTemplate) -> URL {
+        let root = currentManager().rootURL
+            .appendingPathComponent("mcp-projection-state", isDirectory: true)
+        return root.appendingPathComponent("\(template.rawValue).json")
+    }
+
+    static func readManagedProjectionNames(for template: ProviderTemplate) -> Set<String> {
+        let fileURL = managedProjectionStateURL(for: template)
+        guard let data = try? Data(contentsOf: fileURL),
+              let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let names = root["managed_server_names"] as? [String]
+        else {
+            return []
+        }
+        return Set(
+            names
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
+        )
+    }
+
+    static func writeManagedProjectionNames(_ names: Set<String>, for template: ProviderTemplate) throws {
+        let fileURL = managedProjectionStateURL(for: template)
+        _ = STFolder(fileURL.deletingLastPathComponent()).createIfNotExists()
+        let root: [String: Any] = [
+            "managed_server_names": names.sorted()
+        ]
+        let output = try JSONSerialization.data(
+            withJSONObject: root,
+            options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
+        )
+        if let existing = try? Data(contentsOf: fileURL), existing == output {
+            return
+        }
+        try output.write(to: fileURL, options: .atomic)
     }
 
     static func repairProviderConfigIfNeeded(for template: ProviderTemplate) throws -> Bool {
@@ -588,7 +655,9 @@ private extension MCPConfigManager {
         if let url = server.url { dict["url"] = url }
         if let command = server.command { dict["command"] = command }
         if let args = server.args { dict["args"] = args }
+        if let cwd = server.cwd { dict["cwd"] = cwd }
         if let env = server.env { dict["env"] = env }
+        if let bearerTokenEnvVar = server.bearerTokenEnvVar { dict["bearer_token_env_var"] = bearerTokenEnvVar }
         if let enabled = server.enabled { dict["enabled"] = enabled }
         if let enabledTools = server.enabledTools { dict["enabled_tools"] = enabledTools }
         if let disabledTools = server.disabledTools { dict["disabled_tools"] = disabledTools }
@@ -612,7 +681,9 @@ private extension MCPConfigManager {
             url: dict["url"] as? String,
             command: dict["command"] as? String,
             args: (dict["args"] as? [String]) ?? (dict["args"] as? [Any])?.compactMap { $0 as? String },
+            cwd: dict["cwd"] as? String,
             env: (dict["env"] as? [String: String]) ?? (dict["env"] as? [String: Any])?.compactMapValues { $0 as? String },
+            bearerTokenEnvVar: dict["bearer_token_env_var"] as? String,
             enabled: {
                 if let enabled = dict["enabled"] as? Bool { return enabled }
                 if let disabled = dict["disabled"] as? Bool { return !disabled }
@@ -694,9 +765,15 @@ private extension MCPConfigManager {
            !args.isEmpty {
             lines.append("args = \(tomlArray(args.map(tomlString)))")
         }
+        if let cwd = normalized["cwd"] as? String {
+            lines.append("cwd = \(tomlString(cwd))")
+        }
         if let env = (normalized["env"] as? [String: String]) ?? (normalized["env"] as? [String: Any])?.compactMapValues({ $0 as? String }),
            !env.isEmpty {
             lines.append("env = \(tomlInlineTable(env))")
+        }
+        if let bearerTokenEnvVar = normalized["bearer_token_env_var"] as? String {
+            lines.append("bearer_token_env_var = \(tomlString(bearerTokenEnvVar))")
         }
         if let httpHeaders = (normalized["http_headers"] as? [String: String]) ?? (normalized["http_headers"] as? [String: Any])?.compactMapValues({ $0 as? String }),
            !httpHeaders.isEmpty {
@@ -755,6 +832,92 @@ private extension MCPConfigManager {
         }
 
         return lines.joined(separator: "\n")
+    }
+
+    static func shouldDisableUnavailableProjectedServer(_ server: [String: Any]) -> Bool {
+        let fields = MCPJsonFile.serverFields(from: server)
+        guard fields.isEnabled else { return false }
+
+        if isUnavailableLoopbackHTTPServer(server) {
+            return true
+        }
+        if isInvalidXcodeSessionBoundServer(server) {
+            return true
+        }
+        return false
+    }
+
+    static func isUnavailableLoopbackHTTPServer(_ server: [String: Any]) -> Bool {
+        guard let rawURL = server["url"] as? String,
+              let url = URL(string: rawURL),
+              let host = url.host?.lowercased(),
+              host == "127.0.0.1" || host == "localhost"
+        else {
+            return false
+        }
+
+        let port: Int
+        if let explicitPort = url.port {
+            port = explicitPort
+        } else if url.scheme?.lowercased() == "https" {
+            port = 443
+        } else {
+            port = 80
+        }
+
+        return !isTCPPortReachable(host: host, port: port)
+    }
+
+    static func isInvalidXcodeSessionBoundServer(_ server: [String: Any]) -> Bool {
+        let explicitType = (server["type"] as? String)?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        let isStdio = explicitType == "stdio" || (explicitType == nil && server["command"] != nil)
+        guard isStdio else { return false }
+
+        let env = (server["env"] as? [String: String]) ?? (server["env"] as? [String: Any])?.compactMapValues { $0 as? String } ?? [:]
+        let pidValue = env["MCP_XCODE_PID"]?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let sessionValue = env["MCP_XCODE_SESSION_ID"]?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let hasSessionBinding = !(pidValue ?? "").isEmpty || !(sessionValue ?? "").isEmpty
+        guard hasSessionBinding else { return false }
+        guard let pidValue, !pidValue.isEmpty, let sessionValue, !sessionValue.isEmpty else { return true }
+        guard let pid = Int32(pidValue), pid > 0 else { return true }
+        return !processExists(pid: pid)
+    }
+
+    static func processExists(pid: Int32) -> Bool {
+        if kill(pid, 0) == 0 {
+            return true
+        }
+        return errno == EPERM
+    }
+
+    static func isTCPPortReachable(host: String, port: Int, timeout: TimeInterval = 0.35) -> Bool {
+        guard let endpointPort = NWEndpoint.Port(rawValue: UInt16(port)) else { return false }
+
+        final class ReachabilityBox: @unchecked Sendable {
+            var reachable = false
+        }
+
+        let semaphore = DispatchSemaphore(value: 0)
+        let connection = NWConnection(host: NWEndpoint.Host(host), port: endpointPort, using: .tcp)
+        let queue = DispatchQueue(label: "nolon.mcp.reachability.\(host).\(port)")
+        let box = ReachabilityBox()
+        connection.stateUpdateHandler = { state in
+            switch state {
+            case .ready:
+                box.reachable = true
+                semaphore.signal()
+            case .failed, .cancelled:
+                semaphore.signal()
+            default:
+                break
+            }
+        }
+        connection.start(queue: queue)
+        let waitResult = semaphore.wait(timeout: .now() + timeout)
+        connection.cancel()
+        return waitResult == .success && box.reachable
     }
 
     static func replaceCodexMCPServersSection(in text: String, with renderedSection: String) -> String {

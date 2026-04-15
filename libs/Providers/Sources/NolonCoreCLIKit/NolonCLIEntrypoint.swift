@@ -46,6 +46,7 @@ public enum NolonCLIEntrypoint {
             || root == "plugin"
             || root == "remote"
             || root == "gemini"
+            || root == "copilot"
     }
 
     private static func extractCoreOutputMode(arguments: [String]) -> (NolonCoreCLIOutputMode, [String]) {
@@ -78,8 +79,9 @@ public enum NolonCLIEntrypoint {
         let groupsNeedingHelp: [String: Set<String>] = [
             "codex": ["auth", "binary", "status", "session", "runtime", "provider"],
             "skills": [],
+            "copilot": ["auth"],
         ]
-        let rootCommands = Set(["codex", "provider", "skills", "workflow", "mcp", "plugin", "remote"])
+        let rootCommands = Set(["codex", "provider", "skills", "workflow", "mcp", "plugin", "remote", "copilot"])
         if normalized.count == 1, rootCommands.contains(root) {
             return normalized + ["--help"]
         }
@@ -185,6 +187,16 @@ public enum NolonCLIEntrypoint {
             default:
                 return NolonSkillsRootCommand.self
             }
+        case "copilot":
+            guard arguments.count >= 2 else { return NolonCopilotRootCommand.self }
+            let group = arguments[1].lowercased()
+            switch group {
+            case "auth":
+                guard arguments.count >= 3 else { return NolonCopilotAuthGroupCommand.self }
+                return copilotAuthCommandType(action: arguments[2])
+            default:
+                return NolonCopilotRootCommand.self
+            }
         case "workflow":
             guard arguments.count >= 2 else { return NolonWorkflowRootCommand.self }
             return workflowCommandType(action: arguments[1])
@@ -243,6 +255,21 @@ public enum NolonCLIEntrypoint {
             return NolonCodexBinaryDoctorCommand.self
         default:
             return NolonCodexBinaryGroupCommand.self
+        }
+    }
+
+    private static func copilotAuthCommandType(action: String) -> ParsableCommand.Type? {
+        switch action.lowercased() {
+        case "login":
+            return NolonCopilotAuthLoginCommand.self
+        case "status":
+            return NolonCopilotAuthStatusCommand.self
+        case "usage":
+            return NolonCopilotAuthUsageCommand.self
+        case "delete":
+            return NolonCopilotAuthDeleteCommand.self
+        default:
+            return NolonCopilotAuthGroupCommand.self
         }
     }
 

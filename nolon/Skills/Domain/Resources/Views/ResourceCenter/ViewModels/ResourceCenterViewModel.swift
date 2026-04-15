@@ -47,6 +47,17 @@ final class ResourceCenterViewModel {
         return targetProvider
     }
 
+    func postInstallRefreshTargetProvider(
+        for repository: RemoteRepository?,
+        fallback targetProvider: Provider?,
+        installedTo installedProvider: Provider?
+    ) -> Provider? {
+        guard repository?.templateType != .globalSkills else {
+            return nil
+        }
+        return installedProvider ?? targetProvider
+    }
+
     @MainActor
     func refreshInstalledResources(
         repository: SkillRepository,
@@ -123,6 +134,7 @@ final class ResourceCenterViewModel {
         repository: SkillRepository,
         selectedRepository: RemoteRepository?,
         fallbackTargetProvider: Provider?,
+        installedToProvider: Provider? = nil,
         settings: ProviderSettings
     ) {
         postInstallRefreshTasks[kind]?.cancel()
@@ -130,9 +142,10 @@ final class ResourceCenterViewModel {
             try? await Task.sleep(for: .seconds(RemoteRefreshPolicy.installPropagationDelay))
             guard let self, !Task.isCancelled else { return }
 
-            let effectiveTargetProvider = self.effectiveTargetProvider(
+            let effectiveTargetProvider = self.postInstallRefreshTargetProvider(
                 for: selectedRepository,
-                fallback: fallbackTargetProvider
+                fallback: fallbackTargetProvider,
+                installedTo: installedToProvider
             )
 
             switch kind {

@@ -656,7 +656,8 @@ struct NolonResourceKitTests {
                     "args": ["-y", "@acme/alpha-mcp"],
                     "enabled": true
                 ]
-            ]
+            ],
+            "x-nolon": ["providers": ["codex"]]
         ]
         let bRoot: [String: Any] = [
             "mcpServers": [
@@ -664,7 +665,8 @@ struct NolonResourceKitTests {
                     "url": "http://localhost:8081/mcp",
                     "enabled": true
                 ]
-            ]
+            ],
+            "x-nolon": ["providers": ["codex"]]
         ]
         try JSONSerialization.data(withJSONObject: aRoot, options: [.prettyPrinted, .sortedKeys]).write(to: aPath)
         try JSONSerialization.data(withJSONObject: bRoot, options: [.prettyPrinted, .sortedKeys]).write(to: bPath)
@@ -680,7 +682,7 @@ struct NolonResourceKitTests {
         #expect(synced == 2)
 
         let providerServers = try MCPConfigManager.listServers(for: .codex).map(\.name).sorted()
-        #expect(providerServers == [alphaName, betaName])
+        #expect(providerServers == [alphaName, betaName, "legacy"])
 
         let alphaData = try Data(contentsOf: aPath)
         let alphaJSON = try #require(JSONSerialization.jsonObject(with: alphaData) as? [String: Any])
@@ -693,7 +695,7 @@ struct NolonResourceKitTests {
         let resynced = try MCPConfigManager.syncAllCacheServersToProvider(for: .codex)
         #expect(resynced == 1)
         let providerServersAfterDelete = try MCPConfigManager.listServers(for: .codex).map(\.name).sorted()
-        #expect(providerServersAfterDelete == ["beta"])
+        #expect(providerServersAfterDelete == [betaName, "legacy"])
     }
 
     @Test("Linked MCP sync respects fragment provider ownership")
@@ -815,6 +817,59 @@ struct NolonResourceKitTests {
 
         let rawConfig = try String(contentsOf: configPath, encoding: .utf8)
         #expect(rawConfig.contains("[mcp_servers.playwright.http_headers]") == false)
+    }
+
+    @Test("Linked MCP sync round-trips Codex cwd and bearer token env settings")
+    func linkedMcpSyncRoundTripsCodexCwdAndBearerTokenEnvSettings() throws {
+        let root = try STFolder(sanbox: .temporary)
+            .folder("nolon-mcp-codex-roundtrip-\(UUID().uuidString)")
+            .create()
+        defer { try? root.deleteIncludingBrokenSymlink() }
+
+        let previousHome = getenv("HOME").map { String(cString: $0) }
+        let previousNolonHome = getenv("NOLON_HOME").map { String(cString: $0) }
+        setenv("HOME", root.url.path, 1)
+        setenv("NOLON_HOME", root.folder(".nolon").url.path, 1)
+        defer {
+            if let previousHome {
+                setenv("HOME", previousHome, 1)
+            }
+            if let previousNolonHome {
+                setenv("NOLON_HOME", previousNolonHome, 1)
+            } else {
+                unsetenv("NOLON_HOME")
+            }
+        }
+
+        let manager = NolonManager()
+        _ = manager.mcpsFolder.createIfNotExists()
+
+        let fragmentPath = manager.mcpsURL.appendingPathComponent("context7.json")
+        let fragment: [String: Any] = [
+            "mcpServers": [
+                "context7": [
+                    "command": "npx",
+                    "args": ["-y", "@upstash/context7-mcp"],
+                    "cwd": "/tmp/context7",
+                    "bearer_token_env_var": "CONTEXT7_TOKEN",
+                    "enabled": true
+                ]
+            ],
+            "x-nolon": ["providers": ["codex"]]
+        ]
+        try JSONSerialization.data(withJSONObject: fragment, options: [.prettyPrinted, .sortedKeys]).write(to: fragmentPath)
+
+        _ = try MCPConfigManager.syncAllCacheServersToProvider(for: .codex)
+
+        let configPath = ProviderTemplate.codex.defaultMcpConfigPath
+        let configData = try Data(contentsOf: configPath)
+        let config = try TOMLDecoder().decode(CodexMCPConfig.self, from: configData)
+        let context7 = try #require(config.mcpServers?["context7"])
+        #expect(context7.cwd == "/tmp/context7")
+        #expect(context7.bearerTokenEnvVar == "CONTEXT7_TOKEN")
+
+        let providerServers = try MCPConfigManager.listServers(for: .codex).map(\.name).sorted()
+        #expect(providerServers == ["context7"])
     }
 
     @Test("Provider MCP repair strips unsupported stdio HTTP header fields from cache and config")
@@ -1689,6 +1744,35 @@ struct NolonResourceKitTests {
         #expect(scan.states.first?.state == .installed)
     }
 
+    @Test("ProviderSkillMaintenanceService marks skills as installed when provider skills root resolves to global through ancestor symlink")
+    func providerSkillMaintenanceServiceTreatsAncestorLinkedGlobalRootAsInstalled() throws {
+        let root = try STFolder(sanbox: .temporary)
+            .folder("nolon-skill-maintenance-ancestor-link-\(UUID().uuidString)")
+            .create()
+        defer { try? root.deleteIncludingBrokenSymlink() }
+
+        let globalHome = root.folder("nolon-home")
+        let globalFolder = globalHome.folder("skills")
+        _ = globalFolder.createIfNotExists()
+        let globalSkill = globalFolder.folder("scale")
+        _ = globalSkill.createIfNotExists()
+        try "x".write(to: globalSkill.file("SKILL.md").url, atomically: true, encoding: .utf8)
+
+        let providerHome = root.folder("provider-home")
+        _ = providerHome.createIfNotExists()
+        let linkedHome = providerHome.subpath("linked-home")
+        try linkedHome.createSymbolicLink(to: STPath(globalHome.url.path))
+        let providerSkillsFolder = STFolder(linkedHome.url.appendingPathComponent("skills", isDirectory: true))
+
+        let service = ProviderSkillMaintenanceService()
+        let scan = try service.scanProviderSkills(
+            providerPath: providerSkillsFolder,
+            globalSkillsPath: globalFolder
+        )
+        #expect(scan.states.count == 1)
+        #expect(scan.states.first?.state == .installed)
+    }
+
     @Test("ProviderSkillMaintenanceService installs copies into linked global skills root")
     func providerSkillMaintenanceServiceInstallsCopiesIntoLinkedGlobalRoot() throws {
         let root = try STFolder(sanbox: .temporary)
@@ -1727,6 +1811,54 @@ struct NolonResourceKitTests {
         #expect(installedSkill.isExists)
         #expect(STPath(installedSkill.url).isSymbolicLink == false)
         #expect(installedSkill.file("SKILL.md").isExists)
+    }
+
+    @Test("ProviderSkillMaintenanceService heals stale managed provider root before install")
+    func providerSkillMaintenanceServiceHealsStaleManagedRootBeforeInstall() throws {
+        let root = try STFolder(sanbox: .temporary)
+            .folder("nolon-skill-maintenance-stale-link-\(UUID().uuidString)")
+            .create()
+        defer { try? root.deleteIncludingBrokenSymlink() }
+
+        let currentNolonHome = root.folder("active-nolon-home")
+        _ = currentNolonHome.createIfNotExists()
+        let manager = NolonManager(rootURL: currentNolonHome.url)
+
+        let repositoryRoot = root.folder("repositories").folder("gate").folder("skills")
+        let sourceSkill = repositoryRoot.folder("scale")
+        _ = sourceSkill.createIfNotExists()
+        try """
+        ---
+        name: scale
+        description: scale helper
+        ---
+        """.write(to: sourceSkill.file("SKILL.md").url, atomically: true, encoding: .utf8)
+
+        let staleNolonHome = root.folder("stale-nolon-home")
+        let staleSkillsRoot = staleNolonHome.folder("skills")
+        _ = staleSkillsRoot.createIfNotExists()
+        _ = staleNolonHome.folder("repositories").createIfNotExists()
+        _ = staleNolonHome.folder("mcps").createIfNotExists()
+        _ = staleNolonHome.folder("agents").createIfNotExists()
+
+        let providerHome = root.folder("provider-home")
+        _ = providerHome.createIfNotExists()
+        let providerSkillsPath = providerHome.subpath("skills")
+        try providerSkillsPath.createSymbolicLink(to: STPath(staleSkillsRoot.url.path))
+
+        let service = ProviderSkillMaintenanceService(nolonManager: manager)
+        let result = try service.installSkill(
+            skillPath: STPath(sourceSkill.url),
+            skillID: nil,
+            providerPath: STFolder(providerSkillsPath.url),
+            installMethod: .symlink
+        )
+
+        let relinkedTarget = try #require(try? providerSkillsPath.destinationOfSymbolicLink().url.standardizedFileURL.path)
+        #expect(relinkedTarget == manager.skillsFolder.url.standardizedFileURL.path)
+        #expect(result.installMethod == .copy)
+        #expect(manager.skillsFolder.folder("scale").isExists)
+        #expect(staleSkillsRoot.folder("scale").isExists == false)
     }
 
     @Test("WorkflowBindingService binds and unbinds workflows for skill and MCP")

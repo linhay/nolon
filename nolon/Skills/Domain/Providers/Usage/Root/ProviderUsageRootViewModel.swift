@@ -65,6 +65,15 @@ final class ProviderUsageRootViewModel {
             return [.cliLogin, .refresh]
         }
 
+        if provider.templateId == "copilot" {
+            var actions: [GenericHeaderAction] = []
+            if showsDashboardSignIn {
+                actions.append(.signIn)
+            }
+            actions.append(.refresh)
+            return actions
+        }
+
         if showsDashboardSignIn {
             return [.signIn]
         }

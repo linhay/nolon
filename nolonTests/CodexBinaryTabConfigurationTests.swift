@@ -87,10 +87,14 @@ final class CodexBinaryTabConfigurationTests: XCTestCase {
             tabs.contains("agents"),
             "Expected copilot vendorTabs to include 'agents', got: \(tabs)"
         )
+        XCTAssertTrue(
+            tabs.contains("usage"),
+            "Expected copilot vendorTabs to include 'usage', got: \(tabs)"
+        )
     }
 
     @MainActor
-    func testBDD_GivenCopilotTemplate_WhenReadingAvailableTabs_ThenContainsAgentsWithoutAdvanced() throws {
+    func testBDD_GivenCopilotTemplate_WhenReadingAvailableTabs_ThenContainsUsageAndAgentsWithoutAdvanced() throws {
         // Given
         let provider = try XCTUnwrap(ProviderTemplate(rawValue: "copilot")).createProvider()
 
@@ -100,6 +104,7 @@ final class CodexBinaryTabConfigurationTests: XCTestCase {
         // Then
         XCTAssertFalse(tabs.contains(.advanced), "Expected generic tabs not to include advanced")
         XCTAssertFalse(tabs.contains(.rules), "Expected generic tabs not to include rules")
+        XCTAssertTrue(tabs.contains(.usage), "Expected copilot tabs to include usage")
         XCTAssertTrue(tabs.contains(.agents), "Expected copilot tabs to include agents")
     }
 

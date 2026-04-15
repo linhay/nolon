@@ -355,6 +355,14 @@ public enum NolonCoreCLICommand: Sendable, Equatable {
     )
     case geminiAuthUsage(provider: String)
     case geminiAuthDoctor(provider: String)
+    case copilotAuthLogin(
+        provider: String,
+        token: String,
+        label: String?
+    )
+    case copilotAuthStatus(provider: String)
+    case copilotAuthUsage(provider: String)
+    case copilotAuthDelete(provider: String)
 
     var commandID: String {
         switch self {
@@ -417,6 +425,10 @@ public enum NolonCoreCLICommand: Sendable, Equatable {
         case .geminiAuthDelete: "gemini.auth.delete"
         case .geminiAuthUsage: "gemini.auth.usage"
         case .geminiAuthDoctor: "gemini.auth.doctor"
+        case .copilotAuthLogin: "copilot.auth.login"
+        case .copilotAuthStatus: "copilot.auth.status"
+        case .copilotAuthUsage: "copilot.auth.usage"
+        case .copilotAuthDelete: "copilot.auth.delete"
         }
     }
 }

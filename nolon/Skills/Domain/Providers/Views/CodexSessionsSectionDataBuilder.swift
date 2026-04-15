@@ -63,7 +63,7 @@ enum CodexSessionsSectionDataBuilder {
             isExpanded: section.isExpanded,
             expansionTitle: expansionTitle(for: section),
             rows: section.sessions.map { session in
-                makeRowData(
+                buildRowData(
                     session,
                     groupingMode: groupingMode,
                     targetProviders: targetProviders,
@@ -117,27 +117,10 @@ enum CodexSessionsSectionDataBuilder {
             )
         }
 
-        if section.hasHiddenSessions {
-            badges.append(
-                CodexSessionsBadgeData(
-                    id: "visible",
-                    text: String(
-                        format: NSLocalizedString(
-                            "codex.sessions.section.visible_count",
-                            value: "Showing %d / %d",
-                            comment: "Visible session count in a provider section"
-                        ),
-                        section.visibleSessionCount,
-                        section.totalSessionCount
-                    )
-                )
-            )
-        }
-
         return badges
     }
 
-    nonisolated private static func makeRowData(
+    nonisolated static func buildRowData(
         _ session: CodexSessionsTabViewModel.SessionRow,
         groupingMode: CodexSessionsTabViewModel.SessionGroupingMode,
         targetProviders: (String) -> [String],
@@ -201,7 +184,31 @@ enum CodexSessionsSectionDataBuilder {
     nonisolated private static func makeNameMetadataItems(
         for session: CodexSessionsTabViewModel.SessionRow
     ) -> [CodexSessionsMetadataItemData] {
+        []
+    }
+
+    nonisolated private static func makeMenuMetadataItems(
+        for session: CodexSessionsTabViewModel.SessionRow
+    ) -> [CodexSessionsMetadataItemData] {
         var items: [CodexSessionsMetadataItemData] = []
+
+        if let forkedFromID = trimmedMetadataValue(session.forkedFromID) {
+            items.append(
+                .init(
+                    id: "forked-from",
+                    icon: "arrow.triangle.branch",
+                    text: String(
+                        format: NSLocalizedString(
+                            "codex.sessions.metadata.forked_from",
+                            value: "Forked from %@",
+                            comment: "Codex sessions forked from metadata"
+                        ),
+                        forkedFromID
+                    ),
+                    style: .code
+                )
+            )
+        }
 
         if let sourceValue = compactMetadataValue(session.source, maxLength: 24) {
             items.append(
@@ -237,33 +244,6 @@ enum CodexSessionsSectionDataBuilder {
             )
         }
 
-        return items
-    }
-
-    nonisolated private static func makeMenuMetadataItems(
-        for session: CodexSessionsTabViewModel.SessionRow
-    ) -> [CodexSessionsMetadataItemData] {
-        var items: [CodexSessionsMetadataItemData] = []
-
-        if let forkedFromID = trimmedMetadataValue(session.forkedFromID) {
-            items.append(
-                .init(
-                    id: "forked-from",
-                    icon: "arrow.triangle.branch",
-                    text: String(
-                        format: NSLocalizedString(
-                            "codex.sessions.metadata.forked_from",
-                            value: "Forked from %@",
-                            comment: "Codex sessions forked from metadata"
-                        ),
-                        forkedFromID
-                    ),
-                    style: .code
-                )
-            )
-        }
-
-        items.append(contentsOf: makeNameMetadataItems(for: session))
         return items
     }
 

@@ -12,7 +12,7 @@ import NolonUIFoundation
 private let terminalLogger = Logger(subsystem: "com.nolon", category: "TerminalDetection")
 private let codexConfigDocsURL = "https://developers.openai.com/codex/config-basic"
 
-private enum CodexTerminalLauncher {
+enum CodexTerminalLauncher {
     static func launchCLI(command: String, in app: CodexTerminalApp) throws {
         switch app {
         case .terminal:

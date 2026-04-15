@@ -29,6 +29,7 @@ final class CodexSessionsSectionDataBuilderTests: XCTestCase {
         XCTAssertEqual(data.titleSecondaryText, "/tmp/project-alpha")
         XCTAssertEqual(data.actionMenuTitle, "Move Project Sessions")
         XCTAssertEqual(data.expansionTitle, "Expand 3 More")
+        XCTAssertEqual(data.badges.map(\.id), ["live", "archived"])
 
         let row = try XCTUnwrap(data.rows.first)
         XCTAssertEqual(row.idText, "thread-live")
@@ -46,28 +47,7 @@ final class CodexSessionsSectionDataBuilderTests: XCTestCase {
         XCTAssertEqual(row.providerText, "OpenAI (openai)")
         XCTAssertEqual(row.timeText, "2024-04-11 10:00")
         XCTAssertEqual(row.usage, .placeholder(text: "Loading…"))
-        let nameMetadataTexts = row.nameMetadataItems.map { $0.text }
-        XCTAssertEqual(
-            nameMetadataTexts,
-            [
-                String(
-                    format: NSLocalizedString(
-                        "codex.sessions.metadata.source",
-                        value: "Source: %@",
-                        comment: "Codex sessions source metadata"
-                    ),
-                    "cli"
-                ),
-                String(
-                    format: NSLocalizedString(
-                        "codex.sessions.metadata.originator",
-                        value: "Originator: %@",
-                        comment: "Codex sessions originator metadata"
-                    ),
-                    "codex"
-                ),
-            ]
-        )
+        XCTAssertTrue(row.nameMetadataItems.isEmpty)
         XCTAssertEqual(
             row.menuMetadataItems.map { $0.text },
             [

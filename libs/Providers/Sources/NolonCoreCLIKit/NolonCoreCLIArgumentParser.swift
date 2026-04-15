@@ -1875,6 +1875,18 @@ enum NolonCoreCLIArgumentParser {
             return .geminiAuthUsage(provider: command.provider)
         case let command as NolonGeminiAuthDoctorCommand:
             return .geminiAuthDoctor(provider: command.provider)
+        case let command as NolonCopilotAuthLoginCommand:
+            return .copilotAuthLogin(
+                provider: command.provider,
+                token: command.token,
+                label: command.label
+            )
+        case let command as NolonCopilotAuthStatusCommand:
+            return .copilotAuthStatus(provider: command.provider)
+        case let command as NolonCopilotAuthUsageCommand:
+            return .copilotAuthUsage(provider: command.provider)
+        case let command as NolonCopilotAuthDeleteCommand:
+            return .copilotAuthDelete(provider: command.provider)
         case is NolonSkillsRepoGroupCommand:
             throw NolonCoreCLIError.invalidArguments("Missing command. Expected: skills repo <action> ...")
         case is NolonSkillsMigrateGroupCommand:
@@ -1883,6 +1895,10 @@ enum NolonCoreCLIArgumentParser {
             throw NolonCoreCLIError.invalidArguments("Missing command. Expected: gemini auth <action> ...")
         case is NolonGeminiAuthGroupCommand:
             throw NolonCoreCLIError.invalidArguments("Missing command. Expected: gemini auth <action> ...")
+        case is NolonCopilotRootCommand:
+            throw NolonCoreCLIError.invalidArguments("Missing command. Expected: copilot auth <action> ...")
+        case is NolonCopilotAuthGroupCommand:
+            throw NolonCoreCLIError.invalidArguments("Missing command. Expected: copilot auth <action> ...")
         case is NolonPluginRootCommand:
             throw NolonCoreCLIError.invalidArguments("Missing command. Expected: plugin <action> ...")
         default:

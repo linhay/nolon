@@ -2,10 +2,11 @@ import XCTest
 import ProviderCatalog
 import NolonResourceKit
 import STFilePath
+import TOML
 @testable import nolon
 
 final class MCPLinkedSyncRegressionTests: XCTestCase {
-    func testDeletingAllCacheFragmentsClearsCodexProjection() throws {
+    func testDeletingAllCacheFragmentsOnlyPrunesManagedCodexProjection() throws {
         try withIsolatedNolonHome { root in
             let manager = NolonManager()
             _ = manager.mcpsFolder.createIfNotExists()
@@ -20,7 +21,8 @@ final class MCPLinkedSyncRegressionTests: XCTestCase {
                     "command": "npx",
                     "args": ["-y", "@acme/alpha-mcp"],
                     "enabled": true
-                ]
+                ],
+                providers: ["codex"]
             )
             try writeCacheFragment(
                 to: beta,
@@ -28,7 +30,8 @@ final class MCPLinkedSyncRegressionTests: XCTestCase {
                 server: [
                     "url": "http://localhost:8081/mcp",
                     "enabled": true
-                ]
+                ],
+                providers: ["codex"]
             )
 
             let configPath = ProviderTemplate.codex.defaultMcpConfigPath
@@ -42,6 +45,7 @@ final class MCPLinkedSyncRegressionTests: XCTestCase {
             let withNewNames = Set(try MCPConfigManager.listServers(for: .codex).map(\.name))
             XCTAssertTrue(withNewNames.contains(alphaName))
             XCTAssertTrue(withNewNames.contains(betaName))
+            XCTAssertTrue(withNewNames.contains("legacy"))
 
             try STFile(alpha).deleteIncludingBrokenSymlink()
             try STFile(beta).deleteIncludingBrokenSymlink()
@@ -50,7 +54,7 @@ final class MCPLinkedSyncRegressionTests: XCTestCase {
             let afterDeleteNames = Set(try MCPConfigManager.listServers(for: .codex).map(\.name))
             XCTAssertFalse(afterDeleteNames.contains(alphaName))
             XCTAssertFalse(afterDeleteNames.contains(betaName))
-            XCTAssertTrue(afterDeleteNames.isEmpty)
+            XCTAssertEqual(afterDeleteNames, ["legacy"])
         }
     }
 
@@ -70,7 +74,8 @@ final class MCPLinkedSyncRegressionTests: XCTestCase {
                     "command": "npx",
                     "args": ["-y", "@acme/zeta-mcp"],
                     "enabled": true
-                ]
+                ],
+                providers: ["codex"]
             )
             try writeCacheFragment(
                 to: alpha,
@@ -78,7 +83,8 @@ final class MCPLinkedSyncRegressionTests: XCTestCase {
                 server: [
                     "url": "http://localhost:8088/mcp",
                     "enabled": true
-                ]
+                ],
+                providers: ["codex"]
             )
 
             let configPath = ProviderTemplate.codex.defaultMcpConfigPath
@@ -115,7 +121,8 @@ final class MCPLinkedSyncRegressionTests: XCTestCase {
                     "args": ["@playwright/mcp@latest"],
                     "type": "stdio",
                     "http_headers": ["x-token": "abc"]
-                ]
+                ],
+                providers: ["codex"]
             )
 
             let configPath = ProviderTemplate.codex.defaultMcpConfigPath
@@ -155,6 +162,67 @@ final class MCPLinkedSyncRegressionTests: XCTestCase {
             XCTAssertFalse(rawConfig.contains("[mcp_servers.playwright.http_headers]"))
         }
     }
+
+    func testLoopbackHTTPServerIsProjectedAsDisabledWhenUnavailable() throws {
+        try withIsolatedNolonHome { _ in
+            let manager = NolonManager()
+            _ = manager.mcpsFolder.createIfNotExists()
+
+            let name = "figma-desktop"
+            let fragmentPath = manager.mcpsURL.appendingPathComponent("\(name).json")
+            try writeCacheFragment(
+                to: fragmentPath,
+                name: name,
+                server: [
+                    "url": "http://127.0.0.1:1/mcp",
+                    "enabled": true
+                ],
+                providers: ["codex"]
+            )
+
+            _ = try MCPConfigManager.syncAllCacheServersToProvider(for: .codex)
+
+            let configPath = ProviderTemplate.codex.defaultMcpConfigPath
+            let configData = try Data(contentsOf: configPath)
+            let config = try TOMLDecoder().decode(CodexMCPConfig.self, from: configData)
+            let server = try XCTUnwrap(config.mcpServers?[name])
+            XCTAssertEqual(server.url, "http://127.0.0.1:1/mcp")
+            XCTAssertEqual(server.enabled, false)
+        }
+    }
+
+    func testSessionBoundXcodeServerIsProjectedAsDisabledWhenSessionEnvIsInvalid() throws {
+        try withIsolatedNolonHome { _ in
+            let manager = NolonManager()
+            _ = manager.mcpsFolder.createIfNotExists()
+
+            let name = "xcode-tools"
+            let fragmentPath = manager.mcpsURL.appendingPathComponent("\(name).json")
+            try writeCacheFragment(
+                to: fragmentPath,
+                name: name,
+                server: [
+                    "command": "xcode-build-mcp",
+                    "args": ["serve"],
+                    "env": [
+                        "MCP_XCODE_PID": "999999",
+                        "MCP_XCODE_SESSION_ID": "session-123"
+                    ],
+                    "enabled": true
+                ],
+                providers: ["codex"]
+            )
+
+            _ = try MCPConfigManager.syncAllCacheServersToProvider(for: .codex)
+
+            let configPath = ProviderTemplate.codex.defaultMcpConfigPath
+            let configData = try Data(contentsOf: configPath)
+            let config = try TOMLDecoder().decode(CodexMCPConfig.self, from: configData)
+            let server = try XCTUnwrap(config.mcpServers?[name])
+            XCTAssertEqual(server.command, "xcode-build-mcp")
+            XCTAssertEqual(server.enabled, false)
+        }
+    }
 }
 
 private extension MCPLinkedSyncRegressionTests {
@@ -186,12 +254,20 @@ private extension MCPLinkedSyncRegressionTests {
         try body(root)
     }
 
-    func writeCacheFragment(to path: URL, name: String, server: [String: Any]) throws {
-        let payload: [String: Any] = [
+    func writeCacheFragment(
+        to path: URL,
+        name: String,
+        server: [String: Any],
+        providers: [String] = []
+    ) throws {
+        var payload: [String: Any] = [
             "mcpServers": [
                 name: server
             ]
         ]
+        if !providers.isEmpty {
+            payload["x-nolon"] = ["providers": providers]
+        }
         let data = try JSONSerialization.data(
             withJSONObject: payload,
             options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]

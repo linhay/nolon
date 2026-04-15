@@ -164,4 +164,85 @@ struct CostUsageFetcherTests {
         )
         #expect(CostUsageFetcher.hasUsableCostData(report) == true)
     }
+
+    @Test("TDD: Given 30 day cache already built when loading all-time snapshot then older history is still preserved")
+    func tdd_given30DayCacheAlreadyBuilt_whenLoadingAllTimeSnapshot_thenOlderHistoryIsStillPreserved() async throws {
+        let root = STFolder("/tmp").folder("cost-usage-fetcher-all-history-\(UUID().uuidString)")
+        _ = root.createIfNotExists()
+        defer { try? root.delete() }
+
+        let codexHome = root.folder("codex-home")
+        _ = codexHome.createIfNotExists()
+
+        try Self.writeSessionUsageFile(
+            codexHome: codexHome,
+            dayPath: "2026/02/10",
+            filename: "old.jsonl",
+            sessionID: "session-old",
+            timestamp: "2026-02-10T10:00:02Z",
+            inputTokens: 100,
+            cachedInputTokens: 0,
+            outputTokens: 20,
+            totalTokens: 120
+        )
+        try Self.writeSessionUsageFile(
+            codexHome: codexHome,
+            dayPath: "2026/04/10",
+            filename: "recent.jsonl",
+            sessionID: "session-recent",
+            timestamp: "2026-04-10T10:00:02Z",
+            inputTokens: 200,
+            cachedInputTokens: 10,
+            outputTokens: 30,
+            totalTokens: 230
+        )
+
+        let now = Self.makeLocalDate(year: 2026, month: 4, day: 15, hour: 12, minute: 0)
+        let environment = ["CODEX_HOME": codexHome.url.path]
+        let fetcher = CostUsageFetcher()
+
+        let last30Days = try await fetcher.loadTokenSnapshot(
+            provider: .codex,
+            now: now,
+            trailingDays: 30,
+            environment: environment
+        )
+        #expect(last30Days.rangeTokens == 230)
+        #expect(last30Days.daily.map(\.date) == ["2026-04-10"])
+
+        let allTime = try await fetcher.loadTokenSnapshot(
+            provider: .codex,
+            now: now,
+            trailingDays: nil,
+            environment: environment
+        )
+        #expect(allTime.rangeTokens == 350)
+        #expect(allTime.daily.map(\.date) == ["2026-02-10", "2026-04-10"])
+    }
+
+    private static func writeSessionUsageFile(
+        codexHome: STFolder,
+        dayPath: String,
+        filename: String,
+        sessionID: String,
+        timestamp: String,
+        inputTokens: Int,
+        cachedInputTokens: Int,
+        outputTokens: Int,
+        totalTokens: Int
+    ) throws {
+        let parts = dayPath.split(separator: "/").map(String.init)
+        var folder = codexHome.folder("sessions")
+        for part in parts {
+            folder = folder.folder(part)
+        }
+        _ = folder.createIfNotExists()
+
+        let file = folder.file(filename)
+        try file.overlay(with: """
+        {"timestamp":"\(timestamp)","type":"session_meta","payload":{"id":"\(sessionID)"}}
+        {"timestamp":"\(timestamp)","type":"turn_context","payload":{"model":"gpt-5"}}
+        {"timestamp":"\(timestamp)","type":"event_msg","payload":{"type":"token_count","info":{"model":"gpt-5","last_token_usage":{"input_tokens":\(inputTokens),"cached_input_tokens":\(cachedInputTokens),"output_tokens":\(outputTokens),"total_tokens":\(totalTokens)}}}}
+        """)
+    }
 }

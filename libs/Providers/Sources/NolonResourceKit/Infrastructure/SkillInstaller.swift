@@ -30,19 +30,22 @@ public final class SkillInstaller {
     private let nolonManager: NolonManager
     private let lockFileManager: SkillLockFileManager
     private let workflowBindingService: WorkflowBindingService
+    private let providerSkillsLinkService: ProviderSkillsLinkService
 
     public init(
         repository: SkillRepository,
         settings: ProviderSettings,
         nolonManager: NolonManager = .shared,
         lockFileManager: SkillLockFileManager = SkillLockFileManager(),
-        workflowBindingService: WorkflowBindingService? = nil
+        workflowBindingService: WorkflowBindingService? = nil,
+        providerSkillsLinkService: ProviderSkillsLinkService? = nil
     ) {
         self.repository = repository
         self.settings = settings
         self.nolonManager = nolonManager
         self.lockFileManager = lockFileManager
         self.workflowBindingService = workflowBindingService ?? WorkflowBindingService(manager: nolonManager)
+        self.providerSkillsLinkService = providerSkillsLinkService ?? ProviderSkillsLinkService(nolonManager: nolonManager)
     }
 
     // MARK: - Installation
@@ -491,6 +494,11 @@ public final class SkillInstaller {
             return .broken
         }
 
+        let providerUsesGlobalRoot = SkillInstallRootResolver.resolvedProviderRootIfMatchesExpectedRoot(
+            providerPath: STFolder(provider.defaultSkillsPath),
+            expectedRoot: nolonManager.skillsFolder
+        ) != nil
+
         // Check if it's a symlink
         let isSymlink: Bool
         var symlinkDestination: String? = nil
@@ -510,11 +518,7 @@ public final class SkillInstaller {
 
         switch provider.installMethod {
         case .symlink:
-            let globalRootPath = URL(fileURLWithPath: nolonManager.skillsPath).standardizedFileURL.path
-            let providerRootPath = STPath(provider.defaultSkillsPath)
-            if providerRootPath.isSymbolicLink,
-               let providerRootDestination = try? providerRootPath.destinationOfSymbolicLink().url.standardizedFileURL.path,
-               providerRootDestination == globalRootPath {
+            if providerUsesGlobalRoot {
                 return .installed
             }
             // For symlink mode: symlinks FROM .nolon/skills are installed, others are orphaned
@@ -610,7 +614,7 @@ public final class SkillInstaller {
                 "Skill '\(skillName)' is not an orphaned physical file")
         }
 
-        let globalPath = "\(NolonManager.shared.skillsPath)/\(skillName)"
+        let globalPath = "\(nolonManager.skillsPath)/\(skillName)"
 
         let globalExists = STPath(globalPath).isExists
 
@@ -749,16 +753,23 @@ public final class SkillInstaller {
         to provider: Provider
     ) throws {
         let providerPath = provider.defaultSkillsPath
+        if provider.installMethod == .symlink, provider.skillsLinkEnabled {
+            _ = try providerSkillsLinkService.healManagedLinkIfNeeded(provider: provider)
+        }
+
+        let activeGlobalRoot = nolonManager.skillsFolder
         let providerFolder = STFolder(providerPath)
         let targetPath = providerFolder.subpath(skillID)
+        let linkedProviderRoot = SkillInstallRootResolver.resolvedProviderRootIfLinked(providerPath: providerFolder)
+            ?? SkillInstallRootResolver.resolvedProviderRootIfMatchesExpectedRoot(
+                providerPath: providerFolder,
+                expectedRoot: activeGlobalRoot
+            )
 
         _ = providerFolder.createIfNotExists()
 
         if provider.installMethod == .symlink,
-           let linkedProviderRoot = resolvedProviderRootIfMirrorsSourceRoot(
-               providerPath: providerFolder,
-               sourcePath: sourcePath
-           ),
+           let linkedProviderRoot,
            let finalTarget = linkedProviderTarget(linkedProviderRoot: linkedProviderRoot, skillID: skillID) {
             let sourceURL = sourcePath.url.standardizedFileURL
             let finalTargetURL = finalTarget.url.standardizedFileURL
@@ -788,23 +799,6 @@ public final class SkillInstaller {
                 to: targetPath
             )
         }
-    }
-
-    private func resolvedProviderRootIfMirrorsSourceRoot(
-        providerPath: STFolder,
-        sourcePath: STPath
-    ) -> STFolder? {
-        let resolvedProviderRootURL = providerPath.url.resolvingSymlinksInPath().standardizedFileURL
-        let resolvedSourceRootURL = sourcePath.url
-            .deletingLastPathComponent()
-            .resolvingSymlinksInPath()
-            .standardizedFileURL
-
-        guard resolvedProviderRootURL.path == resolvedSourceRootURL.path else {
-            return nil
-        }
-
-        return STFolder(resolvedProviderRootURL)
     }
 
     private func linkedProviderTarget(linkedProviderRoot: STFolder, skillID: String) -> STPath? {
