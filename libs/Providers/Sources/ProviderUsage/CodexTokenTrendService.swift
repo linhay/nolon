@@ -30,7 +30,7 @@ public struct CodexTokenTrendService: Sendable {
         var globalEnvironment = environment
         globalEnvironment.removeValue(forKey: "CODEX_HOME")
 
-        let snapshot = try await loadSnapshot(.codex, nil, false, globalEnvironment)
+        let snapshot = try await loadSnapshot(.codex, trailingDays, false, globalEnvironment)
         let allPoints = snapshot.daily
             .map { entry in
                 let input = max(0, entry.inputTokens ?? 0)

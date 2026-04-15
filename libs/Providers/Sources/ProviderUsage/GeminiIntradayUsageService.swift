@@ -6,11 +6,14 @@ public struct GeminiIntradayUsageService: Sendable {
     typealias LoadSessionRoot = @Sendable () -> URL?
     typealias ListSessionFiles = @Sendable (URL) throws -> [URL]
     typealias ReadFile = @Sendable (URL) throws -> String
+    typealias LoadFileFingerprint = @Sendable (URL) -> GeminiSessionFileFingerprint
 
     private let loadActiveAccount: LoadActiveAccount
     private let loadSessionRoot: LoadSessionRoot
     private let listSessionFiles: ListSessionFiles
     private let readFile: ReadFile
+    private let loadFileFingerprint: LoadFileFingerprint
+    private let usageStore: GeminiSessionUsageStore
     private let now: @Sendable () -> Date
 
     public init() {
@@ -23,6 +26,8 @@ public struct GeminiIntradayUsageService: Sendable {
         self.readFile = { url in
             try String(contentsOf: url, encoding: .utf8)
         }
+        self.loadFileFingerprint = GeminiSessionUsageStore.defaultLoadFileFingerprint
+        self.usageStore = .shared
         self.now = Date.init
     }
 
@@ -31,12 +36,16 @@ public struct GeminiIntradayUsageService: Sendable {
         loadSessionRoot: @escaping LoadSessionRoot = { nil },
         listSessionFiles: @escaping ListSessionFiles,
         readFile: @escaping ReadFile,
+        loadFileFingerprint: @escaping LoadFileFingerprint = GeminiSessionUsageStore.defaultLoadFileFingerprint,
+        usageStore: GeminiSessionUsageStore = GeminiSessionUsageStore(cacheFileURL: nil),
         now: @escaping @Sendable () -> Date = Date.init
     ) {
         self.loadActiveAccount = loadActiveAccount
         self.loadSessionRoot = loadSessionRoot
         self.listSessionFiles = listSessionFiles
         self.readFile = readFile
+        self.loadFileFingerprint = loadFileFingerprint
+        self.usageStore = usageStore
         self.now = now
     }
 
@@ -50,6 +59,7 @@ public struct GeminiIntradayUsageService: Sendable {
             return nil
         }
         _ = account
+        let referenceDate = now()
 
         guard let range = Self.makeDayRange(dayKey: dayKey, timezone: timezone) else {
             return nil
@@ -62,8 +72,9 @@ public struct GeminiIntradayUsageService: Sendable {
                 timezone: timezone,
                 rangeStart: range.start,
                 rangeEnd: range.end,
-                fetchedAt: now()
+                fetchedAt: referenceDate
             )
+            .trimmedForPresentation(referenceDate: referenceDate)
         }
 
         let sessionFiles = try listSessionFiles(sessionRoot)
@@ -74,10 +85,16 @@ public struct GeminiIntradayUsageService: Sendable {
                 timezone: timezone,
                 rangeStart: range.start,
                 rangeEnd: range.end,
-                fetchedAt: now()
+                fetchedAt: referenceDate
             )
+            .trimmedForPresentation(referenceDate: referenceDate)
         }
 
+        let usageSnapshot = try await usageStore.loadSnapshot(
+            sessionFiles: sessionFiles,
+            readFile: readFile,
+            loadFileFingerprint: loadFileFingerprint
+        )
         let bucketSeconds = Self.bucketSeconds(for: bucket)
         let actualBucketCount = Int((range.end.timeIntervalSince(range.start) / bucketSeconds).rounded())
         var totals = Array(
@@ -85,26 +102,21 @@ public struct GeminiIntradayUsageService: Sendable {
             count: max(0, actualBucketCount)
         )
 
-        for fileURL in sessionFiles {
-            let raw = try readFile(fileURL)
-            let record = try JSONDecoder().decode(GeminiIntradayConversationRecord.self, from: Data(raw.utf8))
-            for message in record.messages where message.type == "gemini" {
-                guard let tokens = message.tokens,
-                      let timestamp = Self.parseISODate(message.timestamp),
-                      timestamp >= range.start,
-                      timestamp < range.end,
-                      !totals.isEmpty else {
-                    continue
-                }
-
-                let secondsSinceDayStart = timestamp.timeIntervalSince(range.start)
-                let rawIndex = Int(secondsSinceDayStart / bucketSeconds)
-                let bucketIndex = min(max(0, rawIndex), totals.count - 1)
-                totals[bucketIndex].input += max(0, tokens.input)
-                totals[bucketIndex].output += max(0, tokens.output)
-                totals[bucketIndex].cached += max(0, tokens.cached)
-                totals[bucketIndex].total += max(0, tokens.total)
+        for event in usageSnapshot.events {
+            let timestamp = event.timestamp
+            guard timestamp >= range.start,
+                  timestamp < range.end,
+                  !totals.isEmpty else {
+                continue
             }
+
+            let secondsSinceDayStart = timestamp.timeIntervalSince(range.start)
+            let rawIndex = Int(secondsSinceDayStart / bucketSeconds)
+            let bucketIndex = min(max(0, rawIndex), totals.count - 1)
+            totals[bucketIndex].input += event.input
+            totals[bucketIndex].output += event.output
+            totals[bucketIndex].cached += event.cached
+            totals[bucketIndex].total += event.total
         }
 
         let points = totals.enumerated().map { index, item in
@@ -128,9 +140,10 @@ public struct GeminiIntradayUsageService: Sendable {
             rangeStart: range.start,
             rangeEnd: range.end,
             points: points,
-            fetchedAt: now(),
+            fetchedAt: referenceDate,
             sourceLabel: "session"
         )
+        .trimmedForPresentation(referenceDate: referenceDate)
     }
 
     private static func emptySnapshot(
@@ -190,16 +203,6 @@ public struct GeminiIntradayUsageService: Sendable {
         return (start, end)
     }
 
-    private static func parseISODate(_ text: String) -> Date? {
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        return formatter.date(from: text) ?? {
-            let fallback = ISO8601DateFormatter()
-            fallback.formatOptions = [.withInternetDateTime]
-            return fallback.date(from: text)
-        }()
-    }
-
     private static func calendar(timezone: TimeZone) -> Calendar {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = timezone
@@ -240,23 +243,6 @@ public struct GeminiIntradayUsageService: Sendable {
         return FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent(".gemini", isDirectory: true)
     }
-}
-
-private struct GeminiIntradayConversationRecord: Decodable {
-    let messages: [GeminiIntradayConversationMessage]
-}
-
-private struct GeminiIntradayConversationMessage: Decodable {
-    let type: String
-    let timestamp: String
-    let tokens: GeminiIntradayConversationTokens?
-}
-
-private struct GeminiIntradayConversationTokens: Decodable {
-    let input: Int
-    let output: Int
-    let cached: Int
-    let total: Int
 }
 
 private struct GeminiIntradayBucketTotals {

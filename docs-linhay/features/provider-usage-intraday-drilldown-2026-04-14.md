@@ -19,7 +19,7 @@
 
 1. 在不破坏现有日级趋势图语义的前提下，提供单日分钟级钻取能力。
 2. 保持 Gemini / Codex 在数据模型与聚合口径上的一致性。
-3. 用最小复杂度完成 Phase 1 可交付版本，不引入准实时 watcher 或额外事实缓存层。
+3. 用最小复杂度完成 Phase 1 可交付版本，不引入准实时 watcher 或独立业务事实源，但允许 provider 内部做解析缓存以控制加载成本。
 
 ## 范围
 
@@ -28,7 +28,7 @@
 1. 日级趋势图点选进入单日钻取。
 2. 单日钻取 `15min / 30min / 60min` 三档切换。
 3. intraday snapshot 独立模型、能力位、刷新与失效规则。
-4. Gemini Phase 1 即时聚合。
+4. Gemini Phase 1 即时聚合与共享解析缓存。
 5. Codex Phase 2 的 `15min` 基准桶设计方向。
 
 不包含：
@@ -37,7 +37,20 @@
 2. `Today` 独立模式。
 3. 第二排独立 intraday summary 卡片。
 4. 跨账号合并单日钻取。
-5. Phase 1 的 Gemini 文件级 cache。
+5. 分钟级事实桶的独立持久化缓存层。
+
+## 2026-04-15 性能修正
+
+针对“历史 Token 消耗加载过慢”的问题，本轮补充以下实现约束：
+
+1. 首屏仍然只加载日级 `Daily Trend`，不主动预取 intraday。
+2. 用户点击具体某一天后，才触发 `Intraday Drilldown` 的分钟级聚合。
+3. Gemini 允许在 provider 内部维护 `session usage store`：
+   - 原始 `.gemini` session 文件仍然是唯一事实源
+   - cache 只保存解析后的 `daily totals` 与带时间戳的 token events
+   - cache 命中键使用 `文件路径 + mtime + size`
+4. `Daily Trend` 与 `Intraday Drilldown` 必须复用同一份 Gemini 解析缓存，避免用户先看日级再点日内时重复全量读原始 session JSON。
+5. Codex 的 `Daily Trend` 查询必须把 `trailingDays` 下推到底层 loader，而不是先取全量再裁剪。
 
 ## 最终交互
 
@@ -60,11 +73,25 @@
    - 主图仍允许 range 切换与 hover
    - 但必须锁定当前 `selected day`，不能因主图交互而丢失或改写当前钻取对象
 
+### 布局
+
+1. `Daily Trend` 与 `Intraday Drilldown` 必须拆成两个独立 block。
+2. `Daily Trend` block 采用 `图 + 表` 结构：
+   - 上半区为日级趋势图
+   - 下半区为 `Daily Breakdown`
+3. `Intraday Drilldown` block 也采用 `图 + 表` 结构：
+   - 上半区为分钟级趋势图
+   - 下半区为 `Intraday Breakdown`
+4. `Intraday Breakdown` 的时间列必须展示完整时间段，例如 `09:30-10:00`，而不是只展示桶起点。
+
 ### UI 反馈要求
 
 1. 钻取区必须展示当前粒度与实际桶数，例如 `30min · 48 桶`。
 2. 不支持 drilldown 的 provider，必须显式禁用或给出原因提示。
 3. 历史日必须展示“静态快照 / 手动刷新”语义。
+4. 单日钻取图表必须只保留有用量的时间桶，所有零用量桶都不显示，包括中间零桶。
+5. 当选中日期是 Today 时，分钟级图表不得展示当前时刻之后的未来时间桶。
+6. 钻取区必须展示当前可见桶摘要，并明确说明该视图只展示有用量时段。
 
 ## 数据模型规则
 
@@ -99,20 +126,26 @@ intraday snapshot 至少需要包含：
 
 ## 聚合与缓存口径
 
-1. `15min` base buckets 是唯一事实缓存。
-2. `30min` 与 `60min` 只做派生展示，不再单独保存事实缓存。
-3. DST 场景下不允许任何层假设固定桶数：
+1. 原始 provider session 文件是唯一事实源。
+2. provider 内部允许维护解析缓存，但不得引入与原始 session 并行的第二份业务事实源。
+3. `30min` 与 `60min` 只做派生展示，不再单独保存事实缓存。
+4. DST 场景下不允许任何层假设固定桶数：
    - `15min`: `92 / 96 / 100`
    - `30min`: `46 / 48 / 50`
    - `60min`: `23 / 24 / 25`
+5. 钻取展示口径允许在事实桶之上做 presentation trim：
+   - 去掉所有零桶
+   - Today 去掉未来时间桶
+   - 只保留实际发生过用量的时间桶
 
 ## Provider 分阶段要求
 
 ### Gemini Phase 1
 
-1. 不做文件级 cache。
-2. 仅做按选中日即时聚合。
-3. 先聚合成 `15min` base buckets，再派生 `30/60min`。
+1. 首屏只加载日级 trend，点击选中日后再拉 intraday。
+2. 允许 provider 内部使用文件级解析 cache，但原始 session 文件仍然是事实源。
+3. 日级 trend 与单日 intraday 必须复用同一份解析缓存，避免双重全量扫描。
+4. `30/60min` 仍然只做派生展示，不单独保存事实缓存。
 
 ### Codex Phase 2
 
@@ -144,10 +177,12 @@ intraday snapshot 至少需要包含：
 5. Given 历史日钻取已打开，When 页面渲染，Then UI 显示“静态快照 / 手动刷新”语义。
 6. Given `timezoneIdentifier` 下该天是 DST 日，When 渲染 `15min / 30min / 60min` 钻取，Then 桶数允许按 `92/96/100`、`46/48/50`、`23/24/25` 变化，不得因固定桶数假设而丢数据。
 7. Given 当前选中日期是 Today，When 跨到下一个本地自然日或时区变化，Then 当前钻取结果失效并在下次刷新/重取时更新。
-8. Given Gemini Phase 1 已实现，When 用户首次点开某个历史日，Then 系统通过即时聚合得到钻取数据，而不是依赖额外文件级 cache。
+8. Given Gemini Phase 1 已实现，When 用户先查看日级 trend 再点开某个历史日，Then 系统复用同一份 session 解析缓存生成钻取数据，而不是再次全量读取原始 session 文件。
+9. Given 单日钻取存在零桶，When 图表渲染，Then 所有零桶都必须被移除，包括中间零桶。
+10. Given 当前选中日期是 Today，When 当前时刻之前只有部分分钟桶可见，Then 图表不得展示未来时间桶。
 
 ## 非目标
 
 1. 本轮不实现 Codex `15min` cache 的完整落地代码。
-2. 本轮不处理历史日单日钻取的二级 cache 优化。
+2. 本轮不实现分钟级事实桶的独立持久化缓存。
 3. 本轮不改变现有 summary 卡片语义。

@@ -294,9 +294,154 @@ struct GeminiTokenTrendServiceTests {
         #expect(snapshot.last30DaysTokens == 200)
         #expect(snapshot.allDaysTokens == 200)
     }
+
+    @Test("Reuses parsed Gemini session cache between daily trend and intraday drilldown")
+    func fetchActiveSnapshot_reusesParsedSessionCacheBetweenTrendAndIntraday() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("nolon-gemini-cache-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let sessionFileURL = root
+            .appendingPathComponent("tmp/project-a/chats/session-1.json")
+        try FileManager.default.createDirectory(
+            at: sessionFileURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try """
+        {
+          "messages": [
+            {
+              "type": "gemini",
+              "timestamp": "2026-03-08T09:10:00Z",
+              "tokens": { "input": 100, "output": 40, "cached": 20, "total": 140 }
+            },
+            {
+              "type": "gemini",
+              "timestamp": "2026-03-08T09:40:00Z",
+              "tokens": { "input": 60, "output": 30, "cached": 10, "total": 90 }
+            }
+          ]
+        }
+        """.write(to: sessionFileURL, atomically: true, encoding: .utf8)
+
+        let cacheFileURL = root.appendingPathComponent("gemini-usage-cache.json")
+        let store = GeminiSessionUsageStore(cacheFileURL: cacheFileURL)
+        let recorder = ReadFileRecorder()
+        let readFile: @Sendable (URL) throws -> String = { url in
+            recorder.record(url)
+            return try String(contentsOf: url, encoding: .utf8)
+        }
+
+        let trendService = GeminiTokenTrendService(
+            loadActiveAccount: { _ in Self.makeActiveAccount() },
+            loadSessionRoot: { root },
+            listSessionFiles: { _ in [sessionFileURL] },
+            readFile: readFile,
+            usageStore: store,
+            now: { Self.makeLocalDate(year: 2026, month: 3, day: 8, hour: 18, minute: 0) }
+        )
+        let intradayService = GeminiIntradayUsageService(
+            loadActiveAccount: { _ in Self.makeActiveAccount() },
+            loadSessionRoot: { root },
+            listSessionFiles: { _ in [sessionFileURL] },
+            readFile: readFile,
+            usageStore: store,
+            now: { Self.makeLocalDate(year: 2026, month: 3, day: 8, hour: 18, minute: 0) }
+        )
+
+        let trendSnapshot = try #require(await trendService.fetchActiveSnapshot(provider: .gemini))
+        let intradaySnapshot = try #require(
+            await intradayService.fetchActiveSnapshot(
+                provider: .gemini,
+                dayKey: "2026-03-08",
+                bucket: ProviderIntradayBucket.minute30,
+                timezone: TimeZone(secondsFromGMT: 0) ?? .current
+            )
+        )
+
+        #expect(trendSnapshot.points.map { $0.totalTokens } == [230])
+        #expect(intradaySnapshot.points.map { $0.totalTokens } == [140, 90])
+        #expect(recorder.count == 1)
+    }
+
+    @Test("Invalidates cached Gemini session parse when file content changes")
+    func fetchActiveSnapshot_invalidatesCachedSessionParseWhenFileChanges() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("nolon-gemini-cache-refresh-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let sessionFileURL = root
+            .appendingPathComponent("tmp/project-a/chats/session-1.json")
+        try FileManager.default.createDirectory(
+            at: sessionFileURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+
+        func writeSessionFile(total: Int) throws {
+            try """
+            {
+              "messages": [
+                {
+                  "type": "gemini",
+                  "timestamp": "2026-03-08T09:10:00Z",
+                  "tokens": { "input": \(total - 40), "output": 40, "cached": 0, "total": \(total) }
+                }
+              ]
+            }
+            """.write(to: sessionFileURL, atomically: true, encoding: .utf8)
+        }
+
+        try writeSessionFile(total: 140)
+
+        let cacheFileURL = root.appendingPathComponent("gemini-usage-cache.json")
+        let store = GeminiSessionUsageStore(cacheFileURL: cacheFileURL)
+        let recorder = ReadFileRecorder()
+        let service = GeminiTokenTrendService(
+            loadActiveAccount: { _ in Self.makeActiveAccount() },
+            loadSessionRoot: { root },
+            listSessionFiles: { _ in [sessionFileURL] },
+            readFile: { url in
+                recorder.record(url)
+                return try String(contentsOf: url, encoding: .utf8)
+            },
+            usageStore: store,
+            now: { Self.makeLocalDate(year: 2026, month: 3, day: 8, hour: 18, minute: 0) }
+        )
+
+        let first = try #require(await service.fetchActiveSnapshot(provider: .gemini))
+        #expect(first.points.map { $0.totalTokens } == [140])
+
+        try writeSessionFile(total: 240)
+        try FileManager.default.setAttributes(
+            [.modificationDate: Date(timeIntervalSince1970: 1_762_000_000)],
+            ofItemAtPath: sessionFileURL.path
+        )
+
+        let second = try #require(await service.fetchActiveSnapshot(provider: .gemini))
+        #expect(second.points.map { $0.totalTokens } == [240])
+        #expect(recorder.count == 2)
+    }
 }
 
 private extension GeminiTokenTrendServiceTests {
+    static func makeActiveAccount() -> GeminiAuthAccount {
+        GeminiAuthAccount(
+            id: UUID(uuidString: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")!,
+            providerID: .gemini,
+            name: "Gemini",
+            method: .oauthPersonal,
+            createdAt: Date(timeIntervalSince1970: 1_700_000_000),
+            lastUsedAt: nil,
+            lastLoginAt: nil,
+            email: "dev@example.com",
+            project: nil,
+            location: nil,
+            runtimeHomeRelativePath: "accounts/runtime/home"
+        )
+    }
+
     static func makeLocalDate(year: Int, month: Int, day: Int, hour: Int, minute: Int) -> Date {
         var comps = DateComponents()
         comps.calendar = Calendar.current
@@ -308,5 +453,22 @@ private extension GeminiTokenTrendServiceTests {
         comps.minute = minute
         comps.second = 0
         return comps.date ?? Date(timeIntervalSince1970: 0)
+    }
+}
+
+private final class ReadFileRecorder: @unchecked Sendable {
+    private let lock = NSLock()
+    private var storage = 0
+
+    var count: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return storage
+    }
+
+    func record(_ _: URL) {
+        lock.lock()
+        storage += 1
+        lock.unlock()
     }
 }
