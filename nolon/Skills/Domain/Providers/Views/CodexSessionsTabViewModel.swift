@@ -221,6 +221,7 @@ final class CodexSessionsTabViewModel {
     var pendingRewrite: PendingRewrite?
     var showsInitialSkeleton = false
     var groupingMode: SessionGroupingMode = .project
+    var selectedSessionID: String?
 
     private let service: any CodexSessionsTabServicing
     private let pageSize: Int
@@ -293,6 +294,20 @@ final class CodexSessionsTabViewModel {
 
     var canLoadMore: Bool {
         false
+    }
+
+    var selectedSession: SessionRow? {
+        guard let selectedSessionID else { return nil }
+        return sections
+            .flatMap(\.sessions)
+            .first(where: { $0.id == selectedSessionID })
+    }
+
+    var selectedSection: SessionSection? {
+        guard let selectedSessionID else { return nil }
+        return sections.first { section in
+            section.sessions.contains(where: { $0.id == selectedSessionID })
+        }
     }
 
     var confirmationAlertData: ConfirmationAlertData {
@@ -480,6 +495,13 @@ final class CodexSessionsTabViewModel {
 
     func targetProviders(for currentProviderID: String) -> [String] {
         availableTargetProviderIDs.filter { $0 != currentProviderID }
+    }
+
+    func selectSession(_ sessionID: String) {
+        guard sections.flatMap(\.sessions).contains(where: { $0.id == sessionID }) else {
+            return
+        }
+        selectedSessionID = sessionID
     }
 
     func loadNextPage() {
@@ -683,9 +705,7 @@ final class CodexSessionsTabViewModel {
 
         for section in allSectionStates {
             let isExpanded = expandedSectionIDs.contains(section.id)
-            let visibleCount = isExpanded
-                ? section.totalSessionCount
-                : min(section.totalSessionCount, Self.defaultVisibleSessionCountPerSection)
+            let visibleSessions = visibleSessions(for: section, isExpanded: isExpanded)
             visibleSections.append(
                 SessionSection(
                     id: section.id,
@@ -693,7 +713,7 @@ final class CodexSessionsTabViewModel {
                     titleSecondaryText: section.titleSecondaryText,
                     rewriteSourceLabel: section.rewriteSourceLabel,
                     rewriteSourceProviderID: section.rewriteSourceProviderID,
-                    sessions: Array(section.sessions.prefix(visibleCount)),
+                    sessions: visibleSessions,
                     totalSessionCount: section.totalSessionCount,
                     editableThreadIDs: section.editableThreadIDs,
                     liveCount: section.liveCount,
@@ -705,7 +725,21 @@ final class CodexSessionsTabViewModel {
         }
 
         sections = visibleSections
+        repairSelection()
         primeVisibleSessionUsages()
+    }
+
+    private func visibleSessions(
+        for section: SessionSectionState,
+        isExpanded: Bool
+    ) -> [SessionRow] {
+        if isExpanded {
+            return section.sessions
+        }
+
+        let liveSessions = section.sessions.filter { !$0.archived }
+        let previewSource = liveSessions.isEmpty ? section.sessions : liveSessions
+        return Array(previewSource.prefix(Self.defaultVisibleSessionCountPerSection))
     }
 
     nonisolated private static func makePresentation(from snapshot: CodexSessionSnapshot) -> SessionPresentation {
@@ -922,6 +956,19 @@ final class CodexSessionsTabViewModel {
             task.cancel()
         }
         usageTasks.removeAll()
+    }
+
+    private func repairSelection() {
+        let visibleRows = sections.flatMap(\.sessions)
+        guard !visibleRows.isEmpty else {
+            selectedSessionID = nil
+            return
+        }
+        if let selectedSessionID,
+           visibleRows.contains(where: { $0.id == selectedSessionID }) {
+            return
+        }
+        selectedSessionID = visibleRows.first?.id
     }
 
     private func makeStatusMessage(

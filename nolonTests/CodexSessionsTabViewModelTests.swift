@@ -90,6 +90,56 @@ final class CodexSessionsTabViewModelTests: XCTestCase {
         XCTAssertFalse(viewModel.sections.first?.isExpanded ?? true)
     }
 
+    func testBDD_GivenMixedLiveAndArchivedSessions_WhenSectionIsCollapsed_ThenOnlyTopFiveLiveSessionsAreVisible() async throws {
+        let provider = makeCodexProvider()
+        let liveSessions = Array(0..<6).map { index in
+            makeSession(
+                id: "sessions/live-\(index).jsonl",
+                threadID: "live-\(index)",
+                title: "Live \(index)",
+                modelProvider: "openai",
+                cwd: "/tmp/project-alpha",
+                updatedAt: 2_000 - TimeInterval(index),
+                archived: false
+            )
+        }
+        let archivedSessions = Array(0..<4).map { index in
+            makeSession(
+                id: "sessions/archived-\(index).jsonl",
+                threadID: "archived-\(index)",
+                title: "Archived \(index)",
+                modelProvider: "openai",
+                cwd: "/tmp/project-alpha",
+                updatedAt: 3_000 - TimeInterval(index),
+                archived: true
+            )
+        }
+        let snapshot = CodexSessionSnapshot(
+            sessions: liveSessions + archivedSessions,
+            availableProviderIDs: ["openai"]
+        )
+        let viewModel = CodexSessionsTabViewModel(
+            provider: provider,
+            service: MockCodexSessionsService(state: .init(snapshots: [snapshot]))
+        )
+
+        await viewModel.load()
+
+        let section = try XCTUnwrap(viewModel.sections.first)
+        XCTAssertEqual(section.visibleSessionCount, 5)
+        XCTAssertEqual(section.sessions.map(\.id), Array(liveSessions.prefix(5).map(\.id)))
+        XCTAssertTrue(section.sessions.allSatisfy { !$0.archived })
+        XCTAssertEqual(section.remainingSessionCount, 5)
+        XCTAssertEqual(viewModel.selectedSessionID, liveSessions.first?.id)
+
+        viewModel.toggleSectionExpansion(section.id)
+
+        let expandedSection = try XCTUnwrap(viewModel.sections.first)
+        XCTAssertEqual(expandedSection.visibleSessionCount, 10)
+        XCTAssertEqual(expandedSection.sessions.first?.id, archivedSessions.first?.id)
+        XCTAssertEqual(expandedSection.sessions.filter(\.archived).count, 4)
+    }
+
     func testBDD_GivenCollapsedProjectSection_WhenRequestingGroupRewrite_ThenAllEditableSessionsAreIncluded() async throws {
         let provider = makeCodexProvider()
         let snapshot = CodexSessionSnapshot(
@@ -291,6 +341,110 @@ final class CodexSessionsTabViewModelTests: XCTestCase {
         XCTAssertEqual(row.forkedFromID, "parent-thread-01")
         XCTAssertEqual(row.originator, "claude-code")
         XCTAssertEqual(row.source, "cli")
+    }
+
+    func testBDD_GivenLoadedSections_WhenLoadCompletes_ThenNewestVisibleSessionBecomesSelected() async throws {
+        let provider = makeCodexProvider()
+        let snapshot = CodexSessionSnapshot(
+            sessions: [
+                makeSession(
+                    id: "sessions/older.jsonl",
+                    threadID: "thread-older",
+                    title: "Older",
+                    modelProvider: "openai",
+                    cwd: "/tmp/project-alpha",
+                    updatedAt: 1_000
+                ),
+                makeSession(
+                    id: "sessions/newest.jsonl",
+                    threadID: "thread-newest",
+                    title: "Newest",
+                    modelProvider: "openai",
+                    cwd: "/tmp/project-alpha",
+                    updatedAt: 2_000
+                ),
+            ],
+            availableProviderIDs: ["openai"]
+        )
+        let viewModel = CodexSessionsTabViewModel(
+            provider: provider,
+            service: MockCodexSessionsService(state: .init(snapshots: [snapshot]))
+        )
+
+        await viewModel.load()
+
+        XCTAssertEqual(viewModel.selectedSessionID, "sessions/newest.jsonl")
+        XCTAssertEqual(viewModel.selectedSession?.title, "Newest")
+    }
+
+    func testBDD_GivenSelectedSessionDisappearsAfterRefresh_WhenVisibleRowsRebuild_ThenSelectionFallsBackToFirstVisibleSession() async throws {
+        let provider = makeCodexProvider()
+        let initialSnapshot = CodexSessionSnapshot(
+            sessions: [
+                makeSession(
+                    id: "sessions/a.jsonl",
+                    threadID: "thread-a",
+                    title: "Alpha",
+                    modelProvider: "openai",
+                    cwd: "/tmp/project-alpha",
+                    updatedAt: 2_000
+                ),
+                makeSession(
+                    id: "sessions/b.jsonl",
+                    threadID: "thread-b",
+                    title: "Beta",
+                    modelProvider: "openai",
+                    cwd: "/tmp/project-alpha",
+                    updatedAt: 1_900
+                ),
+            ],
+            availableProviderIDs: ["openai"]
+        )
+        let refreshedSnapshot = CodexSessionSnapshot(
+            sessions: [
+                makeSession(
+                    id: "sessions/b.jsonl",
+                    threadID: "thread-b",
+                    title: "Beta",
+                    modelProvider: "openai",
+                    cwd: "/tmp/project-alpha",
+                    updatedAt: 2_100
+                ),
+            ],
+            availableProviderIDs: ["openai"]
+        )
+        let state = MockCodexSessionsServiceState(snapshots: [initialSnapshot])
+        let service = MockCodexSessionsService(state: state)
+        let viewModel = CodexSessionsTabViewModel(provider: provider, service: service)
+
+        await viewModel.load()
+        XCTAssertEqual(viewModel.selectedSessionID, "sessions/a.jsonl")
+
+        state.streamSnapshots = [refreshedSnapshot]
+        await viewModel.refresh()
+
+        XCTAssertEqual(viewModel.selectedSessionID, "sessions/b.jsonl")
+        XCTAssertEqual(viewModel.selectedSession?.title, "Beta")
+    }
+
+    func testBDD_GivenThreadIDAndWorkingDirectory_WhenBuildingResumeCommand_ThenCommandIsShellSafe() {
+        let session = CodexSessionsTabViewModel.SessionRow(
+            id: "sessions/refactor.jsonl",
+            threadID: "thread-123",
+            title: "Refactor",
+            summary: nil,
+            modelProvider: "openai",
+            archived: false,
+            rolloutPath: "sessions/refactor.jsonl",
+            cwd: "/tmp/project alpha",
+            updatedAt: nil,
+            stateRowCount: 0,
+            editable: true
+        )
+
+        let command = CodexSessionsResumeCommandBuilder.commandString(for: session)
+
+        XCTAssertEqual(command, "cd '/tmp/project alpha' && codex resume --last thread-123")
     }
 
     private func makeCodexProvider() -> Provider {
