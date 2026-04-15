@@ -124,55 +124,70 @@ public struct CodexSessionsOverviewData: Equatable, Sendable {
     }
 }
 
+public enum CodexSessionsUsageDisplayData: Equatable, Sendable {
+    case placeholder(text: String)
+    case value(primaryText: String, secondaryText: String?)
+    case failed(text: String)
+}
+
 public struct CodexSessionsRowData: Identifiable, Equatable, Sendable {
     public let id: String
     public let title: String
-    public let providerName: String?
+    public let nameMetadataItems: [CodexSessionsMetadataItemData]
+    public let idText: String
+    public let idSecondaryText: String?
+    public let timeText: String
+    public let providerText: String
+    public let usage: CodexSessionsUsageDisplayData
     public let isArchived: Bool
     public let isEditable: Bool
     public let summary: String?
-    public let badges: [CodexSessionsBadgeData]
-    public let metadataItems: [CodexSessionsMetadataItemData]
     public let rolloutPath: String
     public let showInFinderTitle: String?
     public let copyPathTitle: String?
     public let stateRowCount: Int
     public let actions: [CodexSessionsActionItemData]
-    public let actionMenuTitle: String?
     public let readOnlyText: String?
+    public let menuMetadataItems: [CodexSessionsMetadataItemData]
 
     public init(
         id: String,
         title: String,
-        providerName: String?,
+        nameMetadataItems: [CodexSessionsMetadataItemData] = [],
+        idText: String,
+        idSecondaryText: String? = nil,
+        timeText: String,
+        providerText: String,
+        usage: CodexSessionsUsageDisplayData,
         isArchived: Bool,
         isEditable: Bool,
         summary: String?,
-        badges: [CodexSessionsBadgeData],
-        metadataItems: [CodexSessionsMetadataItemData],
         rolloutPath: String,
         showInFinderTitle: String?,
         copyPathTitle: String? = nil,
         stateRowCount: Int = 0,
         actions: [CodexSessionsActionItemData],
-        actionMenuTitle: String?,
-        readOnlyText: String?
+        readOnlyText: String?,
+        menuMetadataItems: [CodexSessionsMetadataItemData] = []
     ) {
         self.id = id
         self.title = title
-        self.providerName = providerName
+        self.nameMetadataItems = nameMetadataItems
+        self.idText = idText
+        self.idSecondaryText = idSecondaryText
+        self.timeText = timeText
+        self.providerText = providerText
+        self.usage = usage
         self.isArchived = isArchived
         self.isEditable = isEditable
         self.summary = summary
-        self.badges = badges
-        self.metadataItems = metadataItems
         self.rolloutPath = rolloutPath
         self.showInFinderTitle = showInFinderTitle
         self.copyPathTitle = copyPathTitle
         self.stateRowCount = stateRowCount
         self.actions = actions
-        self.actionMenuTitle = actionMenuTitle
         self.readOnlyText = readOnlyText
+        self.menuMetadataItems = menuMetadataItems
     }
 
     public var showsRevealInFinder: Bool {
@@ -190,7 +205,8 @@ public struct CodexSessionsSectionData: Identifiable, Equatable, Sendable {
     public let badges: [CodexSessionsBadgeData]
     public let actions: [CodexSessionsActionItemData]
     public let actionMenuTitle: String?
-    public let isCollapsed: Bool
+    public let isExpanded: Bool
+    public let expansionTitle: String?
     public let rows: [CodexSessionsRowData]
 
     public init(
@@ -202,7 +218,8 @@ public struct CodexSessionsSectionData: Identifiable, Equatable, Sendable {
         badges: [CodexSessionsBadgeData],
         actions: [CodexSessionsActionItemData],
         actionMenuTitle: String?,
-        isCollapsed: Bool = false,
+        isExpanded: Bool = false,
+        expansionTitle: String? = nil,
         rows: [CodexSessionsRowData]
     ) {
         self.id = id
@@ -213,7 +230,8 @@ public struct CodexSessionsSectionData: Identifiable, Equatable, Sendable {
         self.badges = badges
         self.actions = actions
         self.actionMenuTitle = actionMenuTitle
-        self.isCollapsed = isCollapsed
+        self.isExpanded = isExpanded
+        self.expansionTitle = expansionTitle
         self.rows = rows
     }
 }

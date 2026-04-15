@@ -8932,7 +8932,7 @@
     },
     "codex.sessions.action.move_group" : {
       "comment" : "Move provider group",
-      "extractionState" : "extracted_with_value",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -8968,7 +8968,7 @@
     },
     "codex.sessions.action.move_session" : {
       "comment" : "Move single session",
-      "extractionState" : "extracted_with_value",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -9254,18 +9254,6 @@
         }
       }
     },
-    "codex.sessions.group.unknown_day" : {
-      "comment" : "Unknown session day label",
-      "extractionState" : "extracted_with_value",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Unknown Day"
-          }
-        }
-      }
-    },
     "codex.sessions.group.unknown_project" : {
       "comment" : "Unknown session project label",
       "extractionState" : "extracted_with_value",
@@ -9278,6 +9266,18 @@
         }
       }
     },
+    "codex.sessions.grouping.project" : {
+      "comment" : "Codex sessions project grouping title",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Project"
+          }
+        }
+      }
+    },
     "codex.sessions.grouping.provider" : {
       "comment" : "Codex sessions provider grouping title",
       "extractionState" : "extracted_with_value",
@@ -9286,18 +9286,6 @@
           "stringUnit" : {
             "state" : "new",
             "value" : "Provider"
-          }
-        }
-      }
-    },
-    "codex.sessions.grouping.time_project" : {
-      "comment" : "Codex sessions time and project grouping title",
-      "extractionState" : "extracted_with_value",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Time + Project"
           }
         }
       }
@@ -9316,7 +9304,7 @@
     },
     "codex.sessions.header.subtitle" : {
       "comment" : "Codex sessions header subtitle",
-      "extractionState" : "extracted_with_value",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -9332,14 +9320,26 @@
         }
       }
     },
-    "codex.sessions.header.subtitle.time_project" : {
-      "comment" : "Codex sessions header subtitle for time and project grouping",
+    "codex.sessions.header.subtitle.project" : {
+      "comment" : "Codex sessions header subtitle",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "new",
-            "value" : "Review sessions grouped by day and project. Single-session rewrite is always available; group rewrite is available when a section maps to one provider."
+            "value" : "Browse sessions by project first. Rewrite and diagnostics stay available from group and row menus."
+          }
+        }
+      }
+    },
+    "codex.sessions.header.subtitle.provider" : {
+      "comment" : "Codex sessions header subtitle for provider grouping",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Switch to provider grouping when you need a migration-oriented audit across projects."
           }
         }
       }
@@ -9351,12 +9351,12 @@
         "en" : {
           "stringUnit" : {
             "state" : "new",
-            "value" : "Session Provider Mapping"
+            "value" : "Project Sessions"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
-            "state" : "translated",
+            "state" : "needs_review",
             "value" : "会话 Provider 映射"
           }
         }
@@ -9488,6 +9488,60 @@
         }
       }
     },
+    "codex.sessions.metadata.forked_from" : {
+      "comment" : "Codex sessions forked from metadata",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Forked from %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "派生自 %@"
+          }
+        }
+      }
+    },
+    "codex.sessions.metadata.originator" : {
+      "comment" : "Codex sessions originator metadata",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Originator: %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "发起方：%@"
+          }
+        }
+      }
+    },
+    "codex.sessions.metadata.source" : {
+      "comment" : "Codex sessions source metadata",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Source: %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "来源：%@"
+          }
+        }
+      }
+    },
     "codex.sessions.more.db_rows" : {
       "comment" : "Codex sessions more menu DB rows",
       "extractionState" : "stale",
@@ -9508,7 +9562,7 @@
     },
     "codex.sessions.pagination.load_more" : {
       "comment" : "Load more sessions button",
-      "extractionState" : "extracted_with_value",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -9526,7 +9580,7 @@
     },
     "codex.sessions.pagination.showing" : {
       "comment" : "Current visible session count",
-      "extractionState" : "extracted_with_value",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -9578,6 +9632,30 @@
         }
       }
     },
+    "codex.sessions.section.collapse_rows" : {
+      "comment" : "Collapse project rows",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Collapse"
+          }
+        }
+      }
+    },
+    "codex.sessions.section.expand_rows" : {
+      "comment" : "Expand project rows",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Expand %d More"
+          }
+        }
+      }
+    },
     "codex.sessions.section.live_count" : {
       "comment" : "Live count in a provider section",
       "extractionState" : "extracted_with_value",
@@ -9616,6 +9694,18 @@
           "stringUnit" : {
             "state" : "new",
             "value" : "This group contains multiple providers, so only single-session rewrite is available."
+          }
+        }
+      }
+    },
+    "codex.sessions.section.subtitle.multi_provider.project" : {
+      "comment" : "Project section subtitle when multiple providers exist",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "This project contains multiple providers, so rewrite remains row-scoped."
           }
         }
       }
@@ -9686,6 +9776,18 @@
         }
       }
     },
+    "codex.sessions.time.unknown" : {
+      "comment" : "Unknown session time",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Unknown"
+          }
+        }
+      }
+    },
     "codex.sessions.untitled" : {
       "comment" : "Fallback codex session title",
       "extractionState" : "extracted_with_value",
@@ -9700,6 +9802,30 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "未命名会话"
+          }
+        }
+      }
+    },
+    "codex.sessions.usage.loading" : {
+      "comment" : "Usage loading placeholder",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Loading…"
+          }
+        }
+      }
+    },
+    "codex.sessions.usage.unavailable" : {
+      "comment" : "Usage unavailable label",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Unavailable"
           }
         }
       }

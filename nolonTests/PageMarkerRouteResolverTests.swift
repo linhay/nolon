@@ -1,6 +1,7 @@
 import XCTest
 import SwiftUI
 import ProviderCatalog
+import ProviderUsage
 import CodexBarProviderCatalog
 import NolonResourceKit
 import NolonUIFoundation
@@ -189,11 +190,20 @@ final class PageMarkerRouteResolverTests: XCTestCase {
         )
         let section = ProviderTokenTrendSection(
             snapshot: nil,
+            capability: .dailyWithIntradayDrilldown,
+            selectedDayKey: nil,
+            intradayBucket: .minute30,
+            intradaySnapshot: nil,
+            intradayErrorMessage: nil,
+            isLoadingIntraday: false,
             isLoading: false,
             errorMessage: nil,
             range: .days30,
             onRangeChange: { _ in },
+            onSelectDay: { _ in },
+            onIntradayBucketChange: { _ in },
             onRefresh: {},
+            onRefreshIntraday: {},
             debugPageMarkerItems: [
                 PageMarkerItem(title: provider.displayName),
                 PageMarkerItem(title: ProviderContentTabType.usage.localizedName(for: provider)),

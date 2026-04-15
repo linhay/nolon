@@ -9,6 +9,10 @@ import STFilePath
 
 protocol CodexSessionsTabServicing: Sendable {
     nonisolated func loadSnapshot(codexHome: URL) throws -> CodexSessionSnapshot
+    nonisolated func loadSessionUsage(
+        codexHome: URL,
+        rolloutPath: String
+    ) throws -> CodexSessionTokenTotals?
     nonisolated func previewRewrite(
         codexHome: URL,
         request: CodexSessionProviderRewriteRequest
@@ -35,12 +39,19 @@ extension CodexSessionStore: CodexSessionsTabStreamingServicing {}
 final class CodexSessionsTabViewModel {
     static let performanceNotification = Notification.Name("CodexSessionsTabViewModel.performance")
     private static let logger = Logger(subsystem: "com.nolon", category: "CodexSessionsTabViewModel")
+    static let defaultVisibleSessionCountPerSection = 5
 
     enum SessionGroupingMode: String, CaseIterable, Identifiable, Sendable {
+        case project = "project"
         case provider = "provider"
-        case timeProject = "time_project"
 
         var id: String { rawValue }
+    }
+
+    enum SessionUsageState: Equatable, Sendable {
+        case placeholder
+        case loaded(CodexSessionTokenTotals)
+        case failed
     }
 
     struct SessionRow: Identifiable, Equatable, Sendable {
@@ -48,6 +59,9 @@ final class CodexSessionsTabViewModel {
         let threadID: String?
         let title: String
         let summary: String?
+        let forkedFromID: String?
+        let originator: String?
+        let source: String?
         let modelProvider: String
         let archived: Bool
         let rolloutPath: String
@@ -55,11 +69,52 @@ final class CodexSessionsTabViewModel {
         let updatedAt: Date?
         let stateRowCount: Int
         let editable: Bool
+
+        init(
+            id: String,
+            threadID: String?,
+            title: String,
+            summary: String?,
+            forkedFromID: String? = nil,
+            originator: String? = nil,
+            source: String? = nil,
+            modelProvider: String,
+            archived: Bool,
+            rolloutPath: String,
+            cwd: String?,
+            updatedAt: Date?,
+            stateRowCount: Int,
+            editable: Bool
+        ) {
+            self.id = id
+            self.threadID = threadID
+            self.title = title
+            self.summary = summary
+            self.forkedFromID = forkedFromID
+            self.originator = originator
+            self.source = source
+            self.modelProvider = modelProvider
+            self.archived = archived
+            self.rolloutPath = rolloutPath
+            self.cwd = cwd
+            self.updatedAt = updatedAt
+            self.stateRowCount = stateRowCount
+            self.editable = editable
+        }
+
+        nonisolated var displayID: String {
+            let normalizedThreadID = threadID?.trimmingCharacters(in: .whitespacesAndNewlines)
+            if let normalizedThreadID, !normalizedThreadID.isEmpty {
+                return normalizedThreadID
+            }
+            return id
+        }
     }
 
     struct SessionSection: Identifiable, Equatable, Sendable {
         let id: String
         let title: String
+        let titleSecondaryText: String?
         let rewriteSourceLabel: String
         let rewriteSourceProviderID: String?
         let sessions: [SessionRow]
@@ -68,11 +123,12 @@ final class CodexSessionsTabViewModel {
         let liveCount: Int
         let archivedCount: Int
         let providerCount: Int
-        let isCollapsed: Bool
+        let isExpanded: Bool
 
         init(
             id: String,
             title: String,
+            titleSecondaryText: String?,
             rewriteSourceLabel: String,
             rewriteSourceProviderID: String?,
             sessions: [SessionRow],
@@ -81,10 +137,11 @@ final class CodexSessionsTabViewModel {
             liveCount: Int,
             archivedCount: Int,
             providerCount: Int,
-            isCollapsed: Bool = false
+            isExpanded: Bool = false
         ) {
             self.id = id
             self.title = title
+            self.titleSecondaryText = titleSecondaryText
             self.rewriteSourceLabel = rewriteSourceLabel
             self.rewriteSourceProviderID = rewriteSourceProviderID
             self.sessions = sessions
@@ -93,7 +150,7 @@ final class CodexSessionsTabViewModel {
             self.liveCount = liveCount
             self.archivedCount = archivedCount
             self.providerCount = providerCount
-            self.isCollapsed = isCollapsed
+            self.isExpanded = isExpanded
         }
 
         nonisolated var modelProvider: String { rewriteSourceProviderID ?? title }
@@ -101,6 +158,7 @@ final class CodexSessionsTabViewModel {
         nonisolated var hasHiddenSessions: Bool { visibleSessionCount < totalSessionCount }
         nonisolated var remainingSessionCount: Int { max(0, totalSessionCount - visibleSessionCount) }
         nonisolated var hasEditableSessions: Bool { sessions.contains(where: \.editable) }
+        nonisolated var hasOverflow: Bool { totalSessionCount > CodexSessionsTabViewModel.defaultVisibleSessionCountPerSection }
     }
 
     struct PendingRewrite: Identifiable, Equatable, Sendable {
@@ -128,6 +186,7 @@ final class CodexSessionsTabViewModel {
     private struct SessionSectionState: Equatable, Sendable {
         let id: String
         let title: String
+        let titleSecondaryText: String?
         let rewriteSourceLabel: String
         let rewriteSourceProviderID: String?
         let sessions: [SessionRow]
@@ -161,14 +220,15 @@ final class CodexSessionsTabViewModel {
     var statusMessage: String?
     var pendingRewrite: PendingRewrite?
     var showsInitialSkeleton = false
-    var groupingMode: SessionGroupingMode = .provider
+    var groupingMode: SessionGroupingMode = .project
 
     private let service: any CodexSessionsTabServicing
     private let pageSize: Int
     private var allRows: [SessionRow] = []
     private var allSectionStates: [SessionSectionState] = []
-    private var visibleSessionLimit = 0
-    private var collapsedSectionIDs: Set<String> = []
+    private var expandedSectionIDs: Set<String> = []
+    private var usageBySessionID: [String: SessionUsageState] = [:]
+    private var usageTasks: [String: Task<Void, Never>] = [:]
 
     init(
         provider: Provider,
@@ -205,7 +265,7 @@ final class CodexSessionsTabViewModel {
     }
 
     var remainingSessionCount: Int {
-        max(0, totalSessionCount - visibleSessionCount)
+        0
     }
 
     var groupCount: Int {
@@ -232,7 +292,7 @@ final class CodexSessionsTabViewModel {
     }
 
     var canLoadMore: Bool {
-        visibleSessionCount < totalSessionCount
+        false
     }
 
     var confirmationAlertData: ConfirmationAlertData {
@@ -394,7 +454,8 @@ final class CodexSessionsTabViewModel {
             availableTargetProviderIDs = []
             allRows = []
             allSectionStates = []
-            visibleSessionLimit = 0
+            cancelUsageTasks()
+            usageBySessionID = [:]
             showsInitialSkeleton = false
             alertMessage = error.localizedDescription
             Self.emitPerformance(
@@ -414,7 +475,7 @@ final class CodexSessionsTabViewModel {
     func setGroupingMode(_ newValue: SessionGroupingMode) {
         guard groupingMode != newValue else { return }
         groupingMode = newValue
-        rebuildSectionStates(preservedVisibleCount: visibleSessionCount)
+        rebuildSectionStates()
     }
 
     func targetProviders(for currentProviderID: String) -> [String] {
@@ -422,17 +483,24 @@ final class CodexSessionsTabViewModel {
     }
 
     func loadNextPage() {
-        guard canLoadMore else { return }
-        visibleSessionLimit = min(totalSessionCount, visibleSessionLimit + pageSize)
+        return
+    }
+
+    func toggleSectionExpansion(_ sectionID: String) {
+        if expandedSectionIDs.contains(sectionID) {
+            expandedSectionIDs.remove(sectionID)
+        } else {
+            expandedSectionIDs.insert(sectionID)
+        }
         rebuildVisibleSections()
     }
 
     func toggleSectionCollapse(_ sectionID: String) {
-        collapsedSectionIDs = GenericSelectionStateResolver.resolveMultiSelection(
-            current: collapsedSectionIDs,
-            tapped: sectionID
-        )
-        rebuildVisibleSections()
+        toggleSectionExpansion(sectionID)
+    }
+
+    func usageState(for sessionID: String) -> SessionUsageState {
+        usageBySessionID[sessionID] ?? .placeholder
     }
 
     func requestRewrite(for session: SessionRow, targetProviderID: String) async {
@@ -592,63 +660,37 @@ final class CodexSessionsTabViewModel {
     private func apply(presentation: SessionPresentation) {
         availableTargetProviderIDs = presentation.availableProviderIDs
         allRows = presentation.rows
-        rebuildSectionStates(preservedVisibleCount: visibleSessionLimit)
+        let validSessionIDs = Set(presentation.rows.map(\.id))
+        pruneUsageState(validSessionIDs: validSessionIDs)
+        rebuildSectionStates()
     }
 
-    private func rebuildSectionStates(preservedVisibleCount: Int) {
+    private func rebuildSectionStates() {
         allSectionStates = Self.makeSectionStates(from: allRows, groupingMode: groupingMode)
-        if totalSessionCount == 0 {
-            visibleSessionLimit = 0
-        } else if preservedVisibleCount > 0 {
-            visibleSessionLimit = min(totalSessionCount, max(pageSize, preservedVisibleCount))
-        } else {
-            visibleSessionLimit = min(totalSessionCount, pageSize)
-        }
+        let validSectionIDs = Set(allSectionStates.map(\.id))
+        expandedSectionIDs = expandedSectionIDs.intersection(validSectionIDs)
         rebuildVisibleSections()
     }
 
     private func rebuildVisibleSections() {
-        let sectionCount = allSectionStates.count
-        guard sectionCount > 0, visibleSessionLimit > 0 else {
+        guard !allSectionStates.isEmpty else {
             sections = []
             return
-        }
-
-        var visibleCounts = Array(repeating: 0, count: sectionCount)
-        var remaining = min(visibleSessionLimit, totalSessionCount)
-
-        let minimumVisibleRowsPerSection = 2
-        for _ in 0..<minimumVisibleRowsPerSection where remaining > 0 {
-            for index in 0..<sectionCount where remaining > 0 {
-                let section = allSectionStates[index]
-                guard visibleCounts[index] < section.totalSessionCount else { continue }
-                visibleCounts[index] += 1
-                remaining -= 1
-            }
-        }
-
-        if remaining > 0 {
-            for index in 0..<sectionCount where remaining > 0 {
-                let section = allSectionStates[index]
-                let alreadyVisible = visibleCounts[index]
-                let additionalCapacity = max(0, section.totalSessionCount - alreadyVisible)
-                guard additionalCapacity > 0 else { continue }
-                let additionalVisible = min(additionalCapacity, remaining)
-                visibleCounts[index] += additionalVisible
-                remaining -= additionalVisible
-            }
         }
 
         var visibleSections: [SessionSection] = []
         visibleSections.reserveCapacity(allSectionStates.count)
 
-        for (index, section) in allSectionStates.enumerated() {
-            let visibleCount = visibleCounts[index]
-            guard visibleCount > 0 else { continue }
+        for section in allSectionStates {
+            let isExpanded = expandedSectionIDs.contains(section.id)
+            let visibleCount = isExpanded
+                ? section.totalSessionCount
+                : min(section.totalSessionCount, Self.defaultVisibleSessionCountPerSection)
             visibleSections.append(
                 SessionSection(
                     id: section.id,
                     title: section.title,
+                    titleSecondaryText: section.titleSecondaryText,
                     rewriteSourceLabel: section.rewriteSourceLabel,
                     rewriteSourceProviderID: section.rewriteSourceProviderID,
                     sessions: Array(section.sessions.prefix(visibleCount)),
@@ -657,12 +699,13 @@ final class CodexSessionsTabViewModel {
                     liveCount: section.liveCount,
                     archivedCount: section.archivedCount,
                     providerCount: section.providerCount,
-                    isCollapsed: collapsedSectionIDs.contains(section.id)
+                    isExpanded: isExpanded
                 )
             )
         }
 
         sections = visibleSections
+        primeVisibleSessionUsages()
     }
 
     nonisolated private static func makePresentation(from snapshot: CodexSessionSnapshot) -> SessionPresentation {
@@ -672,6 +715,9 @@ final class CodexSessionsTabViewModel {
                 threadID: session.threadID,
                 title: compactDisplayText(session.title, maxLength: 120) ?? fallbackTitle(for: session),
                 summary: compactDisplayText(session.summary, maxLength: 180),
+                forkedFromID: session.forkedFromID,
+                originator: session.originator,
+                source: session.source,
                 modelProvider: session.modelProvider,
                 archived: session.archived,
                 rolloutPath: session.rolloutPath,
@@ -693,45 +739,41 @@ final class CodexSessionsTabViewModel {
         groupingMode: SessionGroupingMode
     ) -> [SessionSectionState] {
         switch groupingMode {
-        case .provider:
-            let grouped = Dictionary(grouping: rows, by: \.modelProvider)
+        case .project:
+            let grouped = Dictionary(grouping: rows) { row in
+                normalizedProjectPath(for: row.cwd) ?? "unknown-project"
+            }
             return grouped
-                .map { key, value in
-                    makeSectionState(
-                        id: "provider:\(key)",
-                        title: key,
-                        rewriteSourceLabel: key,
-                        rewriteSourceProviderID: key,
-                        sessions: value
+                .map { normalizedPath, value in
+                    let sortedSessions = value.sorted(by: sortSessionRows(_:_:))
+                    let providerIDs = Set(sortedSessions.map(\.modelProvider))
+                    let rewriteSourceProviderID = providerIDs.count == 1 ? providerIDs.first : nil
+                    let projectName = projectDisplayName(for: normalizedPath)
+                    return makeSectionState(
+                        id: "project:\(normalizedPath)",
+                        title: projectName,
+                        titleSecondaryText: normalizedPath == "unknown-project" ? nil : normalizedPath,
+                        rewriteSourceLabel: projectName,
+                        rewriteSourceProviderID: rewriteSourceProviderID,
+                        sessions: sortedSessions,
+                        providerCountOverride: providerIDs.count,
+                        editableThreadIDsOverride: rewriteSourceProviderID == nil ? [] : nil
                     )
                 }
                 .sorted(by: sortSections(_:_:))
 
-        case .timeProject:
-            let grouped = Dictionary(grouping: rows) { row in
-                let dayKey = sessionDayKey(for: row.updatedAt) ?? "unknown-day"
-                let projectPath = normalizedProjectPath(for: row.cwd) ?? "unknown-project"
-                return "\(dayKey)|\(projectPath)"
-            }
+        case .provider:
+            let grouped = Dictionary(grouping: rows, by: \.modelProvider)
             return grouped
-                .map { _, value in
-                    let dayLabel = sessionDayKey(for: value.first?.updatedAt)
-                        ?? NSLocalizedString(
-                            "codex.sessions.group.unknown_day",
-                            value: "Unknown Day",
-                            comment: "Unknown session day label"
-                        )
-                    let projectName = projectDisplayName(for: value.first?.cwd)
-                    let providerIDs = Set(value.map(\.modelProvider))
-                    let rewriteSourceProviderID = providerIDs.count == 1 ? providerIDs.first : nil
+                .map { key, value in
+                    let sortedSessions = value.sorted(by: sortSessionRows(_:_:))
                     return makeSectionState(
-                        id: "time-project:\(dayLabel)|\(normalizedProjectPath(for: value.first?.cwd) ?? "unknown-project")",
-                        title: "\(dayLabel) · \(projectName)",
-                        rewriteSourceLabel: "\(dayLabel) · \(projectName)",
-                        rewriteSourceProviderID: rewriteSourceProviderID,
-                        sessions: value,
-                        providerCountOverride: providerIDs.count,
-                        editableThreadIDsOverride: rewriteSourceProviderID == nil ? [] : nil
+                        id: "provider:\(key)",
+                        title: key,
+                        titleSecondaryText: nil,
+                        rewriteSourceLabel: key,
+                        rewriteSourceProviderID: key,
+                        sessions: sortedSessions
                     )
                 }
                 .sorted(by: sortSections(_:_:))
@@ -741,26 +783,29 @@ final class CodexSessionsTabViewModel {
     nonisolated private static func makeSectionState(
         id: String,
         title: String,
+        titleSecondaryText: String?,
         rewriteSourceLabel: String,
         rewriteSourceProviderID: String?,
         sessions: [SessionRow],
         providerCountOverride: Int? = nil,
         editableThreadIDsOverride: [String]? = nil
     ) -> SessionSectionState {
-        SessionSectionState(
+        let sortedSessions = sessions.sorted(by: sortSessionRows(_:_:))
+        return SessionSectionState(
             id: id,
             title: title,
+            titleSecondaryText: titleSecondaryText,
             rewriteSourceLabel: rewriteSourceLabel,
             rewriteSourceProviderID: rewriteSourceProviderID,
-            sessions: sessions,
-            liveCount: sessions.filter { !$0.archived }.count,
-            archivedCount: sessions.filter(\.archived).count,
-            editableThreadIDs: editableThreadIDsOverride ?? sessions.compactMap { row in
+            sessions: sortedSessions,
+            liveCount: sortedSessions.filter { !$0.archived }.count,
+            archivedCount: sortedSessions.filter(\.archived).count,
+            editableThreadIDs: editableThreadIDsOverride ?? sortedSessions.compactMap { row in
                 guard row.editable else { return nil }
                 return row.threadID
             },
-            providerCount: providerCountOverride ?? Set(sessions.map(\.modelProvider)).count,
-            latestUpdatedAt: sessions.first?.updatedAt
+            providerCount: providerCountOverride ?? Set(sortedSessions.map(\.modelProvider)).count,
+            latestUpdatedAt: sortedSessions.first?.updatedAt
         )
     }
 
@@ -797,9 +842,13 @@ final class CodexSessionsTabViewModel {
         return String(collapsed[..<endIndex]).trimmingCharacters(in: .whitespacesAndNewlines) + "…"
     }
 
-    nonisolated private static func sessionDayKey(for date: Date?) -> String? {
-        guard let date else { return nil }
-        return dayFormatter.string(from: date)
+    nonisolated private static func sortSessionRows(_ lhs: SessionRow, _ rhs: SessionRow) -> Bool {
+        let leftDate = lhs.updatedAt ?? .distantPast
+        let rightDate = rhs.updatedAt ?? .distantPast
+        if leftDate != rightDate {
+            return leftDate > rightDate
+        }
+        return lhs.displayID.localizedCaseInsensitiveCompare(rhs.displayID) == .orderedAscending
     }
 
     nonisolated private static func normalizedProjectPath(for cwd: String?) -> String? {
@@ -809,8 +858,8 @@ final class CodexSessionsTabViewModel {
         return URL(fileURLWithPath: cwd).standardizedFileURL.path
     }
 
-    nonisolated private static func projectDisplayName(for cwd: String?) -> String {
-        guard let normalizedPath = normalizedProjectPath(for: cwd) else {
+    nonisolated private static func projectDisplayName(for normalizedPath: String?) -> String {
+        guard let normalizedPath, normalizedPath != "unknown-project" else {
             return NSLocalizedString(
                 "codex.sessions.group.unknown_project",
                 value: "Unknown Project",
@@ -822,6 +871,57 @@ final class CodexSessionsTabViewModel {
             return normalizedPath
         }
         return projectName
+    }
+
+    private func primeVisibleSessionUsages() {
+        let visibleRows = sections.flatMap(\.sessions)
+        guard !visibleRows.isEmpty else { return }
+        let codexHome = provider.codexHomeFolder.url
+
+        for row in visibleRows {
+            guard usageBySessionID[row.id] == nil, usageTasks[row.id] == nil else { continue }
+            usageBySessionID[row.id] = .placeholder
+            let service = self.service
+            let sessionID = row.id
+            let rolloutPath = row.rolloutPath
+
+            usageTasks[sessionID] = Task { [weak self] in
+                let nextState: SessionUsageState
+                do {
+                    let usage = try await Task.detached(priority: .utility) {
+                        try service.loadSessionUsage(codexHome: codexHome, rolloutPath: rolloutPath)
+                    }.value
+                    if let usage {
+                        nextState = .loaded(usage)
+                    } else {
+                        nextState = .failed
+                    }
+                } catch {
+                    nextState = .failed
+                }
+
+                await MainActor.run {
+                    guard let self else { return }
+                    self.usageTasks[sessionID] = nil
+                    self.usageBySessionID[sessionID] = nextState
+                }
+            }
+        }
+    }
+
+    private func pruneUsageState(validSessionIDs: Set<String>) {
+        for (sessionID, task) in usageTasks where !validSessionIDs.contains(sessionID) {
+            task.cancel()
+            usageTasks.removeValue(forKey: sessionID)
+        }
+        usageBySessionID = usageBySessionID.filter { validSessionIDs.contains($0.key) }
+    }
+
+    private func cancelUsageTasks() {
+        for task in usageTasks.values {
+            task.cancel()
+        }
+        usageTasks.removeAll()
     }
 
     private func makeStatusMessage(

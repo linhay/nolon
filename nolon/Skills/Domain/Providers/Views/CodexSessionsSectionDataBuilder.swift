@@ -1,4 +1,5 @@
 import Foundation
+import CodexProvider
 import NolonUIFoundation
 
 enum CodexSessionsSectionDataBuilder {
@@ -15,12 +16,10 @@ enum CodexSessionsSectionDataBuilder {
     nonisolated static func buildSectionData(
         _ section: CodexSessionsTabViewModel.SessionSection,
         groupingMode: CodexSessionsTabViewModel.SessionGroupingMode,
-        targetProviders: (String) -> [String]
+        targetProviders: (String) -> [String],
+        usageState: (String) -> CodexSessionsTabViewModel.SessionUsageState
     ) -> CodexSessionsSectionData {
         let presentationKind = sectionPresentationKind(for: section)
-        let sectionProviderPresentation = groupingMode == .provider
-            ? section.rewriteSourceProviderID.map(providerPresentation(for:))
-            : nil
         let actions: [CodexSessionsActionItemData]
         if let sourceProviderID = section.rewriteSourceProviderID {
             actions = targetProviders(sourceProviderID).map { targetProviderID in
@@ -46,8 +45,8 @@ enum CodexSessionsSectionDataBuilder {
 
         return CodexSessionsSectionData(
             id: section.id,
-            title: sectionProviderPresentation?.primaryText ?? section.title,
-            titleSecondaryText: sectionProviderPresentation?.secondaryText,
+            title: section.title,
+            titleSecondaryText: section.titleSecondaryText,
             subtitle: makeSectionSubtitle(section, groupingMode: groupingMode, presentationKind: presentationKind),
             presentationKind: presentationKind,
             badges: makeSectionBadges(section),
@@ -55,16 +54,20 @@ enum CodexSessionsSectionDataBuilder {
             actionMenuTitle: actions.isEmpty
                 ? nil
                 : NSLocalizedString(
-                    "codex.sessions.action.move_group",
-                    value: "Move Group",
-                    comment: "Move provider group"
+                    groupingMode == .project
+                        ? "codex.sessions.action.move_project"
+                        : "codex.sessions.action.move_group",
+                    value: groupingMode == .project ? "Move Project Sessions" : "Move Group",
+                    comment: "Move project or provider group"
                 ),
-            isCollapsed: section.isCollapsed,
+            isExpanded: section.isExpanded,
+            expansionTitle: expansionTitle(for: section),
             rows: section.sessions.map { session in
                 makeRowData(
                     session,
                     groupingMode: groupingMode,
-                    targetProviders: targetProviders
+                    targetProviders: targetProviders,
+                    usageState: usageState(session.id)
                 )
             }
         )
@@ -137,29 +140,10 @@ enum CodexSessionsSectionDataBuilder {
     nonisolated private static func makeRowData(
         _ session: CodexSessionsTabViewModel.SessionRow,
         groupingMode: CodexSessionsTabViewModel.SessionGroupingMode,
-        targetProviders: (String) -> [String]
+        targetProviders: (String) -> [String],
+        usageState: CodexSessionsTabViewModel.SessionUsageState
     ) -> CodexSessionsRowData {
-        var metadataItems: [CodexSessionsMetadataItemData] = []
-        if let updatedText = relativeDateText(session.updatedAt) {
-            metadataItems.append(
-                .init(
-                    id: "updated",
-                    icon: "clock",
-                    text: updatedText
-                )
-            )
-        }
-        if let cwd = session.cwd, !cwd.isEmpty {
-            metadataItems.append(
-                .init(
-                    id: "cwd",
-                    icon: "folder",
-                    text: cwd,
-                    style: .code
-                )
-            )
-        }
-
+        let sourceProviderPresentation = providerPresentation(for: session.modelProvider)
         let actions = targetProviders(session.modelProvider).map { targetProviderID in
             let targetPresentation = providerPresentation(for: targetProviderID)
             return CodexSessionsActionItemData(
@@ -181,12 +165,15 @@ enum CodexSessionsSectionDataBuilder {
         return CodexSessionsRowData(
             id: session.id,
             title: session.title,
-            providerName: groupingMode == .timeProject ? providerPresentation(for: session.modelProvider).inlineText : nil,
+            nameMetadataItems: makeNameMetadataItems(for: session),
+            idText: session.displayID,
+            idSecondaryText: forkedFromText(for: session),
+            timeText: timeText(for: session.updatedAt),
+            providerText: sourceProviderPresentation.inlineText,
+            usage: usageDisplayData(from: usageState),
             isArchived: session.archived,
             isEditable: session.editable,
             summary: session.summary,
-            badges: [],
-            metadataItems: metadataItems,
             rolloutPath: session.rolloutPath,
             showInFinderTitle: NSLocalizedString(
                 "action.show_in_finder",
@@ -200,21 +187,113 @@ enum CodexSessionsSectionDataBuilder {
             ),
             stateRowCount: session.stateRowCount,
             actions: session.editable ? actions : [],
-            actionMenuTitle: session.editable && actions.count > 1
-                ? NSLocalizedString(
-                    "codex.sessions.action.move_session",
-                    value: "Move Session",
-                    comment: "Move single session"
-                )
-                : nil,
             readOnlyText: session.editable
                 ? nil
                 : NSLocalizedString(
                     "codex.sessions.read_only",
                     value: "Read Only",
                     comment: "Read only session label"
-                )
+                ),
+            menuMetadataItems: makeMenuMetadataItems(for: session)
         )
+    }
+
+    nonisolated private static func makeNameMetadataItems(
+        for session: CodexSessionsTabViewModel.SessionRow
+    ) -> [CodexSessionsMetadataItemData] {
+        var items: [CodexSessionsMetadataItemData] = []
+
+        if let sourceValue = compactMetadataValue(session.source, maxLength: 24) {
+            items.append(
+                .init(
+                    id: "source",
+                    icon: "paperplane",
+                    text: String(
+                        format: NSLocalizedString(
+                            "codex.sessions.metadata.source",
+                            value: "Source: %@",
+                            comment: "Codex sessions source metadata"
+                        ),
+                        sourceValue
+                    )
+                )
+            )
+        }
+
+        if let originatorValue = compactMetadataValue(session.originator, maxLength: 24) {
+            items.append(
+                .init(
+                    id: "originator",
+                    icon: "person.crop.circle",
+                    text: String(
+                        format: NSLocalizedString(
+                            "codex.sessions.metadata.originator",
+                            value: "Originator: %@",
+                            comment: "Codex sessions originator metadata"
+                        ),
+                        originatorValue
+                    )
+                )
+            )
+        }
+
+        return items
+    }
+
+    nonisolated private static func makeMenuMetadataItems(
+        for session: CodexSessionsTabViewModel.SessionRow
+    ) -> [CodexSessionsMetadataItemData] {
+        var items: [CodexSessionsMetadataItemData] = []
+
+        if let forkedFromID = trimmedMetadataValue(session.forkedFromID) {
+            items.append(
+                .init(
+                    id: "forked-from",
+                    icon: "arrow.triangle.branch",
+                    text: String(
+                        format: NSLocalizedString(
+                            "codex.sessions.metadata.forked_from",
+                            value: "Forked from %@",
+                            comment: "Codex sessions forked from metadata"
+                        ),
+                        forkedFromID
+                    ),
+                    style: .code
+                )
+            )
+        }
+
+        items.append(contentsOf: makeNameMetadataItems(for: session))
+        return items
+    }
+
+    nonisolated private static func forkedFromText(
+        for session: CodexSessionsTabViewModel.SessionRow
+    ) -> String? {
+        guard let forkedFromID = compactMetadataValue(session.forkedFromID, maxLength: 12) else {
+            return nil
+        }
+        return String(
+            format: NSLocalizedString(
+                "codex.sessions.metadata.forked_from",
+                value: "Forked from %@",
+                comment: "Codex sessions forked from metadata"
+            ),
+            forkedFromID
+        )
+    }
+
+    nonisolated private static func compactMetadataValue(_ raw: String?, maxLength: Int) -> String? {
+        guard let value = trimmedMetadataValue(raw) else { return nil }
+        guard value.count > maxLength else { return value }
+        return String(value.prefix(max(1, maxLength - 1))) + "…"
+    }
+
+    nonisolated private static func trimmedMetadataValue(_ raw: String?) -> String? {
+        guard let raw = raw?.trimmingCharacters(in: .whitespacesAndNewlines), !raw.isEmpty else {
+            return nil
+        }
+        return raw
     }
 
     nonisolated private static func makeSectionSubtitle(
@@ -230,14 +309,71 @@ enum CodexSessionsSectionDataBuilder {
                 comment: "Read-only section subtitle"
             )
         case .singleSessionOnly:
-            return NSLocalizedString(
-                "codex.sessions.section.subtitle.multi_provider",
-                value: "This group contains multiple providers, so only single-session rewrite is available.",
-                comment: "Multi-provider section subtitle"
-            )
+            return groupingMode == .project
+                ? NSLocalizedString(
+                    "codex.sessions.section.subtitle.multi_provider.project",
+                    value: "This project contains multiple providers, so rewrite remains row-scoped.",
+                    comment: "Project section subtitle when multiple providers exist"
+                )
+                : NSLocalizedString(
+                    "codex.sessions.section.subtitle.multi_provider",
+                    value: "This group contains multiple providers, so only single-session rewrite is available.",
+                    comment: "Multi-provider section subtitle"
+                )
         case .rewritableGroup:
-            _ = groupingMode
             return nil
+        }
+    }
+
+    nonisolated private static func expansionTitle(
+        for section: CodexSessionsTabViewModel.SessionSection
+    ) -> String? {
+        guard section.totalSessionCount > CodexSessionsTabViewModel.defaultVisibleSessionCountPerSection else {
+            return nil
+        }
+        if section.isExpanded {
+            return NSLocalizedString(
+                "codex.sessions.section.collapse_rows",
+                value: "Collapse",
+                comment: "Collapse project rows"
+            )
+        }
+        return String(
+            format: NSLocalizedString(
+                "codex.sessions.section.expand_rows",
+                value: "Expand %d More",
+                comment: "Expand project rows"
+            ),
+            section.remainingSessionCount
+        )
+    }
+
+    nonisolated private static func usageDisplayData(
+        from usageState: CodexSessionsTabViewModel.SessionUsageState
+    ) -> CodexSessionsUsageDisplayData {
+        switch usageState {
+        case .placeholder:
+            return .placeholder(
+                text: NSLocalizedString(
+                    "codex.sessions.usage.loading",
+                    value: "Loading…",
+                    comment: "Usage loading placeholder"
+                )
+            )
+        case .loaded(let usage):
+            let detail = "in \(TokenCountFormatters.compact(usage.inputTokens)) · out \(TokenCountFormatters.compact(usage.outputTokens))"
+            return .value(
+                primaryText: TokenCountFormatters.compact(usage.inputTokens + usage.outputTokens),
+                secondaryText: detail
+            )
+        case .failed:
+            return .failed(
+                text: NSLocalizedString(
+                    "codex.sessions.usage.unavailable",
+                    value: "Unavailable",
+                    comment: "Usage unavailable label"
+                )
+            )
         }
     }
 
@@ -272,10 +408,23 @@ enum CodexSessionsSectionDataBuilder {
         return .rewritableGroup
     }
 
-    nonisolated private static func relativeDateText(_ date: Date?) -> String? {
-        guard let date else { return nil }
-        let formatter = RelativeDateTimeFormatter()
-        formatter.unitsStyle = .short
-        return formatter.localizedString(for: date, relativeTo: Date())
+    nonisolated private static func timeText(for date: Date?) -> String {
+        guard let date else {
+            return NSLocalizedString(
+                "codex.sessions.time.unknown",
+                value: "Unknown",
+                comment: "Unknown session time"
+            )
+        }
+        return timestampFormatter.string(from: date)
     }
+
+    nonisolated private static let timestampFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = .current
+        formatter.dateFormat = "yyyy-MM-dd HH:mm"
+        return formatter
+    }()
 }

@@ -8,6 +8,16 @@ struct GeminiIntradayUsageServiceTests {
     func fetchActiveSnapshot_aggregatesSelectedDayIntoDSTBuckets() async throws {
         let globalGeminiURL = URL(fileURLWithPath: "/Users/tester/.gemini", isDirectory: true)
         let timezone = try #require(TimeZone(identifier: "America/Los_Angeles"))
+        let referenceDate = try #require(
+            Calendar(identifier: .gregorian).date(from: DateComponents(
+                timeZone: TimeZone(secondsFromGMT: 0),
+                year: 2026,
+                month: 3,
+                day: 9,
+                hour: 12,
+                minute: 0
+            ))
+        )
         let service = GeminiIntradayUsageService(
             loadActiveAccount: { provider in
                 #expect(provider == .gemini)
@@ -52,7 +62,7 @@ struct GeminiIntradayUsageServiceTests {
                 }
                 """
             },
-            now: { Date(timeIntervalSince1970: 1_710_000_000) }
+            now: { referenceDate }
         )
 
         let snapshot = try #require(
@@ -67,11 +77,11 @@ struct GeminiIntradayUsageServiceTests {
         #expect(snapshot.dayKey == "2026-03-08")
         #expect(snapshot.timezoneIdentifier == timezone.identifier)
         #expect(snapshot.bucket == .minute30)
-        #expect(snapshot.actualBucketCount == 46)
-        #expect(snapshot.points.count == 46)
+        #expect(snapshot.actualBucketCount == 2)
+        #expect(snapshot.points.count == 2)
         #expect(snapshot.points.reduce(0) { $0 + $1.totalTokens } == 230)
-        #expect(snapshot.points[2].totalTokens == 140)
-        #expect(snapshot.points[4].totalTokens == 90)
+        #expect(snapshot.points[0].totalTokens == 140)
+        #expect(snapshot.points[1].totalTokens == 90)
         #expect(snapshot.sourceLabel == "session")
     }
 

@@ -194,3 +194,181 @@
   - `nolonTests/CodexSessionsCardSnapshotTests.swift` 更新为包含 Finder 入口的最新 row 结构。
 - 验证：
   - `xcodebuild test -project nolon.xcodeproj -scheme nolon-tests -destination 'platform=macOS' -only-testing:nolonTests/CodexSessionsSectionDataBuilderTests -only-testing:nolonTests/CodexSessionsCardSnapshotTests`
+
+## 增量（2026-04-14：Project-First 浏览模型重定）
+
+### 背景
+- 经过 2026-04-14 当天多轮 debate、3 个 subagent、`Claude Code`、`Gemini CLI` 复核后，`codex-sessions` tab 的产品定位已从“迁移优先，诊断可达”改写为：
+  - `project 会话浏览优先，迁移与诊断可达`
+- 这意味着：
+  - 原先以 `provider` 为默认入口、以全局分页和 section floor=`2` 为主的浏览模型，不再是主方案。
+  - migration/rewrite 能力仍保留，但退居为项目浏览视角下的可达动作，而不是页面 IA 的第一驱动力。
+
+### 新目标
+1. `Sessions` tab 默认按 `project` 分组，而不是按 `provider` 分组。
+2. project 组内按 `updatedAt` 从新到旧排序。
+3. 每个 project 组默认只显示 `5` 条会话；超过后通过 group 级 `展开 / 收起` 控制，不再依赖页面级 `Load More` 作为主交互。
+4. 会话行改为稳定 table 模式，主列固定为：
+   - `名称`
+   - `id`
+   - `时间`
+   - `provider`
+   - `用量`
+   - `菜单`
+5. `用量` 列允许异步回填，但不能阻塞首屏渲染。
+6. 切换到 `Sessions` tab 时优先复用旧数据，再在后台做增量刷新；刷新过程不应清空当前内容，也不应丢失展开状态。
+7. migration 与诊断信息继续可达，但统一收敛到 `菜单`、确认弹窗和次级入口中。
+
+### 非目标
+- 不在这一轮把 `Sessions` 页做成实时监控面板。
+- 不引入右侧详情面板或新的 split navigation。
+- 不在这一轮重做底层 rewrite 能力或 SQLite 改写链路。
+- 不要求首轮就保留 `时间 + 项目` 作为一级分组入口；它是否保留为高级诊断视角，可后续再定。
+
+### 产品约束
+1. 新的主方案定位为：`project 会话浏览优先，迁移与诊断可达`。
+2. 默认 grouping 为 `project`；`provider` 只保留为次级切换视角。
+3. group 级展开状态必须稳定记忆，且后台刷新不能打断用户当前展开/收起状态。
+4. `名称 / id / 时间 / provider / 用量 / 菜单` 是固定主列，不得再退回旧的 card-table 混合主列。
+5. `用量` 的异步更新必须采用行级缓存或等价机制，避免整组重排抖动。
+6. tab 切换增量刷新必须满足：
+   - 优先显示旧数据
+   - 后台补新
+   - 不清空当前表格
+   - 不重置展开状态
+
+### BDD 验收（Project-First 增量）
+1. Given 用户首次进入 `Sessions`
+   When 页面完成首轮渲染
+   Then 默认 grouping 为 `project`，且不是 `provider`。
+
+2. Given 某个 project 组下存在多条会话
+   When 页面展示该组
+   Then 组内会话按 `updatedAt` 从新到旧排序。
+
+3. Given 某个 project 组下有超过 `5` 条会话
+   When 页面首次渲染完成
+   Then 该组默认只显示前 `5` 条，并出现 `展开 / 收起` 控件。
+
+4. Given 某个 project 组当前处于默认折叠配额
+   When 用户点击 `展开`
+   Then 该组展示完整会话列表；再次点击 `收起` 后恢复到 `5` 条。
+
+5. Given 会话表格完成渲染
+   When 用户查看任意一行
+   Then 主列稳定为 `名称 / id / 时间 / provider / 用量 / 菜单`。
+
+## 增量（2026-04-15：宽度自适应）
+
+### 目标
+- 让 `codex-sessions` 在不同窗口宽度下都保持可读，而不是只在宽窗口下成立。
+- 保持 `project-first` 的信息优先级不变，但允许展示密度随宽度分档调整。
+
+### 规则
+1. 宽窗口：
+   - 继续使用完整 `6` 列主表格：
+     - `名称 / id / 时间 / provider / 用量 / 菜单`
+2. 中等宽度：
+   - 仍保持 `6` 列表格
+   - 但 `id / time / provider / usage / menu` 列宽收紧，优先保住 `Name` 列可读性
+3. 窄窗口：
+   - section 内部 rows 切换为堆叠详情布局，而不是继续硬挤 `6` 列
+   - 单条 row 至少保留：
+     - title
+     - `originator / source` metadata
+     - `Forked From`
+     - `time / provider / usage`
+     - row menu
+4. overview header 与 section header 的操作区需要随宽度从横排切到竖排，避免按钮把标题区压坏。
+
+### 验收
+1. Given `Sessions` 处于宽窗口
+   When 渲染 project section
+   Then 仍显示完整 `6` 列表格。
+
+2. Given `Sessions` 处于中等宽度窗口
+   When 渲染 project section
+   Then 仍保持表格布局，且 `Name` 列不会被过度压缩到失去可读性。
+
+3. Given `Sessions` 处于窄窗口
+   When 渲染 project section
+   Then row 切换为堆叠详情布局，而不是继续显示拥挤的六列表格。
+
+4. Given `Sessions` 处于窄窗口
+   When 渲染 overview / section header
+   Then 标题与按钮区自动换成上下结构，不产生明显重叠或裁切。
+
+### 验证
+- `xcodebuild test -project nolon.xcodeproj -scheme nolon-tests -destination 'platform=macOS' -skipPackageUpdates -clonedSourcePackagesDirPath /Users/linhey/Library/Developer/Xcode/DerivedData/nolon-daifteoyynegwuevitolzuidfhnx/SourcePackages -only-testing:nolonTests/CodexSessionsCardSnapshotTests`
+- 相关快照覆盖：
+  - 宽窗口 project-first 表格
+  - 中宽紧凑列表格
+  - 窄宽堆叠详情布局
+
+6. Given `用量` 数据尚未返回
+   When 首屏渲染会话表格
+   Then `用量` 列显示异步占位状态，但其它主列与菜单立即可用。
+
+7. Given 用户从其它 tab 切回 `Sessions`
+   When 新一轮后台刷新开始
+   Then 先显示上次已知 rows，再渐进更新变化项，而不是先清空整页。
+
+8. Given 某个 project 组已被用户展开
+   When 后台刷新完成或 `用量` 异步回填
+   Then 该组展开状态保持不变，且不会因刷新回退到默认 `5` 条。
+
+9. Given 用户仍需做 provider rewrite
+   When 打开某条会话的 `菜单`
+   Then migration 与诊断动作仍然可达，并保持确认弹窗语义不丢失。
+
+### 实现落点（第二轮）
+- `nolon/Skills/Domain/Providers/Views/CodexSessionsTabViewModel.swift`
+  - 新增 `project` grouping
+  - 用 group 级 visible budget 取代当前全局 `visibleSessionLimit` 主逻辑
+  - 增加 tab cache / refresh contract
+  - 增加 `usageBySessionID` 或等价行级异步缓存
+- `nolon/Skills/Domain/Providers/Views/CodexSessionsTabView.swift`
+  - 默认切到 `project`
+  - 调整 overview、grouping 控件与刷新提示语义
+- `nolon/Skills/Domain/Providers/Views/CodexSessionsSectionDataBuilder.swift`
+  - 适配新主列和 project 组 metadata
+  - 注入 row id / time / provider / usage 占位信息
+- `libs/NolonUIFoundation/Sources/NolonUIFoundation/CodexSessionsModels.swift`
+  - 扩展 row / section model 以承载固定列与 usage 状态
+- `libs/NolonUI/Sources/NolonUI/Components/Shared/UnifiedCodexSessionViews.swift`
+  - 重写主表格结构为 project-first 固定列
+  - 增加 group 级 `展开 / 收起` 承载
+- `libs/Providers/Sources/Providers/Codex/CodexSessionStore.swift`
+  - 若实现 usage 列需要底层数据支持，在这里补齐会话用量读取或聚合接口
+
+### 测试（第二轮）
+- `nolonTests/CodexSessionsTabViewModelTests.swift`
+  - project grouping 默认值
+  - project 组内倒序
+  - 每组 `5` 条 + 展开/收起
+  - tab 切换缓存与后台刷新
+  - usage 异步回填不打断展开状态
+- `nolonTests/CodexSessionsSectionDataBuilderTests.swift`
+  - 新固定列数据组装
+  - project 组 metadata
+  - usage 占位 / 成功 / 失败态
+- `nolonTests/CodexSessionsCardSnapshotTests.swift`
+  - project-first 主表格快照
+  - 展开/收起快照
+  - usage 占位态快照
+
+### 迁移说明
+- 以下旧结论自本增量起降级为历史背景，不再作为执行主方案：
+  1. `provider` 默认 grouping
+  2. 全局 `visibleSessionLimit + section floor=2 + Load More`
+  3. 以 migration workbench 为主的旧主列优先级
+
+### 执行状态（2026-04-14 20:34 CST）
+- 本增量已完成实现，并完成定向回归验证。
+- 验证命令：
+  - `xcodebuild test -project nolon.xcodeproj -scheme nolon-tests -destination 'platform=macOS' -only-testing:nolonTests/CodexSessionsCardSnapshotTests -only-testing:nolonTests/CodexSessionsSectionDataBuilderTests -only-testing:nolonTests/CodexSessionsTabViewModelTests`
+- 验证结果：
+  - `12` 个测试全部通过，`0` 失败
+- 当前 feature 状态：
+  - 从 `project-first 浏览模型重定` 进入 `已落地`
+  - 后续变更应基于本状态继续迭代，不再把本节当作待讨论候选

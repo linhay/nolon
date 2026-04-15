@@ -100,6 +100,7 @@ public struct ProviderIntradayBucketOption: Identifiable, Hashable, Sendable {
 
 public struct ProviderIntradayUsagePointData: Hashable, Sendable {
     public let label: String
+    public let rangeLabel: String
     public let totalTokens: Int
     public let inputTokens: Int
     public let outputTokens: Int
@@ -107,12 +108,14 @@ public struct ProviderIntradayUsagePointData: Hashable, Sendable {
 
     public init(
         label: String,
+        rangeLabel: String,
         totalTokens: Int,
         inputTokens: Int,
         outputTokens: Int,
         cacheReadTokens: Int
     ) {
         self.label = label
+        self.rangeLabel = rangeLabel
         self.totalTokens = totalTokens
         self.inputTokens = inputTokens
         self.outputTokens = outputTokens
@@ -124,7 +127,10 @@ public struct ProviderTokenTrendDrilldownData: Sendable {
     public let dayKey: String
     public let bucketID: String
     public let actualBucketCount: Int
+    public let fullBucketCount: Int
     public let rangeDescription: String
+    public let bucketSummary: String?
+    public let presentationNote: String?
     public let points: [ProviderIntradayUsagePointData]
     public let availableBuckets: [ProviderIntradayBucketOption]
     public let isLoading: Bool
@@ -135,7 +141,10 @@ public struct ProviderTokenTrendDrilldownData: Sendable {
         dayKey: String,
         bucketID: String,
         actualBucketCount: Int,
+        fullBucketCount: Int,
         rangeDescription: String,
+        bucketSummary: String?,
+        presentationNote: String?,
         points: [ProviderIntradayUsagePointData],
         availableBuckets: [ProviderIntradayBucketOption],
         isLoading: Bool,
@@ -145,7 +154,10 @@ public struct ProviderTokenTrendDrilldownData: Sendable {
         self.dayKey = dayKey
         self.bucketID = bucketID
         self.actualBucketCount = actualBucketCount
+        self.fullBucketCount = fullBucketCount
         self.rangeDescription = rangeDescription
+        self.bucketSummary = bucketSummary
+        self.presentationNote = presentationNote
         self.points = points
         self.availableBuckets = availableBuckets
         self.isLoading = isLoading

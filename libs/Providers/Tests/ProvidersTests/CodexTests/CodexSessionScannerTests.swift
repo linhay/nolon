@@ -69,6 +69,39 @@ struct CodexSessionScannerTests {
         #expect(meta.modelProvider == "openai")
     }
 
+    @Test("readSessionMeta preserves forked from originator and source")
+    func readSessionMetaPreservesRawMetadata() throws {
+        let root = try makeTempRoot("codex-session-scanner-raw-meta")
+        defer { try? root.delete() }
+
+        let codexHome = root.folder("provider")
+        _ = codexHome.createIfNotExists()
+
+        let file = try writeSessionFile(
+            codexHome: codexHome,
+            directory: "sessions",
+            date: "2026/04/10",
+            filename: "raw-meta.jsonl",
+            threadID: "thread-meta",
+            modelProvider: "OpenAI",
+            forkedFromID: "parent-thread-01",
+            originator: "claude-code",
+            source: "cli"
+        )
+
+        let scannedFile = try #require(
+            CodexSessionScanner.scanFiles(codexHome: codexHome, includeArchived: false)
+                .first(where: {
+                    $0.file.url.standardizedFileURL.path == file.url.standardizedFileURL.path
+                })
+        )
+        let meta = try #require(CodexSessionScanner.readSessionMeta(from: scannedFile))
+
+        #expect(meta.forkedFromID == "parent-thread-01")
+        #expect(meta.originator == "claude-code")
+        #expect(meta.source == "cli")
+    }
+
     private func makeTempRoot(_ prefix: String) throws -> STFolder {
         let root = STFolder("/tmp").folder("\(prefix)-\(UUID().uuidString)")
         _ = root.createIfNotExists()
@@ -82,7 +115,10 @@ struct CodexSessionScannerTests {
         date: String,
         filename: String,
         threadID: String,
-        modelProvider: String
+        modelProvider: String,
+        forkedFromID: String? = nil,
+        originator: String? = nil,
+        source: String? = nil
     ) throws -> STFile {
         let parts = date.split(separator: "/").map(String.init)
         var folder = codexHome.folder(directory)
@@ -92,9 +128,27 @@ struct CodexSessionScannerTests {
         _ = folder.createIfNotExists()
 
         let file = folder.file(filename)
-        let sessionMeta = """
-        {"timestamp":"2026-04-10T10:00:00Z","type":"session_meta","payload":{"id":"\(threadID)","timestamp":"2026-04-10T10:00:00Z","cwd":"/tmp/project","model_provider":"\(modelProvider)"}}
-        """
+        var payload: [String: String] = [
+            "id": threadID,
+            "timestamp": "2026-04-10T10:00:00Z",
+            "cwd": "/tmp/project",
+            "model_provider": modelProvider,
+        ]
+        if let forkedFromID {
+            payload["forked_from_id"] = forkedFromID
+        }
+        if let originator {
+            payload["originator"] = originator
+        }
+        if let source {
+            payload["source"] = source
+        }
+        let sessionMetaData = try JSONSerialization.data(withJSONObject: [
+            "timestamp": "2026-04-10T10:00:00Z",
+            "type": "session_meta",
+            "payload": payload,
+        ])
+        let sessionMeta = String(decoding: sessionMetaData, as: UTF8.self)
         let userMessage = """
         {"timestamp":"2026-04-10T10:00:01Z","type":"event_msg","payload":{"type":"user_message","message":"hello"}}
         """

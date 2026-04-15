@@ -64,6 +64,7 @@ public struct CodexIntradayUsageService: Sendable {
         guard let range = Self.makeDayRange(dayKey: dayKey, timezone: timezone) else {
             return nil
         }
+        let referenceDate = now()
 
         var globalEnvironment = environment
         globalEnvironment.removeValue(forKey: "CODEX_HOME")
@@ -76,8 +77,9 @@ public struct CodexIntradayUsageService: Sendable {
             timezone: timezone,
             rangeStart: range.start,
             rangeEnd: range.end,
-            fallbackFetchedAt: now()
+            fallbackFetchedAt: referenceDate
         )
+        .trimmedForPresentation(referenceDate: referenceDate)
     }
 
     private static func buildSnapshot(

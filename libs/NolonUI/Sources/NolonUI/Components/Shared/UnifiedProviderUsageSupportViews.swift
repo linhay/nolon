@@ -176,11 +176,10 @@ public struct ProviderTokenTrendSectionView: View {
 
             if let snapshot = data.snapshot {
                 summary(snapshot: snapshot)
-                chartSection(snapshot: snapshot)
+                dailyTrendBlock(snapshot: snapshot)
                 if let drilldown = data.drilldown {
                     drilldownSection(drilldown)
                 }
-                tableSection(snapshot: snapshot)
             } else if let errorMessage = data.errorMessage, !errorMessage.isEmpty {
                 errorState(message: errorMessage)
             } else if data.isLoading {
@@ -273,7 +272,7 @@ public struct ProviderTokenTrendSectionView: View {
         }
     }
 
-    private func chartSection(snapshot: ProviderTokenTrendSnapshotData) -> some View {
+    private func dailyTrendBlock(snapshot: ProviderTokenTrendSnapshotData) -> some View {
         let title = NSLocalizedString("usage.token_trend.chart", value: "Daily Trend", comment: "Daily trend chart title")
         return VStack(alignment: .leading, spacing: 12) {
             HStack {
@@ -283,6 +282,7 @@ public struct ProviderTokenTrendSectionView: View {
                 chartLegend
             }
             chart(snapshot: snapshot)
+            dailyTableSection(snapshot: snapshot)
         }
         .padding(12)
         .background(DesignSystem.Colors.Background.elevated.opacity(0.2), in: RoundedRectangle(cornerRadius: 12))
@@ -314,7 +314,7 @@ public struct ProviderTokenTrendSectionView: View {
             let barWidth = max(4, min(24, availableWidth / CGFloat(max(1, points.count))))
 
             ScrollViewReader { scrollProxy in
-                ScrollView(.horizontal, showsIndicators: false) {
+                ScrollView(.horizontal) {
                     HStack(alignment: .bottom, spacing: spacing) {
                         ForEach(points, id: \.date) { point in
                             stackedBar(point: point, maxValue: maxValue, width: barWidth, maxHeight: proxy.size.height - 24)
@@ -328,6 +328,7 @@ public struct ProviderTokenTrendSectionView: View {
                         scrollProxy.scrollTo(lastDate, anchor: .trailing)
                     }
                 }
+                .scrollIndicators(.hidden)
             }
         }
         .frame(height: 160)
@@ -369,7 +370,7 @@ public struct ProviderTokenTrendSectionView: View {
         return Rectangle().fill(color).frame(height: ratio * height)
     }
 
-    private func tableSection(snapshot: ProviderTokenTrendSnapshotData) -> some View {
+    private func dailyTableSection(snapshot: ProviderTokenTrendSnapshotData) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(NSLocalizedString("usage.token_trend.table", value: "Daily Breakdown", comment: "Daily breakdown table"))
                 .font(.subheadline.weight(.semibold))
@@ -387,6 +388,7 @@ public struct ProviderTokenTrendSectionView: View {
                         }
                     }
                 }
+                .scrollIndicators(.hidden)
                 .frame(maxHeight: 300)
             }
             .clipShape(RoundedRectangle(cornerRadius: 12))
@@ -546,6 +548,18 @@ public struct ProviderTokenTrendSectionView: View {
                 .pickerStyle(.segmented)
             }
 
+            if let bucketSummary = drilldown.bucketSummary, !bucketSummary.isEmpty {
+                Text(bucketSummary)
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(DesignSystem.Colors.Text.primary)
+            }
+
+            if let presentationNote = drilldown.presentationNote, !presentationNote.isEmpty {
+                Text(presentationNote)
+                    .font(.system(size: 10, weight: .regular))
+                    .foregroundStyle(DesignSystem.Colors.Text.tertiary)
+            }
+
             if let errorMessage = drilldown.errorMessage, !errorMessage.isEmpty, drilldown.points.isEmpty {
                 drilldownErrorState(message: errorMessage)
             } else if drilldown.isLoading, drilldown.points.isEmpty {
@@ -554,6 +568,7 @@ public struct ProviderTokenTrendSectionView: View {
                 drilldownEmptyState
             } else {
                 drilldownChart(points: drilldown.points)
+                intradayTableSection(drilldown)
             }
         }
         .padding(12)
@@ -567,44 +582,133 @@ public struct ProviderTokenTrendSectionView: View {
             let availableWidth = proxy.size.width - (CGFloat(max(0, points.count - 1)) * spacing)
             let barWidth = max(6, min(20, availableWidth / CGFloat(max(1, points.count))))
 
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(alignment: .bottom, spacing: spacing) {
-                    ForEach(Array(points.enumerated()), id: \.offset) { _, point in
-                        VStack(spacing: 6) {
-                            VStack(spacing: 0) {
-                                barSegment(
-                                    value: point.inputTokens,
-                                    total: point.totalTokens,
-                                    height: max(6, CGFloat(point.totalTokens) / CGFloat(maxValue) * (proxy.size.height - 30)),
-                                    color: DesignSystem.Colors.primary
-                                )
-                                barSegment(
-                                    value: point.outputTokens,
-                                    total: point.totalTokens,
-                                    height: max(6, CGFloat(point.totalTokens) / CGFloat(maxValue) * (proxy.size.height - 30)),
-                                    color: DesignSystem.Colors.Status.success
-                                )
-                                barSegment(
-                                    value: point.cacheReadTokens,
-                                    total: point.totalTokens,
-                                    height: max(6, CGFloat(point.totalTokens) / CGFloat(maxValue) * (proxy.size.height - 30)),
-                                    color: DesignSystem.Colors.Status.warning
-                                )
-                            }
-                            .frame(width: barWidth, height: max(6, CGFloat(point.totalTokens) / CGFloat(maxValue) * (proxy.size.height - 30)))
-                            .clipShape(RoundedRectangle(cornerRadius: 4))
-
-                            Text(point.label)
-                                .font(.system(size: 9))
-                                .monospacedDigit()
-                                .foregroundStyle(DesignSystem.Colors.Text.tertiary)
+            ZStack(alignment: .bottomLeading) {
+                VStack(spacing: 0) {
+                    ForEach([1.0, 0.5, 0.0], id: \.self) { ratio in
+                        Rectangle()
+                            .fill(DesignSystem.Colors.Background.elevated.opacity(ratio == 0 ? 0.45 : 0.28))
+                            .frame(height: 1)
+                        if ratio > 0 {
+                            Spacer()
                         }
                     }
                 }
-                .padding(.bottom, 4)
+                .padding(.bottom, 20)
+
+                ScrollView(.horizontal) {
+                    HStack(alignment: .bottom, spacing: spacing) {
+                        ForEach(Array(points.enumerated()), id: \.offset) { _, point in
+                            VStack(spacing: 6) {
+                                VStack(spacing: 0) {
+                                    barSegment(
+                                        value: point.inputTokens,
+                                        total: point.totalTokens,
+                                        height: max(6, CGFloat(point.totalTokens) / CGFloat(maxValue) * (proxy.size.height - 30)),
+                                        color: DesignSystem.Colors.primary
+                                    )
+                                    barSegment(
+                                        value: point.outputTokens,
+                                        total: point.totalTokens,
+                                        height: max(6, CGFloat(point.totalTokens) / CGFloat(maxValue) * (proxy.size.height - 30)),
+                                        color: DesignSystem.Colors.Status.success
+                                    )
+                                    barSegment(
+                                        value: point.cacheReadTokens,
+                                        total: point.totalTokens,
+                                        height: max(6, CGFloat(point.totalTokens) / CGFloat(maxValue) * (proxy.size.height - 30)),
+                                        color: DesignSystem.Colors.Status.warning
+                                    )
+                                }
+                                .frame(width: barWidth, height: max(6, CGFloat(point.totalTokens) / CGFloat(maxValue) * (proxy.size.height - 30)))
+                                .clipShape(RoundedRectangle(cornerRadius: 4))
+
+                                Text(point.label)
+                                    .font(.system(size: 9))
+                                    .monospacedDigit()
+                                    .foregroundStyle(DesignSystem.Colors.Text.tertiary)
+                            }
+                        }
+                    }
+                    .padding(.bottom, 4)
+                }
+                .scrollIndicators(.hidden)
             }
         }
         .frame(height: 150)
+    }
+
+    private func intradayTableSection(_ drilldown: ProviderTokenTrendDrilldownData) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Intraday Breakdown")
+                .font(.subheadline.weight(.semibold))
+
+            VStack(spacing: 0) {
+                intradayHeaderRow
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .background(DesignSystem.Colors.Background.elevated.opacity(0.3))
+
+                ScrollView {
+                    VStack(spacing: 0) {
+                        ForEach(Array(drilldown.points.enumerated()), id: \.offset) { _, point in
+                            intradayDataRow(point: point)
+                        }
+                    }
+                }
+                .scrollIndicators(.hidden)
+                .frame(maxHeight: 240)
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 12))
+            .overlay(
+                RoundedRectangle(cornerRadius: 12)
+                    .strokeBorder(DesignSystem.Colors.Background.elevated.opacity(0.5), lineWidth: 1)
+            )
+        }
+    }
+
+    private var intradayHeaderRow: some View {
+        HStack(spacing: 0) {
+            Text("Time Range")
+                .frame(width: 110, alignment: .leading)
+                .font(.caption2.weight(.bold))
+                .foregroundStyle(DesignSystem.Colors.Text.secondary)
+            Spacer()
+            Text("Total")
+                .frame(width: 80, alignment: .trailing)
+                .font(.caption2.weight(.bold))
+                .foregroundStyle(DesignSystem.Colors.Text.secondary)
+            Text("Input")
+                .frame(width: 80, alignment: .trailing)
+                .font(.caption2.weight(.bold))
+                .foregroundStyle(DesignSystem.Colors.Text.secondary)
+            Text("Output")
+                .frame(width: 80, alignment: .trailing)
+                .font(.caption2.weight(.bold))
+                .foregroundStyle(DesignSystem.Colors.Text.secondary)
+            Text("Cache")
+                .frame(width: 80, alignment: .trailing)
+                .font(.caption2.weight(.bold))
+                .foregroundStyle(DesignSystem.Colors.Text.secondary)
+        }
+    }
+
+    private func intradayDataRow(point: ProviderIntradayUsagePointData) -> some View {
+        HStack(spacing: 0) {
+            Text(point.rangeLabel).frame(width: 110, alignment: .leading)
+            Spacer()
+            cell(formatTokenCount(point.totalTokens), width: 80)
+            cell(formatTokenCount(point.inputTokens), width: 80, color: DesignSystem.Colors.primary.opacity(0.8))
+            cell(formatTokenCount(point.outputTokens), width: 80, color: DesignSystem.Colors.Status.success.opacity(0.8))
+            cell(formatTokenCount(point.cacheReadTokens), width: 80, color: DesignSystem.Colors.Status.warning.opacity(0.8))
+        }
+        .font(.system(size: 11, design: .monospaced))
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .overlay(alignment: .bottom) {
+            Rectangle()
+                .fill(DesignSystem.Colors.Background.elevated.opacity(0.3))
+                .frame(height: 1)
+        }
     }
 
     private func drilldownErrorState(message: String) -> some View {

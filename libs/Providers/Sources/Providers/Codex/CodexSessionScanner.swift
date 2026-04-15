@@ -54,17 +54,26 @@ public enum CodexSessionScanner {
 
     public struct SessionMeta: Sendable, Equatable {
         public let threadID: String?
+        public let forkedFromID: String?
+        public let originator: String?
+        public let source: String?
         public let modelProvider: String?
         public let cwd: String?
         public let timestamp: String?
 
         public init(
             threadID: String?,
+            forkedFromID: String?,
+            originator: String?,
+            source: String?,
             modelProvider: String?,
             cwd: String?,
             timestamp: String?
         ) {
             self.threadID = threadID
+            self.forkedFromID = forkedFromID
+            self.originator = originator
+            self.source = source
             self.modelProvider = modelProvider
             self.cwd = cwd
             self.timestamp = timestamp
@@ -171,11 +180,21 @@ public enum CodexSessionScanner {
         guard let line = try? CodexGeneratedFilesParser.parseRolloutLine(data: data) else { return nil }
         guard case let .sessionMeta(meta) = line.item else { return nil }
         return SessionMeta(
-            threadID: meta.id?.trimmingCharacters(in: .whitespacesAndNewlines),
+            threadID: trimmedOptionalText(meta.id),
+            forkedFromID: trimmedOptionalText(meta.forkedFromID),
+            originator: trimmedOptionalText(meta.originator),
+            source: trimmedOptionalText(meta.source),
             modelProvider: normalizedProviderID(meta.modelProvider),
             cwd: meta.cwd,
             timestamp: meta.timestamp
         )
+    }
+
+    private static func trimmedOptionalText(_ raw: String?) -> String? {
+        guard let raw = raw?.trimmingCharacters(in: .whitespacesAndNewlines), !raw.isEmpty else {
+            return nil
+        }
+        return raw
     }
 
     private static let filenameDateRegex = try? NSRegularExpression(pattern: "(\\d{4}-\\d{2}-\\d{2})")

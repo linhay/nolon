@@ -17,7 +17,10 @@ struct CodexSessionStoreTests {
         threadID: String,
         timestamp: String,
         modelProvider: String?,
-        archived: Bool = false
+        archived: Bool = false,
+        forkedFromID: String? = nil,
+        originator: String? = nil,
+        source: String? = "cli"
     ) throws -> STFile {
         let rootFolder = archived ? codexHome.folder("archived_sessions") : codexHome.folder("sessions")
         let dayFolder = rootFolder.folder("2026").folder("04").folder("10")
@@ -28,10 +31,18 @@ struct CodexSessionStoreTests {
             "id": threadID,
             "timestamp": timestamp,
             "cwd": "/tmp/project",
-            "source": "cli",
         ]
+        if let source {
+            payload["source"] = source
+        }
         if let modelProvider {
             payload["model_provider"] = modelProvider
+        }
+        if let forkedFromID {
+            payload["forked_from_id"] = forkedFromID
+        }
+        if let originator {
+            payload["originator"] = originator
         }
 
         let sessionMetaData = try JSONSerialization.data(withJSONObject: [
@@ -245,6 +256,33 @@ struct CodexSessionStoreTests {
 
         #expect(session.modelProvider == "provider-relay")
         #expect(session.title == "Existing thread")
+    }
+
+    @Test("Given session meta includes raw metadata, when loading snapshot, then store preserves forked from originator and source")
+    func loadSnapshotPreservesRawMetadata() throws {
+        let root = try makeTempRoot("codex-session-store-raw-metadata")
+        defer { try? root.delete() }
+
+        let codexHome = root.folder("provider")
+        _ = codexHome.createIfNotExists()
+
+        let threadID = UUID().uuidString.lowercased()
+        _ = try writeRolloutSessionMeta(
+            codexHome: codexHome,
+            threadID: threadID,
+            timestamp: "2026-04-10T10:00:00Z",
+            modelProvider: "openai",
+            forkedFromID: "parent-thread-01",
+            originator: "gemini-cli",
+            source: "cli"
+        )
+
+        let snapshot = try CodexSessionStore(defaultProviderID: "openai").loadSnapshot(codexHome: codexHome)
+        let session = try #require(snapshot.sessions.first)
+
+        #expect(session.forkedFromID == "parent-thread-01")
+        #expect(session.originator == "gemini-cli")
+        #expect(session.source == "cli")
     }
 
     @Test("Given state db omits title but session index contains thread name, when loading snapshot, then store uses the indexed thread name as fallback title")

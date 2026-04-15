@@ -112,45 +112,85 @@ struct ProviderTokenTrendSection: View, DebugPageLocatable {
         guard let selectedDayKey else { return nil }
 
         let snapshot = intradaySnapshot?.dayKey == selectedDayKey ? intradaySnapshot : nil
+        return ProviderTokenTrendSectionPresentationSupport.makeDrilldownData(
+            dayKey: selectedDayKey,
+            bucket: intradayBucket,
+            snapshot: snapshot,
+            isLoading: isLoadingIntraday,
+            errorMessage: intradayErrorMessage,
+            availableBuckets: ProviderIntradayBucket.allCases.map {
+                .init(id: $0.rawValue, title: $0.title)
+            }
+        )
+    }
+}
+
+enum ProviderTokenTrendSectionPresentationSupport {
+    static func makeDrilldownData(
+        dayKey: String,
+        bucket: ProviderIntradayBucket,
+        snapshot: ProviderIntradayUsageSnapshot?,
+        isLoading: Bool,
+        errorMessage: String?,
+        availableBuckets: [ProviderIntradayBucketOption],
+        referenceDate: Date = Date()
+    ) -> ProviderTokenTrendDrilldownData {
+        let timezone = snapshot.flatMap { TimeZone(identifier: $0.timezoneIdentifier) } ?? .current
         let points = snapshot?.points.map {
             ProviderIntradayUsagePointData(
-                label: Self.timeFormatter.string(from: $0.start),
+                label: timeLabel(for: $0.start, timezone: timezone),
+                rangeLabel: timeRangeLabel(start: $0.start, end: $0.end, timezone: timezone),
                 totalTokens: $0.totalTokens,
                 inputTokens: $0.inputTokens,
                 outputTokens: $0.outputTokens,
                 cacheReadTokens: $0.cacheReadTokens
             )
         } ?? []
-        let actualBucketCount = snapshot?.actualBucketCount ?? Self.expectedBucketCount(
-            dayKey: selectedDayKey,
-            bucket: intradayBucket
+        let visibleBucketCount = snapshot?.actualBucketCount ?? 0
+        let fullBucketCount = expectedBucketCount(
+            dayKey: dayKey,
+            bucket: bucket,
+            timezone: timezone
         )
+        let bucketSummary = snapshot != nil && fullBucketCount > 0
+            ? "\(visibleBucketCount)/\(fullBucketCount) 可见时间桶"
+            : nil
+        let presentationNote: String?
+        if snapshot != nil {
+            presentationNote = isToday(dayKey: dayKey, timezone: timezone, referenceDate: referenceDate)
+                ? "仅展示有用量时段；Today 不显示未来时间。"
+                : "仅展示有用量时段。"
+        } else {
+            presentationNote = nil
+        }
 
         return ProviderTokenTrendDrilldownData(
-            dayKey: selectedDayKey,
-            bucketID: intradayBucket.rawValue,
-            actualBucketCount: actualBucketCount,
-            rangeDescription: "\(intradayBucket.title) · \(actualBucketCount) 桶",
+            dayKey: dayKey,
+            bucketID: bucket.rawValue,
+            actualBucketCount: visibleBucketCount,
+            fullBucketCount: fullBucketCount,
+            rangeDescription: bucket.title,
+            bucketSummary: bucketSummary,
+            presentationNote: presentationNote,
             points: points,
-            availableBuckets: ProviderIntradayBucket.allCases.map {
-                .init(id: $0.rawValue, title: $0.title)
-            },
-            isLoading: isLoadingIntraday,
-            errorMessage: intradayErrorMessage,
+            availableBuckets: availableBuckets,
+            isLoading: isLoading,
+            errorMessage: errorMessage,
             freshnessText: snapshot.map {
                 "静态快照 · \($0.fetchedAt.formatted(date: .omitted, time: .shortened))"
             } ?? "静态快照 · 手动刷新"
         )
     }
 
-    private static func expectedBucketCount(
+    static func expectedBucketCount(
         dayKey: String,
-        bucket: ProviderIntradayBucket
+        bucket: ProviderIntradayBucket,
+        timezone: TimeZone = .current
     ) -> Int {
         let formatter = DateFormatter()
-        formatter.calendar = Self.calendar
+        formatter.calendar = calendar(timezone: timezone)
         formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.timeZone = .current
+        formatter.timeZone = timezone
         formatter.dateFormat = "yyyy-MM-dd"
         guard let start = formatter.date(from: dayKey),
               let end = formatter.calendar.date(byAdding: .day, value: 1, to: start) else {
@@ -169,18 +209,31 @@ struct ProviderTokenTrendSection: View, DebugPageLocatable {
         return Int((end.timeIntervalSince(start) / seconds).rounded())
     }
 
-    private static var calendar: Calendar {
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = .current
-        return calendar
+    static func timeLabel(for date: Date, timezone: TimeZone) -> String {
+        let formatter = DateFormatter()
+        formatter.calendar = calendar(timezone: timezone)
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = timezone
+        formatter.dateFormat = "HH:mm"
+        return formatter.string(from: date)
     }
 
-    private static let timeFormatter: DateFormatter = {
+    static func timeRangeLabel(start: Date, end: Date, timezone: TimeZone) -> String {
+        "\(timeLabel(for: start, timezone: timezone))-\(timeLabel(for: end, timezone: timezone))"
+    }
+
+    private static func isToday(dayKey: String, timezone: TimeZone, referenceDate: Date) -> Bool {
         let formatter = DateFormatter()
-        formatter.calendar = Self.calendar
+        formatter.calendar = calendar(timezone: timezone)
         formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.timeZone = .current
-        formatter.dateFormat = "HH:mm"
-        return formatter
-    }()
+        formatter.timeZone = timezone
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter.string(from: referenceDate) == dayKey
+    }
+
+    private static func calendar(timezone: TimeZone) -> Calendar {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = timezone
+        return calendar
+    }
 }

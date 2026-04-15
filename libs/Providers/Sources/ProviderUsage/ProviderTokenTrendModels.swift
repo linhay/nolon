@@ -133,3 +133,86 @@ public struct ProviderIntradayUsageSnapshot: Codable, Sendable, Equatable {
 
 public typealias CodexTokenTrendPoint = ProviderTokenTrendPoint
 public typealias CodexTokenTrendSnapshot = ProviderTokenTrendSnapshot
+
+extension ProviderIntradayUsagePoint {
+    var hasUsage: Bool {
+        totalTokens > 0 || inputTokens > 0 || outputTokens > 0 || cacheReadTokens > 0
+    }
+}
+
+extension ProviderIntradayUsageSnapshot {
+    func trimmedForPresentation(referenceDate: Date = Date()) -> ProviderIntradayUsageSnapshot {
+        let timezone = TimeZone(identifier: timezoneIdentifier) ?? .current
+        let visibleRangeEnd = Self.visibleRangeEnd(
+            dayKey: dayKey,
+            timezone: timezone,
+            rangeStart: rangeStart,
+            rangeEnd: rangeEnd,
+            referenceDate: referenceDate
+        )
+
+        let visiblePoints = points.filter { point in
+            point.start >= rangeStart && point.start < visibleRangeEnd && point.hasUsage
+        }
+
+        guard !visiblePoints.isEmpty else {
+            return ProviderIntradayUsageSnapshot(
+                dayKey: dayKey,
+                timezoneIdentifier: timezoneIdentifier,
+                bucket: bucket,
+                actualBucketCount: 0,
+                rangeStart: rangeStart,
+                rangeEnd: max(rangeStart, visibleRangeEnd),
+                points: [],
+                fetchedAt: fetchedAt,
+                sourceLabel: sourceLabel
+            )
+        }
+        let trimmedRangeStart = visiblePoints.first?.start ?? rangeStart
+        let trimmedRangeEnd = min(visiblePoints.last?.end ?? visibleRangeEnd, visibleRangeEnd)
+
+        return ProviderIntradayUsageSnapshot(
+            dayKey: dayKey,
+            timezoneIdentifier: timezoneIdentifier,
+            bucket: bucket,
+            actualBucketCount: visiblePoints.count,
+            rangeStart: trimmedRangeStart,
+            rangeEnd: trimmedRangeEnd,
+            points: visiblePoints,
+            fetchedAt: fetchedAt,
+            sourceLabel: sourceLabel
+        )
+    }
+
+    private static func visibleRangeEnd(
+        dayKey: String,
+        timezone: TimeZone,
+        rangeStart: Date,
+        rangeEnd: Date,
+        referenceDate: Date
+    ) -> Date {
+        let todayKey = Self.dayKey(for: referenceDate, timezone: timezone)
+        if dayKey == todayKey {
+            return max(rangeStart, min(rangeEnd, referenceDate))
+        }
+        if dayKey > todayKey {
+            return rangeStart
+        }
+        return rangeEnd
+    }
+
+    private static func dayKey(for date: Date, timezone: TimeZone) -> String {
+        let formatter = DateFormatter()
+        formatter.calendar = Self.calendar(timezone: timezone)
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = timezone
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter.string(from: date)
+    }
+
+    private static func calendar(timezone: TimeZone) -> Calendar {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = timezone
+        return calendar
+    }
+}

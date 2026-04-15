@@ -1244,3 +1244,42 @@ Round 9 也认为已经可以整理执行计划了。我同意这个判断。
 ### 关闭条件
 - 到此为止，关于主方案方向的分歧已关闭。
 - 后续若继续推进，只剩执行问题，不再回到“到底是不是 project-first”这条总开关上反复争论。
+
+## Round 13（2026-04-14 20:34，执行闭环）
+
+### 执行结果
+- 第二轮 `project-first` 改造已按 Round 12 裁决完整落地，不再停留在候选方案。
+- 最终实现与 debate 共识一致：
+  1. 默认 grouping 为 `project`
+  2. project 组内按时间从新到旧
+  3. 每组默认 `5` 条，超出后 `展开 / 收起`
+  4. 主列固定为 `名称 / id / 时间 / provider / 用量 / 菜单`
+  5. `usage` 异步回填
+  6. tab refresh 采用“旧数据先显示、后台补新、状态不丢失”
+
+### 落地文件
+- `libs/NolonUIFoundation/Sources/NolonUIFoundation/CodexSessionsModels.swift`
+- `libs/Providers/Sources/Providers/Codex/CodexSessionStore.swift`
+- `nolon/Skills/Domain/Providers/Views/CodexSessionsSectionDataBuilder.swift`
+- `libs/NolonUI/Sources/NolonUI/Components/Shared/UnifiedCodexSessionViews.swift`
+- `nolon/Skills/Domain/Providers/Views/CodexSessionsTabView.swift`
+- `nolon/Skills/Domain/Providers/Views/CodexSessionsTabViewModel.swift`
+- `nolonTests/CodexSessionsTabViewModelTests.swift`
+- `nolonTests/CodexSessionsSectionDataBuilderTests.swift`
+- `nolonTests/CodexSessionsCardSnapshotTests.swift`
+
+### 验证
+- 定向验证命令：
+  - `xcodebuild test -project nolon.xcodeproj -scheme nolon-tests -destination 'platform=macOS' -only-testing:nolonTests/CodexSessionsCardSnapshotTests -only-testing:nolonTests/CodexSessionsSectionDataBuilderTests -only-testing:nolonTests/CodexSessionsTabViewModelTests`
+- 验证时间：
+  - `2026-04-14 20:34 CST`
+- 验证结果：
+  - `12` 个测试全部通过，`0` 失败
+
+### 执行期新增观察
+- 旧的 `TabViewModel missing return` 编译错误已经在执行期被消除，没有再复现。
+- 当前工作区里另一条 `provider usage intraday drilldown` 变更链曾让测试编译门暂时失败；本轮通过补齐测试调用与导入后，sessions 计划所需 guard 已恢复可运行。
+
+### 结论
+- `codex-sessions` tab 的主方案争议与执行争议都已关闭。
+- 后续若继续迭代，应基于当前 `project-first` 版本继续演进，而不是回退到 `provider-first + global load more`。

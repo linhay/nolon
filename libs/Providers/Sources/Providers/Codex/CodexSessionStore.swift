@@ -8,6 +8,9 @@ public struct CodexSessionRecord: Sendable, Equatable, Identifiable {
     public let threadID: String?
     public let title: String?
     public let summary: String?
+    public let forkedFromID: String?
+    public let originator: String?
+    public let source: String?
     public let modelProvider: String
     public let archived: Bool
     public let rolloutPath: String
@@ -21,6 +24,9 @@ public struct CodexSessionRecord: Sendable, Equatable, Identifiable {
         threadID: String?,
         title: String?,
         summary: String?,
+        forkedFromID: String? = nil,
+        originator: String? = nil,
+        source: String? = nil,
         modelProvider: String,
         archived: Bool,
         rolloutPath: String,
@@ -33,6 +39,9 @@ public struct CodexSessionRecord: Sendable, Equatable, Identifiable {
         self.threadID = threadID
         self.title = title
         self.summary = summary
+        self.forkedFromID = forkedFromID
+        self.originator = originator
+        self.source = source
         self.modelProvider = modelProvider
         self.archived = archived
         self.rolloutPath = rolloutPath
@@ -195,6 +204,43 @@ public struct CodexSessionStore: Sendable {
 
     public func loadSnapshot(codexHome: URL) throws -> CodexSessionSnapshot {
         try loadSnapshot(codexHome: STFolder(codexHome))
+    }
+
+    public func loadSessionUsage(
+        codexHome: URL,
+        rolloutPath: String
+    ) throws -> CodexSessionTokenTotals? {
+        let rolloutURL: URL
+        if rolloutPath.hasPrefix("/") {
+            rolloutURL = URL(fileURLWithPath: rolloutPath)
+        } else {
+            rolloutURL = codexHome.appendingPathComponent(rolloutPath)
+        }
+
+        guard FileManager.default.fileExists(atPath: rolloutURL.path) else {
+            return nil
+        }
+
+        let fileData = try Data(contentsOf: rolloutURL)
+        var currentModel: String?
+        var totals: CodexSessionTokenTotals?
+
+        for line in fileData.split(separator: 0x0A) {
+            guard !line.isEmpty else { continue }
+            let reduction = CodexSessionEventParser.reduceUsageLine(
+                data: Data(line),
+                currentModel: currentModel,
+                previousTotals: totals
+            )
+            if let updatedModel = reduction?.updatedModel {
+                currentModel = updatedModel
+            }
+            if let updatedTotals = reduction?.updatedTotals {
+                totals = updatedTotals
+            }
+        }
+
+        return totals
     }
 
     public func snapshotStream(
@@ -621,6 +667,9 @@ public struct CodexSessionStore: Sendable {
             threadID: trimmedThreadID,
             title: title,
             summary: nil,
+            forkedFromID: sessionMeta.forkedFromID,
+            originator: sessionMeta.originator,
+            source: sessionMeta.source,
             modelProvider: modelProvider,
             archived: archived,
             rolloutPath: relativePath,
