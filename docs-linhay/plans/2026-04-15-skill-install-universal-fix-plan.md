@@ -2,6 +2,56 @@
 
 日期：2026-04-15
 
+## 执行状态
+
+状态：已完成
+
+实际落地结果：
+
+1. 共享安装策略已收敛为统一规则：
+   - 只要 provider skills root 经过 symlink 解链，安装链路就不再继续写 nested / cross-root symlink，而是直接 materialize 到解链后的真实 root。
+   - 对 `skillsLinkEnabled == true` 且指向旧 Nolon managed root 的 provider，会在安装前自动重链到当前 active global root。
+   - provider skills 路径只要通过祖先目录 symlink 最终解析到 active global root，扫描链路也统一按 `installed` 识别，不再误判为 `orphaned`。
+2. App 与 CLI 两条链路已同时落地：
+   - `SkillInstaller` 已接入 shared root resolver 与 managed root 自愈。
+   - `ProviderSkillMaintenanceService` 已接入同构逻辑，linked-root / ancestor-linked-root / stale-root 均走同一套 root 解析规则。
+3. Resource Center 的 post-install refresh 目标已修正：
+   - 安装弹窗动态选中的 provider 会优先作为 refresh 目标。
+   - `globalSkills` 视图仍保持 provider-neutral 行为。
+4. 运行时卡在“安装中”的直接根因已确认并修复：
+   - 并非安装失败，而是安装成功后 `installedSlugs` 刷新依赖的 provider 扫描把“祖先 symlink 映射到全局 root”的技能误判为 `orphaned`，导致 UI 一直等不到 installed 状态回写。
+
+新增/更新测试：
+
+1. `nolonTests/SkillInstallerTests.swift`
+   - `GivenManagedStaleProviderRoot_WhenInstallLocal_ThenHealLinkToCurrentGlobalRoot`
+   - `GivenParentLinkedProviderRoot_WhenScanningInstalledSkill_ThenMarkInstalled`
+2. `nolonTests/ResourceCenterViewModelTests.swift`
+   - `GivenProviderSelectedInInstallSheet_WhenResolvePostInstallRefreshTarget_ThenUseSelectedProvider`
+   - `GivenGlobalSkillsRepository_WhenResolvePostInstallRefreshTarget_ThenIgnoreInstalledProvider`
+3. `libs/Providers/Tests/ProvidersTests/NolonResourceKitTests.swift`
+   - `ProviderSkillMaintenanceService marks skills as installed when provider skills root resolves to global through ancestor symlink`
+   - `ProviderSkillMaintenanceService heals stale managed provider root before install`
+   - 既有 `installs copies into linked global skills root` 回归继续保持通过
+
+实际验证：
+
+1. `xcodebuild test -project nolon.xcodeproj -scheme nolon-tests -destination 'platform=macOS' -only-testing:nolonTests/SkillInstallerTests -only-testing:nolonTests/ResourceCenterViewModelTests`
+   - 结果：`16` 个测试通过，`0` 失败
+2. `xcodebuild test -workspace libs/Providers/.swiftpm/xcode/package.xcworkspace -scheme Providers-Package -destination 'platform=macOS' -only-testing:ProvidersTests/NolonResourceKitTests`
+   - 结果：`73` 个测试通过，`0` 失败
+3. 真实前台 smoke：
+   - 使用真实 app 进程打开 Resource Center，选中 `Waza`，搜索 `learn`
+   - 前台可见仓库统计：`技能 8 / 工作流 0 / MCP 0 / 代理说明 1`
+   - 点击安装后成功落盘：`~/.claude/skills/learn -> ~/.nolon/skills/learn`
+   - 卡片状态已进入 `Installed`
+
+说明：
+
+1. 本轮已经补做真实前台 live smoke / foreground 手点验证，并确认通过。
+2. 当前已满足“测试先行 + 双链路修复 + 真实前台验收 + 文档回写”的本计划 DoD。
+3. 需要特别区分：`xcodebuild test` 下的 `nolonUITests.xctrunner` 会把 `HOME` 重定向到 XCTest 容器；该环境里看到的“仓库未克隆 / 技能 0”是假失败，不代表真实用户环境回归。
+
 ## 背景
 
 本轮已确认 `tw93/Waza` 安装问题背后不是单点 bug，而是两条链叠加：
@@ -174,6 +224,6 @@
 
 ## 非目标
 
-1. 本计划不包含 live smoke。
-2. 本计划不包含 foreground 人工长时间手点验证。
-3. 本计划不处理与 Waza 无关的 skill 元数据整理。
+1. 本计划不包含长期驻留式 foreground 手工回归。
+2. 本计划不处理与 Waza 无关的 skill 元数据整理。
+3. 本计划不试图修正 XCTest runner 的容器化 `HOME` 行为；该问题属于验证环境约束，而非本次安装链路缺陷。

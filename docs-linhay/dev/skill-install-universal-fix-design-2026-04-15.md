@@ -103,6 +103,44 @@ Resource Center 在“临时选 provider 安装”的场景下，post-install re
 3. `tw93/Waza` 仓库目录结构自身异常。
 4. 单纯因为扫描耗时长而 timeout。
 
+## 真实前台验证补充（2026-04-15）
+
+### 前台结论
+
+在真实用户环境的前台 app 中，`tw93/Waza` 已完成安装验证：
+
+1. Resource Center 能正确识别仓库内容：
+   - `技能 8`
+   - `工作流 0`
+   - `MCP 0`
+   - `代理说明 1`
+2. 搜索 `learn` 后，卡片可见且可点击安装。
+3. 点击安装后，`Claude Code` 目标路径成功落盘：
+   - `~/.claude/skills/learn -> ~/.nolon/skills/learn`
+4. 卡片状态已从 pending 收敛到 `Installed`。
+
+结论：
+
+- 本轮通用修复在真实前台用户环境下已验证通过。
+- “一直安装中”不是修复后仍然存在的真实前台问题。
+
+### 验证环境约束
+
+本轮还确认了一个容易误导后续排查的验证约束：
+
+1. `xcodebuild test` 启动的 `nolonUITests.xctrunner` 会重定向 `HOME` / `CFFIXED_USER_HOME` 到 XCTest 容器。
+2. Resource Center 在该容器里看到的不是用户真实 `~/.nolon/repositories` 与 `~/.nolon/skills`。
+3. 因此 UI test 中出现的：
+   - `技能 0`
+   - `Git 操作失败：仓库尚未克隆`
+   - 安装卡住或 timeout
+   不能直接作为真实用户环境中的安装失败证据。
+
+结论：
+
+- 后续凡是验证 GitHub repo skill 安装，必须优先使用真实前台 app 或显式注入真实 `HOME` / `NOLON_HOME` 的独立运行环境。
+- XCTest UI runner 结果只能用于验证 UI 流程本身，不能直接裁定真实 repo/skill 安装链路是否回归。
+
 ## 设计目标
 
 1. 阻断新的 cross-root symlink 污染继续产生。
