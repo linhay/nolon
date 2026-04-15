@@ -4,6 +4,9 @@
     "" : {
 
     },
+    "·" : {
+
+    },
     "%@ loading" : {
 
     },
@@ -1470,9 +1473,6 @@
         }
       }
     },
-    "API Key" : {
-
-    },
     "app.title" : {
       "comment" : "nolon",
       "extractionState" : "stale",
@@ -1563,9 +1563,6 @@
           }
         }
       }
-    },
-    "Auth Token" : {
-
     },
     "banner.orphaned_desc" : {
       "comment" : "Some skills are not managed...",
@@ -1733,6 +1730,18 @@
         }
       }
     },
+    "claude.accounts.editor.action.format_json" : {
+      "comment" : "Claude account editor format json action",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Format JSON"
+          }
+        }
+      }
+    },
     "claude.accounts.editor.base_url" : {
       "comment" : "Claude base URL",
       "extractionState" : "extracted_with_value",
@@ -1753,6 +1762,18 @@
           "stringUnit" : {
             "state" : "new",
             "value" : "New Claude Account"
+          }
+        }
+      }
+    },
+    "claude.accounts.editor.create.subtitle" : {
+      "comment" : "Claude account create subtitle",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Create a managed Claude account with a credential, base URL, and Cloud Code model mapping."
           }
         }
       }
@@ -1781,6 +1802,66 @@
         }
       }
     },
+    "claude.accounts.editor.credential_type.api_key" : {
+      "comment" : "Claude API key credential type",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "API Key"
+          }
+        }
+      }
+    },
+    "claude.accounts.editor.credential_type.auth_token" : {
+      "comment" : "Claude auth token credential type",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Auth Token"
+          }
+        }
+      }
+    },
+    "claude.accounts.editor.default_haiku_model" : {
+      "comment" : "Claude default haiku model field",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Default Haiku Model"
+          }
+        }
+      }
+    },
+    "claude.accounts.editor.default_opus_model" : {
+      "comment" : "Claude default opus model field",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Default Opus Model"
+          }
+        }
+      }
+    },
+    "claude.accounts.editor.default_sonnet_model" : {
+      "comment" : "Claude default sonnet model field",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Default Sonnet Model"
+          }
+        }
+      }
+    },
     "claude.accounts.editor.edit" : {
       "comment" : "Edit Claude account",
       "extractionState" : "extracted_with_value",
@@ -1789,6 +1870,18 @@
           "stringUnit" : {
             "state" : "new",
             "value" : "Edit Claude Account"
+          }
+        }
+      }
+    },
+    "claude.accounts.editor.edit.subtitle" : {
+      "comment" : "Claude account edit subtitle",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Update the stored credential, relay endpoint, and Cloud Code model mapping for this account."
           }
         }
       }
@@ -1817,50 +1910,74 @@
         }
       }
     },
-    "claude.accounts.editor.error.empty_haiku_model" : {
-      "comment" : "Claude account editor empty default haiku model error",
+    "claude.accounts.editor.error.json_ambiguous_credential" : {
+      "comment" : "Claude account editor ambiguous credential json error",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "new",
-            "value" : "Default Haiku model cannot be empty."
+            "value" : "Use either `ANTHROPIC_AUTH_TOKEN` or `ANTHROPIC_API_KEY`, not both."
           }
         }
       }
     },
-    "claude.accounts.editor.error.empty_model" : {
-      "comment" : "Claude account editor empty model error",
+    "claude.accounts.editor.error.json_env_must_be_object" : {
+      "comment" : "Claude account editor json env must be object",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "new",
-            "value" : "Model cannot be empty."
+            "value" : "`env` must be a JSON object."
           }
         }
       }
     },
-    "claude.accounts.editor.error.empty_opus_model" : {
-      "comment" : "Claude account editor empty default opus model error",
+    "claude.accounts.editor.error.json_invalid_env_value_suffix" : {
+      "comment" : "Claude account editor invalid env value suffix",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "new",
-            "value" : "Default Opus model cannot be empty."
+            "value" : "must be a string or null."
           }
         }
       }
     },
-    "claude.accounts.editor.error.empty_sonnet_model" : {
-      "comment" : "Claude account editor empty default sonnet model error",
+    "claude.accounts.editor.error.json_root_must_be_object" : {
+      "comment" : "Claude account editor json root must be object",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "new",
-            "value" : "Default Sonnet model cannot be empty."
+            "value" : "The JSON root must be an object containing the `env` fragment."
+          }
+        }
+      }
+    },
+    "claude.accounts.editor.error.json_unsupported_env_prefix" : {
+      "comment" : "Claude account editor unsupported env json keys prefix",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Unsupported env keys: "
+          }
+        }
+      }
+    },
+    "claude.accounts.editor.error.json_unsupported_top_level_prefix" : {
+      "comment" : "Claude account editor unsupported top-level json keys prefix",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Unsupported top-level keys: "
           }
         }
       }
@@ -1877,6 +1994,102 @@
         }
       }
     },
+    "claude.accounts.editor.footer.required" : {
+      "comment" : "Claude editor footer required hint",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Credential and base URL are required before saving."
+          }
+        }
+      }
+    },
+    "claude.accounts.editor.hint.base_url" : {
+      "comment" : "Claude base URL hint",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Required. Use the upstream Claude endpoint or your custom relay base URL."
+          }
+        }
+      }
+    },
+    "claude.accounts.editor.hint.credential" : {
+      "comment" : "Claude credential hint",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Required. The value is stored in the managed account and written into Claude settings when this account becomes active."
+          }
+        }
+      }
+    },
+    "claude.accounts.editor.hint.models" : {
+      "comment" : "Claude model mapping hint",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Optional. Only non-empty mapping fields will be written to Claude settings, so blank values stay aligned with the official runtime behavior."
+          }
+        }
+      }
+    },
+    "claude.accounts.editor.hint.name_optional" : {
+      "comment" : "Claude account name optional hint",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Optional. Leave blank to derive a readable name from the base URL."
+          }
+        }
+      }
+    },
+    "claude.accounts.editor.hint.preview" : {
+      "comment" : "Claude preview hint",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Edit this `env` fragment directly. Valid JSON updates the form, and form edits rewrite this editor. Empty model fields are omitted when formatted or saved."
+          }
+        }
+      }
+    },
+    "claude.accounts.editor.hint.reasoning_optional" : {
+      "comment" : "Claude reasoning model optional hint",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Optional. Leave blank to keep reasoning traffic on the primary model."
+          }
+        }
+      }
+    },
+    "claude.accounts.editor.model" : {
+      "comment" : "Claude model field",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Model"
+          }
+        }
+      }
+    },
     "claude.accounts.editor.name" : {
       "comment" : "Claude account name",
       "extractionState" : "extracted_with_value",
@@ -1885,6 +2098,66 @@
           "stringUnit" : {
             "state" : "new",
             "value" : "Name"
+          }
+        }
+      }
+    },
+    "claude.accounts.editor.reasoning_model" : {
+      "comment" : "Claude reasoning model field",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Reasoning Model"
+          }
+        }
+      }
+    },
+    "claude.accounts.editor.section.basics" : {
+      "comment" : "Claude account editor basics section",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Basics"
+          }
+        }
+      }
+    },
+    "claude.accounts.editor.section.connection" : {
+      "comment" : "Claude account editor connection section",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Connection"
+          }
+        }
+      }
+    },
+    "claude.accounts.editor.section.models" : {
+      "comment" : "Claude account editor models section",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Model Mapping"
+          }
+        }
+      }
+    },
+    "claude.accounts.editor.section.preview" : {
+      "comment" : "Claude account editor preview section",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Configuration JSON"
           }
         }
       }
@@ -9004,7 +9277,7 @@
     },
     "codex.sessions.badge.archived" : {
       "comment" : "Archived badge",
-      "extractionState" : "stale",
+      "extractionState" : "extracted_with_value",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -9040,7 +9313,7 @@
     },
     "codex.sessions.badge.live" : {
       "comment" : "Live badge",
-      "extractionState" : "stale",
+      "extractionState" : "extracted_with_value",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -9142,6 +9415,174 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "确认会话迁移"
+          }
+        }
+      }
+    },
+    "codex.sessions.detail.command" : {
+      "comment" : "Codex sessions detail quick command title",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Quick Command"
+          }
+        }
+      }
+    },
+    "codex.sessions.detail.copy_command" : {
+      "comment" : "Copy codex session resume command",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Copy Command"
+          }
+        }
+      }
+    },
+    "codex.sessions.detail.copy_command_short" : {
+      "comment" : "Copy resume command",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Copy Resume Command"
+          }
+        }
+      }
+    },
+    "codex.sessions.detail.copy_project" : {
+      "comment" : "Copy project path",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Copy Project Path"
+          }
+        }
+      }
+    },
+    "codex.sessions.detail.copy_rollout" : {
+      "comment" : "Copy rollout path",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Copy Rollout Path"
+          }
+        }
+      }
+    },
+    "codex.sessions.detail.db_rows" : {
+      "comment" : "Database row count",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "DB Rows"
+          }
+        }
+      }
+    },
+    "codex.sessions.detail.forked_from" : {
+      "comment" : "Session fork source title",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Forked From"
+          }
+        }
+      }
+    },
+    "codex.sessions.detail.group_path" : {
+      "comment" : "Group path",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Group Path"
+          }
+        }
+      }
+    },
+    "codex.sessions.detail.metadata" : {
+      "comment" : "Generic session metadata title",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Metadata"
+          }
+        }
+      }
+    },
+    "codex.sessions.detail.originator" : {
+      "comment" : "Session originator title",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Originator"
+          }
+        }
+      }
+    },
+    "codex.sessions.detail.resume" : {
+      "comment" : "Resume codex session",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Resume"
+          }
+        }
+      }
+    },
+    "codex.sessions.detail.rollout" : {
+      "comment" : "Rollout path",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Rollout"
+          }
+        }
+      }
+    },
+    "codex.sessions.detail.source" : {
+      "comment" : "Session source title",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Source"
+          }
+        }
+      }
+    },
+    "codex.sessions.detail.status" : {
+      "comment" : "Session status",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Status"
           }
         }
       }
@@ -9362,6 +9803,60 @@
         }
       }
     },
+    "codex.sessions.metadata.forked_from" : {
+      "comment" : "Codex sessions forked from metadata",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Forked from %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "派生自 %@"
+          }
+        }
+      }
+    },
+    "codex.sessions.metadata.originator" : {
+      "comment" : "Codex sessions originator metadata",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Originator: %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "发起方：%@"
+          }
+        }
+      }
+    },
+    "codex.sessions.metadata.source" : {
+      "comment" : "Codex sessions source metadata",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Source: %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "来源：%@"
+          }
+        }
+      }
+    },
     "codex.sessions.metric.archived" : {
       "comment" : "Archived sessions",
       "extractionState" : "stale",
@@ -9484,60 +9979,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "总数"
-          }
-        }
-      }
-    },
-    "codex.sessions.metadata.forked_from" : {
-      "comment" : "Codex sessions forked from metadata",
-      "extractionState" : "extracted_with_value",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Forked from %@"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "派生自 %@"
-          }
-        }
-      }
-    },
-    "codex.sessions.metadata.originator" : {
-      "comment" : "Codex sessions originator metadata",
-      "extractionState" : "extracted_with_value",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Originator: %@"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "发起方：%@"
-          }
-        }
-      }
-    },
-    "codex.sessions.metadata.source" : {
-      "comment" : "Codex sessions source metadata",
-      "extractionState" : "extracted_with_value",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Source: %@"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "来源：%@"
           }
         }
       }
@@ -9724,7 +10165,7 @@
     },
     "codex.sessions.section.visible_count" : {
       "comment" : "Visible session count in a provider section",
-      "extractionState" : "extracted_with_value",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -9772,6 +10213,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "已将 %1$d 个会话迁移到“%2$@”。更新了 %3$d 个 live 文件、%4$d 个 archived 文件和 %5$d 条数据库记录。"
+          }
+        }
+      }
+    },
+    "codex.sessions.table.usage" : {
+      "comment" : "Usage",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Usage"
           }
         }
       }
@@ -10303,15 +10756,6 @@
           }
         }
       }
-    },
-    "Default Haiku Model" : {
-
-    },
-    "Default Opus Model" : {
-
-    },
-    "Default Sonnet Model" : {
-
     },
     "Description" : {
       "extractionState" : "stale",
@@ -11835,9 +12279,6 @@
           }
         }
       }
-    },
-    "Model" : {
-
     },
     "Name" : {
       "extractionState" : "stale",
@@ -13449,9 +13890,6 @@
           }
         }
       }
-    },
-    "Reasoning Model" : {
-
     },
     "Refresh" : {
       "comment" : "Refresh",

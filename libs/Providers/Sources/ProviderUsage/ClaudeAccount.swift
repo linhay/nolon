@@ -13,11 +13,11 @@ public enum ClaudeAccountSource: String, Codable, Sendable {
 }
 
 public struct ClaudeAccount: Identifiable, Codable, Hashable, Sendable {
-    public static let defaultAnthropicModel = "gpt-5"
+    public static let defaultAnthropicModel = ""
     public static let defaultAnthropicReasoningModel = ""
-    public static let defaultAnthropicDefaultHaikuModel = "gpt-5(minimal)"
-    public static let defaultAnthropicDefaultSonnetModel = "gpt-5(medium)"
-    public static let defaultAnthropicDefaultOpusModel = "gpt-5(high)"
+    public static let defaultAnthropicDefaultHaikuModel = ""
+    public static let defaultAnthropicDefaultSonnetModel = ""
+    public static let defaultAnthropicDefaultOpusModel = ""
 
     public let id: UUID
     public var name: String
@@ -241,17 +241,17 @@ public struct ClaudeAccount: Identifiable, Codable, Hashable, Sendable {
         smallFast: String?
     ) -> (model: String, reasoning: String, haiku: String, sonnet: String, opus: String) {
         let normalizedModel = normalizedModelValue(model)
-        let normalizedReasoning = normalizedModelValue(reasoning) ?? defaultAnthropicReasoningModel
+        let normalizedReasoning = normalizedModelValue(reasoning)
         let normalizedSmallFast = normalizedModelValue(smallFast)
-        let normalizedHaiku = normalizedModelValue(haiku) ?? normalizedSmallFast ?? normalizedModel ?? defaultAnthropicDefaultHaikuModel
-        let normalizedSonnet = normalizedModelValue(sonnet) ?? normalizedModel ?? normalizedSmallFast ?? defaultAnthropicDefaultSonnetModel
-        let normalizedOpus = normalizedModelValue(opus) ?? normalizedModel ?? normalizedSmallFast ?? defaultAnthropicDefaultOpusModel
+        let normalizedHaiku = normalizedModelValue(haiku) ?? normalizedSmallFast
+        let normalizedSonnet = normalizedModelValue(sonnet)
+        let normalizedOpus = normalizedModelValue(opus)
         return (
             model: normalizedModel ?? defaultAnthropicModel,
-            reasoning: normalizedReasoning,
-            haiku: normalizedHaiku,
-            sonnet: normalizedSonnet,
-            opus: normalizedOpus
+            reasoning: normalizedReasoning ?? defaultAnthropicReasoningModel,
+            haiku: normalizedHaiku ?? defaultAnthropicDefaultHaikuModel,
+            sonnet: normalizedSonnet ?? defaultAnthropicDefaultSonnetModel,
+            opus: normalizedOpus ?? defaultAnthropicDefaultOpusModel
         )
     }
 

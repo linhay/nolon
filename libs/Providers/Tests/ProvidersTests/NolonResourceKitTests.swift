@@ -645,11 +645,13 @@ struct NolonResourceKitTests {
         let manager = NolonManager()
         _ = manager.mcpsFolder.createIfNotExists()
 
-        let aPath = manager.mcpsURL.appendingPathComponent("alpha.json")
-        let bPath = manager.mcpsURL.appendingPathComponent("beta.json")
+        let alphaName = "reg-linked-alpha"
+        let betaName = "reg-linked-beta"
+        let aPath = manager.mcpsURL.appendingPathComponent("\(alphaName).json")
+        let bPath = manager.mcpsURL.appendingPathComponent("\(betaName).json")
         let aRoot: [String: Any] = [
             "mcpServers": [
-                "alpha": [
+                alphaName: [
                     "command": "npx",
                     "args": ["-y", "@acme/alpha-mcp"],
                     "enabled": true
@@ -658,7 +660,7 @@ struct NolonResourceKitTests {
         ]
         let bRoot: [String: Any] = [
             "mcpServers": [
-                "beta": [
+                betaName: [
                     "url": "http://localhost:8081/mcp",
                     "enabled": true
                 ]
@@ -678,7 +680,7 @@ struct NolonResourceKitTests {
         #expect(synced == 2)
 
         let providerServers = try MCPConfigManager.listServers(for: .codex).map(\.name).sorted()
-        #expect(providerServers == ["alpha", "beta"])
+        #expect(providerServers == [alphaName, betaName])
 
         let alphaData = try Data(contentsOf: aPath)
         let alphaJSON = try #require(JSONSerialization.jsonObject(with: alphaData) as? [String: Any])

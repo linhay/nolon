@@ -93,7 +93,7 @@ struct ClaudeAccountManagerTests {
         return try JSONDecoder().decode([[String: String]].self, from: outputData)
     }
 
-    @Test("Given account activation, when writing settings, then env and active-account snapshot are updated")
+    @Test("Given account activation, when writing settings, then env and active-account snapshot are updated without implicit model defaults")
     func activateAccountWritesSettingsAndActiveID() async throws {
         let root = makeTempRoot("claude-account-activate")
         defer { try? root.delete() }
@@ -128,11 +128,11 @@ struct ClaudeAccountManagerTests {
         #expect(env["FOO"] as? String == "bar")
         #expect(env["ANTHROPIC_AUTH_TOKEN"] as? String == "test-token")
         #expect(env["ANTHROPIC_API_KEY"] == nil)
-        #expect(env["ANTHROPIC_MODEL"] as? String == "gpt-5")
+        #expect(env["ANTHROPIC_MODEL"] == nil)
         #expect(env["ANTHROPIC_REASONING_MODEL"] == nil)
-        #expect(env["ANTHROPIC_DEFAULT_HAIKU_MODEL"] as? String == "gpt-5(minimal)")
-        #expect(env["ANTHROPIC_DEFAULT_SONNET_MODEL"] as? String == "gpt-5(medium)")
-        #expect(env["ANTHROPIC_DEFAULT_OPUS_MODEL"] as? String == "gpt-5(high)")
+        #expect(env["ANTHROPIC_DEFAULT_HAIKU_MODEL"] == nil)
+        #expect(env["ANTHROPIC_DEFAULT_SONNET_MODEL"] == nil)
+        #expect(env["ANTHROPIC_DEFAULT_OPUS_MODEL"] == nil)
         #expect(json["other"] as? Int == 1)
     }
 
@@ -157,6 +157,11 @@ struct ClaudeAccountManagerTests {
         #expect(accounts[0].credentialType == .apiKey)
         #expect(accounts[0].source == .migrated)
         #expect(accounts[0].normalizedBaseURL == "https://relay.example.com/v1")
+        #expect(accounts[0].anthropicModel == "")
+        #expect(accounts[0].anthropicReasoningModel == "")
+        #expect(accounts[0].anthropicDefaultHaikuModel == "")
+        #expect(accounts[0].anthropicDefaultSonnetModel == "")
+        #expect(accounts[0].anthropicDefaultOpusModel == "")
     }
 
     @Test("Given current claude settings with reasoning model, when importing, then reasoning model is parsed into account")
@@ -211,6 +216,49 @@ struct ClaudeAccountManagerTests {
         let json = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
         let env = try #require(json["env"] as? [String: Any])
         #expect(env["ANTHROPIC_REASONING_MODEL"] as? String == "gpt-5(high)")
+    }
+
+    @Test("Given active account with empty model mapping, when activating, then legacy model env keys are removed from settings")
+    func activateAccountRemovesEmptyModelMappingKeys() async throws {
+        let root = makeTempRoot("claude-account-activate-empty-models")
+        defer { try? root.delete() }
+
+        let manager = ClaudeAccountManager(
+            rootURL: root.url,
+            validationAction: { _ in
+                ClaudeAccountValidationResult(isEffective: true, statusCode: 200, message: "ok")
+            }
+        )
+        let provider = makeClaudeProvider(root: root)
+        let settingsFile = try #require(manager.settingsFile(for: provider))
+        _ = settingsFile.parentFolder()?.createIfNotExists()
+        try settingsFile.overlay(with: Data(#"{"env":{"ANTHROPIC_MODEL":"legacy-model","ANTHROPIC_REASONING_MODEL":"legacy-reasoning","ANTHROPIC_DEFAULT_HAIKU_MODEL":"legacy-haiku","ANTHROPIC_DEFAULT_SONNET_MODEL":"legacy-sonnet","ANTHROPIC_DEFAULT_OPUS_MODEL":"legacy-opus","ANTHROPIC_SMALL_FAST_MODEL":"legacy-small-fast"}}"#.utf8))
+
+        let account = ClaudeAccount(
+            name: "empty-models",
+            credentialType: .authToken,
+            credentialValue: "token-empty-models",
+            baseURL: "https://api.anthropic.com",
+            anthropicModel: "",
+            anthropicReasoningModel: "",
+            anthropicDefaultHaikuModel: "",
+            anthropicDefaultSonnetModel: "",
+            anthropicDefaultOpusModel: "",
+            source: .manual
+        )
+        try await manager.saveAccounts([account])
+        _ = try await manager.activateAccount(id: account.id, provider: provider)
+
+        let data = try settingsFile.data()
+        let json = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        let env = try #require(json["env"] as? [String: Any])
+        #expect(env["ANTHROPIC_MODEL"] == nil)
+        #expect(env["ANTHROPIC_REASONING_MODEL"] == nil)
+        #expect(env["ANTHROPIC_DEFAULT_HAIKU_MODEL"] == nil)
+        #expect(env["ANTHROPIC_DEFAULT_SONNET_MODEL"] == nil)
+        #expect(env["ANTHROPIC_DEFAULT_OPUS_MODEL"] == nil)
+        #expect(env["ANTHROPIC_SMALL_FAST_MODEL"] == nil)
+        #expect(env["ANTHROPIC_AUTH_TOKEN"] as? String == "token-empty-models")
     }
 
     @Test("Given Claude account storage initialization, when loading accounts, then SQLite schema tables are created")

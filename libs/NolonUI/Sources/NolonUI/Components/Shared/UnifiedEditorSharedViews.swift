@@ -629,20 +629,24 @@ public struct WebCodeEditorView: NSViewRepresentable {
     public let initialText: String
     public let highlight: WebCodeEditorHighlight?
     public let onDirtyChanged: (Bool) -> Void
+    public let onTextChanged: ((String) -> Void)?
 
     public struct Config {
         public var initialText: String
         public var highlight: WebCodeEditorHighlight?
         public var onDirtyChanged: (Bool) -> Void
+        public var onTextChanged: ((String) -> Void)?
 
         public init(
             initialText: String,
             highlight: WebCodeEditorHighlight?,
-            onDirtyChanged: @escaping (Bool) -> Void
+            onDirtyChanged: @escaping (Bool) -> Void,
+            onTextChanged: ((String) -> Void)? = nil
         ) {
             self.initialText = initialText
             self.highlight = highlight
             self.onDirtyChanged = onDirtyChanged
+            self.onTextChanged = onTextChanged
         }
     }
 
@@ -654,20 +658,23 @@ public struct WebCodeEditorView: NSViewRepresentable {
         self.initialText = config.initialText
         self.highlight = config.highlight
         self.onDirtyChanged = config.onDirtyChanged
+        self.onTextChanged = config.onTextChanged
     }
 
     public init(
         bridge: WebCodeEditorBridge,
         initialText: String,
         highlight: WebCodeEditorHighlight?,
-        onDirtyChanged: @escaping (Bool) -> Void
+        onDirtyChanged: @escaping (Bool) -> Void,
+        onTextChanged: ((String) -> Void)? = nil
     ) {
         self.init(
             bridge: bridge,
             config: Config(
                 initialText: initialText,
                 highlight: highlight,
-                onDirtyChanged: onDirtyChanged
+                onDirtyChanged: onDirtyChanged,
+                onTextChanged: onTextChanged
             )
         )
     }
@@ -694,16 +701,26 @@ public struct WebCodeEditorView: NSViewRepresentable {
     }
 
     public func makeCoordinator() -> Coordinator {
-        Coordinator(bridge: bridge, onDirtyChanged: onDirtyChanged)
+        Coordinator(
+            bridge: bridge,
+            onDirtyChanged: onDirtyChanged,
+            onTextChanged: onTextChanged
+        )
     }
 
     public final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
         private let bridge: WebCodeEditorBridge
         private let onDirtyChanged: (Bool) -> Void
+        private let onTextChanged: ((String) -> Void)?
 
-        init(bridge: WebCodeEditorBridge, onDirtyChanged: @escaping (Bool) -> Void) {
+        init(
+            bridge: WebCodeEditorBridge,
+            onDirtyChanged: @escaping (Bool) -> Void,
+            onTextChanged: ((String) -> Void)?
+        ) {
             self.bridge = bridge
             self.onDirtyChanged = onDirtyChanged
+            self.onTextChanged = onTextChanged
         }
 
         public func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
@@ -718,6 +735,8 @@ public struct WebCodeEditorView: NSViewRepresentable {
             switch type {
             case "dirty":
                 onDirtyChanged(payload["value"] as? Bool ?? false)
+            case "textChanged":
+                onTextChanged?(payload["value"] as? String ?? "")
             default:
                 break
             }
@@ -849,6 +868,12 @@ public struct WebCodeEditorView: NSViewRepresentable {
           function postDirty(value) {
             try {
               window.webkit.messageHandlers.nolon.postMessage({ type: 'dirty', value });
+            } catch (_) {}
+          }
+
+          function postTextChanged(value) {
+            try {
+              window.webkit.messageHandlers.nolon.postMessage({ type: 'textChanged', value });
             } catch (_) {}
           }
 
@@ -1126,6 +1151,7 @@ public struct WebCodeEditorView: NSViewRepresentable {
               dirty = true;
               postDirty(true);
             }
+            postTextChanged(editor.value ?? '');
             updateGutter();
             updateOverlay();
             syncScroll();

@@ -6,118 +6,6 @@ import CodexProvider
 import NolonUIFoundation
 import NolonUI
 
-private struct ClaudeAccountEditorSheet: View {
-    typealias Draft = ProviderUsageAccountsViewModel.ClaudeState.AccountEditorDraft
-
-    @Binding var draft: Draft?
-    let errorMessage: String?
-    let onCancel: () -> Void
-    let onSave: () -> Void
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text(titleText)
-                .font(.title3.weight(.semibold))
-
-            if let errorMessage, !errorMessage.isEmpty {
-                Text(errorMessage)
-                    .font(.footnote)
-                    .foregroundStyle(.red)
-            }
-
-            Form {
-                TextField(
-                    NSLocalizedString("claude.accounts.editor.name", value: "Name", comment: "Claude account name"),
-                    text: stringBinding(\.name)
-                )
-
-                Picker(
-                    NSLocalizedString("claude.accounts.editor.credential_type", value: "Credential Type", comment: "Claude credential type"),
-                    selection: credentialTypeBinding
-                ) {
-                    Text("Auth Token").tag(ClaudeCredentialType.authToken)
-                    Text("API Key").tag(ClaudeCredentialType.apiKey)
-                }
-
-                SecureField(
-                    NSLocalizedString("claude.accounts.editor.credential", value: "Credential", comment: "Claude credential value"),
-                    text: stringBinding(\.credentialValue)
-                )
-
-                TextField(
-                    NSLocalizedString("claude.accounts.editor.base_url", value: "Base URL", comment: "Claude base URL"),
-                    text: stringBinding(\.baseURL)
-                )
-
-                TextField("Model", text: stringBinding(\.anthropicModel))
-                TextField("Reasoning Model", text: stringBinding(\.anthropicReasoningModel))
-                TextField("Default Haiku Model", text: stringBinding(\.anthropicDefaultHaikuModel))
-                TextField("Default Sonnet Model", text: stringBinding(\.anthropicDefaultSonnetModel))
-                TextField("Default Opus Model", text: stringBinding(\.anthropicDefaultOpusModel))
-            }
-            .formStyle(.grouped)
-
-            HStack {
-                Spacer(minLength: 0)
-                Button(NSLocalizedString("generic.cancel", value: "Cancel", comment: "Cancel")) {
-                    onCancel()
-                }
-                Button(saveButtonTitle) {
-                    onSave()
-                }
-                .buttonStyle(.borderedProminent)
-                .disabled(draft == nil)
-            }
-        }
-        .padding(20)
-        .frame(minWidth: 480, minHeight: 520)
-    }
-
-    private var titleText: String {
-        switch draft?.mode {
-        case .create:
-            return NSLocalizedString("claude.accounts.editor.create", value: "New Claude Account", comment: "Create Claude account")
-        case .edit:
-            return NSLocalizedString("claude.accounts.editor.edit", value: "Edit Claude Account", comment: "Edit Claude account")
-        case nil:
-            return NSLocalizedString("claude.accounts.editor.title", value: "Claude Account", comment: "Claude account editor title")
-        }
-    }
-
-    private var saveButtonTitle: String {
-        switch draft?.mode {
-        case .create:
-            return NSLocalizedString("generic.create", value: "Create", comment: "Create")
-        case .edit:
-            return NSLocalizedString("generic.save", value: "Save", comment: "Save")
-        case nil:
-            return NSLocalizedString("generic.save", value: "Save", comment: "Save")
-        }
-    }
-
-    private var credentialTypeBinding: Binding<ClaudeCredentialType> {
-        Binding(
-            get: { draft?.credentialType ?? .authToken },
-            set: { newValue in
-                guard var draft else { return }
-                draft.credentialType = newValue
-                self.draft = draft
-            }
-        )
-    }
-
-    private func stringBinding(_ keyPath: WritableKeyPath<Draft, String>) -> Binding<String> {
-        Binding(
-            get: { draft?[keyPath: keyPath] ?? "" },
-            set: { value in
-                guard var draft else { return }
-                draft[keyPath: keyPath] = value
-                self.draft = draft
-            }
-        )
-    }
-}
-
 private extension ProviderFetchKind {
     var nolonLabel: String {
         switch self {
@@ -266,12 +154,17 @@ struct ProviderUsageView: View, DebugPageLocatable {
                 )
             }
         }
-        .sheet(
-            isPresented: Binding(
-                get: { viewModel.claude.isShowingEditor },
-                set: { if !$0 { viewModel.claude.dismissEditor() } }
-            )
-        ) {
+        .sheet(item: Binding(
+            get: { viewModel.claude.editorDraft },
+            set: { newValue in
+                if let newValue {
+                    viewModel.claude.editorDraft = newValue
+                    viewModel.claude.isShowingEditor = true
+                } else {
+                    viewModel.claude.dismissEditor()
+                }
+            }
+        )) { _ in
             ClaudeAccountEditorSheet(
                 draft: Binding(
                     get: { viewModel.claude.editorDraft },

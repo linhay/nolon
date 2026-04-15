@@ -12,6 +12,7 @@ private final class BoolSink: @unchecked Sendable {
 }
 
 @MainActor
+@Suite("ProviderUsage Unified Accounts Pipeline", .serialized)
 struct ProviderUsageUnifiedAccountsPipelineTests {
     @Test("BDD: Given Claude provider account state when building unified cards then emits Claude card models")
     func testBDD_GivenClaudeProviderState_WhenBuildingUnifiedCards_ThenEmitsClaudeCards() {
@@ -82,11 +83,11 @@ struct ProviderUsageUnifiedAccountsPipelineTests {
 
         #expect(root.accountsViewModel.claude.isShowingEditor == true)
         #expect(root.accountsViewModel.claude.editorDraft?.accountID == account.id)
-        #expect(root.accountsViewModel.claude.editorDraft?.anthropicModel == "gpt-5")
+        #expect(root.accountsViewModel.claude.editorDraft?.anthropicModel == "")
         #expect(root.accountsViewModel.claude.editorDraft?.anthropicReasoningModel == "")
-        #expect(root.accountsViewModel.claude.editorDraft?.anthropicDefaultHaikuModel == "gpt-5(minimal)")
-        #expect(root.accountsViewModel.claude.editorDraft?.anthropicDefaultSonnetModel == "gpt-5(medium)")
-        #expect(root.accountsViewModel.claude.editorDraft?.anthropicDefaultOpusModel == "gpt-5(high)")
+        #expect(root.accountsViewModel.claude.editorDraft?.anthropicDefaultHaikuModel == "")
+        #expect(root.accountsViewModel.claude.editorDraft?.anthropicDefaultSonnetModel == "")
+        #expect(root.accountsViewModel.claude.editorDraft?.anthropicDefaultOpusModel == "")
     }
 
     @Test("BDD: Given Claude card edit action when opening editor then Claude state emits observation change")
@@ -144,7 +145,200 @@ struct ProviderUsageUnifiedAccountsPipelineTests {
         #expect(root.accountsViewModel.claude.isShowingEditor == true)
         #expect(root.accountsViewModel.claude.editorDraft?.mode == .create)
         #expect(root.accountsViewModel.claude.editorDraft?.baseURL == "https://api.anthropic.com")
-        #expect(root.accountsViewModel.claude.editorDraft?.anthropicModel == "gpt-5")
+        #expect(root.accountsViewModel.claude.editorDraft?.anthropicModel == "")
+        #expect(root.accountsViewModel.claude.editorDraft?.anthropicReasoningModel == "")
+        #expect(root.accountsViewModel.claude.editorDraft?.anthropicDefaultHaikuModel == "")
+        #expect(root.accountsViewModel.claude.editorDraft?.anthropicDefaultSonnetModel == "")
+        #expect(root.accountsViewModel.claude.editorDraft?.anthropicDefaultOpusModel == "")
+    }
+
+    @Test("BDD: Given Claude create editor with custom model mapping when saving then created account preserves custom model mapping")
+    func testBDD_GivenClaudeCreateEditorWithCustomModelMapping_WhenSaving_ThenCreatedAccountPersistsCustomModelMapping() async throws {
+        let provider = Provider(
+            id: "claude",
+            kind: .vendor,
+            name: "Claude",
+            defaultSkillsPath: "/tmp/claude/skills",
+            workflowPath: "/tmp/claude/prompts",
+            vendorCategory: .original,
+            templateId: ProviderTemplate.claudeCode.rawValue
+        )
+
+        try await withTemporaryNolonHome { _ in
+            let root = ProviderUsageRootViewModel(provider: provider)
+            root.accountsViewModel.claude.beginCreateAccount()
+
+            var draft = try #require(root.accountsViewModel.claude.editorDraft)
+            draft.name = "Relay Claude"
+            draft.credentialValue = "sk-ant-custom"
+            draft.baseURL = "https://relay.example.com/v1"
+            draft.anthropicModel = "claude-primary"
+            draft.anthropicReasoningModel = "claude-reasoning"
+            draft.anthropicDefaultHaikuModel = "claude-haiku"
+            draft.anthropicDefaultSonnetModel = "claude-sonnet"
+            draft.anthropicDefaultOpusModel = "claude-opus"
+            root.accountsViewModel.claude.editorDraft = draft
+
+            await root.accountsViewModel.claude.saveEditor()
+
+            let accounts = try await ClaudeAccountManager().loadAccounts()
+            let created = try #require(accounts.first)
+            #expect(created.name == "Relay Claude")
+            #expect(created.credentialValue == "sk-ant-custom")
+            #expect(created.baseURL == "https://relay.example.com/v1")
+            #expect(created.anthropicModel == "claude-primary")
+            #expect(created.anthropicReasoningModel == "claude-reasoning")
+            #expect(created.anthropicDefaultHaikuModel == "claude-haiku")
+            #expect(created.anthropicDefaultSonnetModel == "claude-sonnet")
+            #expect(created.anthropicDefaultOpusModel == "claude-opus")
+            #expect(root.accountsViewModel.claude.editorDraft == nil)
+            #expect(root.accountsViewModel.claude.editorErrorMessage == nil)
+        }
+    }
+
+    @Test("BDD: Given Claude create draft when building settings preview then only non-empty env keys are emitted")
+    func testBDD_GivenClaudeCreateDraft_WhenBuildingSettingsPreview_ThenOnlyNonEmptyEnvKeysAreEmitted() throws {
+        var draft = ProviderUsageAccountsViewModel.ClaudeState.AccountEditorDraft(
+            mode: .create,
+            accountID: UUID(uuidString: "12345678-1111-2222-3333-444444444444")!,
+            name: "",
+            credentialType: .apiKey,
+            credentialValue: " sk-ant-preview ",
+            baseURL: " https://relay.example.com/v1 ",
+            anthropicModel: "",
+            anthropicReasoningModel: " reasoning-preview ",
+            anthropicDefaultHaikuModel: "",
+            anthropicDefaultSonnetModel: " sonnet-preview ",
+            anthropicDefaultOpusModel: ""
+        )
+
+        let previewJSON = ClaudeAccountEditorPreviewBuilder.settingsPreviewJSON(from: draft)
+        let data = try #require(previewJSON.data(using: .utf8))
+        let root = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        let env = try #require(root["env"] as? [String: Any])
+
+        #expect(env["ANTHROPIC_BASE_URL"] as? String == "https://relay.example.com/v1")
+        #expect(env["ANTHROPIC_API_KEY"] as? String == "sk-ant-preview")
+        #expect(env["ANTHROPIC_AUTH_TOKEN"] == nil)
+        #expect(env["ANTHROPIC_MODEL"] == nil)
+        #expect(env["ANTHROPIC_REASONING_MODEL"] as? String == "reasoning-preview")
+        #expect(env["ANTHROPIC_DEFAULT_HAIKU_MODEL"] == nil)
+        #expect(env["ANTHROPIC_DEFAULT_SONNET_MODEL"] as? String == "sonnet-preview")
+        #expect(env["ANTHROPIC_DEFAULT_OPUS_MODEL"] == nil)
+
+        draft.credentialType = .authToken
+        let tokenPreviewJSON = ClaudeAccountEditorPreviewBuilder.settingsPreviewJSON(from: draft)
+        let tokenData = try #require(tokenPreviewJSON.data(using: .utf8))
+        let tokenRoot = try #require(JSONSerialization.jsonObject(with: tokenData) as? [String: Any])
+        let tokenEnv = try #require(tokenRoot["env"] as? [String: Any])
+        #expect(tokenEnv["ANTHROPIC_AUTH_TOKEN"] as? String == "sk-ant-preview")
+        #expect(tokenEnv["ANTHROPIC_API_KEY"] == nil)
+    }
+
+    @Test("BDD: Given Claude draft when applying supported json env then form draft updates from json")
+    func testBDD_GivenClaudeDraft_WhenApplyingSupportedJSONEnv_ThenDraftUpdatesFromJSON() throws {
+        let draft = ProviderUsageAccountsViewModel.ClaudeState.AccountEditorDraft(
+            mode: .edit,
+            accountID: UUID(uuidString: "12345678-aaaa-bbbb-cccc-444444444444")!,
+            name: "Relay Claude",
+            credentialType: .authToken,
+            credentialValue: "legacy-token",
+            baseURL: "https://legacy.example.com",
+            anthropicModel: "legacy-model",
+            anthropicReasoningModel: "legacy-reasoning",
+            anthropicDefaultHaikuModel: "legacy-haiku",
+            anthropicDefaultSonnetModel: "legacy-sonnet",
+            anthropicDefaultOpusModel: "legacy-opus"
+        )
+
+        let updated = try ClaudeAccountEditorPreviewBuilder.applyingSettingsPreviewJSON(
+            """
+            {
+              "env": {
+                "ANTHROPIC_API_KEY": " sk-ant-json ",
+                "ANTHROPIC_BASE_URL": " https://relay.example.com/v1 ",
+                "ANTHROPIC_MODEL": " claude-primary ",
+                "ANTHROPIC_REASONING_MODEL": " claude-reasoning "
+              }
+            }
+            """,
+            to: draft
+        )
+
+        #expect(updated.mode == ProviderUsageAccountsViewModel.ClaudeState.AccountEditorDraft.Mode.edit)
+        #expect(updated.accountID == draft.accountID)
+        #expect(updated.name == draft.name)
+        #expect(updated.credentialType == ClaudeCredentialType.apiKey)
+        #expect(updated.credentialValue == "sk-ant-json")
+        #expect(updated.baseURL == "https://relay.example.com/v1")
+        #expect(updated.anthropicModel == "claude-primary")
+        #expect(updated.anthropicReasoningModel == "claude-reasoning")
+        #expect(updated.anthropicDefaultHaikuModel == "")
+        #expect(updated.anthropicDefaultSonnetModel == "")
+        #expect(updated.anthropicDefaultOpusModel == "")
+    }
+
+    @Test("BDD: Given Claude draft when applying json with both credential keys then json sync rejects ambiguous credential")
+    func testBDD_GivenClaudeDraft_WhenApplyingJSONWithBothCredentialKeys_ThenRejectsAmbiguousCredential() {
+        let draft = ProviderUsageAccountsViewModel.ClaudeState.AccountEditorDraft(
+            mode: .create,
+            accountID: UUID(uuidString: "87654321-aaaa-bbbb-cccc-444444444444")!,
+            name: "",
+            credentialType: .authToken,
+            credentialValue: "",
+            baseURL: "https://api.anthropic.com",
+            anthropicModel: "",
+            anthropicReasoningModel: "",
+            anthropicDefaultHaikuModel: "",
+            anthropicDefaultSonnetModel: "",
+            anthropicDefaultOpusModel: ""
+        )
+
+        #expect(throws: Error.self) {
+            _ = try ClaudeAccountEditorPreviewBuilder.applyingSettingsPreviewJSON(
+                """
+                {
+                  "env": {
+                    "ANTHROPIC_AUTH_TOKEN": "token-1",
+                    "ANTHROPIC_API_KEY": "key-1",
+                    "ANTHROPIC_BASE_URL": "https://api.anthropic.com"
+                  }
+                }
+                """,
+                to: draft
+            )
+        }
+    }
+
+    @Test("BDD: Given Claude draft when applying json with unsupported env key then json sync rejects unsupported keys")
+    func testBDD_GivenClaudeDraft_WhenApplyingJSONWithUnsupportedEnvKey_ThenRejectsUnsupportedKeys() {
+        let draft = ProviderUsageAccountsViewModel.ClaudeState.AccountEditorDraft(
+            mode: .create,
+            accountID: UUID(uuidString: "99999999-aaaa-bbbb-cccc-444444444444")!,
+            name: "",
+            credentialType: .authToken,
+            credentialValue: "",
+            baseURL: "https://api.anthropic.com",
+            anthropicModel: "",
+            anthropicReasoningModel: "",
+            anthropicDefaultHaikuModel: "",
+            anthropicDefaultSonnetModel: "",
+            anthropicDefaultOpusModel: ""
+        )
+
+        #expect(throws: Error.self) {
+            _ = try ClaudeAccountEditorPreviewBuilder.applyingSettingsPreviewJSON(
+                """
+                {
+                  "env": {
+                    "ANTHROPIC_BASE_URL": "https://api.anthropic.com",
+                    "FOO": "bar"
+                  }
+                }
+                """,
+                to: draft
+            )
+        }
     }
 
     @Test("BDD: Given Gemini provider account state when building unified cards then emits Gemini card models")
@@ -711,5 +905,29 @@ struct ProviderUsageUnifiedAccountsPipelineTests {
         } else {
             Issue.record("Expected success outcome to be preferred")
         }
+    }
+}
+
+private extension ProviderUsageUnifiedAccountsPipelineTests {
+    func withTemporaryNolonHome<T>(
+        _ body: (URL) async throws -> T
+    ) async throws -> T {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("nolon-provider-usage-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+
+        let previousNolonHome = getenv("NOLON_HOME").map { String(cString: $0) }
+
+        setenv("NOLON_HOME", root.path, 1)
+        defer {
+            if let previousNolonHome {
+                setenv("NOLON_HOME", previousNolonHome, 1)
+            } else {
+                unsetenv("NOLON_HOME")
+            }
+            try? FileManager.default.removeItem(at: root)
+        }
+
+        return try await body(root)
     }
 }

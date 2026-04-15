@@ -321,10 +321,60 @@ final class ProviderUsageAccountsViewModel {
     @MainActor
     @Observable
     final class ClaudeState {
-        struct AccountEditorDraft: Equatable {
+        struct AccountEditorDraft: Equatable, Identifiable {
             enum Mode: Equatable {
                 case create
                 case edit
+            }
+
+            enum JSONSyncError: LocalizedError, Equatable {
+                case rootMustBeObject
+                case envMustBeObject
+                case unsupportedTopLevelKeys([String])
+                case unsupportedEnvKeys([String])
+                case ambiguousCredential
+                case invalidEnvValue(key: String)
+
+                var errorDescription: String? {
+                    switch self {
+                    case .rootMustBeObject:
+                        return NSLocalizedString(
+                            "claude.accounts.editor.error.json_root_must_be_object",
+                            value: "The JSON root must be an object containing the `env` fragment.",
+                            comment: "Claude account editor json root must be object"
+                        )
+                    case .envMustBeObject:
+                        return NSLocalizedString(
+                            "claude.accounts.editor.error.json_env_must_be_object",
+                            value: "`env` must be a JSON object.",
+                            comment: "Claude account editor json env must be object"
+                        )
+                    case let .unsupportedTopLevelKeys(keys):
+                        return NSLocalizedString(
+                            "claude.accounts.editor.error.json_unsupported_top_level_prefix",
+                            value: "Unsupported top-level keys: ",
+                            comment: "Claude account editor unsupported top-level json keys prefix"
+                        ) + keys.joined(separator: ", ") + "."
+                    case let .unsupportedEnvKeys(keys):
+                        return NSLocalizedString(
+                            "claude.accounts.editor.error.json_unsupported_env_prefix",
+                            value: "Unsupported env keys: ",
+                            comment: "Claude account editor unsupported env json keys prefix"
+                        ) + keys.joined(separator: ", ") + "."
+                    case .ambiguousCredential:
+                        return NSLocalizedString(
+                            "claude.accounts.editor.error.json_ambiguous_credential",
+                            value: "Use either `ANTHROPIC_AUTH_TOKEN` or `ANTHROPIC_API_KEY`, not both.",
+                            comment: "Claude account editor ambiguous credential json error"
+                        )
+                    case let .invalidEnvValue(key):
+                        return "`\(key)` " + NSLocalizedString(
+                            "claude.accounts.editor.error.json_invalid_env_value_suffix",
+                            value: "must be a string or null.",
+                            comment: "Claude account editor invalid env value suffix"
+                        )
+                    }
+                }
             }
 
             let mode: Mode
@@ -338,7 +388,179 @@ final class ProviderUsageAccountsViewModel {
             var anthropicDefaultHaikuModel: String
             var anthropicDefaultSonnetModel: String
             var anthropicDefaultOpusModel: String
+
+            var id: UUID { accountID }
+
+            var trimmedName: String {
+                name.trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+
+            var trimmedCredentialValue: String {
+                credentialValue.trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+
+            var trimmedBaseURL: String {
+                baseURL.trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+
+            var trimmedAnthropicModel: String {
+                anthropicModel.trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+
+            var trimmedAnthropicReasoningModel: String {
+                anthropicReasoningModel.trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+
+            var trimmedAnthropicDefaultHaikuModel: String {
+                anthropicDefaultHaikuModel.trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+
+            var trimmedAnthropicDefaultSonnetModel: String {
+                anthropicDefaultSonnetModel.trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+
+            var trimmedAnthropicDefaultOpusModel: String {
+                anthropicDefaultOpusModel.trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+
+            var hasRequiredFields: Bool {
+                !trimmedCredentialValue.isEmpty &&
+                !trimmedBaseURL.isEmpty
+            }
+
+            var settingsPreviewObject: [String: Any] {
+                var env: [String: String] = [:]
+                env["ANTHROPIC_BASE_URL"] = trimmedBaseURL
+
+                switch credentialType {
+                case .authToken:
+                    env["ANTHROPIC_AUTH_TOKEN"] = trimmedCredentialValue
+                case .apiKey:
+                    env["ANTHROPIC_API_KEY"] = trimmedCredentialValue
+                }
+
+                Self.assign(trimmedAnthropicModel, for: "ANTHROPIC_MODEL", into: &env)
+                Self.assign(trimmedAnthropicReasoningModel, for: "ANTHROPIC_REASONING_MODEL", into: &env)
+                Self.assign(trimmedAnthropicDefaultHaikuModel, for: "ANTHROPIC_DEFAULT_HAIKU_MODEL", into: &env)
+                Self.assign(trimmedAnthropicDefaultSonnetModel, for: "ANTHROPIC_DEFAULT_SONNET_MODEL", into: &env)
+                Self.assign(trimmedAnthropicDefaultOpusModel, for: "ANTHROPIC_DEFAULT_OPUS_MODEL", into: &env)
+
+                return ["env": env]
+            }
+
+            var settingsPreviewJSON: String {
+                guard JSONSerialization.isValidJSONObject(settingsPreviewObject),
+                      let data = try? JSONSerialization.data(
+                        withJSONObject: settingsPreviewObject,
+                        options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
+                      ),
+                      let output = String(data: data, encoding: .utf8)
+                else {
+                    return "{\n  \"env\" : {}\n}"
+                }
+                return output
+            }
+
+            func applyingSettingsPreviewJSON(_ text: String) throws -> Self {
+                let data = Data(text.utf8)
+                let object = try JSONSerialization.jsonObject(with: data)
+                guard let root = object as? [String: Any] else {
+                    throw JSONSyncError.rootMustBeObject
+                }
+                return try applyingSettingsPreviewObject(root)
+            }
+
+            func applyingSettingsPreviewObject(_ root: [String: Any]) throws -> Self {
+                let unsupportedTopLevelKeys = Set(root.keys).subtracting(Self.supportedTopLevelKeys).sorted()
+                guard unsupportedTopLevelKeys.isEmpty else {
+                    throw JSONSyncError.unsupportedTopLevelKeys(unsupportedTopLevelKeys)
+                }
+
+                guard let envObject = root["env"] else {
+                    return try applyingNormalizedEnv([:])
+                }
+                guard let env = envObject as? [String: Any] else {
+                    throw JSONSyncError.envMustBeObject
+                }
+                return try applyingNormalizedEnv(env)
+            }
+
+            private func applyingNormalizedEnv(_ env: [String: Any]) throws -> Self {
+                let unsupportedEnvKeys = Set(env.keys).subtracting(Self.supportedEnvKeys).sorted()
+                guard unsupportedEnvKeys.isEmpty else {
+                    throw JSONSyncError.unsupportedEnvKeys(unsupportedEnvKeys)
+                }
+
+                let authToken = try Self.optionalEnvString(Self.authTokenKey, from: env)
+                let apiKey = try Self.optionalEnvString(Self.apiKeyKey, from: env)
+                guard !(authToken != nil && apiKey != nil) else {
+                    throw JSONSyncError.ambiguousCredential
+                }
+
+                var updated = self
+                updated.baseURL = try Self.trimmedEnvString(Self.baseURLKey, from: env) ?? ""
+                updated.anthropicModel = try Self.trimmedEnvString(Self.modelKey, from: env) ?? ""
+                updated.anthropicReasoningModel = try Self.trimmedEnvString(Self.reasoningModelKey, from: env) ?? ""
+                updated.anthropicDefaultHaikuModel = try Self.trimmedEnvString(Self.defaultHaikuModelKey, from: env) ?? ""
+                updated.anthropicDefaultSonnetModel = try Self.trimmedEnvString(Self.defaultSonnetModelKey, from: env) ?? ""
+                updated.anthropicDefaultOpusModel = try Self.trimmedEnvString(Self.defaultOpusModelKey, from: env) ?? ""
+
+                if let apiKey {
+                    updated.credentialType = .apiKey
+                    updated.credentialValue = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+                } else if let authToken {
+                    updated.credentialType = .authToken
+                    updated.credentialValue = authToken.trimmingCharacters(in: .whitespacesAndNewlines)
+                } else {
+                    updated.credentialValue = ""
+                }
+
+                return updated
+            }
+
+            private static func assign(_ value: String, for key: String, into env: inout [String: String]) {
+                guard !value.isEmpty else { return }
+                env[key] = value
+            }
+
+            private static let authTokenKey = "ANTHROPIC_AUTH_TOKEN"
+            private static let apiKeyKey = "ANTHROPIC_API_KEY"
+            private static let baseURLKey = "ANTHROPIC_BASE_URL"
+            private static let modelKey = "ANTHROPIC_MODEL"
+            private static let reasoningModelKey = "ANTHROPIC_REASONING_MODEL"
+            private static let defaultHaikuModelKey = "ANTHROPIC_DEFAULT_HAIKU_MODEL"
+            private static let defaultSonnetModelKey = "ANTHROPIC_DEFAULT_SONNET_MODEL"
+            private static let defaultOpusModelKey = "ANTHROPIC_DEFAULT_OPUS_MODEL"
+            private static let supportedTopLevelKeys: Set<String> = ["env"]
+            private static let supportedEnvKeys: Set<String> = [
+                authTokenKey,
+                apiKeyKey,
+                baseURLKey,
+                modelKey,
+                reasoningModelKey,
+                defaultHaikuModelKey,
+                defaultSonnetModelKey,
+                defaultOpusModelKey
+            ]
+
+            private static func optionalEnvString(_ key: String, from env: [String: Any]) throws -> String? {
+                guard let value = env[key] else { return nil }
+                if value is NSNull {
+                    return nil
+                }
+                guard let stringValue = value as? String else {
+                    throw JSONSyncError.invalidEnvValue(key: key)
+                }
+                return stringValue
+            }
+
+            private static func trimmedEnvString(_ key: String, from env: [String: Any]) throws -> String? {
+                try optionalEnvString(key, from: env)?
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+            }
         }
+
+        private static let defaultBaseURL = "https://api.anthropic.com"
 
         fileprivate let state: ProviderUsageStateStore
         var isShowingEditor = false
@@ -391,12 +613,12 @@ final class ProviderUsageAccountsViewModel {
                 name: "",
                 credentialType: .authToken,
                 credentialValue: "",
-                baseURL: "https://api.anthropic.com",
-                anthropicModel: "gpt-5",
+                baseURL: Self.defaultBaseURL,
+                anthropicModel: "",
                 anthropicReasoningModel: "",
-                anthropicDefaultHaikuModel: "gpt-5(minimal)",
-                anthropicDefaultSonnetModel: "gpt-5(medium)",
-                anthropicDefaultOpusModel: "gpt-5(high)"
+                anthropicDefaultHaikuModel: "",
+                anthropicDefaultSonnetModel: "",
+                anthropicDefaultOpusModel: ""
             )
             editorErrorMessage = nil
             isShowingEditor = true
@@ -411,16 +633,7 @@ final class ProviderUsageAccountsViewModel {
         func saveEditor() async {
             guard let draft = editorDraft else { return }
 
-            let trimmedName = draft.name.trimmingCharacters(in: .whitespacesAndNewlines)
-            let trimmedCredential = draft.credentialValue.trimmingCharacters(in: .whitespacesAndNewlines)
-            let trimmedBaseURL = draft.baseURL.trimmingCharacters(in: .whitespacesAndNewlines)
-            let trimmedModel = draft.anthropicModel.trimmingCharacters(in: .whitespacesAndNewlines)
-            let trimmedReasoningModel = draft.anthropicReasoningModel.trimmingCharacters(in: .whitespacesAndNewlines)
-            let trimmedHaiku = draft.anthropicDefaultHaikuModel.trimmingCharacters(in: .whitespacesAndNewlines)
-            let trimmedSonnet = draft.anthropicDefaultSonnetModel.trimmingCharacters(in: .whitespacesAndNewlines)
-            let trimmedOpus = draft.anthropicDefaultOpusModel.trimmingCharacters(in: .whitespacesAndNewlines)
-
-            guard !trimmedCredential.isEmpty else {
+            guard !draft.trimmedCredentialValue.isEmpty else {
                 editorErrorMessage = NSLocalizedString(
                     "claude.accounts.editor.error.empty_credential",
                     value: "Credential cannot be empty.",
@@ -428,43 +641,11 @@ final class ProviderUsageAccountsViewModel {
                 )
                 return
             }
-            guard !trimmedBaseURL.isEmpty else {
+            guard !draft.trimmedBaseURL.isEmpty else {
                 editorErrorMessage = NSLocalizedString(
                     "claude.accounts.editor.error.empty_base_url",
                     value: "Base URL cannot be empty.",
                     comment: "Claude account editor empty base url error"
-                )
-                return
-            }
-            guard !trimmedModel.isEmpty else {
-                editorErrorMessage = NSLocalizedString(
-                    "claude.accounts.editor.error.empty_model",
-                    value: "Model cannot be empty.",
-                    comment: "Claude account editor empty model error"
-                )
-                return
-            }
-            guard !trimmedHaiku.isEmpty else {
-                editorErrorMessage = NSLocalizedString(
-                    "claude.accounts.editor.error.empty_haiku_model",
-                    value: "Default Haiku model cannot be empty.",
-                    comment: "Claude account editor empty default haiku model error"
-                )
-                return
-            }
-            guard !trimmedSonnet.isEmpty else {
-                editorErrorMessage = NSLocalizedString(
-                    "claude.accounts.editor.error.empty_sonnet_model",
-                    value: "Default Sonnet model cannot be empty.",
-                    comment: "Claude account editor empty default sonnet model error"
-                )
-                return
-            }
-            guard !trimmedOpus.isEmpty else {
-                editorErrorMessage = NSLocalizedString(
-                    "claude.accounts.editor.error.empty_opus_model",
-                    value: "Default Opus model cannot be empty.",
-                    comment: "Claude account editor empty default opus model error"
                 )
                 return
             }
@@ -473,15 +654,15 @@ final class ProviderUsageAccountsViewModel {
                 case .create:
                     var newAccount = ClaudeAccount(
                         id: draft.accountID,
-                        name: trimmedName,
+                        name: draft.trimmedName,
                         credentialType: draft.credentialType,
-                        credentialValue: trimmedCredential,
-                        baseURL: trimmedBaseURL,
-                        anthropicModel: trimmedModel,
-                        anthropicReasoningModel: trimmedReasoningModel,
-                        anthropicDefaultHaikuModel: trimmedHaiku,
-                        anthropicDefaultSonnetModel: trimmedSonnet,
-                        anthropicDefaultOpusModel: trimmedOpus,
+                        credentialValue: draft.trimmedCredentialValue,
+                        baseURL: draft.trimmedBaseURL,
+                        anthropicModel: draft.trimmedAnthropicModel,
+                        anthropicReasoningModel: draft.trimmedAnthropicReasoningModel,
+                        anthropicDefaultHaikuModel: draft.trimmedAnthropicDefaultHaikuModel,
+                        anthropicDefaultSonnetModel: draft.trimmedAnthropicDefaultSonnetModel,
+                        anthropicDefaultOpusModel: draft.trimmedAnthropicDefaultOpusModel,
                         source: .manual
                     )
                     newAccount.createdAt = Date()
@@ -498,15 +679,15 @@ final class ProviderUsageAccountsViewModel {
                     }
 
                     var updated = account
-                    updated.name = trimmedName
+                    updated.name = draft.trimmedName
                     updated.credentialType = draft.credentialType
-                    updated.credentialValue = trimmedCredential
-                    updated.baseURL = trimmedBaseURL
-                    updated.anthropicModel = trimmedModel
-                    updated.anthropicReasoningModel = trimmedReasoningModel
-                    updated.anthropicDefaultHaikuModel = trimmedHaiku
-                    updated.anthropicDefaultSonnetModel = trimmedSonnet
-                    updated.anthropicDefaultOpusModel = trimmedOpus
+                    updated.credentialValue = draft.trimmedCredentialValue
+                    updated.baseURL = draft.trimmedBaseURL
+                    updated.anthropicModel = draft.trimmedAnthropicModel
+                    updated.anthropicReasoningModel = draft.trimmedAnthropicReasoningModel
+                    updated.anthropicDefaultHaikuModel = draft.trimmedAnthropicDefaultHaikuModel
+                    updated.anthropicDefaultSonnetModel = draft.trimmedAnthropicDefaultSonnetModel
+                    updated.anthropicDefaultOpusModel = draft.trimmedAnthropicDefaultOpusModel
                     try await engine.updateClaudeAccount(updated)
                 }
                 dismissEditor()
@@ -851,5 +1032,21 @@ final class ProviderLoginFlowViewModel {
 
     func reopenLoginURLInBrowser() {
         engine.reopenLoginURLInBrowser()
+    }
+}
+
+enum ClaudeAccountEditorPreviewBuilder {
+    typealias Draft = ProviderUsageAccountsViewModel.ClaudeState.AccountEditorDraft
+
+    static func settingsPreviewObject(from draft: Draft) -> [String: Any] {
+        draft.settingsPreviewObject
+    }
+
+    static func settingsPreviewJSON(from draft: Draft) -> String {
+        draft.settingsPreviewJSON
+    }
+
+    static func applyingSettingsPreviewJSON(_ text: String, to draft: Draft) throws -> Draft {
+        try draft.applyingSettingsPreviewJSON(text)
     }
 }

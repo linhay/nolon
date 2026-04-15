@@ -101,13 +101,7 @@ extension ProviderUsageEngine {
 
     func createClaudeAccount(_ account: ClaudeAccount) async throws {
         guard usageProvider == .claude else { return }
-        _ = try await claudeAccountManager.addAccount(
-            name: account.name,
-            credentialType: account.credentialType,
-            credentialValue: account.credentialValue,
-            baseURL: account.baseURL,
-            source: .manual
-        )
+        _ = try await claudeAccountManager.addAccount(account)
         await load()
     }
 

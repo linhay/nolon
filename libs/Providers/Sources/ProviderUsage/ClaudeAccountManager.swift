@@ -101,21 +101,42 @@ public actor ClaudeAccountManager {
         source: ClaudeAccountSource,
         usageQuery: CodexHTTPUsageQuery? = nil
     ) throws -> ClaudeAccount {
-        var accounts = try loadAccounts()
-        let now = Date()
-        let account = ClaudeAccount(
-            name: sanitizedName(name, baseURL: baseURL),
-            credentialType: credentialType,
-            credentialValue: credentialValue.trimmingCharacters(in: .whitespacesAndNewlines),
-            baseURL: normalizedBaseURL(baseURL),
-            source: source,
-            usageQuery: usageQuery,
-            createdAt: now,
-            updatedAt: now
+        try addAccount(
+            ClaudeAccount(
+                name: name,
+                credentialType: credentialType,
+                credentialValue: credentialValue,
+                baseURL: baseURL,
+                source: source,
+                usageQuery: usageQuery
+            )
         )
-        accounts.append(account)
+    }
+
+    @discardableResult
+    public func addAccount(_ account: ClaudeAccount) throws -> ClaudeAccount {
+        var accounts = try loadAccounts()
+        let created = ClaudeAccount(
+            id: account.id,
+            name: sanitizedName(account.name, baseURL: account.baseURL),
+            credentialType: account.credentialType,
+            credentialValue: account.credentialValue.trimmingCharacters(in: .whitespacesAndNewlines),
+            baseURL: normalizedBaseURL(account.baseURL),
+            anthropicModel: account.anthropicModel,
+            anthropicReasoningModel: account.anthropicReasoningModel,
+            anthropicDefaultHaikuModel: account.anthropicDefaultHaikuModel,
+            anthropicDefaultSonnetModel: account.anthropicDefaultSonnetModel,
+            anthropicDefaultOpusModel: account.anthropicDefaultOpusModel,
+            source: account.source,
+            usageQuery: account.usageQuery,
+            createdAt: account.createdAt,
+            updatedAt: account.updatedAt,
+            lastValidatedAt: account.lastValidatedAt,
+            lastValidationStatus: account.lastValidationStatus
+        )
+        accounts.append(created)
         try saveAccounts(accounts)
-        return account
+        return created
     }
 
     public func updateAccount(_ account: ClaudeAccount) throws {
@@ -352,22 +373,18 @@ public actor ClaudeAccountManager {
         var merged = existingObject
         var env = (merged["env"] as? [String: Any]) ?? [:]
         env["ANTHROPIC_BASE_URL"] = normalizedBaseURL(account.baseURL)
-        env["ANTHROPIC_MODEL"] = account.anthropicModel
-        if account.anthropicReasoningModel.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            env.removeValue(forKey: "ANTHROPIC_REASONING_MODEL")
-        } else {
-            env["ANTHROPIC_REASONING_MODEL"] = account.anthropicReasoningModel
-        }
-        env["ANTHROPIC_DEFAULT_HAIKU_MODEL"] = account.anthropicDefaultHaikuModel
-        env["ANTHROPIC_DEFAULT_SONNET_MODEL"] = account.anthropicDefaultSonnetModel
-        env["ANTHROPIC_DEFAULT_OPUS_MODEL"] = account.anthropicDefaultOpusModel
+        Self.setOptionalEnvValue(account.anthropicModel, for: "ANTHROPIC_MODEL", in: &env)
+        Self.setOptionalEnvValue(account.anthropicReasoningModel, for: "ANTHROPIC_REASONING_MODEL", in: &env)
+        Self.setOptionalEnvValue(account.anthropicDefaultHaikuModel, for: "ANTHROPIC_DEFAULT_HAIKU_MODEL", in: &env)
+        Self.setOptionalEnvValue(account.anthropicDefaultSonnetModel, for: "ANTHROPIC_DEFAULT_SONNET_MODEL", in: &env)
+        Self.setOptionalEnvValue(account.anthropicDefaultOpusModel, for: "ANTHROPIC_DEFAULT_OPUS_MODEL", in: &env)
         env.removeValue(forKey: "ANTHROPIC_SMALL_FAST_MODEL")
         switch account.credentialType {
         case .authToken:
-            env["ANTHROPIC_AUTH_TOKEN"] = account.credentialValue
+            env["ANTHROPIC_AUTH_TOKEN"] = account.credentialValue.trimmingCharacters(in: .whitespacesAndNewlines)
             env.removeValue(forKey: "ANTHROPIC_API_KEY")
         case .apiKey:
-            env["ANTHROPIC_API_KEY"] = account.credentialValue
+            env["ANTHROPIC_API_KEY"] = account.credentialValue.trimmingCharacters(in: .whitespacesAndNewlines)
             env.removeValue(forKey: "ANTHROPIC_AUTH_TOKEN")
         }
         merged["env"] = env
@@ -698,6 +715,15 @@ public actor ClaudeAccountManager {
         return nil
     }
 
+    private static func setOptionalEnvValue(_ value: String, for key: String, in env: inout [String: Any]) {
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty {
+            env.removeValue(forKey: key)
+        } else {
+            env[key] = trimmed
+        }
+    }
+
     private static func resolveClaudeModels(
         model: String?,
         reasoning: String?,
@@ -709,9 +735,9 @@ public actor ClaudeAccountManager {
         let normalizedModel = firstNonEmptyString([model]) ?? ClaudeAccount.defaultAnthropicModel
         let normalizedReasoning = firstNonEmptyString([reasoning]) ?? ClaudeAccount.defaultAnthropicReasoningModel
         let normalizedSmallFast = firstNonEmptyString([smallFast])
-        let normalizedHaiku = firstNonEmptyString([haiku, normalizedSmallFast, normalizedModel]) ?? ClaudeAccount.defaultAnthropicDefaultHaikuModel
-        let normalizedSonnet = firstNonEmptyString([sonnet, normalizedModel, normalizedSmallFast]) ?? ClaudeAccount.defaultAnthropicDefaultSonnetModel
-        let normalizedOpus = firstNonEmptyString([opus, normalizedModel, normalizedSmallFast]) ?? ClaudeAccount.defaultAnthropicDefaultOpusModel
+        let normalizedHaiku = firstNonEmptyString([haiku, normalizedSmallFast]) ?? ClaudeAccount.defaultAnthropicDefaultHaikuModel
+        let normalizedSonnet = firstNonEmptyString([sonnet]) ?? ClaudeAccount.defaultAnthropicDefaultSonnetModel
+        let normalizedOpus = firstNonEmptyString([opus]) ?? ClaudeAccount.defaultAnthropicDefaultOpusModel
         return (model: normalizedModel, reasoning: normalizedReasoning, haiku: normalizedHaiku, sonnet: normalizedSonnet, opus: normalizedOpus)
     }
 
