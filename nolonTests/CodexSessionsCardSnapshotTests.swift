@@ -4,6 +4,7 @@ import SwiftUI
 import Testing
 import NolonUI
 import NolonUIFoundation
+@testable import nolon
 
 @MainActor
 @Suite("Codex Sessions Card Snapshot")
@@ -19,53 +20,25 @@ struct CodexSessionsCardSnapshotTests {
             .path
     }()
 
-    @Test("project first overview and table use fixed six-column layout")
-    func projectFirstOverviewAndTableUseFixedSixColumnLayout() {
-        let overview = NolonUI.CodexSessionsOverviewCardView(
-            data: .init(
-                title: "Project Sessions",
-                subtitle: "Browse sessions by project first. Rewrite and diagnostics stay available from group and row menus.",
-                refreshTitle: "Refresh",
-                groupingTitle: "Group By",
-                groupingOptions: [
-                    .init(id: "project", title: "Project"),
-                    .init(id: "provider", title: "Provider"),
-                ],
-                selectedGroupingID: "project",
-                statusMessage: "Moved 3 sessions to Anthropic (anthropic).",
-                backgroundScanningMessage: "Scanning sessions in background…",
-                paginationMessage: nil,
-                metrics: [
-                    .init(id: "sessions", title: "Total", value: "18"),
-                    .init(id: "groups", title: "Groups", value: "4"),
-                    .init(id: "rewritable", title: "Rewritable", value: "3"),
-                    .init(id: "attention", title: "Needs Attention", value: "1"),
-                ],
-                isRefreshDisabled: false
-            ),
-            onRefresh: {},
-            onSelectGroupingID: { _ in }
-        )
-
-        let section = makeSectionData(isExpanded: false, usage: .placeholder(text: "Loading…"))
+    @Test("overview card keeps compact controls under status pressure")
+    func overviewCardKeepsCompactControlsUnderStatusPressure() {
+        let overview = makeOverviewCard()
 
         let host = makeHost(
-            ScrollView {
-                VStack(alignment: .leading, spacing: 18) {
-                    overview
-                    section
-                }
-                .padding(24)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(DesignSystem.Colors.Background.canvas)
+            VStack(alignment: .leading, spacing: 18) {
+                overview
             }
+            .padding(20)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .background(NolonUI.DesignSystem.Colors.Background.canvas),
+            size: CGSize(width: 620, height: 420)
         )
 
         let failure = withSnapshotTesting(record: .all) {
             verifySnapshot(
                 of: host,
-                as: .image(size: Self.regularSnapshotSize),
-                named: "project-first-overview-table",
+                as: .image(size: CGSize(width: 620, height: 420)),
+                named: "overview-compact-controls",
                 snapshotDirectory: Self.snapshotDirectory
             )
         }
@@ -73,8 +46,39 @@ struct CodexSessionsCardSnapshotTests {
         #expect(failure == nil || failure?.contains("Record mode is on") == true)
     }
 
-    @Test("expanded project section keeps full table while usage is resolved")
-    func expandedProjectSectionKeepsFullTableWhileUsageIsResolved() {
+    @Test("project first overview keeps section rows in a compact session list")
+    func projectFirstOverviewKeepsCompactSessionList() {
+        let overview = makeOverviewCard()
+
+        let section = makeSectionData(isExpanded: false, usage: .placeholder(text: "Loading…"))
+
+        let host = makeHost(
+            SwiftUI.ScrollView(.vertical, showsIndicators: true) {
+                VStack(alignment: .leading, spacing: 18) {
+                    overview
+                    section
+                }
+                .padding(24)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(NolonUI.DesignSystem.Colors.Background.canvas)
+            },
+            size: Self.regularSnapshotSize
+        )
+
+        let failure = withSnapshotTesting(record: .all) {
+            verifySnapshot(
+                of: host,
+                as: .image(size: Self.regularSnapshotSize),
+                named: "project-first-overview-list",
+                snapshotDirectory: Self.snapshotDirectory
+            )
+        }
+
+        #expect(failure == nil || failure?.contains("Record mode is on") == true)
+    }
+
+    @Test("expanded project section keeps flat session rows while usage is resolved")
+    func expandedProjectSectionKeepsFlatRowsWhileUsageIsResolved() {
         let section = makeSectionData(
             isExpanded: true,
             usage: .value(primaryText: "3.0K", secondaryText: "in 2.4K · out 600")
@@ -86,7 +90,8 @@ struct CodexSessionsCardSnapshotTests {
             }
             .padding(24)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            .background(DesignSystem.Colors.Background.canvas)
+            .background(NolonUI.DesignSystem.Colors.Background.canvas),
+            size: Self.regularSnapshotSize
         )
 
         let failure = withSnapshotTesting(record: .all) {
@@ -101,11 +106,12 @@ struct CodexSessionsCardSnapshotTests {
         #expect(failure == nil || failure?.contains("Record mode is on") == true)
     }
 
-    @Test("medium width keeps sessions table readable without collapsing the name column")
-    func mediumWidthKeepsSessionsTableReadable() {
+    @Test("medium width keeps sessions rows readable with selected state")
+    func mediumWidthKeepsSessionsRowsReadable() {
         let section = makeSectionData(
             isExpanded: true,
-            usage: .value(primaryText: "3.0K", secondaryText: "in 2.4K · out 600")
+            usage: .value(primaryText: "3.0K", secondaryText: "in 2.4K · out 600"),
+            selectedRowID: "row-1"
         )
 
         let host = makeHost(
@@ -114,7 +120,7 @@ struct CodexSessionsCardSnapshotTests {
             }
             .padding(24)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            .background(DesignSystem.Colors.Background.canvas),
+            .background(NolonUI.DesignSystem.Colors.Background.canvas),
             size: Self.mediumSnapshotSize
         )
 
@@ -130,33 +136,9 @@ struct CodexSessionsCardSnapshotTests {
         #expect(failure == nil || failure?.contains("Record mode is on") == true)
     }
 
-    @Test("narrow width switches sessions rows into compact stacked details")
-    func narrowWidthSwitchesSessionsRowsIntoCompactDetails() {
-        let overview = NolonUI.CodexSessionsOverviewCardView(
-            data: .init(
-                title: "Project Sessions",
-                subtitle: "Browse sessions by project first. Rewrite and diagnostics stay available from group and row menus.",
-                refreshTitle: "Refresh",
-                groupingTitle: "Group By",
-                groupingOptions: [
-                    .init(id: "project", title: "Project"),
-                    .init(id: "provider", title: "Provider"),
-                ],
-                selectedGroupingID: "project",
-                statusMessage: "Moved 3 sessions to Anthropic (anthropic).",
-                backgroundScanningMessage: "Scanning sessions in background…",
-                paginationMessage: nil,
-                metrics: [
-                    .init(id: "sessions", title: "Total", value: "18"),
-                    .init(id: "groups", title: "Groups", value: "4"),
-                    .init(id: "rewritable", title: "Rewritable", value: "3"),
-                    .init(id: "attention", title: "Needs Attention", value: "1"),
-                ],
-                isRefreshDisabled: false
-            ),
-            onRefresh: {},
-            onSelectGroupingID: { _ in }
-        )
+    @Test("narrow width keeps cc switch style two line rows")
+    func narrowWidthKeepsTwoLineRows() {
+        let overview = makeOverviewCard()
 
         let section = makeSectionData(
             isExpanded: true,
@@ -164,14 +146,14 @@ struct CodexSessionsCardSnapshotTests {
         )
 
         let host = makeHost(
-            ScrollView {
+            SwiftUI.ScrollView(.vertical, showsIndicators: true) {
                 VStack(alignment: .leading, spacing: 18) {
                     overview
                     section
                 }
                 .padding(20)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .background(DesignSystem.Colors.Background.canvas)
+                .background(NolonUI.DesignSystem.Colors.Background.canvas)
             },
             size: Self.narrowSnapshotSize
         )
@@ -180,7 +162,7 @@ struct CodexSessionsCardSnapshotTests {
             verifySnapshot(
                 of: host,
                 as: .image(size: Self.narrowSnapshotSize),
-                named: "narrow-width-project-section",
+                named: "narrow-width-project-list",
                 snapshotDirectory: Self.snapshotDirectory
             )
         }
@@ -194,8 +176,8 @@ struct CodexSessionsCardSnapshotTests {
             data: .init(
                 id: "provider-openai",
                 title: "openai",
-                titleSecondaryText: nil,
-                subtitle: nil,
+                titleSecondaryText: "/Users/linhey/.nolon/providers/openai/sessions/2026/04/15",
+                subtitle: "Read-only provider bundle. Sessions can be inspected, but migration stays disabled here.",
                 presentationKind: .rewritableGroup,
                 badges: [
                     .init(id: "live", text: "Live 12"),
@@ -240,7 +222,8 @@ struct CodexSessionsCardSnapshotTests {
             }
             .padding(24)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            .background(DesignSystem.Colors.Background.canvas)
+            .background(NolonUI.DesignSystem.Colors.Background.canvas),
+            size: Self.regularSnapshotSize
         )
 
         let failure = withSnapshotTesting(record: .all) {
@@ -255,21 +238,90 @@ struct CodexSessionsCardSnapshotTests {
         #expect(failure == nil || failure?.contains("Record mode is on") == true)
     }
 
+    @Test("detail panel surfaces quick resume command and path actions")
+    func detailPanelSurfacesQuickResumeCommandAndPathActions() {
+        let detail = CodexSessionsDetailPanelView(
+            data: .init(
+                title: "Refactor session list layout",
+                providerText: "OpenAI (openai)",
+                timeText: "2026-04-15 20:30",
+                projectPath: "/tmp/project-alpha",
+                groupTitle: "project-alpha",
+                groupSecondaryText: "/tmp/project-alpha",
+                summary: "Move dense row metadata into the panel and keep the list compact like cc-switch.",
+                usageText: "3.0K · in 2.4K · out 600",
+                rolloutPath: "sessions/2026/04/15/refactor.jsonl",
+                stateRowCount: 8,
+                metadataItems: [
+                    .init(id: "forked", icon: "arrow.triangle.branch", text: "Forked from parent-thread", style: .code),
+                    .init(id: "source", icon: "paperplane", text: "Source: cli"),
+                    .init(id: "originator", icon: "person.crop.circle", text: "Originator: codex"),
+                ],
+                statusTexts: ["Live"],
+                resumeCommand: "cd /tmp/project-alpha && codex resume --last thread-refactor",
+                rowData: .init(
+                    id: "row-detail",
+                    title: "Refactor session list layout",
+                    idText: "thread-refactor",
+                    timeText: "2026-04-15 20:30",
+                    providerText: "OpenAI (openai)",
+                    usage: .value(primaryText: "3.0K", secondaryText: "in 2.4K · out 600"),
+                    isArchived: false,
+                    isEditable: true,
+                    summary: "Move dense row metadata into the panel and keep the list compact like cc-switch.",
+                    rolloutPath: "sessions/2026/04/15/refactor.jsonl",
+                    showInFinderTitle: "Show in Finder",
+                    copyPathTitle: "Copy Path",
+                    stateRowCount: 8,
+                    actions: [],
+                    readOnlyText: nil
+                )
+            ),
+            onResume: {},
+            onCopyCommand: {},
+            onRevealInFinder: {},
+            onCopyProjectPath: {},
+            onCopyRolloutPath: {}
+        )
+
+        let host = makeHost(
+            VStack(alignment: .leading, spacing: 18) {
+                detail
+            }
+            .padding(24)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .background(NolonUI.DesignSystem.Colors.Background.canvas),
+            size: CGSize(width: 980, height: 520)
+        )
+
+        let failure = withSnapshotTesting(record: .all) {
+            verifySnapshot(
+                of: host,
+                as: .image(size: CGSize(width: 980, height: 520)),
+                named: "detail-panel-quick-command",
+                snapshotDirectory: Self.snapshotDirectory
+            )
+        }
+
+        #expect(failure == nil || failure?.contains("Record mode is on") == true)
+    }
+
     private func makeSectionData(
         isExpanded: Bool,
-        usage: CodexSessionsUsageDisplayData
+        usage: CodexSessionsUsageDisplayData,
+        selectedRowID: String? = nil
     ) -> NolonUI.CodexSessionsSectionCardView {
         NolonUI.CodexSessionsSectionCardView(
             data: .init(
                 id: "project-alpha",
                 title: "project-alpha",
-                titleSecondaryText: "/tmp/project-alpha",
-                subtitle: nil,
+                titleSecondaryText: "/tmp/workspaces/project-alpha/very/deep/path/that/should/stay/on/one/line",
+                subtitle: "Project rewrite group. Move stays available from the menu without consuming a full banner row.",
                 presentationKind: .rewritableGroup,
                 badges: [
                     .init(id: "live", text: "Live 5"),
                     .init(id: "archived", text: "Archived 1"),
-                    .init(id: "visible", text: isExpanded ? "Showing 6 / 6" : "Showing 5 / 6"),
+                    .init(id: "readonly", text: "ReadOnly 1"),
                 ],
                 actions: [
                     .init(id: "anthropic", title: "Move Group to Anthropic (anthropic)", targetProviderID: "anthropic", primaryText: "Anthropic", secondaryText: "anthropic"),
@@ -281,17 +333,14 @@ struct CodexSessionsCardSnapshotTests {
                     .init(
                         id: "row-\(index)",
                         title: "Session \(index)",
-                        nameMetadataItems: [
-                            .init(id: "source-\(index)", icon: "paperplane", text: "Source: cli"),
-                            .init(id: "originator-\(index)", icon: "person.crop.circle", text: index.isMultiple(of: 2) ? "Originator: codex" : "Originator: gemini-cli"),
-                        ],
+                        nameMetadataItems: [],
                         idText: "thread-\(index)",
                         idSecondaryText: index == 0 ? "Forked from parent-thre…" : nil,
                         timeText: "2026-04-14 1\(index):00",
                         providerText: index % 2 == 0 ? "OpenAI (openai)" : "Anthropic (anthropic)",
                         usage: usage,
                         isArchived: index == 5,
-                        isEditable: true,
+                        isEditable: index != 4,
                         summary: "Fixed columns keep project browsing stable while background usage fills in.",
                         rolloutPath: "sessions/\(index).jsonl",
                         showInFinderTitle: "Show in Finder",
@@ -300,7 +349,7 @@ struct CodexSessionsCardSnapshotTests {
                         actions: [
                             .init(id: "anthropic", title: "Move Session to Anthropic (anthropic)", targetProviderID: "anthropic", primaryText: "Anthropic", secondaryText: "anthropic"),
                         ],
-                        readOnlyText: nil,
+                        readOnlyText: index == 4 ? "Read Only" : nil,
                         menuMetadataItems: [
                             .init(id: "forked-\(index)", icon: "arrow.triangle.branch", text: "Forked from parent-thread-\(index)", style: .code),
                             .init(id: "source-\(index)", icon: "paperplane", text: "Source: cli"),
@@ -311,11 +360,41 @@ struct CodexSessionsCardSnapshotTests {
             ),
             onTapSectionAction: { _ in },
             onTapRowAction: { _, _ in },
-            onRevealInFinder: { _ in }
+            onRevealInFinder: { _ in },
+            selectedRowID: selectedRowID,
+            onSelectRow: { _ in }
         )
     }
 
-    private func makeHost<V: View>(_ root: V, size: CGSize = Self.regularSnapshotSize) -> NSHostingView<V> {
+    private func makeOverviewCard() -> NolonUI.CodexSessionsOverviewCardView {
+        NolonUI.CodexSessionsOverviewCardView(
+            data: .init(
+                title: "Project Sessions",
+                subtitle: "Browse sessions by project first. Rewrite and diagnostics stay available from group and row menus.",
+                refreshTitle: "Refresh",
+                groupingTitle: "Group By",
+                groupingOptions: [
+                    .init(id: "project", title: "Project"),
+                    .init(id: "provider", title: "Provider"),
+                ],
+                selectedGroupingID: "project",
+                statusMessage: "Moved 3 sessions to Anthropic (anthropic).",
+                backgroundScanningMessage: "Scanning sessions in background…",
+                paginationMessage: nil,
+                metrics: [
+                    .init(id: "sessions", title: "Total", value: "18"),
+                    .init(id: "groups", title: "Groups", value: "4"),
+                    .init(id: "rewritable", title: "Rewritable", value: "3"),
+                    .init(id: "attention", title: "Needs Attention", value: "1"),
+                ],
+                isRefreshDisabled: false
+            ),
+            onRefresh: {},
+            onSelectGroupingID: { _ in }
+        )
+    }
+
+    private func makeHost<V: View>(_ root: V, size: CGSize) -> NSHostingView<V> {
         let host = NSHostingView(rootView: root)
         host.frame = NSRect(origin: .zero, size: size)
         host.layoutSubtreeIfNeeded()

@@ -13,6 +13,23 @@ extension ProviderUsageEngine {
         if (usageProvider == .gemini || usageProvider == .antigravity), hasGeminiAccounts {
             return []
         }
+        if usageProvider == .copilot,
+           outcomes.contains(where: { outcome in
+               if case .tokenAccount = outcome.account {
+                   return true
+               }
+               return false
+           }) {
+            return outcomes.filter { outcome in
+                guard case .default = outcome.account,
+                      case let .failure(error) = outcome.outcome.result,
+                      let usageError = error as? ProviderUsageError,
+                      usageError == .missingToken(.copilot) else {
+                    return true
+                }
+                return false
+            }
+        }
         return outcomes
     }
 

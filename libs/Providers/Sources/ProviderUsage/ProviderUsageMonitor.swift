@@ -119,6 +119,7 @@ public actor ProviderUsageMonitorService {
     private let baseEnvironment: [String: String]
     private let codexManagedEnvironmentLoader: @Sendable () async throws -> [String: String]
     private let codexCLIPathLoader: @Sendable () async -> String?
+    private let copilotTokenLoader: @Sendable ([String: String]) async -> String?
 
     public init(
         tokenAccountStore: ProviderTokenAccountStoring,
@@ -132,29 +133,39 @@ public actor ProviderUsageMonitorService {
         self.codexCLIPathLoader = {
             await CodexBinaryManager.shared.activeCLIPathIfAvailable()
         }
+        self.copilotTokenLoader = { environment in
+            await GitHubCLITokenResolver.resolve(environment: environment)
+        }
     }
 
     init(
         tokenAccountStore: ProviderTokenAccountStoring,
         baseEnvironment: [String: String],
         codexManagedEnvironmentLoader: @escaping @Sendable () async throws -> [String: String],
-        codexCLIPathLoader: @escaping @Sendable () async -> String?
+        codexCLIPathLoader: @escaping @Sendable () async -> String?,
+        copilotTokenLoader: @escaping @Sendable ([String: String]) async -> String?
     ) {
         self.tokenAccountStore = tokenAccountStore
         self.baseEnvironment = baseEnvironment
         self.codexManagedEnvironmentLoader = codexManagedEnvironmentLoader
         self.codexCLIPathLoader = codexCLIPathLoader
+        self.copilotTokenLoader = copilotTokenLoader
     }
 
     func resolveEnvironmentForFetch(provider: UsageProvider) async -> [String: String] {
         var environment = baseEnvironment
-        guard provider == .codex else { return environment }
-
-        if let managedEnvironment = try? await codexManagedEnvironmentLoader() {
-            environment.merge(managedEnvironment) { _, new in new }
+        if provider == .codex {
+            if let managedEnvironment = try? await codexManagedEnvironmentLoader() {
+                environment.merge(managedEnvironment) { _, new in new }
+            }
+            if let codexCLIPath = await codexCLIPathLoader() {
+                environment["CODEX_CLI_PATH"] = codexCLIPath
+            }
         }
-        if let codexCLIPath = await codexCLIPathLoader() {
-            environment["CODEX_CLI_PATH"] = codexCLIPath
+        if provider == .copilot,
+           environment["COPILOT_API_TOKEN"]?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty != false,
+           let token = await copilotTokenLoader(environment) {
+            environment["COPILOT_API_TOKEN"] = token
         }
         return environment
     }

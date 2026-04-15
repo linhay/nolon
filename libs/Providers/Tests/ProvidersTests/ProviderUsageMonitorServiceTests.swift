@@ -22,7 +22,8 @@ struct ProviderUsageMonitorServiceTests {
             },
             codexCLIPathLoader: {
                 "/managed/codex"
-            }
+            },
+            copilotTokenLoader: { _ in nil }
         )
 
         let env = await service.resolveEnvironmentForFetch(provider: .codex)
@@ -46,14 +47,58 @@ struct ProviderUsageMonitorServiceTests {
             },
             codexCLIPathLoader: {
                 "/managed/codex"
+            },
+            copilotTokenLoader: { _ in "ghu_should_not_be_used" }
+        )
+
+        let env = await service.resolveEnvironmentForFetch(provider: .claude)
+
+        #expect(env["PATH"] == "/usr/bin")
+        #expect(env["KEEP"] == "1")
+        #expect(env["CODEX_CLI_PATH"] == nil)
+        #expect(env["COPILOT_API_TOKEN"] == nil)
+    }
+
+    @Test("Resolve copilot environment falls back to GitHub CLI token")
+    func resolveCopilotEnvironmentFallsBackToGitHubCLIToken() async {
+        let service = ProviderUsageMonitorService(
+            tokenAccountStore: EmptyTokenAccountStore(),
+            baseEnvironment: [
+                "PATH": "/usr/bin",
+                "KEEP": "1",
+            ],
+            codexManagedEnvironmentLoader: { [:] },
+            codexCLIPathLoader: { nil },
+            copilotTokenLoader: { environment in
+                #expect(environment["KEEP"] == "1")
+                return "ghu_cli_token"
             }
         )
 
         let env = await service.resolveEnvironmentForFetch(provider: .copilot)
 
-        #expect(env["PATH"] == "/usr/bin")
         #expect(env["KEEP"] == "1")
-        #expect(env["CODEX_CLI_PATH"] == nil)
+        #expect(env["COPILOT_API_TOKEN"] == "ghu_cli_token")
+    }
+
+    @Test("Resolve copilot environment prefers explicit token over GitHub CLI token")
+    func resolveCopilotEnvironmentPrefersExplicitToken() async {
+        let service = ProviderUsageMonitorService(
+            tokenAccountStore: EmptyTokenAccountStore(),
+            baseEnvironment: [
+                "COPILOT_API_TOKEN": "explicit_token",
+            ],
+            codexManagedEnvironmentLoader: { [:] },
+            codexCLIPathLoader: { nil },
+            copilotTokenLoader: { _ in
+                Issue.record("Fallback loader should not be called when explicit token exists")
+                return "ghu_cli_token"
+            }
+        )
+
+        let env = await service.resolveEnvironmentForFetch(provider: .copilot)
+
+        #expect(env["COPILOT_API_TOKEN"] == "explicit_token")
     }
 
     @Test("Resolve cost window falls back to settings when override missing")
@@ -62,7 +107,8 @@ struct ProviderUsageMonitorServiceTests {
             tokenAccountStore: EmptyTokenAccountStore(),
             baseEnvironment: [:],
             codexManagedEnvironmentLoader: { [:] },
-            codexCLIPathLoader: { nil }
+            codexCLIPathLoader: { nil },
+            copilotTokenLoader: { _ in nil }
         )
         let settings = ProviderUsageMonitorSettings(costWindowDays: 21)
 
@@ -80,7 +126,8 @@ struct ProviderUsageMonitorServiceTests {
             tokenAccountStore: EmptyTokenAccountStore(),
             baseEnvironment: [:],
             codexManagedEnvironmentLoader: { [:] },
-            codexCLIPathLoader: { nil }
+            codexCLIPathLoader: { nil },
+            copilotTokenLoader: { _ in nil }
         )
         let settings = ProviderUsageMonitorSettings(costWindowDays: 21)
 

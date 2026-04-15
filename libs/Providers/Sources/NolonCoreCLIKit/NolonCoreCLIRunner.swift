@@ -3,6 +3,7 @@ import ProviderCatalog
 import NolonResourceKit
 import ProviderUsage
 import CodexBarProviderCatalog
+import CopilotProvider
 import SKProcessRunner
 import STFilePath
 
@@ -11,10 +12,353 @@ public enum NolonCoreCLIOutputMode: Sendable {
     case json
 }
 
+extension NolonCoreCLIRunner {
+    struct ResolvedCopilotCredential {
+        let token: String
+        let accountID: UUID?
+        let label: String
+        let source: String
+        let accountCount: Int
+    }
+
+    func resolveCopilotProvider(_ providerID: String) throws -> UsageProvider {
+        let normalized = providerID.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !normalized.isEmpty else {
+            throw NolonCoreCLIError.invalidArguments("Missing required option: --provider (copilot).")
+        }
+        guard normalized == UsageProvider.copilot.rawValue else {
+            throw NolonCoreCLIError.invalidArguments("Unsupported --provider: \(providerID). Expected copilot.")
+        }
+        return .copilot
+    }
+
+    func copilotAuthStatus(provider: UsageProvider) throws -> CopilotAuthStatusPayload {
+        let accountData = try tokenAccountStore.loadAccounts()[provider]
+        let resolvedCredential = resolveCopilotCredential(from: accountData)
+        return CopilotAuthStatusPayload(
+            provider: provider.rawValue,
+            accountCount: resolvedCredential?.accountCount ?? 0,
+            activeAccountID: resolvedCredential?.accountID?.uuidString.lowercased(),
+            label: resolvedCredential?.label,
+            source: resolvedCredential?.source
+        )
+    }
+
+    func copilotAuthLogin(
+        provider: UsageProvider,
+        token: String,
+        label: String?
+    ) async throws -> CopilotAuthMutationPayload {
+        guard let normalizedToken = normalizedNonEmpty(token) else {
+            throw NolonCoreCLIError.invalidArguments("Missing required option: --token")
+        }
+
+        let accountLabel = normalizedNonEmpty(label) ?? "GitHub Copilot"
+        let payload = try await fetchCopilotUsagePayload(provider: provider, token: normalizedToken, label: accountLabel)
+
+        let account = ProviderTokenAccount(
+            id: UUID(),
+            label: accountLabel,
+            token: normalizedToken,
+            addedAt: payload.updatedAt.timeIntervalSince1970,
+            lastUsed: payload.updatedAt.timeIntervalSince1970
+        )
+
+        var allAccounts = try tokenAccountStore.loadAccounts()
+        allAccounts[provider] = ProviderTokenAccountData(version: 1, accounts: [account], activeIndex: 0)
+        try tokenAccountStore.storeAccounts(allAccounts)
+
+        return CopilotAuthMutationPayload(
+            provider: provider.rawValue,
+            action: "login",
+            accountID: account.id.uuidString.lowercased(),
+            activeAccountID: account.id.uuidString.lowercased(),
+            accountCount: 1,
+            label: account.displayName,
+            plan: payload.plan
+        )
+    }
+
+    func copilotAuthUsage(provider: UsageProvider) async throws -> CopilotUsagePayload {
+        guard let credential = try resolveCopilotCredential(provider: provider) else {
+            throw NolonCoreCLIError.domainFailed(
+                code: "copilot_missing_token",
+                message: ProviderUsageError.missingToken(.copilot).localizedDescription
+            )
+        }
+        return try await fetchCopilotUsagePayload(
+            provider: provider,
+            token: credential.token,
+            label: credential.label,
+            accountID: credential.accountID,
+            source: credential.source
+        )
+    }
+
+    func copilotAuthDelete(provider: UsageProvider) throws -> CopilotAuthMutationPayload {
+        var allAccounts = try tokenAccountStore.loadAccounts()
+        allAccounts.removeValue(forKey: provider)
+        try tokenAccountStore.storeAccounts(allAccounts)
+        return CopilotAuthMutationPayload(
+            provider: provider.rawValue,
+            action: "delete",
+            accountID: nil,
+            activeAccountID: nil,
+            accountCount: 0,
+            label: nil,
+            plan: nil
+        )
+    }
+
+    func fetchCopilotUsagePayload(
+        provider: UsageProvider,
+        token: String,
+        label: String,
+        accountID: UUID? = nil,
+        source: String = NSLocalizedString("usage.source.api_token", value: "API token", comment: "API token")
+    ) async throws -> CopilotUsagePayload {
+        let descriptor = CopilotUsageDescriptor(fetchUsage: copilotUsageFetchAction)
+        let context = ProviderFetchContext(
+            provider: provider,
+            sourceMode: .apiToken,
+            includeCredits: false,
+            timeout: 20,
+            costWindowDays: nil,
+            environment: [:],
+            token: token
+        )
+
+        let outcome = await descriptor.fetchOutcome(context: context)
+        switch outcome.result {
+        case let .success(result):
+            let resolvedLabel = normalizedNonEmpty(result.usage.identity?.accountEmail) ?? label
+            return CopilotUsagePayload(
+                provider: provider.rawValue,
+                activeAccountID: accountID?.uuidString.lowercased(),
+                label: resolvedLabel,
+                plan: result.usage.identity?.plan,
+                source: source,
+                updatedAt: result.usage.updatedAt,
+                windows: result.usage.allWindows.map {
+                    CopilotUsageWindowEntry(
+                        id: $0.id,
+                        title: $0.title,
+                        usedPercent: $0.window.usedPercent,
+                        resetDescription: $0.window.resetDescription
+                    )
+                }
+            )
+        case let .failure(error):
+            throw mapCopilotError(error)
+        }
+    }
+
+    func activeCopilotAccount(provider: UsageProvider) throws -> ProviderTokenAccount? {
+        try activeCopilotAccount(from: tokenAccountStore.loadAccounts()[provider])
+    }
+
+    func activeCopilotAccount(from data: ProviderTokenAccountData?) -> ProviderTokenAccount? {
+        guard let data, !data.accounts.isEmpty else { return nil }
+        let index = data.clampedActiveIndex()
+        guard data.accounts.indices.contains(index) else { return nil }
+        return data.accounts[index]
+    }
+
+    func resolveCopilotCredential(provider: UsageProvider) throws -> ResolvedCopilotCredential? {
+        try resolveCopilotCredential(from: tokenAccountStore.loadAccounts()[provider])
+    }
+
+    func resolveCopilotCredential(from data: ProviderTokenAccountData?) -> ResolvedCopilotCredential? {
+        if let account = activeCopilotAccount(from: data) {
+            return .init(
+                token: account.token,
+                accountID: account.id,
+                label: account.displayName,
+                source: "token_account",
+                accountCount: data?.accounts.count ?? 1
+            )
+        }
+
+        guard let token = normalizedNonEmpty(copilotTokenResolver()) else {
+            return nil
+        }
+        return .init(
+            token: token,
+            accountID: nil,
+            label: "GitHub CLI",
+            source: "gh",
+            accountCount: 1
+        )
+    }
+
+    func mapCopilotError(_ error: Error) -> NolonCoreCLIError {
+        if let usageError = error as? ProviderUsageError {
+            switch usageError {
+            case .missingToken:
+                return .domainFailed(code: "copilot_missing_token", message: usageError.localizedDescription)
+            default:
+                return .domainFailed(code: "copilot_usage_failed", message: usageError.localizedDescription)
+            }
+        }
+
+        if let usageError = error as? CopilotUsageError {
+            switch usageError {
+            case .unauthorized:
+                return .domainFailed(code: "copilot_unauthorized", message: usageError.localizedDescription)
+            default:
+                return .domainFailed(code: "copilot_usage_failed", message: usageError.localizedDescription)
+            }
+        }
+
+        return .executionFailed(error.localizedDescription)
+    }
+
+    func formatCopilotAuthStatusText(result: CopilotAuthStatusPayload) -> String {
+        var lines = [
+            "provider: \(result.provider)",
+            "account_count: \(result.accountCount)",
+        ]
+        if let activeAccountID = result.activeAccountID {
+            lines.append("active_account_id: \(activeAccountID)")
+        }
+        if let label = result.label {
+            lines.append("label: \(label)")
+        }
+        if let source = result.source {
+            lines.append("source: \(source)")
+        }
+        return lines.joined(separator: "\n")
+    }
+
+    func formatCopilotAuthMutationText(result: CopilotAuthMutationPayload) -> String {
+        var lines = [
+            "provider: \(result.provider)",
+            "action: \(result.action)",
+            "account_count: \(result.accountCount)",
+        ]
+        if let accountID = result.accountID {
+            lines.append("account_id: \(accountID)")
+        }
+        if let activeAccountID = result.activeAccountID {
+            lines.append("active_account_id: \(activeAccountID)")
+        }
+        if let label = result.label {
+            lines.append("label: \(label)")
+        }
+        if let plan = result.plan {
+            lines.append("plan: \(plan)")
+        }
+        return lines.joined(separator: "\n")
+    }
+
+    func formatCopilotUsageText(result: CopilotUsagePayload) -> String {
+        var lines = [
+            "provider: \(result.provider)",
+            "label: \(result.label)",
+        ]
+        if let activeAccountID = result.activeAccountID {
+            lines.append("active_account_id: \(activeAccountID)")
+        }
+        if let plan = result.plan {
+            lines.append("plan: \(plan)")
+        }
+        lines.append("source: \(result.source)")
+        lines.append("updated_at: \(ISO8601DateFormatter().string(from: result.updatedAt))")
+        lines.append(contentsOf: result.windows.map { window in
+            var line = "\(window.title): used=\(Self.formatPercent(window.usedPercent))%"
+            if let resetDescription = window.resetDescription {
+                line += " \(resetDescription)"
+            }
+            return line
+        })
+        return lines.joined(separator: "\n")
+    }
+
+    static func formatPercent(_ value: Double) -> String {
+        let rounded = (value * 100).rounded() / 100
+        if rounded == rounded.rounded() {
+            return String(Int(rounded))
+        }
+        return String(rounded)
+    }
+}
+
+struct CopilotAuthStatusPayload: Encodable, Sendable {
+    let provider: String
+    let accountCount: Int
+    let activeAccountID: String?
+    let label: String?
+    let source: String?
+
+    enum CodingKeys: String, CodingKey {
+        case provider
+        case accountCount = "account_count"
+        case activeAccountID = "active_account_id"
+        case label
+        case source
+    }
+}
+
+struct CopilotAuthMutationPayload: Encodable, Sendable {
+    let provider: String
+    let action: String
+    let accountID: String?
+    let activeAccountID: String?
+    let accountCount: Int
+    let label: String?
+    let plan: String?
+
+    enum CodingKeys: String, CodingKey {
+        case provider
+        case action
+        case accountID = "account_id"
+        case activeAccountID = "active_account_id"
+        case accountCount = "account_count"
+        case label
+        case plan
+    }
+}
+
+struct CopilotUsageWindowEntry: Encodable, Sendable {
+    let id: String
+    let title: String
+    let usedPercent: Double
+    let resetDescription: String?
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case title
+        case usedPercent = "used_percent"
+        case resetDescription = "reset_description"
+    }
+}
+
+struct CopilotUsagePayload: Encodable, Sendable {
+    let provider: String
+    let activeAccountID: String?
+    let label: String
+    let plan: String?
+    let source: String
+    let updatedAt: Date
+    let windows: [CopilotUsageWindowEntry]
+
+    enum CodingKeys: String, CodingKey {
+        case provider
+        case activeAccountID = "active_account_id"
+        case label
+        case plan
+        case source
+        case updatedAt = "updated_at"
+        case windows
+    }
+}
+
 public struct NolonCoreCLIRunner: Sendable {
     public typealias FileReader = @Sendable (String) throws -> String
     public typealias GeminiUsageFetchAction = @Sendable (UsageProvider) async -> [ProviderAccountUsageOutcome]
     public typealias GeminiTokenTrendFetchAction = @Sendable (UsageProvider) async throws -> ProviderTokenTrendSnapshot?
+    public typealias CopilotUsageFetchAction = @Sendable (String) async throws -> CopilotUsageSnapshot
+    public typealias CopilotTokenResolver = @Sendable () -> String?
 
     static let pluginDescriptors: [PluginDescriptor] = [
         PluginDescriptor(
@@ -31,8 +375,11 @@ public struct NolonCoreCLIRunner: Sendable {
 
     let service: any NolonSkillsRepositoryServing
     let fileReader: FileReader
+    let tokenAccountStore: ProviderTokenAccountStoring
     let geminiUsageFetchAction: GeminiUsageFetchAction
     let geminiTokenTrendFetchAction: GeminiTokenTrendFetchAction
+    let copilotUsageFetchAction: CopilotUsageFetchAction
+    let copilotTokenResolver: CopilotTokenResolver
     let installedStatusService = InstalledResourceStatusService()
 
     public init(
@@ -40,16 +387,28 @@ public struct NolonCoreCLIRunner: Sendable {
         fileReader: @escaping FileReader = { path in
             try STFile(path).read()
         },
+        tokenAccountStore: ProviderTokenAccountStoring = FileTokenAccountStore(
+            fileURL: ProviderUsagePaths.defaultTokenAccountsFileURL()
+        ),
         geminiUsageFetchAction: GeminiUsageFetchAction? = nil,
-        geminiTokenTrendFetchAction: GeminiTokenTrendFetchAction? = nil
+        geminiTokenTrendFetchAction: GeminiTokenTrendFetchAction? = nil,
+        copilotUsageFetchAction: CopilotUsageFetchAction? = nil,
+        copilotTokenResolver: CopilotTokenResolver? = nil
     ) {
         self.service = service
         self.fileReader = fileReader
+        self.tokenAccountStore = tokenAccountStore
         self.geminiUsageFetchAction = geminiUsageFetchAction ?? { provider in
             await Self.defaultFetchGeminiUsage(provider: provider)
         }
         self.geminiTokenTrendFetchAction = geminiTokenTrendFetchAction ?? { provider in
             try await GeminiTokenTrendService().fetchActiveSnapshot(provider: provider, trailingDays: nil)
+        }
+        self.copilotUsageFetchAction = copilotUsageFetchAction ?? { token in
+            try await CopilotUsageFetcher(token: token).fetch()
+        }
+        self.copilotTokenResolver = copilotTokenResolver ?? {
+            GitHubCLITokenResolver.resolveSync()
         }
     }
 
@@ -820,6 +1179,23 @@ public struct NolonCoreCLIRunner: Sendable {
                 )
             )
 
+        case let .copilotAuthLogin(providerID, token, label):
+            let provider = try resolveCopilotProvider(providerID)
+            let mutation = try await copilotAuthLogin(provider: provider, token: token, label: label)
+            return try encodeSuccess(command: command.commandID, data: mutation)
+
+        case let .copilotAuthStatus(providerID):
+            let provider = try resolveCopilotProvider(providerID)
+            return try encodeSuccess(command: command.commandID, data: try copilotAuthStatus(provider: provider))
+
+        case let .copilotAuthUsage(providerID):
+            let provider = try resolveCopilotProvider(providerID)
+            return try encodeSuccess(command: command.commandID, data: try await copilotAuthUsage(provider: provider))
+
+        case let .copilotAuthDelete(providerID):
+            let provider = try resolveCopilotProvider(providerID)
+            return try encodeSuccess(command: command.commandID, data: try copilotAuthDelete(provider: provider))
+
         case let .remoteList(kind, query, limit, baseURL):
             let result = try await service.listRemoteResources(
                 kind: kind,
@@ -1355,6 +1731,20 @@ public struct NolonCoreCLIRunner: Sendable {
             let result = await fetchGeminiUsage(provider: provider)
             let diagnosis = diagnoseGeminiUsage(result)
             return formatGeminiUsageDoctorText(provider: provider, diagnosis: diagnosis)
+        case let .copilotAuthLogin(providerID, token, label):
+            let provider = try resolveCopilotProvider(providerID)
+            return formatCopilotAuthMutationText(
+                result: try await copilotAuthLogin(provider: provider, token: token, label: label)
+            )
+        case let .copilotAuthStatus(providerID):
+            let provider = try resolveCopilotProvider(providerID)
+            return formatCopilotAuthStatusText(result: try copilotAuthStatus(provider: provider))
+        case let .copilotAuthUsage(providerID):
+            let provider = try resolveCopilotProvider(providerID)
+            return formatCopilotUsageText(result: try await copilotAuthUsage(provider: provider))
+        case let .copilotAuthDelete(providerID):
+            let provider = try resolveCopilotProvider(providerID)
+            return formatCopilotAuthMutationText(result: try copilotAuthDelete(provider: provider))
         default:
             return try await executeCommand(command)
         }

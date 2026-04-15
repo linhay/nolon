@@ -66,11 +66,24 @@ public struct CopilotQuota: Sendable {
     }
 }
 
+public struct CopilotViewerProfile: Sendable, Equatable {
+    public let login: String?
+    public let name: String?
+    public let email: String?
+
+    public init(login: String?, name: String?, email: String?) {
+        self.login = login
+        self.name = name
+        self.email = email
+    }
+}
+
 // MARK: - Copilot Usage Snapshot
 
 /// Complete Copilot usage snapshot
 public struct CopilotUsageSnapshot: Sendable {
     public let plan: String
+    public let viewer: CopilotViewerProfile?
     public let premiumQuota: CopilotQuota?
     public let chatQuota: CopilotQuota?
     public let quotaResetDate: String
@@ -78,12 +91,14 @@ public struct CopilotUsageSnapshot: Sendable {
     
     public init(
         plan: String,
+        viewer: CopilotViewerProfile? = nil,
         premiumQuota: CopilotQuota?,
         chatQuota: CopilotQuota?,
         quotaResetDate: String,
         updatedAt: Date = Date()
     ) {
         self.plan = plan
+        self.viewer = viewer
         self.premiumQuota = premiumQuota
         self.chatQuota = chatQuota
         self.quotaResetDate = quotaResetDate

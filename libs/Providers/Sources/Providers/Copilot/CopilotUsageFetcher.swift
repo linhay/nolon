@@ -5,6 +5,12 @@ import FoundationNetworking
 
 /// Fetches Copilot usage information from GitHub API
 public struct CopilotUsageFetcher: Sendable {
+    private struct GitHubViewerResponse: Sendable, Decodable {
+        let login: String?
+        let name: String?
+        let email: String?
+    }
+
     private let token: String
     private let session: URLSession
     
@@ -68,13 +74,37 @@ public struct CopilotUsageFetcher: Sendable {
                 percentRemaining: $0.percentRemaining
             )
         }
+
+        let viewer = try? await self.fetchViewerProfile()
         
         return CopilotUsageSnapshot(
             plan: usageResponse.copilotPlan,
+            viewer: viewer,
             premiumQuota: premiumQuota,
             chatQuota: chatQuota,
             quotaResetDate: usageResponse.quotaResetDate
         )
+    }
+
+    private func fetchViewerProfile() async throws -> CopilotViewerProfile {
+        guard let url = URL(string: "https://api.github.com/user") else {
+            throw CopilotUsageError.invalidResponse
+        }
+
+        var request = URLRequest(url: url)
+        request.setValue("token \(self.token)", forHTTPHeaderField: "Authorization")
+        self.addCommonHeaders(to: &request)
+
+        let (data, response) = try await session.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw CopilotUsageError.invalidResponse
+        }
+        guard httpResponse.statusCode == 200 else {
+            throw CopilotUsageError.apiError(httpResponse.statusCode, "Failed to fetch GitHub viewer profile")
+        }
+
+        let viewer = try JSONDecoder().decode(GitHubViewerResponse.self, from: data)
+        return CopilotViewerProfile(login: viewer.login, name: viewer.name, email: viewer.email)
     }
     
     private func addCommonHeaders(to request: inout URLRequest) {
@@ -82,7 +112,7 @@ public struct CopilotUsageFetcher: Sendable {
         request.setValue("vscode/1.96.2", forHTTPHeaderField: "Editor-Version")
         request.setValue("copilot-chat/0.26.7", forHTTPHeaderField: "Editor-Plugin-Version")
         request.setValue("GitHubCopilotChat/0.26.7", forHTTPHeaderField: "User-Agent")
-        request.setValue("2025-04-01", forHTTPHeaderField: "X-Github-Api-Version")
+        request.setValue("2022-11-28", forHTTPHeaderField: "X-Github-Api-Version")
     }
 }
 
