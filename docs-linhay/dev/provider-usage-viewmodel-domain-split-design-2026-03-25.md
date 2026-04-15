@@ -4,6 +4,15 @@
 1. 文中的 `CodexGatewayCardsViewModel` 已随 Codex gateway 剥离一并删除。
 2. 该图中的 gateway 子域仅代表当时的拆分方案，当前主线 `ProviderUsageRootViewModel` 不再暴露该子 VM。
 
+## 状态更新（2026-04-15）
+1. 页面边界经过新一轮 debate 后，结论更新为：当前不拆成“账号页 / 用量页”两个页面。
+2. 新增共识是“先拆 domain，再决定是否拆 UI”：
+   - 页面层继续保持“账号与用量”综合页
+   - 代码层优先把 `AccountsFeature` 与 `UsageFeature` 的状态所有权、加载入口、刷新边界拆开
+3. 本文档仍然有效，但需要与以下新文档一起阅读：
+   - `docs-linhay/dev/provider-usage-account-usage-boundary-design-2026-04-15.md`
+   - `docs-linhay/plans/2026-04-15-provider-usage-domain-split-and-page-boundary-plan.md`
+
 ## 1. 现状问题
 1. `ProviderUsageViewModel` 体量过大（约 4.8k 行），包含账号、登录、导入导出、网关、趋势图等多域职责。
 2. `ProviderUsageView`、`NolonAccountsViewModel`、`CodexQuickSwitchMenuBarViewModel` 同时耦合到同一个 VM，跨页面影响面大。
