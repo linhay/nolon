@@ -22,9 +22,9 @@ struct ProviderUsageSubViewModelWiringTests {
 
         #expect(root.accountsViewModel.usageProvider == root.usageProvider)
         #expect(root.accountsViewModel.codex.accounts == root.state.codexEngine.codexAccounts)
-        #expect(root.tokenTrendViewModel.tokenTrendRange == root.state.commonEngine.tokenTrendRange)
+        #expect(root.tokenTrendViewModel.tokenTrendRange == root.state.metricsEngine.tokenTrendRange)
         #expect(root.importExportViewModel.isShowingCodexImportSheet == root.state.codexEngine.isShowingCodexImportSheet)
-        #expect(root.loginFlowViewModel.isRunningCLILogin == root.state.commonEngine.isRunningCLILogin)
+        #expect(root.loginFlowViewModel.isRunningCLILogin == root.state.accountsEngine.isRunningCLILogin)
     }
 
     @Test("BDD: Given generic provider when toggling account layout mode then shared layout state updates")
@@ -45,7 +45,7 @@ struct ProviderUsageSubViewModelWiringTests {
 
         root.accountsViewModel.setAccountLayoutMode(.list)
         #expect(root.accountsViewModel.accountLayoutMode == .list)
-        #expect(root.state.commonEngine.settings.codexUseListLayout == true)
+        #expect(root.state.accountsEngine.settings.codexUseListLayout == true)
     }
 
     @Test("BDD: Given codex provider when changing grouping option then shared settings persist grouping raw value")
@@ -64,7 +64,7 @@ struct ProviderUsageSubViewModelWiringTests {
         root.accountsViewModel.codex.accountGroupingOption = .customSQLiteGroup
 
         #expect(root.accountsViewModel.codex.accountGroupingOption == .customSQLiteGroup)
-        #expect(root.state.commonEngine.settings.codexAccountGroupingOptionRawValue == "customSQLiteGroup")
+        #expect(root.state.accountsEngine.settings.codexAccountGroupingOptionRawValue == "customSQLiteGroup")
     }
 
     @Test("BDD: Given codex provider when reopening usage root then grouping option is restored from persisted settings")
@@ -84,11 +84,11 @@ struct ProviderUsageSubViewModelWiringTests {
 
         let firstRoot = ProviderUsageRootViewModel(provider: provider)
         firstRoot.accountsViewModel.codex.accountGroupingOption = .customSQLiteGroup
-        #expect(firstRoot.state.commonEngine.settings.codexAccountGroupingOptionRawValue == "customSQLiteGroup")
+        #expect(firstRoot.state.accountsEngine.settings.codexAccountGroupingOptionRawValue == "customSQLiteGroup")
 
         let reopenedRoot = ProviderUsageRootViewModel(provider: provider)
         #expect(reopenedRoot.accountsViewModel.codex.accountGroupingOption == .customSQLiteGroup)
-        #expect(reopenedRoot.state.commonEngine.settings.codexAccountGroupingOptionRawValue == "customSQLiteGroup")
+        #expect(reopenedRoot.state.accountsEngine.settings.codexAccountGroupingOptionRawValue == "customSQLiteGroup")
     }
 
     @Test("BDD: Given codex header actions when not in multi-select then keep refresh/login/import visible")

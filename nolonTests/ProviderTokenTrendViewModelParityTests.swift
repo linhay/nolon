@@ -18,11 +18,11 @@ struct ProviderTokenTrendViewModelParityTests {
         )
         let root = ProviderUsageRootViewModel(provider: provider)
 
-        #expect(root.tokenTrendViewModel.tokenTrendRange == root.state.commonEngine.tokenTrendRange)
-        #expect(root.tokenTrendViewModel.tokenTrendSnapshot == root.state.commonEngine.tokenTrendSnapshot)
-        #expect(root.tokenTrendViewModel.tokenTrendCapability == root.state.commonEngine.tokenTrendCapability)
-        #expect(root.tokenTrendViewModel.selectedDayKey == root.state.commonEngine.selectedTokenTrendDayKey)
-        #expect(root.tokenTrendViewModel.intradayBucket == root.state.commonEngine.intradayBucket)
-        #expect(root.tokenTrendViewModel.intradaySnapshot == root.state.commonEngine.intradaySnapshot)
+        #expect(root.tokenTrendViewModel.tokenTrendRange == root.state.metricsEngine.tokenTrendRange)
+        #expect(root.tokenTrendViewModel.tokenTrendSnapshot == root.state.metricsEngine.tokenTrendSnapshot)
+        #expect(root.tokenTrendViewModel.tokenTrendCapability == root.state.metricsEngine.tokenTrendCapability)
+        #expect(root.tokenTrendViewModel.selectedDayKey == root.state.metricsEngine.selectedTokenTrendDayKey)
+        #expect(root.tokenTrendViewModel.intradayBucket == root.state.metricsEngine.intradayBucket)
+        #expect(root.tokenTrendViewModel.intradaySnapshot == root.state.metricsEngine.intradaySnapshot)
     }
 }

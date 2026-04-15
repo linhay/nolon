@@ -3,7 +3,7 @@ import ProviderUsage
 import CodexBarProviderCatalog
 
 @MainActor
-protocol ProviderUsageCommonEngineProtocol: AnyObject {
+protocol ProviderUsageAccountsEngineProtocol: AnyObject {
     var outcomes: [ProviderAccountUsageOutcome] { get set }
     var settings: UsageMonitorProviderSettings { get set }
     var isLoading: Bool { get set }
@@ -11,17 +11,6 @@ protocol ProviderUsageCommonEngineProtocol: AnyObject {
     var copyToastMessage: String { get set }
     var alertTitle: String? { get set }
     var alertMessage: String? { get set }
-    var tokenTrendRange: UsageEngineTokenTrendRange { get set }
-    var tokenTrendSnapshot: ProviderTokenTrendSnapshot? { get set }
-    var tokenTrendErrorMessage: String? { get set }
-    var isLoadingTokenTrend: Bool { get set }
-    var tokenTrendCapability: ProviderUsageCurveCapability { get set }
-    var selectedTokenTrendDayKey: String? { get set }
-    var intradayBucket: ProviderIntradayBucket { get set }
-    var intradaySnapshot: ProviderIntradayUsageSnapshot? { get set }
-    var intradayErrorMessage: String? { get set }
-    var isLoadingIntraday: Bool { get set }
-    var shouldShowTokenTrendLoadingSkeleton: Bool { get }
     var accountLayoutMode: UsageAccountLayoutMode { get set }
     var isRunningCLILogin: Bool { get set }
     var isShowingLogin: Bool { get set }
@@ -37,17 +26,35 @@ protocol ProviderUsageCommonEngineProtocol: AnyObject {
     func scheduledRefreshPollInterval(now: Date) -> TimeInterval
     func updateSettings(_ settings: UsageMonitorProviderSettings)
     func handleHeaderRefreshButtonTap()
-    func setTokenTrendRange(_ range: UsageEngineTokenTrendRange)
-    func refreshTokenTrendNow()
-    func selectTokenTrendDay(_ dayKey: String?)
-    func setIntradayBucket(_ bucket: ProviderIntradayBucket)
-    func refreshIntradayNow()
     func setAccountLayoutMode(_ mode: UsageAccountLayoutMode)
     func startLoginFlow()
     func cancelCLILoginIfNeeded()
     func handleLoginURLSheetDismissed()
     func copyLoginURL()
     func reopenLoginURLInBrowser()
+}
+
+@MainActor
+protocol ProviderUsageMetricsEngineProtocol: AnyObject {
+    var tokenTrendRange: UsageEngineTokenTrendRange { get set }
+    var tokenTrendSnapshot: ProviderTokenTrendSnapshot? { get set }
+    var tokenTrendErrorMessage: String? { get set }
+    var isLoadingTokenTrend: Bool { get set }
+    var tokenTrendCapability: ProviderUsageCurveCapability { get set }
+    var selectedTokenTrendDayKey: String? { get set }
+    var intradayBucket: ProviderIntradayBucket { get set }
+    var intradaySnapshot: ProviderIntradayUsageSnapshot? { get set }
+    var intradayErrorMessage: String? { get set }
+    var isLoadingIntraday: Bool { get set }
+    var shouldShowTokenTrendLoadingSkeleton: Bool { get }
+
+    func loadUsage() async
+    func loadUsageIfNeeded() async -> Bool
+    func setTokenTrendRange(_ range: UsageEngineTokenTrendRange)
+    func refreshTokenTrendNow()
+    func selectTokenTrendDay(_ dayKey: String?)
+    func setIntradayBucket(_ bucket: ProviderIntradayBucket)
+    func refreshIntradayNow()
 }
 
 @MainActor
@@ -184,7 +191,8 @@ protocol ProviderUsageGeminiEngineProtocol: AnyObject {
 }
 
 extension ProviderUsageEngine:
-    ProviderUsageCommonEngineProtocol,
+    ProviderUsageAccountsEngineProtocol,
+    ProviderUsageMetricsEngineProtocol,
     ProviderUsageCodexEngineProtocol,
     ProviderUsageClaudeEngineProtocol,
     ProviderUsageGeminiEngineProtocol {}

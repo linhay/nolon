@@ -164,7 +164,12 @@ final class ProviderUsageEngine: CopyToastPresenting {
     var codexUsageCacheWriteCount = 0
     var codexDiskReloadCountForTesting = 0
     var hasTriggeredAppearRefresh = false
-    var didStartInitialLoad = false
+    var didStartAccountsInitialLoad = false
+    var didStartUsageInitialLoad = false
+    var didStartInitialLoad: Bool {
+        get { didStartAccountsInitialLoad }
+        set { didStartAccountsInitialLoad = newValue }
+    }
     var lastUsageRefreshAt: Date?
     let cliLoginTimeoutSeconds: TimeInterval = 10 * 60
     let codexRefreshTimeoutGraceSeconds: TimeInterval
@@ -467,10 +472,21 @@ final class ProviderUsageEngine: CopyToastPresenting {
 
     @discardableResult
     func loadIfNeeded() async -> Bool {
-        guard !didStartInitialLoad else { return false }
+        guard !didStartAccountsInitialLoad else { return false }
         await hydrateCachedStateForInitialLoadIfNeeded()
-        didStartInitialLoad = true
+        didStartAccountsInitialLoad = true
         await load()
+        return true
+    }
+
+    @discardableResult
+    func loadUsageIfNeeded() async -> Bool {
+        guard tokenTrendCapability == .dailyWithIntradayDrilldown || usageProvider == .codex || usageProvider == .gemini else {
+            return false
+        }
+        guard !didStartUsageInitialLoad else { return false }
+        didStartUsageInitialLoad = true
+        await loadUsage()
         return true
     }
 
@@ -496,16 +512,9 @@ final class ProviderUsageEngine: CopyToastPresenting {
             configureCodexSQLiteObservationIfNeeded()
         }
 
-        didStartInitialLoad = true
+        didStartAccountsInitialLoad = true
         isLoading = true
         defer { isLoading = false }
-        let trendRefreshTask: Task<Void, Never>? = if usageProvider == .codex || usageProvider == .gemini {
-            Task { [weak self] in
-                await self?.refreshTokenTrend()
-            }
-        } else {
-            nil
-        }
 
         Self.logger.info("Loading usage. provider=\(usageProvider.rawValue, privacy: .public) multiAccount=\(self.isMultiAccountEnabled, privacy: .public)")
         if usageProvider == .codex, isMultiAccountEnabled {
@@ -533,7 +542,6 @@ final class ProviderUsageEngine: CopyToastPresenting {
         }
 
         guard usageProvider == .codex else {
-            await trendRefreshTask?.value
             await updateUsageFileWatcher()
             return
         }
@@ -555,7 +563,6 @@ final class ProviderUsageEngine: CopyToastPresenting {
                     await persistCurrentCodexOutcomeIfPossible(outcome: merged, accounts: loadedAccounts)
                 }
                 resetCodexMultiAccountState()
-                await trendRefreshTask?.value
                 return
             }
 
@@ -586,9 +593,16 @@ final class ProviderUsageEngine: CopyToastPresenting {
             Self.logger.error("Failed to load codex accounts: \(String(describing: error), privacy: .public)")
         }
 
-        await trendRefreshTask?.value
         await loadCodexManagementStatus()
         await updateUsageFileWatcher()
+    }
+
+    func loadUsage() async {
+        guard let usageProvider else { return }
+        guard usageProvider == .codex || usageProvider == .gemini else { return }
+
+        didStartUsageInitialLoad = true
+        await refreshTokenTrend()
     }
 
     func reloadClaudeAccountsState() async {

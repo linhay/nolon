@@ -102,7 +102,7 @@ final class ProviderUsageAccountsViewModel {
             get { engine.codexAccountSortOption }
             set { engine.codexAccountSortOption = newValue }
         }
-        var accountLayoutMode: UsageAccountLayoutMode { state.commonEngine.accountLayoutMode }
+        var accountLayoutMode: UsageAccountLayoutMode { state.accountsEngine.accountLayoutMode }
         var usesCompactListRows: Bool { Self.usesCompactListRows(layoutMode: accountLayoutMode) }
         var enablesTextSelection: Bool { Self.enablesTextSelection(layoutMode: accountLayoutMode) }
         var collapsedSectionIDs: Set<String> { engine.collapsedCodexSectionIDs }
@@ -293,7 +293,7 @@ final class ProviderUsageAccountsViewModel {
         }
 
         func setAccountLayoutMode(_ mode: UsageAccountLayoutMode) {
-            state.commonEngine.setAccountLayoutMode(mode)
+            state.accountsEngine.setAccountLayoutMode(mode)
         }
 
         func isSectionCollapsed(_ sectionID: String) -> Bool {
@@ -575,7 +575,7 @@ final class ProviderUsageAccountsViewModel {
         self.gemini = GeminiState(state: state)
     }
 
-    private var engine: any ProviderUsageCommonEngineProtocol { state.commonEngine }
+    private var engine: any ProviderUsageAccountsEngineProtocol { state.accountsEngine }
     var outcomes: [ProviderAccountUsageOutcome] { engine.outcomes }
     var usageProvider: UsageProvider? { state.usageProvider }
     var settings: UsageMonitorProviderSettings {
@@ -645,7 +645,7 @@ final class ProviderTokenTrendViewModel {
         self.state = state
     }
 
-    private var engine: any ProviderUsageCommonEngineProtocol { state.commonEngine }
+    private var engine: any ProviderUsageMetricsEngineProtocol { state.metricsEngine }
     var tokenTrendRange: UsageEngineTokenTrendRange { engine.tokenTrendRange }
     var tokenTrendSnapshot: ProviderTokenTrendSnapshot? { engine.tokenTrendSnapshot }
     var tokenTrendErrorMessage: String? { engine.tokenTrendErrorMessage }
@@ -657,6 +657,14 @@ final class ProviderTokenTrendViewModel {
     var intradayErrorMessage: String? { engine.intradayErrorMessage }
     var isLoadingIntraday: Bool { engine.isLoadingIntraday }
     var shouldShowLoadingSkeleton: Bool { engine.shouldShowTokenTrendLoadingSkeleton }
+
+    func load() async {
+        await engine.loadUsage()
+    }
+
+    func loadIfNeeded() async -> Bool {
+        await engine.loadUsageIfNeeded()
+    }
 
     func setRange(_ range: UsageEngineTokenTrendRange) {
         engine.setTokenTrendRange(range)
@@ -794,7 +802,7 @@ final class CodexImportExportViewModel {
 @Observable
 final class ProviderLoginFlowViewModel {
     private let state: ProviderUsageStateStore
-    private var engine: any ProviderUsageCommonEngineProtocol { state.commonEngine }
+    private var engine: any ProviderUsageAccountsEngineProtocol { state.accountsEngine }
 
     init(state: ProviderUsageStateStore) {
         self.state = state

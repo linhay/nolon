@@ -108,10 +108,40 @@ final class ProviderUsageRootViewModel {
     }
 
     func load() async {
-        await accountsViewModel.load()
+        await loadPage()
     }
 
     func loadIfNeeded() async -> Bool {
-        await accountsViewModel.loadIfNeeded()
+        await loadPageIfNeeded()
+    }
+
+    func loadAccounts() async {
+        await state.accountsEngine.load()
+    }
+
+    @discardableResult
+    func loadAccountsIfNeeded() async -> Bool {
+        await state.accountsEngine.loadIfNeeded()
+    }
+
+    func loadUsage() async {
+        await state.metricsEngine.loadUsage()
+    }
+
+    @discardableResult
+    func loadUsageIfNeeded() async -> Bool {
+        await state.metricsEngine.loadUsageIfNeeded()
+    }
+
+    func loadPage() async {
+        await loadAccounts()
+        await loadUsage()
+    }
+
+    @discardableResult
+    func loadPageIfNeeded() async -> Bool {
+        let didLoadAccounts = await loadAccountsIfNeeded()
+        let didLoadUsage = await loadUsageIfNeeded()
+        return didLoadAccounts || didLoadUsage
     }
 }

@@ -700,7 +700,7 @@ struct ProviderUsageUnifiedAccountsPipelineTests {
                 )
             )
         )
-        root.state.commonEngine.outcomes = [failureOutcome, successOutcome]
+        root.state.accountsEngine.outcomes = [failureOutcome, successOutcome]
 
         guard let selected = root.accountsViewModel.preferredUnifiedCardLiveOutcome else {
             Issue.record("Expected preferred unified card live outcome")

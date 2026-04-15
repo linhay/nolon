@@ -204,17 +204,17 @@ struct ProviderUsageView: View, DebugPageLocatable {
         }
         .task(id: provider.id) {
             syncSettingsFromStore()
-            _ = await rootViewModel.loadIfNeeded()
+            _ = await rootViewModel.loadPageIfNeeded()
         }
         .onChange(of: provider.id) { _, _ in
             rootViewModel = ProviderUsageRootViewModelStore.shared.viewModel(for: provider)
             syncSettingsFromStore()
-            Task { _ = await rootViewModel.loadIfNeeded() }
+            Task { _ = await rootViewModel.loadPageIfNeeded() }
         }
         .onChange(of: provider) { _, _ in
             rootViewModel = ProviderUsageRootViewModelStore.shared.viewModel(for: provider)
             syncSettingsFromStore()
-            Task { _ = await rootViewModel.loadIfNeeded() }
+            Task { _ = await rootViewModel.loadPageIfNeeded() }
         }
         .onChange(of: viewModel.settings) { _, _ in
             Task { await viewModel.load() }

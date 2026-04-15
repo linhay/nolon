@@ -9,7 +9,8 @@ final class ProviderUsageStateStore {
     let provider: Provider
     let usageProvider: UsageProvider?
     let engine: any AnyUsageEngine
-    var commonEngine: any ProviderUsageCommonEngineProtocol { engine.common }
+    var accountsEngine: any ProviderUsageAccountsEngineProtocol { engine.accounts }
+    var metricsEngine: any ProviderUsageMetricsEngineProtocol { engine.metrics }
     var codexEngine: any ProviderUsageCodexEngineProtocol { engine.codex }
     var claudeEngine: any ProviderUsageClaudeEngineProtocol { engine.claude }
     var geminiEngine: any ProviderUsageGeminiEngineProtocol { engine.gemini }
