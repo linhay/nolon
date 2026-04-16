@@ -10,7 +10,7 @@
 
 ## 数据来源
 1. Codex：继续使用现有 `CostUsageFetcher().loadTokenSnapshot(...)` 聚合结果。
-2. Gemini：仅扫描全局 `~/.gemini` 的 session JSON 文件，读取 Gemini message 上记录的 token summary。
+2. Gemini：仅扫描全局 `~/.gemini/tmp/**/chats/session-*.json`，读取 Gemini message 上记录的 token summary。
 3. Gemini session 文件格式参考上游 `gemini-cli` 的 `ChatRecordingService`：
    - 路径模式：`~/.gemini/tmp/**/chats/session-*.json`
    - 每条 `type == "gemini"` 消息可能含 `tokens`
@@ -44,12 +44,12 @@
 
 ## BDD 验收
 1. Given Codex Usage 页面存在历史 token 视图，When 重构为通用组件后，Then 现有文案、图表、排序和刷新行为保持不变。
-2. Given Gemini 全局 `~/.gemini` 下存在多个 session JSON，When 打开 Gemini Usage 页面，Then 显示历史 token 视图并按日聚合 input/output/cache/total。
+2. Given Gemini 全局 `~/.gemini/tmp/**/chats/` 下存在多个 session JSON，When 打开 Gemini Usage 页面，Then 显示历史 token 视图并按日聚合 input/output/cache/total。
 3. Given Gemini session JSON 中部分消息没有 `tokens`，When 聚合历史 token，Then 忽略这些消息且不报错。
 4. Given Gemini 没有活跃账号或没有 session 文件，When 打开 Gemini Usage 页面，Then 不崩溃，并显示空状态或无数据提示。
 5. Given 运行 `nolon gemini auth usage --provider gemini`，When CLI 返回 usage 结果，Then JSON 中包含 `token_trend` 字段，文本模式包含 `token_trend:` 摘要行。
 6. Given Gemini Usage 页面已切换到 `7D`，When 刷新历史 token，Then view model 用 `trailingDays = 7` 重新拉取并发布新的趋势快照。
-7. Given Nolon 管理的 Gemini runtime home 中存在或不存在 session 文件，When 打开 Gemini Usage 页面，Then 历史 token 仅来源于全局 `~/.gemini`。
+7. Given Nolon 管理的 Gemini runtime home 中存在或不存在 session 文件，When 打开 Gemini Usage 页面，Then 历史 token 仅来源于全局 `~/.gemini/tmp/**/chats/session-*.json`。
 8. Given 历史 token 消耗 section 开启 Page Marker 调试，When 复制定位信息，Then 文本包含 provider、Usage 页签和“历史 Token 消耗”三级路径。
 9. Given 历史 token 消耗 section 内部卡片或图表/表格区域开启 Page Marker 调试，When 复制定位信息，Then 文本会继续包含对应子块标题。
 10. Given 历史 token 消耗 section 正在 loading，When 页面渲染骨架屏，Then 摘要卡、图表区和表格行都会显示稳定数量的占位骨架。

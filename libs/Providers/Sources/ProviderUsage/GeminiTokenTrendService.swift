@@ -21,8 +21,8 @@ public struct GeminiTokenTrendService: Sendable {
         self.loadActiveAccount = { provider in
             try await store.activeAccount(provider: provider)
         }
-        self.loadSessionRoot = Self.defaultSessionRoot
-        self.listSessionFiles = Self.defaultListSessionFiles
+        self.loadSessionRoot = GeminiSessionUsageSupport.defaultSessionRoot
+        self.listSessionFiles = GeminiSessionUsageSupport.defaultListSessionFiles
         self.readFile = { url in
             try String(contentsOf: url, encoding: .utf8)
         }
@@ -147,41 +147,6 @@ public struct GeminiTokenTrendService: Sendable {
         formatter.dateFormat = "yyyy-MM-dd"
         return formatter.string(from: date)
     }
-
-    private static func defaultListSessionFiles(root: URL) throws -> [URL] {
-        guard FileManager.default.fileExists(atPath: root.path) else {
-            return []
-        }
-
-        let enumerator = FileManager.default.enumerator(
-            at: root,
-            includingPropertiesForKeys: [.isRegularFileKey],
-            options: [.skipsHiddenFiles]
-        )
-
-        var files: [URL] = []
-        while let item = enumerator?.nextObject() as? URL {
-            guard item.lastPathComponent.hasPrefix("session-"),
-                  item.pathExtension == "json",
-                  item.path.contains("/tmp/"),
-                  item.path.contains("/chats/") else {
-                continue
-            }
-            files.append(item)
-        }
-        return files.sorted { $0.path < $1.path }
-    }
-
-    private static func defaultSessionRoot() -> URL? {
-        let environment = ProcessInfo.processInfo.environment
-        if let home = environment["HOME"]?.trimmingCharacters(in: .whitespacesAndNewlines),
-           !home.isEmpty {
-            return URL(fileURLWithPath: home, isDirectory: true)
-                .appendingPathComponent(".gemini", isDirectory: true)
-        }
-        return FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent(".gemini", isDirectory: true)
-    }
 }
 
 struct GeminiSessionFileFingerprint: Codable, Sendable, Equatable {
@@ -240,10 +205,26 @@ actor GeminiSessionUsageStore {
         let events: [GeminiCachedTokenEvent]
     }
 
+    private struct ResolvedFileState: Equatable {
+        let url: URL
+        let path: String
+        let fingerprint: GeminiSessionFileFingerprint
+    }
+
+    private struct SnapshotCacheEntry: Equatable {
+        let files: [ResolvedFileState]
+        let snapshot: Snapshot
+    }
+
     static let shared = GeminiSessionUsageStore(cacheFileURL: GeminiSessionUsageStore.defaultCacheFileURL())
 
     private let cacheFileURL: URL?
     private var cache: GeminiSessionUsageCache?
+    private var lastSnapshotCache: SnapshotCacheEntry?
+#if DEBUG
+    private var snapshotCacheHitCount = 0
+    private var snapshotCacheMissCount = 0
+#endif
 
     init(cacheFileURL: URL? = nil) {
         self.cacheFileURL = cacheFileURL
@@ -254,12 +235,28 @@ actor GeminiSessionUsageStore {
         readFile: @Sendable (URL) throws -> String,
         loadFileFingerprint: @Sendable (URL) -> GeminiSessionFileFingerprint
     ) async throws -> Snapshot {
+        let resolvedFiles = Array(Set(sessionFiles.map { $0.standardizedFileURL }))
+            .sorted { $0.path < $1.path }
+            .map { url in
+                let path = url.path
+                let fingerprint = loadFileFingerprint(url)
+                return ResolvedFileState(url: url, path: path, fingerprint: fingerprint)
+            }
+
+        if let lastSnapshotCache, lastSnapshotCache.files == resolvedFiles {
+#if DEBUG
+            snapshotCacheHitCount += 1
+#endif
+            return lastSnapshotCache.snapshot
+        }
+#if DEBUG
+        snapshotCacheMissCount += 1
+#endif
+
         var workingCache = cache ?? Self.loadCache(from: cacheFileURL)
         var didMutateCache = false
 
-        let normalizedFiles = Array(Set(sessionFiles.map { $0.standardizedFileURL }))
-            .sorted { $0.path < $1.path }
-        let livePaths = Set(normalizedFiles.map(\.path))
+        let livePaths = Set(resolvedFiles.map(\.path))
 
         for stalePath in workingCache.files.keys where !livePaths.contains(stalePath) {
             workingCache.files.removeValue(forKey: stalePath)
@@ -269,23 +266,20 @@ actor GeminiSessionUsageStore {
         var mergedDaily: [String: GeminiCachedDayTotals] = [:]
         var mergedEvents: [GeminiCachedTokenEvent] = []
 
-        for fileURL in normalizedFiles {
-            let path = fileURL.path
-            let fingerprint = loadFileFingerprint(fileURL)
-
+        for resolvedFile in resolvedFiles {
             let fileCache: GeminiSessionUsageFileCache
-            if let cachedFile = workingCache.files[path],
-               cachedFile.fingerprint == fingerprint {
+            if let cachedFile = workingCache.files[resolvedFile.path],
+               cachedFile.fingerprint == resolvedFile.fingerprint {
                 fileCache = cachedFile
             } else {
-                let raw = try readFile(fileURL)
+                let raw = try readFile(resolvedFile.url)
                 let parsed = try Self.parseSessionFile(raw)
                 fileCache = GeminiSessionUsageFileCache(
-                    fingerprint: fingerprint,
+                    fingerprint: resolvedFile.fingerprint,
                     daily: parsed.daily,
                     events: parsed.events
                 )
-                workingCache.files[path] = fileCache
+                workingCache.files[resolvedFile.path] = fileCache
                 didMutateCache = true
             }
 
@@ -299,9 +293,17 @@ actor GeminiSessionUsageStore {
             Self.saveCache(workingCache, to: cacheFileURL)
         }
         cache = workingCache
+        let snapshot = Snapshot(daily: mergedDaily, events: mergedEvents)
+        lastSnapshotCache = SnapshotCacheEntry(files: resolvedFiles, snapshot: snapshot)
 
-        return Snapshot(daily: mergedDaily, events: mergedEvents)
+        return snapshot
     }
+
+#if DEBUG
+    func snapshotCacheStatsForTesting() -> (hits: Int, misses: Int) {
+        (snapshotCacheHitCount, snapshotCacheMissCount)
+    }
+#endif
 
     nonisolated static func defaultLoadFileFingerprint(_ url: URL) -> GeminiSessionFileFingerprint {
         let standardizedURL = url.standardizedFileURL

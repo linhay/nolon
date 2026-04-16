@@ -423,6 +423,58 @@ struct GeminiTokenTrendServiceTests {
         #expect(second.points.map { $0.totalTokens } == [240])
         #expect(recorder.count == 2)
     }
+
+    @Test("Reuses merged Gemini snapshot when file list and fingerprints are unchanged")
+    func loadSnapshot_reusesMergedSnapshotWhenInputsAreUnchanged() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("nolon-gemini-snapshot-cache-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let sessionFileURL = root
+            .appendingPathComponent("project-a/chats/session-1.json")
+        try FileManager.default.createDirectory(
+            at: sessionFileURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try """
+        {
+          "messages": [
+            {
+              "type": "gemini",
+              "timestamp": "2026-03-08T09:10:00Z",
+              "tokens": { "input": 100, "output": 40, "cached": 20, "total": 140 }
+            }
+          ]
+        }
+        """.write(to: sessionFileURL, atomically: true, encoding: .utf8)
+
+        let store = GeminiSessionUsageStore(cacheFileURL: nil)
+        let fingerprint = GeminiSessionFileFingerprint(mtimeUnixMs: 1_762_000_000_000, size: 128)
+
+        let first = try await store.loadSnapshot(
+            sessionFiles: [sessionFileURL],
+            readFile: { url in
+                try String(contentsOf: url, encoding: .utf8)
+            },
+            loadFileFingerprint: { _ in fingerprint }
+        )
+        let second = try await store.loadSnapshot(
+            sessionFiles: [sessionFileURL],
+            readFile: { _ in
+                Issue.record("Merged snapshot cache miss should not reread unchanged session files")
+                return "{}"
+            },
+            loadFileFingerprint: { _ in fingerprint }
+        )
+
+        #expect(first == second)
+#if DEBUG
+        let stats = await store.snapshotCacheStatsForTesting()
+        #expect(stats.hits == 1)
+        #expect(stats.misses == 1)
+#endif
+    }
 }
 
 private extension GeminiTokenTrendServiceTests {

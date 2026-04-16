@@ -21,8 +21,8 @@ public struct GeminiIntradayUsageService: Sendable {
         self.loadActiveAccount = { provider in
             try await store.activeAccount(provider: provider)
         }
-        self.loadSessionRoot = Self.defaultSessionRoot
-        self.listSessionFiles = Self.defaultListSessionFiles
+        self.loadSessionRoot = GeminiSessionUsageSupport.defaultSessionRoot
+        self.listSessionFiles = GeminiSessionUsageSupport.defaultListSessionFiles
         self.readFile = { url in
             try String(contentsOf: url, encoding: .utf8)
         }
@@ -207,41 +207,6 @@ public struct GeminiIntradayUsageService: Sendable {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = timezone
         return calendar
-    }
-
-    private static func defaultListSessionFiles(root: URL) throws -> [URL] {
-        guard FileManager.default.fileExists(atPath: root.path) else {
-            return []
-        }
-
-        let enumerator = FileManager.default.enumerator(
-            at: root,
-            includingPropertiesForKeys: [.isRegularFileKey],
-            options: [.skipsHiddenFiles]
-        )
-
-        var files: [URL] = []
-        while let item = enumerator?.nextObject() as? URL {
-            guard item.lastPathComponent.hasPrefix("session-"),
-                  item.pathExtension == "json",
-                  item.path.contains("/tmp/"),
-                  item.path.contains("/chats/") else {
-                continue
-            }
-            files.append(item)
-        }
-        return files.sorted { $0.path < $1.path }
-    }
-
-    private static func defaultSessionRoot() -> URL? {
-        let environment = ProcessInfo.processInfo.environment
-        if let home = environment["HOME"]?.trimmingCharacters(in: .whitespacesAndNewlines),
-           !home.isEmpty {
-            return URL(fileURLWithPath: home, isDirectory: true)
-                .appendingPathComponent(".gemini", isDirectory: true)
-        }
-        return FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent(".gemini", isDirectory: true)
     }
 }
 
