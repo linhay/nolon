@@ -72,7 +72,7 @@ public struct CodexTokenTrendService: Sendable {
             last30DaysTokens: last30,
             allDaysTokens: all,
             updatedAt: snapshot.updatedAt,
-            sourceLabel: "global"
+            sourceLabel: "global local usage"
         )
     }
 

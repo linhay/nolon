@@ -14,6 +14,7 @@ typealias UsageEngineCodexImportConnectionTestAction = @Sendable (CodexAuthManag
 typealias UsageEngineCodexImportOpenPanelAction = @MainActor @Sendable () -> [URL]
 typealias UsageEngineCodexExportSavePanelAction = @MainActor @Sendable (UTType, String) -> URL?
 typealias UsageEngineCodexImportExportArchiveAction = @MainActor @Sendable ([CodexAuthManager.CodexImportValidationResult], URL) async throws -> Int
+typealias UsageEngineClaudeTokenTrendFetchAction = @Sendable (Int?) async throws -> ProviderTokenTrendSnapshot?
 typealias UsageEngineGeminiTokenTrendFetchAction = @Sendable (UsageProvider, Int?) async throws -> ProviderTokenTrendSnapshot?
 typealias UsageEngineProviderIntradayFetchAction = @Sendable (UsageProvider, String, ProviderIntradayBucket) async throws -> ProviderIntradayUsageSnapshot?
 typealias UsageEngineAsyncVoidAction = @MainActor @Sendable () async -> Void
@@ -33,6 +34,7 @@ extension ProviderUsageEngine {
         let codexImportOpenPanel: CodexImportOpenPanelAction
         let codexExportSavePanel: CodexExportSavePanelAction
         let codexImportExportArchive: CodexImportExportArchiveAction
+        let claudeTokenTrendFetch: ClaudeTokenTrendFetchAction
         let geminiTokenTrendFetch: GeminiTokenTrendFetchAction
         let providerIntradayFetch: ProviderIntradayFetchAction
     }
@@ -48,6 +50,7 @@ extension ProviderUsageEngine {
     typealias CodexImportOpenPanelAction = UsageEngineCodexImportOpenPanelAction
     typealias CodexExportSavePanelAction = UsageEngineCodexExportSavePanelAction
     typealias CodexImportExportArchiveAction = UsageEngineCodexImportExportArchiveAction
+    typealias ClaudeTokenTrendFetchAction = UsageEngineClaudeTokenTrendFetchAction
     typealias GeminiTokenTrendFetchAction = UsageEngineGeminiTokenTrendFetchAction
     typealias ProviderIntradayFetchAction = UsageEngineProviderIntradayFetchAction
     typealias AsyncVoidAction = UsageEngineAsyncVoidAction

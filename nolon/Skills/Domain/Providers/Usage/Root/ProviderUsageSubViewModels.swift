@@ -1050,3 +1050,395 @@ enum ClaudeAccountEditorPreviewBuilder {
         try draft.applyingSettingsPreviewJSON(text)
     }
 }
+
+extension ProviderUsageEngine.CodexConfigEditorDraft {
+    enum JSONSyncError: LocalizedError, Equatable {
+        case rootMustBeObject
+        case invalidAuthMode
+        case nolonMustBeObject
+        case relayMustBeObject
+        case unsupportedTopLevelKeys([String])
+        case unsupportedNolonKeys([String])
+        case unsupportedRelayKeys([String])
+        case invalidRootValue(key: String)
+        case invalidRelayValue(key: String)
+        case invalidRelayMapValue(key: String, nestedKey: String)
+
+        var errorDescription: String? {
+            switch self {
+            case .rootMustBeObject:
+                return NSLocalizedString(
+                    "codex.accounts.config.error.json_root_must_be_object",
+                    value: "The JSON root must be an object.",
+                    comment: "Codex config editor json root must be object"
+                )
+            case .invalidAuthMode:
+                return NSLocalizedString(
+                    "codex.accounts.config.error.json_auth_mode",
+                    value: "`auth_mode` must be `apikey` for Codex API key accounts.",
+                    comment: "Codex config editor auth mode error"
+                )
+            case .nolonMustBeObject:
+                return NSLocalizedString(
+                    "codex.accounts.config.error.json_nolon_must_be_object",
+                    value: "`nolon` must be a JSON object.",
+                    comment: "Codex config editor nolon must be object"
+                )
+            case .relayMustBeObject:
+                return NSLocalizedString(
+                    "codex.accounts.config.error.json_relay_must_be_object",
+                    value: "`nolon.relay` must be a JSON object.",
+                    comment: "Codex config editor relay must be object"
+                )
+            case let .unsupportedTopLevelKeys(keys):
+                return NSLocalizedString(
+                    "codex.accounts.config.error.json_unsupported_top_level_prefix",
+                    value: "Unsupported top-level keys: ",
+                    comment: "Codex config editor unsupported top-level keys prefix"
+                ) + keys.joined(separator: ", ") + "."
+            case let .unsupportedNolonKeys(keys):
+                return NSLocalizedString(
+                    "codex.accounts.config.error.json_unsupported_nolon_prefix",
+                    value: "Unsupported `nolon` keys: ",
+                    comment: "Codex config editor unsupported nolon keys prefix"
+                ) + keys.joined(separator: ", ") + "."
+            case let .unsupportedRelayKeys(keys):
+                return NSLocalizedString(
+                    "codex.accounts.config.error.json_unsupported_relay_prefix",
+                    value: "Unsupported relay keys: ",
+                    comment: "Codex config editor unsupported relay keys prefix"
+                ) + keys.joined(separator: ", ") + "."
+            case let .invalidRootValue(key):
+                return "`\(key)` " + NSLocalizedString(
+                    "codex.accounts.config.error.json_invalid_root_value_suffix",
+                    value: "must be a string or null.",
+                    comment: "Codex config editor invalid root value suffix"
+                )
+            case let .invalidRelayValue(key):
+                return "`\(key)` " + NSLocalizedString(
+                    "codex.accounts.config.error.json_invalid_relay_value_suffix",
+                    value: "must be a string, object, or null as required by the relay schema.",
+                    comment: "Codex config editor invalid relay value suffix"
+                )
+            case let .invalidRelayMapValue(key, nestedKey):
+                return "`\(key).\(nestedKey)` " + NSLocalizedString(
+                    "codex.accounts.config.error.json_invalid_relay_map_value_suffix",
+                    value: "must be a string or null.",
+                    comment: "Codex config editor invalid relay map value suffix"
+                )
+            }
+        }
+    }
+
+    var trimmedName: String {
+        name.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    var trimmedAPIKey: String {
+        apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    var trimmedBaseURL: String {
+        baseURL.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    var trimmedModelProvider: String {
+        modelProvider.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    var authPreviewObject: [String: Any] {
+        var root: [String: Any] = [
+            "auth_mode": "apikey",
+            "OPENAI_API_KEY": trimmedAPIKey,
+        ]
+
+        let relayQueryParams = parsedKeyValueLines(queryParamsText)
+        guard !trimmedBaseURL.isEmpty || !relayQueryParams.isEmpty else {
+            return root
+        }
+
+        if !trimmedBaseURL.isEmpty {
+            root["base_url"] = trimmedBaseURL
+        }
+
+        var relay: [String: Any] = [:]
+        if !trimmedBaseURL.isEmpty {
+            relay["base_url"] = trimmedBaseURL
+        }
+        if !trimmedModelProvider.isEmpty {
+            relay["model_provider"] = trimmedModelProvider
+        }
+        if !relayQueryParams.isEmpty {
+            relay["query_params"] = relayQueryParams
+        }
+        if !relay.isEmpty {
+            root["nolon"] = ["relay": relay]
+        }
+
+        return root
+    }
+
+    var authPreviewJSON: String {
+        guard JSONSerialization.isValidJSONObject(authPreviewObject),
+              let data = try? JSONSerialization.data(
+                withJSONObject: authPreviewObject,
+                options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
+              ),
+              let output = String(data: data, encoding: .utf8)
+        else {
+            return """
+            {
+              "auth_mode" : "apikey",
+              "OPENAI_API_KEY" : ""
+            }
+            """
+        }
+        return output
+    }
+
+    var managedConfigPreviewTOML: String {
+        guard !trimmedBaseURL.isEmpty else {
+            return """
+            # No managed config.toml changes.
+            """
+        }
+
+        let normalizedProviderID = Self.normalizedManagedProviderID(
+            trimmedModelProvider.isEmpty ? ProviderUsageEngine.codexDefaultModelProvider : trimmedModelProvider
+        ) ?? ProviderUsageEngine.codexDefaultModelProvider
+        let relayQueryParams = parsedKeyValueLines(queryParamsText)
+
+        var lines = [
+            "model_provider = \"\(Self.escapeTOMLValue(normalizedProviderID))\"",
+            "model = \"gpt-5.4\"",
+            "model_reasoning_effort = \"xhigh\"",
+            "",
+            "[model_providers.\(normalizedProviderID)]",
+            "name = \"\(Self.escapeTOMLValue(normalizedProviderID))\"",
+            "base_url = \"\(Self.escapeTOMLValue(trimmedBaseURL))\"",
+        ]
+        if !relayQueryParams.isEmpty {
+            lines.append("query_params = { \(Self.renderInlineTable(relayQueryParams)) }")
+        }
+        lines.append("requires_openai_auth = true")
+        lines.append("wire_api = \"responses\"")
+        return lines.joined(separator: "\n")
+    }
+
+    func applyingAuthPreviewJSON(_ text: String) throws -> Self {
+        let data = Data(text.utf8)
+        let object = try JSONSerialization.jsonObject(with: data)
+        guard let root = object as? [String: Any] else {
+            throw JSONSyncError.rootMustBeObject
+        }
+        return try applyingAuthPreviewObject(root)
+    }
+
+    func applyingAuthPreviewObject(_ root: [String: Any]) throws -> Self {
+        let unsupportedTopLevelKeys = Set(root.keys).subtracting(Self.supportedTopLevelKeys).sorted()
+        guard unsupportedTopLevelKeys.isEmpty else {
+            throw JSONSyncError.unsupportedTopLevelKeys(unsupportedTopLevelKeys)
+        }
+
+        if let authMode = try Self.optionalRootString("auth_mode", from: root),
+           !authMode.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+           authMode.trimmingCharacters(in: .whitespacesAndNewlines) != "apikey"
+        {
+            throw JSONSyncError.invalidAuthMode
+        }
+
+        let updatedAPIKey = try Self.trimmedRootString("OPENAI_API_KEY", from: root) ?? ""
+        let topLevelBaseURL = try Self.trimmedRootString("base_url", from: root)
+
+        let relay: [String: Any]?
+        if let nolonObject = root["nolon"] {
+            guard let nolon = nolonObject as? [String: Any] else {
+                throw JSONSyncError.nolonMustBeObject
+            }
+            let unsupportedNolonKeys = Set(nolon.keys).subtracting(Self.supportedNolonKeys).sorted()
+            guard unsupportedNolonKeys.isEmpty else {
+                throw JSONSyncError.unsupportedNolonKeys(unsupportedNolonKeys)
+            }
+
+            if let relayObject = nolon["relay"] {
+                if relayObject is NSNull {
+                    relay = nil
+                } else if let relayDictionary = relayObject as? [String: Any] {
+                    relay = relayDictionary
+                } else {
+                    throw JSONSyncError.relayMustBeObject
+                }
+            } else {
+                relay = nil
+            }
+        } else {
+            relay = nil
+        }
+
+        var updated = self
+        updated.apiKey = updatedAPIKey
+
+        guard let relay else {
+            updated.baseURL = topLevelBaseURL ?? ""
+            updated.queryParamsText = ""
+            if updated.modelProvider.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                updated.modelProvider = ProviderUsageEngine.codexDefaultModelProvider
+            }
+            return updated
+        }
+
+        let unsupportedRelayKeys = Set(relay.keys).subtracting(Self.supportedRelayKeys).sorted()
+        guard unsupportedRelayKeys.isEmpty else {
+            throw JSONSyncError.unsupportedRelayKeys(unsupportedRelayKeys)
+        }
+
+        updated.baseURL = try Self.trimmedRelayString("base_url", from: relay) ?? topLevelBaseURL ?? ""
+        if let relayModelProvider = try Self.trimmedRelayString("model_provider", from: relay),
+           !relayModelProvider.isEmpty
+        {
+            updated.modelProvider = relayModelProvider
+        } else if updated.modelProvider.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            updated.modelProvider = ProviderUsageEngine.codexDefaultModelProvider
+        }
+        updated.queryParamsText = Self.serializeKeyValueLines(try Self.stringDictionary(for: "query_params", in: relay))
+        return updated
+    }
+
+    private var relayQueryParams: [String: String] {
+        parsedKeyValueLines(queryParamsText)
+    }
+
+    private func parsedKeyValueLines(_ text: String) -> [String: String] {
+        Self.parsedKeyValueLines(text)
+    }
+
+    private static func parsedKeyValueLines(_ text: String) -> [String: String] {
+        var result: [String: String] = [:]
+        let lines = text
+            .split(separator: "\n", omittingEmptySubsequences: false)
+            .map(String.init)
+
+        for rawLine in lines {
+            let line = rawLine.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !line.isEmpty else { continue }
+            let parts = line.split(separator: "=", maxSplits: 1, omittingEmptySubsequences: false)
+            guard parts.count == 2 else { continue }
+            let key = String(parts[0]).trimmingCharacters(in: .whitespacesAndNewlines)
+            let value = String(parts[1]).trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !key.isEmpty else { continue }
+            result[key] = value
+        }
+        return result
+    }
+
+    private static func serializeKeyValueLines(_ values: [String: String]) -> String {
+        values.keys.sorted().compactMap { key in
+            guard let value = values[key] else { return nil }
+            return "\(key)=\(value)"
+        }
+        .joined(separator: "\n")
+    }
+
+    private static func optionalRootString(_ key: String, from root: [String: Any]) throws -> String? {
+        guard let value = root[key] else { return nil }
+        if value is NSNull {
+            return nil
+        }
+        guard let stringValue = value as? String else {
+            throw JSONSyncError.invalidRootValue(key: key)
+        }
+        return stringValue
+    }
+
+    private static func trimmedRootString(_ key: String, from root: [String: Any]) throws -> String? {
+        try optionalRootString(key, from: root)?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private static func trimmedRelayString(_ key: String, from relay: [String: Any]) throws -> String? {
+        guard let value = relay[key] else { return nil }
+        if value is NSNull {
+            return nil
+        }
+        guard let stringValue = value as? String else {
+            throw JSONSyncError.invalidRelayValue(key: key)
+        }
+        return stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private static func stringDictionary(for key: String, in relay: [String: Any]) throws -> [String: String] {
+        guard let value = relay[key] else { return [:] }
+        if value is NSNull {
+            return [:]
+        }
+        guard let dictionary = value as? [String: Any] else {
+            throw JSONSyncError.invalidRelayValue(key: key)
+        }
+
+        var result: [String: String] = [:]
+        result.reserveCapacity(dictionary.count)
+        for nestedKey in dictionary.keys.sorted() {
+            let nestedValue = dictionary[nestedKey]
+            if nestedValue is NSNull {
+                continue
+            }
+            guard let stringValue = nestedValue as? String else {
+                throw JSONSyncError.invalidRelayMapValue(key: key, nestedKey: nestedKey)
+            }
+            let trimmedNestedKey = nestedKey.trimmingCharacters(in: .whitespacesAndNewlines)
+            let trimmedNestedValue = stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmedNestedKey.isEmpty else { continue }
+            result[trimmedNestedKey] = trimmedNestedValue
+        }
+        return result
+    }
+
+    private static func normalizedManagedProviderID(_ raw: String) -> String? {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+
+        let sanitized = trimmed
+            .lowercased()
+            .replacingOccurrences(of: "[^a-z0-9_-]+", with: "-", options: .regularExpression)
+            .replacingOccurrences(of: "-+", with: "-", options: .regularExpression)
+            .trimmingCharacters(in: CharacterSet(charactersIn: "-"))
+        return sanitized.isEmpty ? nil : sanitized
+    }
+
+    private static func escapeTOMLValue(_ value: String) -> String {
+        value.replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "\"", with: "\\\"")
+    }
+
+    private static func renderInlineTable(_ values: [String: String]) -> String {
+        values.keys.sorted().compactMap { key in
+            guard let value = values[key] else { return nil }
+            return "\"\(escapeTOMLValue(key))\" = \"\(escapeTOMLValue(value))\""
+        }
+        .joined(separator: ", ")
+    }
+
+    private static let supportedTopLevelKeys: Set<String> = ["auth_mode", "OPENAI_API_KEY", "base_url", "nolon"]
+    private static let supportedNolonKeys: Set<String> = ["relay"]
+    private static let supportedRelayKeys: Set<String> = ["base_url", "model_provider", "query_params"]
+}
+
+enum CodexConfigEditorPreviewBuilder {
+    typealias Draft = ProviderUsageEngine.CodexConfigEditorDraft
+
+    static func authPreviewObject(from draft: Draft) -> [String: Any] {
+        draft.authPreviewObject
+    }
+
+    static func authPreviewJSON(from draft: Draft) -> String {
+        draft.authPreviewJSON
+    }
+
+    static func managedConfigPreviewTOML(from draft: Draft) -> String {
+        draft.managedConfigPreviewTOML
+    }
+
+    static func applyingAuthPreviewJSON(_ text: String, to draft: Draft) throws -> Draft {
+        try draft.applyingAuthPreviewJSON(text)
+    }
+}

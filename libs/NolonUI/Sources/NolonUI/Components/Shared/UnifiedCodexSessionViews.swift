@@ -18,7 +18,7 @@ public struct CodexSessionsOverviewCardView: View {
     }
 
     public var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: verticalSpacing) {
             header
 
             statusBanners
@@ -33,7 +33,7 @@ public struct CodexSessionsOverviewCardView: View {
                 }
             }
         }
-        .padding(16)
+        .padding(cardPadding)
         .frame(maxWidth: .infinity, alignment: .leading)
         .dsCard(
             background: DesignSystem.Colors.Background.elevated.opacity(0.96),
@@ -64,10 +64,10 @@ public struct CodexSessionsOverviewCardView: View {
             ZStack {
                 Circle()
                     .fill(DesignSystem.Colors.primary.opacity(0.14))
-                    .frame(width: 34, height: 34)
+                    .frame(width: iconSize, height: iconSize)
 
                 Image(systemName: "arrow.left.arrow.right.circle.fill")
-                    .font(.system(size: 16, weight: .semibold))
+                    .font(.system(size: iconFontSize, weight: .semibold))
                     .foregroundStyle(DesignSystem.Colors.primary)
             }
 
@@ -77,9 +77,9 @@ public struct CodexSessionsOverviewCardView: View {
                     .foregroundStyle(DesignSystem.Colors.Text.primary)
 
                 Text(data.subtitle)
-                    .font(.caption)
+                    .font(data.displayMode == .compact ? .caption.weight(.medium) : .caption)
                     .foregroundStyle(DesignSystem.Colors.Text.secondary)
-                    .lineLimit(2)
+                    .lineLimit(data.displayMode == .compact ? 1 : 2)
                     .fixedSize(horizontal: false, vertical: true)
                     .help(data.subtitle)
             }
@@ -174,8 +174,8 @@ public struct CodexSessionsOverviewCardView: View {
                 .foregroundStyle(DesignSystem.Colors.Text.primary)
                 .lineLimit(1)
         }
-        .padding(12)
-        .frame(maxWidth: .infinity, minHeight: 68, alignment: .leading)
+        .padding(data.displayMode == .compact ? 10 : 12)
+        .frame(maxWidth: .infinity, minHeight: data.displayMode == .compact ? 60 : 68, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: DesignSystem.Metrics.cornerRadiusM, style: .continuous)
                 .fill(DesignSystem.Colors.Background.surface.opacity(0.94))
@@ -210,6 +210,22 @@ public struct CodexSessionsOverviewCardView: View {
     private func bannerEntry(id: String, message: String?, systemImage: String, tint: Color) -> BannerEntry? {
         guard let message, !message.isEmpty else { return nil }
         return BannerEntry(id: id, message: message, systemImage: systemImage, tint: tint)
+    }
+
+    private var verticalSpacing: CGFloat {
+        data.displayMode == .compact ? 10 : 12
+    }
+
+    private var cardPadding: CGFloat {
+        data.displayMode == .compact ? 14 : 16
+    }
+
+    private var iconSize: CGFloat {
+        data.displayMode == .compact ? 30 : 34
+    }
+
+    private var iconFontSize: CGFloat {
+        data.displayMode == .compact ? 14 : 16
     }
 }
 

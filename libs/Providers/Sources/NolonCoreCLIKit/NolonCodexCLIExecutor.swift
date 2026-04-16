@@ -1021,7 +1021,12 @@ enum NolonCodexCLIExecutor {
     private static func shouldShowGlobalFallbackHint(_ accounts: [NolonCodexAuthUsageAccountView]) -> Bool {
         let nonEmpty = accounts.compactMap(\.usageSource).filter { !$0.isEmpty }
         guard !nonEmpty.isEmpty else { return false }
-        return nonEmpty.allSatisfy { $0.lowercased().contains("(global)") }
+        return nonEmpty.allSatisfy {
+            let normalized = $0.lowercased()
+            return normalized.contains("(global)")
+                || normalized.contains("(global local usage)")
+                || normalized.contains("global local usage")
+        }
     }
 
     private static func formatExpiryInfo(_ expiresAt: Date?, hasRefreshToken: Bool?) -> String {

@@ -341,6 +341,202 @@ struct ProviderUsageUnifiedAccountsPipelineTests {
         }
     }
 
+    @Test("BDD: Given Codex config draft when building managed previews then auth json and config preview reflect relay fields")
+    func testBDD_GivenCodexConfigDraft_WhenBuildingManagedPreviews_ThenAuthJSONAndConfigPreviewReflectRelayFields() throws {
+        let draft = ProviderUsageEngine.CodexConfigEditorDraft(
+            mode: .newAPIKey,
+            name: "",
+            apiKey: " sk-live-preview ",
+            baseURL: " https://relay.example.com/v1 ",
+            modelProvider: "Azure OpenAI",
+            queryParamsText: "api-version=2025-04-01-preview\nregion=eastus2",
+            httpUsageEnabled: false,
+            httpUsageMethod: .get,
+            httpUsageURL: "",
+            httpUsageHeadersText: "",
+            httpUsageBody: "",
+            httpUsageTimeoutSeconds: "15",
+            httpUsageOverrideBaseURL: "",
+            httpUsageOverrideAPIKey: "",
+            httpUsageOverrideAccessToken: "",
+            httpUsageOverrideUserID: "",
+            httpUsagePlanPath: "",
+            httpUsageCreditsRemainingPath: "",
+            httpUsageUsedPath: "",
+            httpUsageTotalPath: "",
+            httpUsageCostTodayPath: "",
+            httpUsageCostLast30DaysPath: "",
+            httpUsageErrorMessagePath: ""
+        )
+
+        let authPreviewJSON = CodexConfigEditorPreviewBuilder.authPreviewJSON(from: draft)
+        let authData = try #require(authPreviewJSON.data(using: .utf8))
+        let authRoot = try #require(JSONSerialization.jsonObject(with: authData) as? [String: Any])
+        let nolon = try #require(authRoot["nolon"] as? [String: Any])
+        let relay = try #require(nolon["relay"] as? [String: Any])
+        let relayQueryParams = try #require(relay["query_params"] as? [String: Any])
+
+        #expect(authRoot["auth_mode"] as? String == "apikey")
+        #expect(authRoot["OPENAI_API_KEY"] as? String == "sk-live-preview")
+        #expect(relay["base_url"] as? String == "https://relay.example.com/v1")
+        #expect(relay["model_provider"] as? String == "Azure OpenAI")
+        #expect(relayQueryParams["api-version"] as? String == "2025-04-01-preview")
+        #expect(relayQueryParams["region"] as? String == "eastus2")
+
+        let configPreview = CodexConfigEditorPreviewBuilder.managedConfigPreviewTOML(from: draft)
+        #expect(configPreview.contains(#"model_provider = "azure-openai""#))
+        #expect(configPreview.contains(#"[model_providers.azure-openai]"#))
+        #expect(configPreview.contains(#"base_url = "https://relay.example.com/v1""#))
+        #expect(configPreview.contains(#"query_params = { "api-version" = "2025-04-01-preview", "region" = "eastus2" }"#))
+        #expect(configPreview.contains("http_headers") == false)
+    }
+
+    @Test("BDD: Given Codex config draft when applying supported auth json then draft updates from json")
+    func testBDD_GivenCodexConfigDraft_WhenApplyingSupportedAuthJSON_ThenDraftUpdatesFromJSON() throws {
+        let draft = ProviderUsageEngine.CodexConfigEditorDraft(
+            mode: .edit(accountID: UUID(uuidString: "12121212-3434-5656-7878-909090909090")!),
+            name: "Relay Codex",
+            apiKey: "legacy-key",
+            baseURL: "https://legacy.example.com/v1",
+            modelProvider: "legacy-provider",
+            queryParamsText: "",
+            httpUsageEnabled: false,
+            httpUsageMethod: .get,
+            httpUsageURL: "",
+            httpUsageHeadersText: "",
+            httpUsageBody: "",
+            httpUsageTimeoutSeconds: "15",
+            httpUsageOverrideBaseURL: "",
+            httpUsageOverrideAPIKey: "",
+            httpUsageOverrideAccessToken: "",
+            httpUsageOverrideUserID: "",
+            httpUsagePlanPath: "",
+            httpUsageCreditsRemainingPath: "",
+            httpUsageUsedPath: "",
+            httpUsageTotalPath: "",
+            httpUsageCostTodayPath: "",
+            httpUsageCostLast30DaysPath: "",
+            httpUsageErrorMessagePath: ""
+        )
+
+        let updated = try CodexConfigEditorPreviewBuilder.applyingAuthPreviewJSON(
+            """
+            {
+              "auth_mode": "apikey",
+              "OPENAI_API_KEY": " sk-json-updated ",
+              "nolon": {
+                "relay": {
+                  "base_url": " https://relay.example.com/v1 ",
+                  "model_provider": " Azure OpenAI ",
+                  "query_params": {
+                    "api-version": " 2025-04-01-preview "
+                  }
+                }
+              }
+            }
+            """,
+            to: draft
+        )
+
+        #expect(updated.mode == draft.mode)
+        #expect(updated.name == draft.name)
+        #expect(updated.apiKey == "sk-json-updated")
+        #expect(updated.baseURL == "https://relay.example.com/v1")
+        #expect(updated.modelProvider == "Azure OpenAI")
+        #expect(updated.queryParamsText == "api-version=2025-04-01-preview")
+    }
+
+    @Test("BDD: Given Codex config draft when applying auth json with relay headers then json sync rejects unsupported relay keys")
+    func testBDD_GivenCodexConfigDraft_WhenApplyingAuthJSONWithRelayHeaders_ThenRejectsUnsupportedRelayKeys() {
+        let draft = ProviderUsageEngine.CodexConfigEditorDraft(
+            mode: .newAPIKey,
+            name: "",
+            apiKey: "",
+            baseURL: "",
+            modelProvider: ProviderUsageEngine.codexDefaultModelProvider,
+            queryParamsText: "",
+            httpUsageEnabled: false,
+            httpUsageMethod: .get,
+            httpUsageURL: "",
+            httpUsageHeadersText: "",
+            httpUsageBody: "",
+            httpUsageTimeoutSeconds: "15",
+            httpUsageOverrideBaseURL: "",
+            httpUsageOverrideAPIKey: "",
+            httpUsageOverrideAccessToken: "",
+            httpUsageOverrideUserID: "",
+            httpUsagePlanPath: "",
+            httpUsageCreditsRemainingPath: "",
+            httpUsageUsedPath: "",
+            httpUsageTotalPath: "",
+            httpUsageCostTodayPath: "",
+            httpUsageCostLast30DaysPath: "",
+            httpUsageErrorMessagePath: ""
+        )
+
+        #expect(throws: Error.self) {
+            _ = try CodexConfigEditorPreviewBuilder.applyingAuthPreviewJSON(
+                """
+                {
+                  "auth_mode": "apikey",
+                  "OPENAI_API_KEY": "sk-live",
+                  "nolon": {
+                    "relay": {
+                      "base_url": "https://relay.example.com/v1",
+                      "headers": {
+                        "x-test": "preview"
+                      }
+                    }
+                  }
+                }
+                """,
+                to: draft
+            )
+        }
+    }
+
+    @Test("BDD: Given Codex config draft when applying unsupported auth json key then json sync rejects unsupported keys")
+    func testBDD_GivenCodexConfigDraft_WhenApplyingUnsupportedAuthJSONKey_ThenRejectsUnsupportedKeys() {
+        let draft = ProviderUsageEngine.CodexConfigEditorDraft(
+            mode: .newAPIKey,
+            name: "",
+            apiKey: "",
+            baseURL: "",
+            modelProvider: ProviderUsageEngine.codexDefaultModelProvider,
+            queryParamsText: "",
+            httpUsageEnabled: false,
+            httpUsageMethod: .get,
+            httpUsageURL: "",
+            httpUsageHeadersText: "",
+            httpUsageBody: "",
+            httpUsageTimeoutSeconds: "15",
+            httpUsageOverrideBaseURL: "",
+            httpUsageOverrideAPIKey: "",
+            httpUsageOverrideAccessToken: "",
+            httpUsageOverrideUserID: "",
+            httpUsagePlanPath: "",
+            httpUsageCreditsRemainingPath: "",
+            httpUsageUsedPath: "",
+            httpUsageTotalPath: "",
+            httpUsageCostTodayPath: "",
+            httpUsageCostLast30DaysPath: "",
+            httpUsageErrorMessagePath: ""
+        )
+
+        #expect(throws: Error.self) {
+            _ = try CodexConfigEditorPreviewBuilder.applyingAuthPreviewJSON(
+                """
+                {
+                  "auth_mode": "apikey",
+                  "OPENAI_API_KEY": "sk-live",
+                  "unexpected": true
+                }
+                """,
+                to: draft
+            )
+        }
+    }
+
     @Test("BDD: Given Gemini provider account state when building unified cards then emits Gemini card models")
     func testBDD_GivenGeminiProviderState_WhenBuildingUnifiedCards_ThenEmitsGeminiCards() {
         let provider = Provider(

@@ -95,7 +95,7 @@ extension ProviderUsageAccountsViewModel {
         case .claude:
             return .init(
                 isCodexFamily: false,
-                showsTokenTrend: false,
+                showsTokenTrend: true,
                 usesUnifiedCardSkeleton: true,
                 showsUnifiedImportCallout: false
             )

@@ -130,6 +130,38 @@ final class ProviderUsageEngineValidateConfiguredAccountTests: XCTestCase {
         XCTAssertEqual(viewModel.codexConfigEditorDraft?.modelProvider, relay.modelProvider)
     }
 
+    func testBDD_GivenRelayDraftWithQueryParams_WhenSaving_ThenManagedSnapshotPreservesThem() async throws {
+        let root = try makeTempDirectory()
+        let manager = CodexAuthManager(rootURL: root)
+        let provider = Provider(
+            name: "Codex",
+            defaultSkillsPath: root.appendingPathComponent("skills", isDirectory: true).path,
+            workflowPath: "/tmp/codex-prompts",
+            installMethod: .symlink,
+            templateId: "codex"
+        )
+        let viewModel = ProviderUsageEngine(provider: provider, codexAuthManager: manager)
+
+        viewModel.beginNewCodexAPIKeyAccount()
+        var draft = try XCTUnwrap(viewModel.codexConfigEditorDraft)
+        draft.apiKey = "sk-live-save"
+        draft.baseURL = "https://relay.example.com/v1"
+        draft.modelProvider = "azure"
+        draft.queryParamsText = "api-version=2025-04-01-preview"
+        viewModel.codexConfigEditorDraft = draft
+
+        await viewModel.saveCodexConfigEditor()
+
+        let accounts = try await manager.loadAccounts()
+        let account = try XCTUnwrap(accounts.first)
+        let authData = try XCTUnwrap(manager.accountAuthData(for: account))
+        let authJSON = try JSON(data: authData)
+        let relayObject = try XCTUnwrap(authJSON["nolon"]["relay"].dictionaryObject)
+
+        XCTAssertEqual(authJSON["nolon"]["relay"]["query_params"]["api-version"].string, "2025-04-01-preview")
+        XCTAssertFalse(relayObject.keys.contains("headers"))
+    }
+
     func testBDD_GivenChatGPTSnapshot_WhenEditingAuthJSON_ThenDoesNotPresentConfigEditorSheet() async throws {
         let root = try makeTempDirectory()
         let manager = CodexAuthManager(rootURL: root)

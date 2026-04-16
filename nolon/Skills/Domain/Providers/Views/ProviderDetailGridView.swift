@@ -657,14 +657,17 @@ struct ProviderDetailGridView: View, DebugPageLocatable {
             }
         case .accounts:
             if let provider = provider {
-                ProviderUsageView(provider: provider)
+                ProviderUsageView(provider: provider, pageMode: .accounts)
                     .debugCardLocator(debugPageMarkerItems)
                     .id(provider.id)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
         case .usage:
             if let provider = provider {
-                ProviderUsageView(provider: provider)
+                ProviderUsageView(
+                    provider: provider,
+                    pageMode: ProviderContentTabType.shouldSplitAccountsAndUsage(for: provider) ? .usage : .combined
+                )
                     .debugCardLocator(debugPageMarkerItems)
                     .id(provider.id)
                     .frame(maxWidth: .infinity, alignment: .leading)

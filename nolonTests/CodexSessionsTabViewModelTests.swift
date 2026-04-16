@@ -427,6 +427,36 @@ final class CodexSessionsTabViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.selectedSession?.title, "Beta")
     }
 
+    func testBDD_GivenSessionsViewModel_WhenLoadIfNeededRunsTwice_ThenSnapshotStreamLoadsOnlyOnce() async throws {
+        let provider = makeCodexProvider()
+        let snapshot = CodexSessionSnapshot(
+            sessions: [
+                makeSession(
+                    id: "sessions/a-1.jsonl",
+                    threadID: "thread-a-1",
+                    title: "Project Alpha",
+                    modelProvider: "openai",
+                    cwd: "/tmp/project-alpha",
+                    updatedAt: 1_000
+                ),
+            ],
+            availableProviderIDs: ["openai"]
+        )
+        let serviceState = MockCodexSessionsServiceState(snapshots: [snapshot])
+        let viewModel = CodexSessionsTabViewModel(
+            provider: provider,
+            service: MockCodexSessionsService(state: serviceState)
+        )
+
+        let firstDidLoad = await viewModel.loadIfNeeded()
+        let secondDidLoad = await viewModel.loadIfNeeded()
+
+        XCTAssertTrue(firstDidLoad)
+        XCTAssertFalse(secondDidLoad)
+        XCTAssertEqual(serviceState.snapshotStreamCallCount, 1)
+        XCTAssertEqual(viewModel.sections.count, 1)
+    }
+
     func testBDD_GivenThreadIDAndWorkingDirectory_WhenBuildingResumeCommand_ThenCommandIsShellSafe() {
         let session = CodexSessionsTabViewModel.SessionRow(
             id: "sessions/refactor.jsonl",
@@ -512,6 +542,8 @@ private final class MockCodexSessionsServiceState: @unchecked Sendable {
     var rewriteConfirmedPreviews: [CodexSessionRewritePreview?] = []
     var usageResults: [String: Result<CodexSessionTokenTotals?, Error>] = [:]
     var usageDelayNanoseconds: UInt64 = 0
+    var snapshotStreamCallCount = 0
+    var loadSnapshotCallCount = 0
 
     init(
         snapshots: [CodexSessionSnapshot],
@@ -541,6 +573,7 @@ private struct MockCodexSessionsService: CodexSessionsTabServicing, CodexSession
 
     func loadSnapshot(codexHome: URL) throws -> CodexSessionSnapshot {
         _ = codexHome
+        state.loadSnapshotCallCount += 1
         if state.snapshots.count > 1 {
             return state.snapshots.removeFirst()
         }
@@ -587,6 +620,7 @@ private struct MockCodexSessionsService: CodexSessionsTabServicing, CodexSession
     ) -> AsyncThrowingStream<CodexSessionSnapshot, Error> {
         _ = codexHome
         _ = batchSize
+        state.snapshotStreamCallCount += 1
 
         return AsyncThrowingStream { continuation in
             Task {

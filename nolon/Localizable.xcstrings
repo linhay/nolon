@@ -2755,6 +2755,18 @@
         }
       }
     },
+    "codex.accounts.config.action.format_json" : {
+      "comment" : "Codex config editor format json action",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Format JSON"
+          }
+        }
+      }
+    },
     "codex.accounts.config.api_key" : {
       "comment" : "Codex API key",
       "extractionState" : "extracted_with_value",
@@ -2785,6 +2797,18 @@
         }
       }
     },
+    "codex.accounts.config.api_key.hint" : {
+      "comment" : "Codex config editor api key hint",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Required. This value is written into the managed auth.json when the account is saved."
+          }
+        }
+      }
+    },
     "codex.accounts.config.base_url" : {
       "comment" : "Codex relay base URL",
       "extractionState" : "extracted_with_value",
@@ -2793,6 +2817,18 @@
           "stringUnit" : {
             "state" : "new",
             "value" : "Base URL"
+          }
+        }
+      }
+    },
+    "codex.accounts.config.base_url.hint" : {
+      "comment" : "Codex config editor base url hint",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Optional. Leave blank to keep this account in official API key mode. Once set, Nolon will also generate the managed config.toml preview below."
           }
         }
       }
@@ -2887,6 +2923,138 @@
         }
       }
     },
+    "codex.accounts.config.error.base_url_required_for_relay_extras" : {
+      "comment" : "Codex relay extras require base url",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Base URL is required when relay query params are configured."
+          }
+        }
+      }
+    },
+    "codex.accounts.config.error.json_auth_mode" : {
+      "comment" : "Codex config editor auth mode error",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "`auth_mode` must be `apikey` for Codex API key accounts."
+          }
+        }
+      }
+    },
+    "codex.accounts.config.error.json_invalid_relay_map_value_suffix" : {
+      "comment" : "Codex config editor invalid relay map value suffix",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "must be a string or null."
+          }
+        }
+      }
+    },
+    "codex.accounts.config.error.json_invalid_relay_value_suffix" : {
+      "comment" : "Codex config editor invalid relay value suffix",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "must be a string, object, or null as required by the relay schema."
+          }
+        }
+      }
+    },
+    "codex.accounts.config.error.json_invalid_root_value_suffix" : {
+      "comment" : "Codex config editor invalid root value suffix",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "must be a string or null."
+          }
+        }
+      }
+    },
+    "codex.accounts.config.error.json_nolon_must_be_object" : {
+      "comment" : "Codex config editor nolon must be object",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "`nolon` must be a JSON object."
+          }
+        }
+      }
+    },
+    "codex.accounts.config.error.json_relay_must_be_object" : {
+      "comment" : "Codex config editor relay must be object",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "`nolon.relay` must be a JSON object."
+          }
+        }
+      }
+    },
+    "codex.accounts.config.error.json_root_must_be_object" : {
+      "comment" : "Codex config editor json root must be object",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "The JSON root must be an object."
+          }
+        }
+      }
+    },
+    "codex.accounts.config.error.json_unsupported_nolon_prefix" : {
+      "comment" : "Codex config editor unsupported nolon keys prefix",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Unsupported `nolon` keys: "
+          }
+        }
+      }
+    },
+    "codex.accounts.config.error.json_unsupported_relay_prefix" : {
+      "comment" : "Codex config editor unsupported relay keys prefix",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Unsupported relay keys: "
+          }
+        }
+      }
+    },
+    "codex.accounts.config.error.json_unsupported_top_level_prefix" : {
+      "comment" : "Codex config editor unsupported top-level keys prefix",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Unsupported top-level keys: "
+          }
+        }
+      }
+    },
     "codex.accounts.config.error.model_provider_required" : {
       "comment" : "Codex relay missing model provider",
       "extractionState" : "stale",
@@ -2923,6 +3091,18 @@
         }
       }
     },
+    "codex.accounts.config.footer.required" : {
+      "comment" : "Codex config editor footer required hint",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "API Key is required before saving. Base URL is optional unless you are configuring a relay account."
+          }
+        }
+      }
+    },
     "codex.accounts.config.model_provider" : {
       "comment" : "Codex relay model provider",
       "extractionState" : "extracted_with_value",
@@ -2935,6 +3115,18 @@
         }
       }
     },
+    "codex.accounts.config.model_provider.hint" : {
+      "comment" : "Codex config editor model provider hint",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Optional for official API key mode. Required once a relay base URL is configured."
+          }
+        }
+      }
+    },
     "codex.accounts.config.model_provider.suggested" : {
       "comment" : "Model provider suggested options",
       "extractionState" : "extracted_with_value",
@@ -2943,6 +3135,30 @@
           "stringUnit" : {
             "state" : "new",
             "value" : "Suggested from current config"
+          }
+        }
+      }
+    },
+    "codex.accounts.config.name" : {
+      "comment" : "Codex config editor name field",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Name"
+          }
+        }
+      }
+    },
+    "codex.accounts.config.name.hint" : {
+      "comment" : "Codex config editor name hint",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Optional. Leave blank to derive a stable display name from the host."
           }
         }
       }
@@ -2983,6 +3199,54 @@
         }
       }
     },
+    "codex.accounts.config.preview.auth_hint" : {
+      "comment" : "Codex auth preview hint",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Edit the managed auth fragment directly. Valid JSON updates the form, and form edits rewrite this preview."
+          }
+        }
+      }
+    },
+    "codex.accounts.config.preview.auth_title" : {
+      "comment" : "Codex auth preview title",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "auth.json"
+          }
+        }
+      }
+    },
+    "codex.accounts.config.preview.config_hint" : {
+      "comment" : "Codex config preview hint",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "This preview shows the managed config.toml fragment Nolon will apply when the relay account becomes active."
+          }
+        }
+      }
+    },
+    "codex.accounts.config.preview.config_title" : {
+      "comment" : "Codex config preview title",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "config.toml"
+          }
+        }
+      }
+    },
     "codex.accounts.config.relay" : {
       "comment" : "Relay section title",
       "extractionState" : "stale",
@@ -3015,6 +3279,42 @@
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "通常只需要 Base URL 和 Provider；query/header 属于高级选项。"
+          }
+        }
+      }
+    },
+    "codex.accounts.config.section.basics" : {
+      "comment" : "Codex config editor basics section",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Basics"
+          }
+        }
+      }
+    },
+    "codex.accounts.config.section.connection" : {
+      "comment" : "Codex config editor relay section",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Relay"
+          }
+        }
+      }
+    },
+    "codex.accounts.config.section.preview" : {
+      "comment" : "Codex config editor preview section",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Generated Files"
           }
         }
       }
@@ -9773,6 +10073,18 @@
         }
       }
     },
+    "codex.sessions.header.subtitle.project.compact" : {
+      "comment" : "Compact codex sessions header subtitle",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Browse sessions by project."
+          }
+        }
+      }
+    },
     "codex.sessions.header.subtitle.provider" : {
       "comment" : "Codex sessions header subtitle for provider grouping",
       "extractionState" : "extracted_with_value",
@@ -9781,6 +10093,18 @@
           "stringUnit" : {
             "state" : "new",
             "value" : "Switch to provider grouping when you need a migration-oriented audit across projects."
+          }
+        }
+      }
+    },
+    "codex.sessions.header.subtitle.provider.compact" : {
+      "comment" : "Compact codex sessions provider subtitle",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Audit sessions by provider."
           }
         }
       }

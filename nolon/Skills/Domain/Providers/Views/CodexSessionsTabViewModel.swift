@@ -35,6 +35,31 @@ extension CodexSessionStore: CodexSessionsTabServicing {}
 extension CodexSessionStore: CodexSessionsTabStreamingServicing {}
 
 @MainActor
+final class CodexSessionsTabViewModelStore {
+    static let shared = CodexSessionsTabViewModelStore()
+
+    private var cached: [Provider.ID: CodexSessionsTabViewModel] = [:]
+
+    func viewModel(for provider: Provider) -> CodexSessionsTabViewModel {
+        if let existing = cached[provider.id] {
+            if existing.provider == provider {
+                return existing
+            }
+            let recreated = CodexSessionsTabViewModel(provider: provider)
+            cached[provider.id] = recreated
+            return recreated
+        }
+        let created = CodexSessionsTabViewModel(provider: provider)
+        cached[provider.id] = created
+        return created
+    }
+
+    func clear() {
+        cached.removeAll()
+    }
+}
+
+@MainActor
 @Observable
 final class CodexSessionsTabViewModel {
     static let performanceNotification = Notification.Name("CodexSessionsTabViewModel.performance")
@@ -225,6 +250,7 @@ final class CodexSessionsTabViewModel {
 
     private let service: any CodexSessionsTabServicing
     private let pageSize: Int
+    private var didStartInitialLoad = false
     private var allRows: [SessionRow] = []
     private var allSectionStates: [SessionSectionState] = []
     private var expandedSectionIDs: Set<String> = []
@@ -239,6 +265,14 @@ final class CodexSessionsTabViewModel {
         self.provider = provider
         self.service = service
         self.pageSize = max(1, pageSize)
+    }
+
+    @discardableResult
+    func loadIfNeeded() async -> Bool {
+        guard !didStartInitialLoad else { return false }
+        didStartInitialLoad = true
+        await load()
+        return true
     }
 
     var totalSessionCount: Int {
@@ -401,6 +435,7 @@ final class CodexSessionsTabViewModel {
     }
 
     func load() async {
+        didStartInitialLoad = true
         let traceID = UUID().uuidString
         let startedAt = CFAbsoluteTimeGetCurrent()
         isLoading = true

@@ -238,6 +238,66 @@
    - 不重置展开状态
 
 ### BDD 验收（Project-First 增量）
+
+## 增量（2026-04-16：Overview 状态矩阵与双态密度）
+
+### 背景
+- `Codex Sessions` 的 overview card 目前仍是单一路径渲染：标题、状态 banner、指标网格全部同时出现。
+- 经过 2026-04-16 当天两轮 debate，已收敛出本轮先手顺序应为：
+  - `4. 先补 overview 状态矩阵测试`
+  - `1. 再实现 Compact / Diagnostic 两档 overview`
+- `状态中心` 与 `后台同步任务模型` 不在本轮范围内，避免在没有状态模型的前提下扩大改动面。
+
+### 目标
+1. 为 overview 建立可回归的状态矩阵测试，不再只依赖固定 snapshot 夹具。
+2. 为 overview 提供 `Compact` 与 `Diagnostic` 两档密度：
+   - `Compact`：默认浏览态，压缩说明与指标，优先服务项目会话浏览。
+   - `Diagnostic`：在存在运行中状态或需要诊断时，展开更完整的说明与状态信息。
+3. 保持现有刷新、分组切换、rewrite 流程与底层扫描链路不变。
+
+### 非目标
+1. 不在本轮引入新的后台任务实体、取消/重试模型。
+2. 不把当前 `statusMessage/backgroundScanningMessage` 升级成状态中心。
+3. 不修改 session list、section card 与 detail panel 的信息架构。
+
+### 产品约束
+1. 默认进入 `Compact` 模式；当存在进行中状态时，overview 允许切换到 `Diagnostic`。
+2. `Compact` 模式下：
+   - 说明文案必须更短
+   - 非关键指标允许收敛
+   - 状态区只保留当前已存在的状态输入，不扩展新语义
+3. `Diagnostic` 模式下：
+   - 保留完整 subtitle
+   - 完整展示当前 overview metrics
+   - 允许同时显示已有状态 banner
+4. 状态矩阵测试至少覆盖：
+   - idle / compact
+   - scanning / diagnostic
+   - rewrite-preparing
+   - rewrite-applying
+   - refresh disabled
+   - 双状态并存时的优先展示契约
+
+### BDD 验收（Overview 增量）
+1. Given overview 处于默认浏览态
+   When 构建 overview 展示数据
+   Then 使用 `Compact` 模式，说明文案与指标集合按紧凑契约输出。
+
+2. Given overview 正在后台扫描且页面已有旧数据
+   When 构建 overview 展示数据
+   Then 切换到 `Diagnostic` 模式，并保留扫描状态信息。
+
+3. Given overview 正在准备 rewrite 或应用 rewrite
+   When 构建 overview 展示数据
+   Then refresh 入口保持禁用，并输出对应状态矩阵结果。
+
+4. Given overview 状态矩阵测试运行
+   When 输入不同 `loading / rewrite / status message / grouping` 组合
+   Then builder / mapper 断言稳定通过，而不是只依赖 snapshot 图片。
+
+5. Given overview 使用 `Compact` 模式
+   When 在窄宽度下渲染
+   Then 卡片高度继续维持紧凑，不因额外诊断说明重新膨胀。
 1. Given 用户首次进入 `Sessions`
    When 页面完成首轮渲染
    Then 默认 grouping 为 `project`，且不是 `provider`。

@@ -21,7 +21,7 @@ struct CodexIntradayUsageServiceTests {
                         "10:30": [9, 1, 4],
                     ],
                     updatedAt: Date(timeIntervalSince1970: 1_712_000_000),
-                    sourceLabel: "global"
+                    sourceLabel: "global local usage"
                 )
             }
         )
@@ -43,7 +43,7 @@ struct CodexIntradayUsageServiceTests {
         #expect(snapshot.points[0].outputTokens == 8)
         #expect(snapshot.points[0].totalTokens == 25)
         #expect(snapshot.points[1].totalTokens == 13)
-        #expect(snapshot.sourceLabel == "global")
+        #expect(snapshot.sourceLabel == "global local usage")
     }
 
     @Test("Hides future buckets when selected day is today")
@@ -71,7 +71,7 @@ struct CodexIntradayUsageServiceTests {
                         "12:00": [99, 0, 1],
                     ],
                     updatedAt: referenceDate,
-                    sourceLabel: "global"
+                    sourceLabel: "global local usage"
                 )
             },
             now: { referenceDate }

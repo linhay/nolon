@@ -84,7 +84,13 @@ public struct CodexSessionsGroupingOptionData: Identifiable, Equatable, Sendable
     }
 }
 
+public enum CodexSessionsOverviewDisplayMode: Equatable, Sendable {
+    case compact
+    case diagnostic
+}
+
 public struct CodexSessionsOverviewData: Equatable, Sendable {
+    public let displayMode: CodexSessionsOverviewDisplayMode
     public let title: String
     public let subtitle: String
     public let refreshTitle: String
@@ -98,6 +104,7 @@ public struct CodexSessionsOverviewData: Equatable, Sendable {
     public let isRefreshDisabled: Bool
 
     public init(
+        displayMode: CodexSessionsOverviewDisplayMode,
         title: String,
         subtitle: String,
         refreshTitle: String,
@@ -110,6 +117,7 @@ public struct CodexSessionsOverviewData: Equatable, Sendable {
         metrics: [CodexSessionsMetricData],
         isRefreshDisabled: Bool
     ) {
+        self.displayMode = displayMode
         self.title = title
         self.subtitle = subtitle
         self.refreshTitle = refreshTitle

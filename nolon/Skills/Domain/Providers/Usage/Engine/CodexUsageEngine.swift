@@ -81,7 +81,6 @@ extension ProviderUsageEngine {
         var baseURL: String
         var modelProvider: String
         var queryParamsText: String
-        var headersText: String
         var httpUsageEnabled: Bool
         var httpUsageMethod: CodexHTTPMethod
         var httpUsageURL: String

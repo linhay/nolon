@@ -38,6 +38,7 @@ private extension ProviderFetchStrategyKind {
 
 struct ProviderUsageView: View, DebugPageLocatable {
     let provider: Provider
+    let pageMode: ProviderUsagePageMode
     let isEmbedded: Bool
     @State private var rootViewModel: ProviderUsageRootViewModel
     var currentRootViewModel: ProviderUsageRootViewModel { rootViewModel }
@@ -50,8 +51,9 @@ struct ProviderUsageView: View, DebugPageLocatable {
     ]
 
     @MainActor
-    init(provider: Provider, isEmbedded: Bool = false) {
+    init(provider: Provider, pageMode: ProviderUsagePageMode = .combined, isEmbedded: Bool = false) {
         self.provider = provider
+        self.pageMode = pageMode
         self.isEmbedded = isEmbedded
         self._rootViewModel = State(initialValue: ProviderUsageRootViewModelStore.shared.viewModel(for: provider))
     }
@@ -76,13 +78,13 @@ struct ProviderUsageView: View, DebugPageLocatable {
         rootViewModel.loginFlowViewModel
     }
 
-    var debugPageMarkerItems: [PageMarkerItem] { rootViewModel.debugPageMarkerItems }
-    var tokenTrendDebugPageMarkerItems: [PageMarkerItem] { rootViewModel.tokenTrendDebugPageMarkerItems }
+    var debugPageMarkerItems: [PageMarkerItem] { rootViewModel.debugPageMarkerItems(for: pageMode) }
+    var tokenTrendDebugPageMarkerItems: [PageMarkerItem] { rootViewModel.tokenTrendDebugPageMarkerItems(for: pageMode) }
 
     var body: some View {
         NolonUI.ProviderUsageScreenScaffold(
             isEmbedded: isEmbedded,
-            navigationTitle: rootViewModel.usageNavigationTitle,
+            navigationTitle: rootViewModel.navigationTitle(for: pageMode),
             isShowingCopyToast: viewModel.isShowingCopyToast,
             copyToastMessage: viewModel.copyToastMessage ?? ""
         ) {
@@ -92,22 +94,24 @@ struct ProviderUsageView: View, DebugPageLocatable {
         }
         .task(id: provider.id) {
             syncSettingsFromStore()
-            _ = await rootViewModel.loadPageIfNeeded()
+            _ = await rootViewModel.loadIfNeeded(for: pageMode)
         }
         .onChange(of: provider.id) { _, _ in
             rootViewModel = ProviderUsageRootViewModelStore.shared.viewModel(for: provider)
             syncSettingsFromStore()
-            Task { _ = await rootViewModel.loadPageIfNeeded() }
+            Task { _ = await rootViewModel.loadIfNeeded(for: pageMode) }
         }
         .onChange(of: provider) { _, _ in
             rootViewModel = ProviderUsageRootViewModelStore.shared.viewModel(for: provider)
             syncSettingsFromStore()
-            Task { _ = await rootViewModel.loadPageIfNeeded() }
+            Task { _ = await rootViewModel.loadIfNeeded(for: pageMode) }
         }
         .onChange(of: viewModel.settings) { _, _ in
+            guard pageMode.showsAccountsContent else { return }
             Task { await viewModel.load() }
         }
-        .task(id: provider.id) {
+        .task(id: "\(provider.id)-\(pageMode.id)") {
+            guard pageMode.showsAccountsContent else { return }
             while !Task.isCancelled {
                 await viewModel.performScheduledRefreshTick()
                 if Task.isCancelled { break }
@@ -534,26 +538,57 @@ enum ProviderUsageAccountsSectionState<Content> {
 }
 
 extension ProviderUsageView {
-    var usageContent: some View {
-        let capabilities = viewModel.capabilities
+    @ViewBuilder
+    private var accountsSections: some View {
+        if viewModel.capabilities.isCodexFamily {
+            codexManagementCard
+            codexAccountsSection
+        } else {
+            genericAccountsSection
+        }
+    }
 
-        return NolonUI.PaddedScrollContainer(
+    var accountsContent: some View {
+        NolonUI.PaddedScrollContainer(
             padding: EdgeInsets(top: 2, leading: 0, bottom: 2, trailing: 12)
         ) {
             LazyVStack(alignment: .leading, spacing: 16) {
-                if capabilities.isCodexFamily {
-                    codexManagementCard
-                    codexAccountsSection
-                } else {
-                    genericAccountsSection
-                }
-
-                if capabilities.showsTokenTrend {
-                    tokenTrendSection
-                }
+                accountsSections
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
+    }
+
+    var usageMetricsContent: some View {
+        NolonUI.PaddedScrollContainer(
+            padding: EdgeInsets(top: 2, leading: 0, bottom: 2, trailing: 12)
+        ) {
+            LazyVStack(alignment: .leading, spacing: 16) {
+                tokenTrendSection
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    var combinedContent: some View {
+        NolonUI.ProviderEmptyStateScaffold(
+            isEmpty: viewModel.usageProvider == nil,
+            preset: .usageUnsupported
+        ) {
+            NolonUI.PaddedScrollContainer(
+                padding: EdgeInsets(top: 2, leading: 0, bottom: 2, trailing: 12)
+            ) {
+                LazyVStack(alignment: .leading, spacing: 16) {
+                    accountsSections
+
+                    if viewModel.capabilities.showsTokenTrend {
+                        tokenTrendSection
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+        .debugCardLocator(debugPageMarkerItems + [PageMarkerItem(title: NSLocalizedString("usage.unsupported.title", value: "Usage monitoring unavailable", comment: "Unsupported usage title"))])
     }
 
     @ViewBuilder
@@ -959,18 +994,29 @@ extension ProviderUsageView {
 
 extension ProviderUsageView {
     var content: some View {
-        NolonUI.ProviderEmptyStateScaffold(
-            isEmpty: viewModel.usageProvider == nil,
-            preset: .usageUnsupported
-        ) {
-            usageContent
+        Group {
+            switch pageMode {
+            case .combined:
+                combinedContent
+            case .accounts:
+                accountsContent
+            case .usage:
+                NolonUI.ProviderEmptyStateScaffold(
+                    isEmpty: viewModel.usageProvider == nil,
+                    preset: .usageUnsupported
+                ) {
+                    usageMetricsContent
+                }
+                .debugCardLocator(debugPageMarkerItems + [PageMarkerItem(title: NSLocalizedString("usage.unsupported.title", value: "Usage monitoring unavailable", comment: "Unsupported usage title"))])
+            }
         }
-        .debugCardLocator(debugPageMarkerItems + [PageMarkerItem(title: NSLocalizedString("usage.unsupported.title", value: "Usage monitoring unavailable", comment: "Unsupported usage title"))])
     }
 
     var header: some View {
         NolonUI.ProviderUsageTitleHeaderView(title: provider.name) {
-            if viewModel.capabilities.isCodexFamily {
+            if pageMode == .usage {
+                EmptyView()
+            } else if viewModel.capabilities.isCodexFamily {
                 accountLayoutPicker
 
                 if accountsViewModel.codex.isMultiSelectionEnabled {

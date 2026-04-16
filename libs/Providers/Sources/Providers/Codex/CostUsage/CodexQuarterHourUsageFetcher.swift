@@ -64,7 +64,7 @@ public struct CodexQuarterHourUsageFetcher: Sendable {
             dayKey: dayKey,
             quarterHours: quarterHours,
             updatedAt: updatedAt,
-            sourceLabel: "global"
+            sourceLabel: "global local usage"
         )
     }
 

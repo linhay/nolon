@@ -22,7 +22,7 @@ struct CodexSessionsCardSnapshotTests {
 
     @Test("overview card keeps compact controls under status pressure")
     func overviewCardKeepsCompactControlsUnderStatusPressure() {
-        let overview = makeOverviewCard()
+        let overview = makeOverviewCard(displayMode: .diagnostic)
 
         let host = makeHost(
             VStack(alignment: .leading, spacing: 18) {
@@ -48,7 +48,7 @@ struct CodexSessionsCardSnapshotTests {
 
     @Test("project first overview keeps section rows in a compact session list")
     func projectFirstOverviewKeepsCompactSessionList() {
-        let overview = makeOverviewCard()
+        let overview = makeOverviewCard(displayMode: .compact)
 
         let section = makeSectionData(isExpanded: false, usage: .placeholder(text: "Loading…"))
 
@@ -138,7 +138,7 @@ struct CodexSessionsCardSnapshotTests {
 
     @Test("narrow width keeps cc switch style two line rows")
     func narrowWidthKeepsTwoLineRows() {
-        let overview = makeOverviewCard()
+        let overview = makeOverviewCard(displayMode: .compact)
 
         let section = makeSectionData(
             isExpanded: true,
@@ -306,6 +306,32 @@ struct CodexSessionsCardSnapshotTests {
         #expect(failure == nil || failure?.contains("Record mode is on") == true)
     }
 
+    @Test("compact overview keeps browsing density low by default")
+    func compactOverviewKeepsBrowsingDensityLowByDefault() {
+        let overview = makeOverviewCard(displayMode: .compact)
+
+        let host = makeHost(
+            VStack(alignment: .leading, spacing: 18) {
+                overview
+            }
+            .padding(20)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .background(NolonUI.DesignSystem.Colors.Background.canvas),
+            size: CGSize(width: 620, height: 320)
+        )
+
+        let failure = withSnapshotTesting(record: .all) {
+            verifySnapshot(
+                of: host,
+                as: .image(size: CGSize(width: 620, height: 320)),
+                named: "overview-compact-default-density",
+                snapshotDirectory: Self.snapshotDirectory
+            )
+        }
+
+        #expect(failure == nil || failure?.contains("Record mode is on") == true)
+    }
+
     private func makeSectionData(
         isExpanded: Bool,
         usage: CodexSessionsUsageDisplayData,
@@ -366,11 +392,16 @@ struct CodexSessionsCardSnapshotTests {
         )
     }
 
-    private func makeOverviewCard() -> NolonUI.CodexSessionsOverviewCardView {
+    private func makeOverviewCard(
+        displayMode: CodexSessionsOverviewDisplayMode = .diagnostic
+    ) -> NolonUI.CodexSessionsOverviewCardView {
         NolonUI.CodexSessionsOverviewCardView(
             data: .init(
+                displayMode: displayMode,
                 title: "Project Sessions",
-                subtitle: "Browse sessions by project first. Rewrite and diagnostics stay available from group and row menus.",
+                subtitle: displayMode == .compact
+                    ? "Browse sessions by project."
+                    : "Browse sessions by project first. Rewrite and diagnostics stay available from group and row menus.",
                 refreshTitle: "Refresh",
                 groupingTitle: "Group By",
                 groupingOptions: [
@@ -379,14 +410,20 @@ struct CodexSessionsCardSnapshotTests {
                 ],
                 selectedGroupingID: "project",
                 statusMessage: "Moved 3 sessions to Anthropic (anthropic).",
-                backgroundScanningMessage: "Scanning sessions in background…",
+                backgroundScanningMessage: displayMode == .diagnostic ? "Scanning sessions in background…" : nil,
                 paginationMessage: nil,
-                metrics: [
-                    .init(id: "sessions", title: "Total", value: "18"),
-                    .init(id: "groups", title: "Groups", value: "4"),
-                    .init(id: "rewritable", title: "Rewritable", value: "3"),
-                    .init(id: "attention", title: "Needs Attention", value: "1"),
-                ],
+                metrics: displayMode == .compact
+                    ? [
+                        .init(id: "sessions", title: "Total", value: "18"),
+                        .init(id: "groups", title: "Groups", value: "4"),
+                        .init(id: "attention", title: "Needs Attention", value: "1"),
+                    ]
+                    : [
+                        .init(id: "sessions", title: "Total", value: "18"),
+                        .init(id: "groups", title: "Groups", value: "4"),
+                        .init(id: "rewritable", title: "Rewritable", value: "3"),
+                        .init(id: "attention", title: "Needs Attention", value: "1"),
+                    ],
                 isRefreshDisabled: false
             ),
             onRefresh: {},

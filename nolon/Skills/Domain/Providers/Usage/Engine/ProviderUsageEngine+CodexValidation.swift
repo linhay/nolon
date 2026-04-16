@@ -25,7 +25,6 @@ enum CodexAccountValidationService {
 
         let relayObject = (object["nolon"] as? [String: Any])?["relay"] as? [String: Any]
         let relayBaseURLString = normalizedString(relayObject?["base_url"])
-        let relayHeaders = normalizedDictionary(relayObject?["headers"])
         let relayQueryParams = normalizedDictionary(relayObject?["query_params"])
 
         let baseURL: URL
@@ -41,8 +40,7 @@ enum CodexAccountValidationService {
             baseURL = officialURL
         }
 
-        var headers = relayHeaders
-        headers["Authorization"] = "Bearer \(apiKey)"
+        let headers = ["Authorization": "Bearer \(apiKey)"]
         return Target(baseURL: baseURL, headers: headers, queryParams: relayQueryParams)
     }
 

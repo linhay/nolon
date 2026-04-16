@@ -163,6 +163,21 @@ private extension ProviderSkillsLinkService {
 }
 
 enum SkillInstallRootResolver {
+    static func resolvedScannableFolder(providerPath: STFolder) -> STFolder? {
+        let rawPath = STPath(providerPath.url)
+        if rawPath.isFolderExists {
+            return providerPath
+        }
+
+        guard rawPath.isSymbolicLink,
+              let destination = try? rawPath.destinationOfSymbolicLink(),
+              destination.isFolderExists else {
+            return nil
+        }
+
+        return STFolder(destination.url)
+    }
+
     static func resolvedProviderRootIfLinked(providerPath: STFolder) -> STFolder? {
         let standardizedProviderURL = providerPath.url.standardizedFileURL
         let resolvedProviderRootURL = providerPath.url.resolvingSymlinksInPath().standardizedFileURL

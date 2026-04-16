@@ -143,7 +143,7 @@ public struct CodexIntradayUsageService: Sendable {
             rangeEnd: rangeEnd,
             points: points,
             fetchedAt: day?.updatedAt ?? fallbackFetchedAt,
-            sourceLabel: day?.sourceLabel ?? "global"
+            sourceLabel: day?.sourceLabel ?? "global local usage"
         )
     }
 

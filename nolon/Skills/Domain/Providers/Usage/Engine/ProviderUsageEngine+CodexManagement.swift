@@ -206,7 +206,6 @@ extension ProviderUsageEngine {
             baseURL: "",
             modelProvider: Self.codexDefaultModelProvider,
             queryParamsText: "",
-            headersText: "",
             httpUsageEnabled: false,
             httpUsageMethod: .get,
             httpUsageURL: "",
@@ -245,7 +244,6 @@ extension ProviderUsageEngine {
             return try? JSON(data: data)
         }()
         let relayObject: [String: String] = Self.stringDictionary(from: rawJSON?["nolon"]["relay"]["query_params"])
-        let headerObject: [String: String] = Self.stringDictionary(from: rawJSON?["nolon"]["relay"]["headers"])
         let usageQuery: CodexHTTPUsageQuery? = {
             guard let usageObject = rawJSON?["nolon"]["usage_query"].dictionaryObject,
                   let data = try? JSONSerialization.data(withJSONObject: usageObject)
@@ -262,7 +260,6 @@ extension ProviderUsageEngine {
             baseURL: summary.relayBaseURL ?? "",
             modelProvider: summary.relayModelProvider ?? Self.codexDefaultModelProvider,
             queryParamsText: Self.serializeKeyValueLines(relayObject),
-            headersText: Self.serializeKeyValueLines(headerObject),
             httpUsageEnabled: usageQuery?.enabled ?? false,
             httpUsageMethod: usageQuery?.request?.method ?? .get,
             httpUsageURL: usageQuery?.request?.url ?? "",
@@ -315,20 +312,11 @@ extension ProviderUsageEngine {
         }
 
         let relay: CodexAuthManager.ConfiguredRelay?
-        let baseURL = Self.trimmed(draft.baseURL)
-        if !baseURL.isEmpty {
-            let modelProvider = Self.resolvedCodexModelProvider(draft.modelProvider)
-            do {
-                relay = try .init(
-                    baseURL: baseURL,
-                    modelProvider: modelProvider
-                )
-            } catch {
-                codexConfigEditorErrorMessage = error.localizedDescription
-                return
-            }
-        } else {
-            relay = nil
+        do {
+            relay = try makeCodexConfiguredRelay(from: draft)
+        } catch {
+            codexConfigEditorErrorMessage = error.localizedDescription
+            return
         }
 
         do {
@@ -423,6 +411,33 @@ extension ProviderUsageEngine {
         return String(normalized.suffix(4)).lowercased()
     }
 
+    func makeCodexConfiguredRelay(
+        from draft: CodexConfigEditorDraft
+    ) throws -> CodexAuthManager.ConfiguredRelay? {
+        let baseURL = Self.trimmed(draft.baseURL)
+        let queryParams = try Self.parseKeyValueLines(draft.queryParamsText)
+        guard !baseURL.isEmpty || !queryParams.isEmpty else {
+            return nil
+        }
+        guard !baseURL.isEmpty else {
+            throw NSError(
+                domain: "ProviderUsageEngine.CodexConfig",
+                code: 4,
+                userInfo: [NSLocalizedDescriptionKey: NSLocalizedString(
+                    "codex.accounts.config.error.base_url_required_for_relay_extras",
+                    value: "Base URL is required when relay query params are configured.",
+                    comment: "Codex relay extras require base url"
+                )]
+            )
+        }
+
+        return .init(
+            baseURL: baseURL,
+            modelProvider: Self.resolvedCodexModelProvider(draft.modelProvider),
+            queryParams: queryParams
+        )
+    }
+
     func testCodexUsageQueryDraft() async {
         guard let draft = codexConfigEditorDraft else { return }
         codexConfigEditorErrorMessage = nil
@@ -473,15 +488,21 @@ extension ProviderUsageEngine {
         }
 
         do {
-            var authObject: [String: Any] = ["OPENAI_API_KEY": apiKey]
-            let baseURL = Self.trimmed(draft.baseURL)
-            if !baseURL.isEmpty {
-                authObject["nolon"] = [
-                    "relay": [
-                        "base_url": baseURL,
-                        "model_provider": Self.resolvedCodexModelProvider(draft.modelProvider),
-                    ],
+            var authObject: [String: Any] = [
+                "auth_mode": "apikey",
+                "OPENAI_API_KEY": apiKey,
+            ]
+            if let relay = try makeCodexConfiguredRelay(from: draft) {
+                authObject["base_url"] = relay.baseURL
+
+                var relayObject: [String: Any] = [
+                    "base_url": relay.baseURL,
+                    "model_provider": relay.modelProvider,
                 ]
+                if !relay.queryParams.isEmpty {
+                    relayObject["query_params"] = relay.queryParams
+                }
+                authObject["nolon"] = ["relay": relayObject]
             }
 
             let authData = try JSONSerialization.data(withJSONObject: authObject, options: [])

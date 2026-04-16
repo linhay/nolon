@@ -69,7 +69,7 @@ struct CodexTokenTrendServiceTests {
         #expect(result.last7DaysTokens == 510)
         #expect(result.last30DaysTokens == 510)
         #expect(result.allDaysTokens == 510)
-        #expect(result.sourceLabel == "global")
+        #expect(result.sourceLabel == "global local usage")
     }
 
     @Test("keeps summary metrics stable while slicing chart range")

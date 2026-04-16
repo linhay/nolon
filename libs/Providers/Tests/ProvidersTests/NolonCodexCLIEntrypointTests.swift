@@ -212,7 +212,7 @@ actor MockCodexCLIService: NolonCodexCLIServing {
         return NolonCodexAuthUsageTrendPayload(
             providerID: providerID,
             range: range,
-            sourceLabel: "global",
+            sourceLabel: "global local usage",
             updatedAt: Date(timeIntervalSince1970: 0),
             points: [
                 NolonCodexAuthUsageTrendPointView(
@@ -943,7 +943,7 @@ actor JSONContractCodexCLIService: NolonCodexCLIServing {
         NolonCodexAuthUsageTrendPayload(
             providerID: providerID,
             range: range,
-            sourceLabel: "global",
+            sourceLabel: "global local usage",
             updatedAt: Date(timeIntervalSince1970: 0),
             points: [
                 NolonCodexAuthUsageTrendPointView(
@@ -1151,7 +1151,7 @@ actor AuthUsageGlobalFallbackCodexCLIService: NolonCodexCLIServing {
                     id: UUID(uuidString: "99999999-9999-9999-9999-999999999999")!,
                     email: "fallback@example.com",
                     isActive: true,
-                    usageSource: "CLI(global)",
+                    usageSource: "CLI(global local usage)",
                     fiveHourRemainingPercent: 80,
                     weeklyRemainingPercent: 60,
                     token1dCount: 1_000_000,
@@ -1211,7 +1211,7 @@ actor AuthUsageUndistinguishableTokensCodexCLIService: NolonCodexCLIServing {
                     id: UUID(uuidString: "12121212-1212-1212-1212-121212121212")!,
                     email: "a@example.com",
                     isActive: true,
-                    usageSource: "CLI(global)",
+                    usageSource: "CLI(global local usage)",
                     fiveHourRemainingPercent: 90,
                     weeklyRemainingPercent: 50,
                     token1dCount: 125_600_000,
@@ -1223,7 +1223,7 @@ actor AuthUsageUndistinguishableTokensCodexCLIService: NolonCodexCLIServing {
                     id: UUID(uuidString: "34343434-3434-3434-3434-343434343434")!,
                     email: "b@example.com",
                     isActive: false,
-                    usageSource: "CLI(global)",
+                    usageSource: "CLI(global local usage)",
                     fiveHourRemainingPercent: 88,
                     weeklyRemainingPercent: 49,
                     token1dCount: 125_600_000,

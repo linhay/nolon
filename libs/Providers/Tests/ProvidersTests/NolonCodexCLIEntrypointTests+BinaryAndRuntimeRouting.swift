@@ -441,7 +441,7 @@ extension NolonCodexCLIEntrypointTests {
         let payload = try #require(root["data"] as? [String: Any])
         #expect((payload["providerID"] as? String) == "codex")
         #expect((payload["range"] as? String) == "7d")
-        #expect((payload["sourceLabel"] as? String) == "global")
+        #expect((payload["sourceLabel"] as? String) == "global local usage")
         let points = try #require(payload["points"] as? [[String: Any]])
         #expect(points.count == 2)
         #expect((points.first?["date"] as? String) == "2026-02-26")

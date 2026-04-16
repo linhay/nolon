@@ -81,6 +81,78 @@ struct ProviderUsageRootLoadBoundaryTests {
         #expect(metrics.loadUsageIfNeededCallCount == 2)
     }
 
+    @Test("BDD: Given accounts page mode when loading if needed then only accounts engine runs")
+    func testBDD_GivenAccountsPageMode_WhenLoadingIfNeeded_ThenOnlyAccountsEngineRuns() async {
+        let provider = makeProvider(templateId: ProviderTemplate.gemini.rawValue)
+        let accounts = MockAccountsEngine()
+        let metrics = MockMetricsEngine()
+        let root = ProviderUsageRootViewModel(
+            state: ProviderUsageStateStore(
+                provider: provider,
+                engine: MockAnyUsageEngine(
+                    provider: provider,
+                    usageProvider: .gemini,
+                    accounts: accounts,
+                    metrics: metrics
+                )
+            )
+        )
+
+        let didLoad = await root.loadIfNeeded(for: .accounts)
+
+        #expect(didLoad)
+        #expect(accounts.loadIfNeededCallCount == 1)
+        #expect(metrics.loadUsageIfNeededCallCount == 0)
+    }
+
+    @Test("BDD: Given usage page mode when loading if needed then only usage engine runs")
+    func testBDD_GivenUsagePageMode_WhenLoadingIfNeeded_ThenOnlyUsageEngineRuns() async {
+        let provider = makeProvider(templateId: ProviderTemplate.gemini.rawValue)
+        let accounts = MockAccountsEngine()
+        let metrics = MockMetricsEngine()
+        let root = ProviderUsageRootViewModel(
+            state: ProviderUsageStateStore(
+                provider: provider,
+                engine: MockAnyUsageEngine(
+                    provider: provider,
+                    usageProvider: .gemini,
+                    accounts: accounts,
+                    metrics: metrics
+                )
+            )
+        )
+
+        let didLoad = await root.loadIfNeeded(for: .usage)
+
+        #expect(didLoad)
+        #expect(accounts.loadIfNeededCallCount == 0)
+        #expect(metrics.loadUsageIfNeededCallCount == 1)
+    }
+
+    @Test("BDD: Given combined page mode when loading if needed then accounts and usage both run")
+    func testBDD_GivenCombinedPageMode_WhenLoadingIfNeeded_ThenAccountsAndUsageBothRun() async {
+        let provider = makeProvider(templateId: ProviderTemplate.gemini.rawValue)
+        let accounts = MockAccountsEngine()
+        let metrics = MockMetricsEngine()
+        let root = ProviderUsageRootViewModel(
+            state: ProviderUsageStateStore(
+                provider: provider,
+                engine: MockAnyUsageEngine(
+                    provider: provider,
+                    usageProvider: .gemini,
+                    accounts: accounts,
+                    metrics: metrics
+                )
+            )
+        )
+
+        let didLoad = await root.loadIfNeeded(for: .combined)
+
+        #expect(didLoad)
+        #expect(accounts.loadIfNeededCallCount == 1)
+        #expect(metrics.loadUsageIfNeededCallCount == 1)
+    }
+
     private func makeProvider(templateId: String) -> Provider {
         Provider(
             id: "provider-\(UUID().uuidString)",

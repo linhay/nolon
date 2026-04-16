@@ -34,6 +34,60 @@ public enum ProviderUsageRegistry {
             (provider, CodexBarProviderPresets.preset(for: provider).metadata)
         })
     }
+
+    public static func fetchTokenTrendSnapshot(
+        for provider: UsageProvider,
+        trailingDays: Int?,
+        environment: [String: String] = ProcessInfo.processInfo.environment
+    ) async throws -> ProviderTokenTrendSnapshot? {
+        switch provider {
+        case .codex:
+            return try await CodexTokenTrendService().fetchGlobalSnapshot(
+                trailingDays: trailingDays,
+                environment: environment
+            )
+        case .claude:
+            return try await ClaudeTokenTrendService().fetchActiveSnapshot(
+                trailingDays: trailingDays
+            )
+        case .gemini, .antigravity:
+            return try await GeminiTokenTrendService().fetchActiveSnapshot(
+                provider: provider,
+                trailingDays: trailingDays
+            )
+        default:
+            return nil
+        }
+    }
+
+    public static func fetchIntradaySnapshot(
+        for provider: UsageProvider,
+        dayKey: String,
+        bucket: ProviderIntradayBucket,
+        environment: [String: String] = ProcessInfo.processInfo.environment
+    ) async throws -> ProviderIntradayUsageSnapshot? {
+        switch provider {
+        case .codex:
+            return try await CodexIntradayUsageService().fetchGlobalSnapshot(
+                dayKey: dayKey,
+                bucket: bucket,
+                environment: environment
+            )
+        case .claude:
+            return try await ClaudeIntradayUsageService().fetchActiveSnapshot(
+                dayKey: dayKey,
+                bucket: bucket
+            )
+        case .gemini, .antigravity:
+            return try await GeminiIntradayUsageService().fetchActiveSnapshot(
+                provider: provider,
+                dayKey: dayKey,
+                bucket: bucket
+            )
+        default:
+            return nil
+        }
+    }
 }
 
 private struct UnsupportedUsageDescriptor: ProviderUsageDescribing {

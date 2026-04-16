@@ -44,6 +44,7 @@ final class ProviderUsageEngine: CopyToastPresenting {
     var codexImportOpenPanelAction: CodexImportOpenPanelAction { actions.codexImportOpenPanel }
     var codexExportSavePanelAction: CodexExportSavePanelAction { actions.codexExportSavePanel }
     var codexImportExportArchiveAction: CodexImportExportArchiveAction { actions.codexImportExportArchive }
+    var claudeTokenTrendFetchAction: ClaudeTokenTrendFetchAction { actions.claudeTokenTrendFetch }
     var geminiTokenTrendFetchAction: GeminiTokenTrendFetchAction { actions.geminiTokenTrendFetch }
     var providerIntradayFetchAction: ProviderIntradayFetchAction { actions.providerIntradayFetch }
     let usageSnapshotService = ProviderUsageSnapshotService()
@@ -83,7 +84,7 @@ final class ProviderUsageEngine: CopyToastPresenting {
     var intradayErrorMessage: String?
     var isLoadingIntraday = false
     var shouldShowTokenTrendLoadingSkeleton: Bool {
-        guard usageProvider == .codex || usageProvider == .gemini else { return false }
+        guard usageProvider == .codex || usageProvider == .claude || usageProvider == .gemini || usageProvider == .antigravity else { return false }
         guard tokenTrendSnapshot == nil else { return false }
         guard tokenTrendErrorMessage?.isEmpty != false else { return false }
         return isLoading || isLoadingTokenTrend
@@ -227,6 +228,7 @@ final class ProviderUsageEngine: CopyToastPresenting {
         codexImportOpenPanelAction: CodexImportOpenPanelAction? = nil,
         codexExportSavePanelAction: CodexExportSavePanelAction? = nil,
         codexImportExportArchiveAction: CodexImportExportArchiveAction? = nil,
+        claudeTokenTrendFetchAction: ClaudeTokenTrendFetchAction? = nil,
         geminiTokenTrendFetchAction: GeminiTokenTrendFetchAction? = nil,
         providerIntradayFetchAction: ProviderIntradayFetchAction? = nil,
         postDeleteLoadAction: AsyncVoidAction? = nil,
@@ -295,20 +297,33 @@ final class ProviderUsageEngine: CopyToastPresenting {
         let resolvedCodexImportExportArchiveAction = codexImportExportArchiveAction ?? { [codexAuthManager] results, destinationURL in
             try await codexAuthManager.exportValidatedAuthFilesArchive(results: results, destinationURL: destinationURL)
         }
+        let resolvedClaudeTokenTrendFetchAction = claudeTokenTrendFetchAction ?? { trailingDays in
+            try await ProviderUsageRegistry.fetchTokenTrendSnapshot(
+                for: .claude,
+                trailingDays: trailingDays
+            )
+        }
         let resolvedGeminiTokenTrendFetchAction = geminiTokenTrendFetchAction ?? { provider, trailingDays in
             try await GeminiTokenTrendService().fetchActiveSnapshot(provider: provider, trailingDays: trailingDays)
         }
         let resolvedProviderIntradayFetchAction = providerIntradayFetchAction ?? { provider, dayKey, bucket in
             switch provider {
             case .codex:
-                return try await CodexIntradayUsageService().fetchGlobalSnapshot(
+                return try await ProviderUsageRegistry.fetchIntradaySnapshot(
+                    for: .codex,
                     dayKey: dayKey,
                     bucket: bucket,
                     environment: ProcessInfo.processInfo.environment
                 )
-            case .gemini:
-                return try await GeminiIntradayUsageService().fetchActiveSnapshot(
-                    provider: provider,
+            case .claude:
+                return try await ProviderUsageRegistry.fetchIntradaySnapshot(
+                    for: .claude,
+                    dayKey: dayKey,
+                    bucket: bucket
+                )
+            case .gemini, .antigravity:
+                return try await ProviderUsageRegistry.fetchIntradaySnapshot(
+                    for: provider,
                     dayKey: dayKey,
                     bucket: bucket
                 )
@@ -330,6 +345,7 @@ final class ProviderUsageEngine: CopyToastPresenting {
             codexImportOpenPanel: resolvedCodexImportOpenPanelAction,
             codexExportSavePanel: resolvedCodexExportSavePanelAction,
             codexImportExportArchive: resolvedCodexImportExportArchiveAction,
+            claudeTokenTrendFetch: resolvedClaudeTokenTrendFetchAction,
             geminiTokenTrendFetch: resolvedGeminiTokenTrendFetchAction,
             providerIntradayFetch: resolvedProviderIntradayFetchAction
         )
@@ -434,7 +450,7 @@ final class ProviderUsageEngine: CopyToastPresenting {
 
     static func tokenTrendCapability(for usageProvider: UsageProvider?) -> ProviderUsageCurveCapability {
         switch usageProvider {
-        case .codex, .gemini:
+        case .codex, .claude, .gemini, .antigravity:
             return .dailyWithIntradayDrilldown
         default:
             return .dailyOnly
@@ -599,7 +615,7 @@ final class ProviderUsageEngine: CopyToastPresenting {
 
     func loadUsage() async {
         guard let usageProvider else { return }
-        guard usageProvider == .codex || usageProvider == .gemini else { return }
+        guard usageProvider == .codex || usageProvider == .claude || usageProvider == .gemini || usageProvider == .antigravity else { return }
 
         didStartUsageInitialLoad = true
         await refreshTokenTrend()
@@ -838,7 +854,7 @@ final class ProviderUsageEngine: CopyToastPresenting {
 
     func refreshTokenTrend() async {
         guard let usageProvider else { return }
-        guard usageProvider == .codex || usageProvider == .gemini else { return }
+        guard usageProvider == .codex || usageProvider == .claude || usageProvider == .gemini || usageProvider == .antigravity else { return }
 
         isLoadingTokenTrend = true
         tokenTrendErrorMessage = nil
@@ -851,7 +867,11 @@ final class ProviderUsageEngine: CopyToastPresenting {
                     trailingDays: tokenTrendRange.trailingDays,
                     environment: ProcessInfo.processInfo.environment
                 )
-            case .gemini:
+            case .claude:
+                snapshot = try await claudeTokenTrendFetchAction(
+                    tokenTrendRange.trailingDays
+                )
+            case .gemini, .antigravity:
                 snapshot = try await geminiTokenTrendFetchAction(
                     usageProvider,
                     tokenTrendRange.trailingDays

@@ -201,3 +201,26 @@
 待后续继续观察：
 
 1. 非 Codex 头部 refresh 目前已自然收敛为账号域 refresh；若后续产品要求“头部一键刷新全页”，需要再明确 page-level refresh 语义，而不是回退到隐式耦合。
+
+### 2026-04-16 Phase 3 - Provider 详情页双 Tab 首批落地
+
+已完成：
+
+1. `ProviderContentTabType.availableTabs(for:)` 已对 `codex`、`gemini`、`antigravity` 自动补出独立 `accounts` tab，并保持位于 `usage` 之前。
+2. `ProviderDetailGridView` 已把 `.accounts` 与 `.usage` 分别映射到 `ProviderUsageView(pageMode: .accounts/.usage)`；非拆分 provider 的 `usage` 继续走 `combined` 兼容模式。
+3. `ProviderUsageRootViewModel` 已新增 `ProviderUsagePageMode`，支持按页面模式分发标题、page marker 与 `loadIfNeeded` 入口。
+4. `ProviderUsageView` 已完成页面内容拆分：
+   - `Accounts` 只渲染账号区
+   - `Usage` 只渲染 token trend
+   - `combined` 继续保留给全局账号中心与未拆分 provider
+5. 已补齐双 tab 配置测试：`ProviderAccountUsageTabConfigurationTests`。
+
+验证结果：
+
+1. `xcodebuild test -project nolon.xcodeproj -scheme nolon-tests -destination 'platform=macOS' -only-testing:nolonTests/ProviderAccountUsageTabConfigurationTests -only-testing:nolonTests/ProviderUsageRootLoadBoundaryTests -only-testing:nolonTests/CodexSessionsTabConfigurationTests -only-testing:nolonTests/GeminiUsageTabConfigurationTests -only-testing:nolonTests/ProviderUsageSubViewModelWiringTests -only-testing:nolonTests/ProviderTokenTrendViewModelParityTests -only-testing:nolonTests/ProviderUsageAccountsViewModelParityTests`
+2. 结果：`20` 个定向测试通过，`0` 失败。
+
+当前保留限制：
+
+1. `claude` 已进入本轮双 tab，`Usage` 页通过本地 Claude session 日志聚合提供日级 trend 与 intraday drilldown，不再依赖“同页账号区顺手带出 usage”。
+2. `codexXcode` 仍保持不暴露 `accounts`，账号与用量继续交给 Xcode 自身管理。

@@ -14,7 +14,9 @@ struct CodexSessionsTabView: View {
 
     init(provider: Provider, viewModel: CodexSessionsTabViewModel? = nil) {
         self.provider = provider
-        self._viewModel = State(initialValue: viewModel ?? CodexSessionsTabViewModel(provider: provider))
+        self._viewModel = State(
+            initialValue: viewModel ?? CodexSessionsTabViewModelStore.shared.viewModel(for: provider)
+        )
     }
 
     var body: some View {
@@ -36,7 +38,7 @@ struct CodexSessionsTabView: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .task(id: provider.id) {
-            await viewModel.load()
+            _ = await viewModel.loadIfNeeded()
         }
         .confirmationAlert(
             data: viewModel.confirmationAlertData,
@@ -193,80 +195,19 @@ struct CodexSessionsTabView: View {
     }
 
     private var overviewData: CodexSessionsOverviewData {
-        CodexSessionsOverviewData(
-            title: NSLocalizedString(
-                "codex.sessions.header.title",
-                value: "Project Sessions",
-                comment: "Codex sessions header title"
-            ),
-            subtitle: viewModel.groupingMode == .project
-                ? NSLocalizedString(
-                    "codex.sessions.header.subtitle.project",
-                    value: "Browse sessions by project first. Rewrite and diagnostics stay available from group and row menus.",
-                    comment: "Codex sessions header subtitle"
-                )
-                : NSLocalizedString(
-                    "codex.sessions.header.subtitle.provider",
-                    value: "Switch to provider grouping when you need a migration-oriented audit across projects.",
-                    comment: "Codex sessions header subtitle for provider grouping"
-                ),
-            refreshTitle: NSLocalizedString("Refresh", value: "Refresh", comment: "Refresh"),
-            groupingTitle: NSLocalizedString(
-                "codex.sessions.grouping.title",
-                value: "Group By",
-                comment: "Codex sessions grouping title"
-            ),
-            groupingOptions: [
-                .init(
-                    id: CodexSessionsTabViewModel.SessionGroupingMode.project.rawValue,
-                    title: NSLocalizedString(
-                        "codex.sessions.grouping.project",
-                        value: "Project",
-                        comment: "Codex sessions project grouping title"
-                    )
-                ),
-                .init(
-                    id: CodexSessionsTabViewModel.SessionGroupingMode.provider.rawValue,
-                    title: NSLocalizedString(
-                        "codex.sessions.grouping.provider",
-                        value: "Provider",
-                        comment: "Codex sessions provider grouping title"
-                    )
-                ),
-            ],
-            selectedGroupingID: viewModel.groupingMode.rawValue,
-            statusMessage: viewModel.statusMessage,
-            backgroundScanningMessage: viewModel.isLoading && !viewModel.sections.isEmpty
-                ? NSLocalizedString(
-                    "codex.sessions.status.scanning",
-                    value: "Scanning sessions in background…",
-                    comment: "Codex sessions background scanning status"
-                )
-                : nil,
-            paginationMessage: nil,
-            metrics: [
-                .init(
-                    id: "sessions",
-                    title: NSLocalizedString("codex.sessions.metric.total", value: "Total", comment: "Total sessions"),
-                    value: "\(viewModel.totalSessionCount)"
-                ),
-                .init(
-                    id: "groups",
-                    title: NSLocalizedString("codex.sessions.metric.groups", value: "Groups", comment: "Group count"),
-                    value: "\(viewModel.groupCount)"
-                ),
-                .init(
-                    id: "rewritable",
-                    title: NSLocalizedString("codex.sessions.metric.rewritable", value: "Rewritable", comment: "Rewritable group count"),
-                    value: "\(viewModel.rewritableGroupCount)"
-                ),
-                .init(
-                    id: "attention",
-                    title: NSLocalizedString("codex.sessions.metric.needs_attention", value: "Needs Attention", comment: "Needs attention group count"),
-                    value: "\(viewModel.needsAttentionGroupCount)"
-                ),
-            ],
-            isRefreshDisabled: viewModel.isLoading || viewModel.isPreparingRewrite || viewModel.isApplyingRewrite
+        CodexSessionsOverviewDataBuilder.build(
+            .init(
+                groupingMode: viewModel.groupingMode,
+                totalSessionCount: viewModel.totalSessionCount,
+                groupCount: viewModel.groupCount,
+                rewritableGroupCount: viewModel.rewritableGroupCount,
+                needsAttentionGroupCount: viewModel.needsAttentionGroupCount,
+                statusMessage: viewModel.statusMessage,
+                isLoading: viewModel.isLoading,
+                hasVisibleSections: !viewModel.sections.isEmpty,
+                isPreparingRewrite: viewModel.isPreparingRewrite,
+                isApplyingRewrite: viewModel.isApplyingRewrite
+            )
         )
     }
 

@@ -172,6 +172,9 @@ enum ProviderContentTabType: String, CaseIterable, Identifiable {
     func localizedName(for provider: Provider?) -> String {
         switch self {
         case .usage:
+            if Self.shouldSplitAccountsAndUsage(for: provider) {
+                return self.localizedName
+            }
             if provider?.templateId == "codex" || provider?.templateId == "codexXcode" {
                 return NSLocalizedString("tab.account_usage", value: "账号与用量", comment: "Account and usage")
             }
@@ -205,6 +208,11 @@ enum ProviderContentTabType: String, CaseIterable, Identifiable {
             }
         }
 
+        if shouldSplitAccountsAndUsage(for: provider), !tabs.contains(.accounts) {
+            tabs.append(.accounts)
+            tabs = move(tab: .accounts, before: .usage, in: tabs)
+        }
+
         if provider.templateId == "codex" {
             if !tabs.contains(.sessions) {
                 tabs.append(.sessions)
@@ -221,6 +229,29 @@ enum ProviderContentTabType: String, CaseIterable, Identifiable {
         return tabs
     }
 
+    static func shouldSplitAccountsAndUsage(for provider: Provider?) -> Bool {
+        guard let provider,
+              provider.kind == .vendor,
+              let templateId = provider.templateId,
+              let template = ProviderTemplate(rawValue: templateId),
+              template.supportsAccounts,
+              let vendorTabs = template.config?.vendorTabs?.map({ $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() })
+        else {
+            return false
+        }
+
+        guard vendorTabs.contains("usage") else {
+            return false
+        }
+
+        switch template {
+        case .codex, .claudeCode, .gemini, .antigravity:
+            return true
+        default:
+            return false
+        }
+    }
+
     private static func move(tab: ProviderContentTabType, after anchor: ProviderContentTabType, in source: [ProviderContentTabType]) -> [ProviderContentTabType] {
         guard let tabIndex = source.firstIndex(of: tab), let anchorIndex = source.firstIndex(of: anchor) else {
             return source
@@ -230,6 +261,17 @@ enum ProviderContentTabType: String, CaseIterable, Identifiable {
         let normalizedAnchorIndex = tabs.firstIndex(of: anchor) ?? min(anchorIndex, max(0, tabs.count - 1))
         let insertIndex = min(normalizedAnchorIndex + 1, tabs.count)
         tabs.insert(removed, at: insertIndex)
+        return tabs
+    }
+
+    private static func move(tab: ProviderContentTabType, before anchor: ProviderContentTabType, in source: [ProviderContentTabType]) -> [ProviderContentTabType] {
+        guard let tabIndex = source.firstIndex(of: tab), let anchorIndex = source.firstIndex(of: anchor) else {
+            return source
+        }
+        var tabs = source
+        let removed = tabs.remove(at: tabIndex)
+        let normalizedAnchorIndex = tabs.firstIndex(of: anchor) ?? min(anchorIndex, tabs.count)
+        tabs.insert(removed, at: normalizedAnchorIndex)
         return tabs
     }
 }
