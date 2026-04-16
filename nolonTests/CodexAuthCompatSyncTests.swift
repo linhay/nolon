@@ -36,7 +36,7 @@ final class CodexAuthCompatSyncTests: XCTestCase {
         let destination = try authFile.destinationOfSymbolicLink()
         let snapshotFile = service.nolonCodexRootFolder()
             .folder("active-auth")
-            .folder(provider.id.lowercased())
+            .folder("codex")
             .file("auth.json")
         XCTAssertEqual(
             STPath.standardizedPath(destination.url.path).path,

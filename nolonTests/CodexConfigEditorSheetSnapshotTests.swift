@@ -1,5 +1,4 @@
 import AppKit
-import SnapshotTesting
 import SwiftUI
 import Testing
 import WebKit
@@ -32,16 +31,27 @@ struct CodexConfigEditorSheetSnapshotTests {
             )
         )
 
-        let failure = withSnapshotTesting(record: .all) {
-            verifySnapshot(
-                of: host,
-                as: .image(size: Self.snapshotSize),
-                named: "new-api-key-top-close",
-                snapshotDirectory: Self.snapshotDirectory
-            )
+        let buttons = findDescendants(in: host.view, as: NSButton.self)
+        let closeButton = buttons.max { lhs, rhs in
+            let lhsFrame = lhs.convert(lhs.bounds, to: host.view)
+            let rhsFrame = rhs.convert(rhs.bounds, to: host.view)
+            if lhsFrame.maxY == rhsFrame.maxY {
+                return lhsFrame.maxX < rhsFrame.maxX
+            }
+            return lhsFrame.maxY < rhsFrame.maxY
         }
 
-        #expect(failure == nil || failure?.contains("Record mode is on") == true)
+        guard let closeButton else {
+            Issue.record("Expected at least one rendered button in the editor sheet.")
+            return
+        }
+
+        let frame = closeButton.convert(closeButton.bounds, to: host.view)
+        let minExpectedX = Self.snapshotSize.width * 0.8
+        let minExpectedY = Self.snapshotSize.height * 0.8
+
+        #expect(frame.minX >= minExpectedX)
+        #expect(frame.minY >= minExpectedY)
     }
 
     @Test("editor embeds auth json web editor and shows managed config preview")
@@ -58,8 +68,8 @@ struct CodexConfigEditorSheetSnapshotTests {
         )
 
         #expect(findDescendant(in: host.view, as: WKWebView.self) != nil)
-        #expect(allTextValues(in: host.view).contains("auth.json"))
-        #expect(allTextValues(in: host.view).contains("config.toml"))
+        #expect(allTextValues(in: host.view).contains("Suggested from current config"))
+        #expect(allTextValues(in: host.view).contains("# No managed config.toml changes."))
     }
 
     private func makeDraft() -> ProviderUsageEngine.CodexConfigEditorDraft {
@@ -121,6 +131,17 @@ struct CodexConfigEditorSheetSnapshotTests {
         }
 
         return nil
+    }
+
+    private func findDescendants<T: NSView>(in root: NSView, as type: T.Type) -> [T] {
+        var matches: [T] = []
+        if let match = root as? T {
+            matches.append(match)
+        }
+        for child in root.subviews {
+            matches.append(contentsOf: findDescendants(in: child, as: type))
+        }
+        return matches
     }
 
     private func allTextValues(in root: NSView) -> [String] {
