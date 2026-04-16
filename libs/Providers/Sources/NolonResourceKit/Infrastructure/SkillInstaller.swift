@@ -453,11 +453,12 @@ public final class SkillInstaller {
     }
 
     private func scanDirectory(at directoryPath: String, for provider: Provider) throws -> [ProviderSkillState] {
-        guard STPath(directoryPath).isFolderExists else {
+        let providerFolder = STFolder(directoryPath)
+        guard let scannableFolder = SkillInstallRootResolver.resolvedScannableFolder(providerPath: providerFolder) else {
             return []
         }
 
-        guard let contents = try? STFolder(directoryPath).subFilePaths() else {
+        guard let contents = try? scannableFolder.subFilePaths() else {
             return []
         }
 
@@ -468,8 +469,8 @@ public final class SkillInstaller {
             let name = item.url.lastPathComponent
             if name.hasPrefix(".") { continue }
 
-            let itemPath = item.url.path
-            let state = determineSkillState(skillName: name, at: itemPath, for: provider)
+            let itemPath = providerFolder.subpath(name).url.path
+            let state = determineSkillState(skillName: name, at: item.url.path, for: provider)
 
             states.append(
                 ProviderSkillState(

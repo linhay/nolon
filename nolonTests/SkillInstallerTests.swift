@@ -251,6 +251,36 @@ final class SkillInstallerTests: XCTestCase {
         XCTAssertTrue(fixture.fileManager.fileExists(atPath: "\(globalPath)/SKILL.md"))
     }
 
+    func testBDD_GivenDirectLinkedProviderRoot_WhenScanningInstalledSkill_ThenMarkInstalled() throws {
+        let sourceURL = try fixture.createSampleSkill(id: "karpathy-guidelines", name: "Karpathy Guidelines")
+        _ = try repository.importSkill(from: sourceURL)
+
+        let providerHome = fixture.tempRoot.appendingPathComponent("providers/DirectLinkedScan", isDirectory: true)
+        let providerSkillsPath = providerHome.appendingPathComponent("skills", isDirectory: true)
+
+        try fixture.fileManager.createDirectory(at: providerHome, withIntermediateDirectories: true)
+        try fixture.fileManager.createSymbolicLink(
+            at: providerSkillsPath,
+            withDestinationURL: URL(fileURLWithPath: fixture.nolonManager.skillsPath)
+        )
+
+        let provider = Provider(
+            name: "DirectLinkedScan",
+            defaultSkillsPath: providerSkillsPath.path,
+            workflowPath: fixture.tempRoot
+                .appendingPathComponent("providers/DirectLinkedScan-workflows", isDirectory: true).path,
+            installMethod: .symlink
+        )
+
+        let states = try installer.scanProvider(provider: provider)
+
+        XCTAssertEqual(states.first { $0.skillName == "karpathy-guidelines" }?.state, .installed)
+        XCTAssertEqual(
+            states.first { $0.skillName == "karpathy-guidelines" }?.path,
+            providerSkillsPath.appendingPathComponent("karpathy-guidelines", isDirectory: true).path
+        )
+    }
+
     func testBDD_GivenParentLinkedProviderRoot_WhenScanningInstalledSkill_ThenMarkInstalled() throws {
         let sourceURL = try fixture.createSampleSkill(id: "scale-parent", name: "Scale Parent")
         let skill = try repository.importSkill(from: sourceURL)

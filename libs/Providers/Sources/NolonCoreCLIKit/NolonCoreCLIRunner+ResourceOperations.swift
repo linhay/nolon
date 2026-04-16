@@ -47,11 +47,7 @@ extension NolonCoreCLIRunner {
             providersScanned += 1
             let providerFolder = STFolder(target.providerPath)
             if service is NolonLiveSkillsRepositoryService {
-                guard providerFolder.isExists else {
-                    continue
-                }
-                let isDirectory = (try? providerFolder.url.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) ?? false
-                guard isDirectory else {
+                guard Self.resolvedScannableFolder(providerFolder) != nil else {
                     continue
                 }
             }
@@ -121,21 +117,20 @@ extension NolonCoreCLIRunner {
         for target in targets {
             providersScanned += 1
             let providerFolder = STFolder(target.providerPath)
-            guard providerFolder.isExists else { continue }
-            let isDirectory = (try? providerFolder.url.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) ?? false
-            guard isDirectory else { continue }
+            guard let scannableFolder = Self.resolvedScannableFolder(providerFolder) else { continue }
 
-            let childNames = (try? FileManager.default.contentsOfDirectory(atPath: providerFolder.url.path)) ?? []
+            let childNames = (try? FileManager.default.contentsOfDirectory(atPath: scannableFolder.url.path)) ?? []
             for name in childNames {
                 guard !name.hasPrefix(".") else { continue }
                 let child = providerFolder.subpath(name)
+                let actualChild = scannableFolder.subpath(name)
 
                 let stateKind: NolonProviderSkillStateKind
                 let resolvedDestinationPath: String?
-                if child.isSymbolicLink {
-                    let destination = (try? FileManager.default.destinationOfSymbolicLink(atPath: child.url.path)) ?? ""
+                if actualChild.isSymbolicLink {
+                    let destination = (try? FileManager.default.destinationOfSymbolicLink(atPath: actualChild.url.path)) ?? ""
                     let resolved = WorkflowSourceResolver.resolveSymlinkDestination(
-                        linkPath: child.url.path,
+                        linkPath: actualChild.url.path,
                         destination: destination
                     )
                     resolvedDestinationPath = resolved
@@ -1196,6 +1191,21 @@ extension NolonCoreCLIRunner {
         let originFile = originFolder.subpath("origin.json")
         let data = try JSONSerialization.data(withJSONObject: payload, options: [.prettyPrinted, .sortedKeys])
         try STFile(originFile.url.path).overlay(with: data)
+    }
+
+    private static func resolvedScannableFolder(_ folder: STFolder) -> STFolder? {
+        let rawPath = STPath(folder.url)
+        if rawPath.isFolderExists {
+            return folder
+        }
+
+        guard rawPath.isSymbolicLink,
+              let destination = try? rawPath.destinationOfSymbolicLink(),
+              destination.isFolderExists else {
+            return nil
+        }
+
+        return STFolder(destination.url)
     }
 
     static func writeResourceOrigin(

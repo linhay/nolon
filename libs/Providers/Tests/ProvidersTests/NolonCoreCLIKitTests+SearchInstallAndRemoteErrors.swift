@@ -432,6 +432,72 @@ extension NolonCoreCLIKitTests {
         #expect(result.stdout.contains("- codex/react-best-practices [失效链接]\n  path:"))
         #expect(result.stdout.contains("/Users/linhey/.codex/skills/react-best-practices"))
     }
+    @Test("runner skills list sees installed skill when provider root is symlink to global root")
+    func runnerSkillsListSeesInstalledSkillUnderDirectLinkedProviderRoot() async throws {
+        let root = try STFolder(sanbox: .temporary)
+            .folder("nolon-cli-list-linked-root-\(UUID().uuidString)")
+            .create()
+        defer { try? root.delete() }
+
+        let tempHome = root.folder("home")
+        let nolonHome = root.folder("nolon-home")
+        let globalSkills = nolonHome.folder("skills")
+        _ = tempHome.createIfNotExists()
+        _ = globalSkills.createIfNotExists()
+
+        let globalSkill = globalSkills.folder("karpathy-guidelines")
+        _ = globalSkill.createIfNotExists()
+        try globalSkill.file("SKILL.md").overlay(
+            with: """
+            ---
+            name: karpathy-guidelines
+            description: test
+            ---
+            """
+        )
+
+        let codexHome = tempHome.folder(".codex")
+        _ = codexHome.createIfNotExists()
+        let providerLink = codexHome.subpath("skills")
+        try providerLink.createSymbolicLink(to: STPath(globalSkills.url.path))
+
+        let previousHome = getenv("HOME").map { String(cString: $0) }
+        let previousNolonHome = getenv("NOLON_HOME").map { String(cString: $0) }
+        setenv("HOME", tempHome.url.path, 1)
+        setenv("NOLON_HOME", nolonHome.url.path, 1)
+        defer {
+            if let previousHome {
+                setenv("HOME", previousHome, 1)
+            } else {
+                unsetenv("HOME")
+            }
+            if let previousNolonHome {
+                setenv("NOLON_HOME", previousNolonHome, 1)
+            } else {
+                unsetenv("NOLON_HOME")
+            }
+        }
+
+        let runner = NolonCoreCLIRunner(
+            service: NolonLiveSkillsRepositoryService(),
+            fileReader: { _ in "" }
+        )
+        let result = await runner.execute(
+            arguments: [
+                "skills", "list",
+                "--provider", "codex",
+                "--state", "installed",
+                "--verbose",
+            ],
+            outputMode: .text
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stderr.isEmpty)
+        #expect(result.stdout.contains("- codex/karpathy-guidelines"))
+        #expect(result.stdout.contains(providerLink.subpath("karpathy-guidelines").url.path))
+        #expect(result.stdout.contains("skills_total: 1"))
+    }
     @Test("runner skills verbose installed filter omits redundant installed tag and unknown origin")
     func runnerSkillsVerboseInstalledFilterOmitsRedundantInstalledTagAndUnknownOrigin() async {
         let runner = NolonCoreCLIRunner(

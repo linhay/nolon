@@ -321,6 +321,40 @@ struct NolonSkillsRepositoryServiceTests {
         #expect(result.states.contains(where: { $0.skillID == "react-best-practices" && $0.state == .orphaned }))
     }
 
+    @Test("scan provider skills treats direct linked provider root as installed")
+    func scanProviderSkillsTreatsDirectLinkedProviderRootAsInstalled() throws {
+        let service = NolonLiveSkillsRepositoryService()
+        let root = try makeTempRoot("nolon-migrate-scan-linked-root")
+        let global = root.folder("global")
+        let providerHome = root.folder("provider-home")
+        let providerLink = providerHome.subpath("skills")
+        _ = global.createIfNotExists()
+        _ = providerHome.createIfNotExists()
+        defer { try? root.delete() }
+
+        let globalSkill = global.folder("karpathy-guidelines")
+        _ = globalSkill.createIfNotExists()
+        try globalSkill.file("SKILL.md").overlay(
+            with: """
+            ---
+            name: karpathy-guidelines
+            description: test
+            ---
+            """
+        )
+        try providerLink.createSymbolicLink(to: STPath(global.url.path))
+
+        let result = try service.scanProviderSkills(
+            providerPath: STFolder(providerLink.url),
+            globalSkillsPath: global
+        )
+
+        #expect(result.states.count == 1)
+        #expect(result.states.first?.skillID == "karpathy-guidelines")
+        #expect(result.states.first?.state == .installed)
+        #expect(result.states.first?.path == providerLink.subpath("karpathy-guidelines").url.path)
+    }
+
     @Test("migrate skill links from global to provider")
     func migrateSkillLinksFromGlobal() throws {
         let service = NolonLiveSkillsRepositoryService()

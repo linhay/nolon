@@ -89,11 +89,11 @@ public final class ProviderSkillMaintenanceService: @unchecked Sendable {
     }
 
     public func scanProviderSkills(providerPath: STFolder, globalSkillsPath: STFolder) throws -> ProviderSkillScanResult {
-        guard providerPath.isExists else {
+        guard let scannableProviderPath = SkillInstallRootResolver.resolvedScannableFolder(providerPath: providerPath) else {
             throw SkillError.fileOperationFailed("Provider path does not exist: \(providerPath.url.path)")
         }
 
-        let entries = try providerPath.subFilePaths([.skipsHiddenFiles])
+        let entries = try scannableProviderPath.subFilePaths([.skipsHiddenFiles])
         let globalRoot = globalSkillsPath.url.path.hasSuffix("/")
             ? globalSkillsPath.url.path
             : "\(globalSkillsPath.url.path)/"
@@ -104,28 +104,29 @@ public final class ProviderSkillMaintenanceService: @unchecked Sendable {
 
         let states = entries.map { path -> ProviderSkillStateItem in
             let skillID = path.url.lastPathComponent
+            let reportedPath = providerPath.subpath(skillID).url.path
             let globalCandidate = globalSkillsPath.subpath(skillID).url.path
             let globalExists = STPath(globalCandidate).isExists
             if path.isSymbolicLink {
                 let dest = ((try? path.destinationOfSymbolicLink()) ?? path).url.path
                 if STPath(dest).isExists {
                     if providerUsesGlobalRoot {
-                        return ProviderSkillStateItem(skillID: skillID, path: path.url.path, state: .installed)
+                        return ProviderSkillStateItem(skillID: skillID, path: reportedPath, state: .installed)
                     }
                     if dest.hasPrefix(globalRoot) {
-                        return ProviderSkillStateItem(skillID: skillID, path: path.url.path, state: .installed)
+                        return ProviderSkillStateItem(skillID: skillID, path: reportedPath, state: .installed)
                     }
-                    return ProviderSkillStateItem(skillID: skillID, path: path.url.path, state: .orphaned)
+                    return ProviderSkillStateItem(skillID: skillID, path: reportedPath, state: .orphaned)
                 }
-                return ProviderSkillStateItem(skillID: skillID, path: path.url.path, state: .broken)
+                return ProviderSkillStateItem(skillID: skillID, path: reportedPath, state: .broken)
             }
             if providerUsesGlobalRoot {
-                return ProviderSkillStateItem(skillID: skillID, path: path.url.path, state: .installed)
+                return ProviderSkillStateItem(skillID: skillID, path: reportedPath, state: .installed)
             }
             if globalExists {
-                return ProviderSkillStateItem(skillID: skillID, path: path.url.path, state: .orphaned)
+                return ProviderSkillStateItem(skillID: skillID, path: reportedPath, state: .orphaned)
             }
-            return ProviderSkillStateItem(skillID: skillID, path: path.url.path, state: .orphaned)
+            return ProviderSkillStateItem(skillID: skillID, path: reportedPath, state: .orphaned)
         }.sorted { $0.skillID.localizedCaseInsensitiveCompare($1.skillID) == .orderedAscending }
 
         return ProviderSkillScanResult(
