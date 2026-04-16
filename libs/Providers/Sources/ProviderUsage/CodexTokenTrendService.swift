@@ -30,7 +30,9 @@ public struct CodexTokenTrendService: Sendable {
         var globalEnvironment = environment
         globalEnvironment.removeValue(forKey: "CODEX_HOME")
 
-        let snapshot = try await loadSnapshot(.codex, trailingDays, false, globalEnvironment)
+        // Always load the full history, then slice points locally for the selected chart range.
+        // Summary cards (especially ALL) must be computed from the complete dataset.
+        let snapshot = try await loadSnapshot(.codex, nil, false, globalEnvironment)
         let allPoints = snapshot.daily
             .map { entry in
                 let input = max(0, entry.inputTokens ?? 0)

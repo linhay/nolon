@@ -112,7 +112,7 @@ struct CodexTokenTrendServiceTests {
 
         let result = try await service.fetchGlobalSnapshot(trailingDays: 7, environment: [:])
 
-        #expect(await recorder.values() == [7])
+        #expect(await recorder.values() == [nil])
         #expect(result.points.count == 7)
         #expect(result.todayTokens == 400)
         #expect(result.last7DaysTokens == (34...40).map { $0 * 10 }.reduce(0, +))
