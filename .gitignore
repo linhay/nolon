@@ -85,3 +85,6 @@ design-proposals/
 autoresearch-lessons.md
 autoresearch-state.json
 research-results.tsv
+
+# macOS metadata
+.DS_Store

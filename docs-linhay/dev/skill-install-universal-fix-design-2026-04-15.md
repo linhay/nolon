@@ -10,7 +10,7 @@
 
 关联辩论文档：
 
-- `docs-linhay/debate/20260415/skill-install-waza/20260415-skill-install-waza-v02.md`
+- `docs-linhay/debate/20260415/resource-center/20260415-skill-install-waza-v02.md`
 
 ## 现象定义
 

@@ -84,7 +84,7 @@
 ## 输出文档落位
 
 1. 本辩论纪要：
-   - `docs-linhay/debate/20260415/codex-sessions-view-display/20260415-codex-sessions-view-display-implementation-v01.md`
+   - `docs-linhay/debate/20260415/codex-sessions/20260415-codex-sessions-view-display-implementation-v01.md`
 2. 主执行计划：
    - `docs-linhay/plans/2026-04-15-codex-sessions-view-display-implementation-plan-v01.md`
 

@@ -62,7 +62,7 @@
 依据文档：
 
 - `docs-linhay/dev/skill-install-universal-fix-design-2026-04-15.md`
-- `docs-linhay/debate/20260415/skill-install-waza/20260415-skill-install-waza-v02.md`
+- `docs-linhay/debate/20260415/resource-center/20260415-skill-install-waza-v02.md`
 
 ## 目标
 

@@ -9,7 +9,7 @@
 
 关联辩论文档：
 
-- `docs-linhay/debate/20260415/accounts-vs-usage-page-split/20260415-accounts-vs-usage-page-split-v01.md`
+- `docs-linhay/debate/20260415/provider-usage/20260415-accounts-vs-usage-page-split-v01.md`
 
 ## 当前代码事实
 
@@ -37,7 +37,7 @@
 
 ### 3. `usage` 已经跨到 session / cost 数据域
 
-1. [`GeminiTokenTrendService.swift`](/Users/linhey/Desktop/FlowUp-Libs/nolon/libs/Providers/Sources/ProviderUsage/GeminiTokenTrendService.swift#L52) 会先校验 active account，再扫描 `.gemini` 下的 `session-*.json` 来聚合日级趋势。
+1. [`GeminiTokenTrendService.swift`](/Users/linhey/Desktop/FlowUp-Libs/nolon/libs/Providers/Sources/ProviderUsage/GeminiTokenTrendService.swift#L52) 会先校验 active account，再扫描 `~/.gemini/tmp/**/chats/session-*.json` 来聚合日级趋势。
 2. [`GeminiIntradayUsageService.swift`](/Users/linhey/Desktop/FlowUp-Libs/nolon/libs/Providers/Sources/ProviderUsage/GeminiIntradayUsageService.swift#L52) 会从同一批 session 事件里派生分钟级 bucket。
 3. [`CodexTokenTrendService.swift`](/Users/linhey/Desktop/FlowUp-Libs/nolon/libs/Providers/Sources/ProviderUsage/CodexTokenTrendService.swift#L26) 通过 `CostUsageFetcher` 装配 daily trend。
 4. [`CostUsageFetcher.swift`](/Users/linhey/Desktop/FlowUp-Libs/nolon/libs/Providers/Sources/Providers/Codex/CostUsage/CostUsageFetcher.swift#L26) 直接面向 `sessions` / `cache` 扫描链路。

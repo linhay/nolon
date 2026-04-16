@@ -13,7 +13,7 @@
 依据文档：
 
 - `docs-linhay/dev/provider-usage-account-usage-boundary-design-2026-04-15.md`
-- `docs-linhay/debate/20260415/accounts-vs-usage-page-split/20260415-accounts-vs-usage-page-split-v01.md`
+- `docs-linhay/debate/20260415/provider-usage/20260415-accounts-vs-usage-page-split-v01.md`
 
 ## 目标
 

@@ -5,8 +5,8 @@
 **范围**：`Codex Sessions` 视图展示裁定落地  
 **来源**：`debate` 纪要  
 对应纪要：
-[20260415-codex-sessions-view-display-v01.md](/Users/linhey/Desktop/FlowUp-Libs/nolon/docs-linhay/debate/20260415/codex-sessions-view-display/20260415-codex-sessions-view-display-v01.md)  
-[20260415-codex-sessions-view-display-implementation-v01.md](/Users/linhey/Desktop/FlowUp-Libs/nolon/docs-linhay/debate/20260415/codex-sessions-view-display/20260415-codex-sessions-view-display-implementation-v01.md)
+[20260415-codex-sessions-view-display-v01.md](/Users/linhey/Desktop/FlowUp-Libs/nolon/docs-linhay/debate/20260415/codex-sessions/20260415-codex-sessions-view-display-v01.md)  
+[20260415-codex-sessions-view-display-implementation-v01.md](/Users/linhey/Desktop/FlowUp-Libs/nolon/docs-linhay/debate/20260415/codex-sessions/20260415-codex-sessions-view-display-implementation-v01.md)
 
 ## 背景
 

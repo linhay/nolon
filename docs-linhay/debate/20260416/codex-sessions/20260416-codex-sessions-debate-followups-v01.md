@@ -16,7 +16,7 @@
 - `libs/NolonUI/Sources/NolonUI/Components/Shared/UnifiedCodexSessionViews.swift`
 - `nolon/Skills/Domain/Providers/Views/CodexSessionsTabView.swift`
 - `nolonTests/CodexSessionsCardSnapshotTests.swift`
-- `docs-linhay/debate/20260416/codex-sessions-overview-card/20260416-codex-sessions-overview-card-v01.md`
+- `docs-linhay/debate/20260416/codex-sessions/20260416-codex-sessions-overview-card-v01.md`
 - `/Users/linhey/.nolon/skills/debate/SKILL.md`
 
 ## 各方观点
