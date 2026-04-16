@@ -247,6 +247,14 @@ final class CodexSessionsTabViewModel {
     var showsInitialSkeleton = false
     var groupingMode: SessionGroupingMode = .project
     var selectedSessionID: String?
+    var searchQuery: String = "" {
+        didSet {
+            guard Self.normalizedSearchQuery(searchQuery) != Self.normalizedSearchQuery(oldValue) else {
+                return
+            }
+            rebuildSectionStates()
+        }
+    }
 
     private let service: any CodexSessionsTabServicing
     private let pageSize: Int
@@ -723,8 +731,9 @@ final class CodexSessionsTabViewModel {
     }
 
     private func rebuildSectionStates() {
-        allSectionStates = Self.makeSectionStates(from: allRows, groupingMode: groupingMode)
-        let validSectionIDs = Set(allSectionStates.map(\.id))
+        let filteredRows = Self.filteredRows(from: allRows, searchQuery: searchQuery)
+        allSectionStates = Self.makeSectionStates(from: filteredRows, groupingMode: groupingMode)
+        let validSectionIDs = Set(Self.makeSectionStates(from: allRows, groupingMode: groupingMode).map(\.id))
         expandedSectionIDs = expandedSectionIDs.intersection(validSectionIDs)
         rebuildVisibleSections()
     }
@@ -768,6 +777,9 @@ final class CodexSessionsTabViewModel {
         for section: SessionSectionState,
         isExpanded: Bool
     ) -> [SessionRow] {
+        if Self.isSearchActive(searchQuery) {
+            return section.sessions
+        }
         if isExpanded {
             return section.sessions
         }
@@ -909,6 +921,50 @@ final class CodexSessionsTabViewModel {
         guard collapsed.count > maxLength else { return collapsed }
         let endIndex = collapsed.index(collapsed.startIndex, offsetBy: maxLength)
         return String(collapsed[..<endIndex]).trimmingCharacters(in: .whitespacesAndNewlines) + "…"
+    }
+
+    nonisolated private static func normalizedSearchQuery(_ raw: String) -> String {
+        raw
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+    }
+
+    nonisolated private static func isSearchActive(_ raw: String) -> Bool {
+        !normalizedSearchQuery(raw).isEmpty
+    }
+
+    nonisolated private static func filteredRows(
+        from rows: [SessionRow],
+        searchQuery: String
+    ) -> [SessionRow] {
+        let normalizedQuery = normalizedSearchQuery(searchQuery)
+        guard !normalizedQuery.isEmpty else { return rows }
+        return rows.filter { matchesSearch($0, normalizedQuery: normalizedQuery) }
+    }
+
+    nonisolated private static func matchesSearch(
+        _ row: SessionRow,
+        normalizedQuery: String
+    ) -> Bool {
+        searchableTexts(for: row).contains { candidate in
+            candidate.localizedCaseInsensitiveContains(normalizedQuery)
+        }
+    }
+
+    nonisolated private static func searchableTexts(for row: SessionRow) -> [String] {
+        var texts: [String] = [
+            row.title,
+            row.displayID,
+            row.modelProvider,
+            inlineProviderLabel(for: row.modelProvider),
+        ]
+        if let summary = row.summary, !summary.isEmpty {
+            texts.append(summary)
+        }
+        if let cwd = row.cwd, !cwd.isEmpty {
+            texts.append(cwd)
+        }
+        return texts
     }
 
     nonisolated private static func sortSessionRows(_ lhs: SessionRow, _ rhs: SessionRow) -> Bool {

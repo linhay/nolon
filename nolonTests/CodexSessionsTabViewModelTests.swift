@@ -275,6 +275,145 @@ final class CodexSessionsTabViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.sections.first?.visibleSessionCount, 6)
     }
 
+    func testBDD_GivenSearchQueryMatchesDisplayID_WhenFiltering_ThenOnlyMatchingRowsRemainVisible() async throws {
+        let provider = makeCodexProvider()
+        let snapshot = CodexSessionSnapshot(
+            sessions: [
+                makeSession(
+                    id: "sessions/a.jsonl",
+                    threadID: "thread-alpha-001",
+                    title: "Alpha",
+                    modelProvider: "openai",
+                    cwd: "/tmp/project-alpha",
+                    updatedAt: 2_000
+                ),
+                makeSession(
+                    id: "sessions/b.jsonl",
+                    threadID: "thread-beta-002",
+                    title: "Beta",
+                    modelProvider: "anthropic",
+                    cwd: "/tmp/project-beta",
+                    updatedAt: 1_000
+                ),
+            ],
+            availableProviderIDs: ["openai", "anthropic"]
+        )
+        let viewModel = CodexSessionsTabViewModel(
+            provider: provider,
+            service: MockCodexSessionsService(state: .init(snapshots: [snapshot]))
+        )
+
+        await viewModel.load()
+        viewModel.searchQuery = "beta-002"
+
+        XCTAssertEqual(viewModel.sections.count, 1)
+        XCTAssertEqual(viewModel.sections.first?.sessions.map(\.id), ["sessions/b.jsonl"])
+        XCTAssertEqual(viewModel.selectedSessionID, "sessions/b.jsonl")
+    }
+
+    func testBDD_GivenProviderRawIDOrFriendlyName_WhenFiltering_ThenRowsMatchEitherForm() async throws {
+        let provider = makeCodexProvider()
+        let snapshot = CodexSessionSnapshot(
+            sessions: [
+                makeSession(
+                    id: "sessions/openai.jsonl",
+                    threadID: "thread-openai",
+                    title: "OpenAI Session",
+                    modelProvider: "openai",
+                    cwd: "/tmp/project-alpha",
+                    updatedAt: 2_000
+                ),
+                makeSession(
+                    id: "sessions/anthropic.jsonl",
+                    threadID: "thread-anthropic",
+                    title: "Anthropic Session",
+                    modelProvider: "anthropic",
+                    cwd: "/tmp/project-beta",
+                    updatedAt: 1_000
+                ),
+            ],
+            availableProviderIDs: ["openai", "anthropic"]
+        )
+        let viewModel = CodexSessionsTabViewModel(
+            provider: provider,
+            service: MockCodexSessionsService(state: .init(snapshots: [snapshot]))
+        )
+
+        await viewModel.load()
+
+        viewModel.searchQuery = "openai"
+        XCTAssertEqual(viewModel.sections.first?.sessions.map(\.id), ["sessions/openai.jsonl"])
+
+        viewModel.searchQuery = "Anthropic"
+        XCTAssertEqual(viewModel.sections.first?.sessions.map(\.id), ["sessions/anthropic.jsonl"])
+    }
+
+    func testBDD_GivenCollapsedSectionWhenSearchMatchesOverflowRow_WhenFiltering_ThenPreviewLimitIsBypassed() async throws {
+        let provider = makeCodexProvider()
+        let snapshot = CodexSessionSnapshot(
+            sessions: Array(0..<8).map { index in
+                makeSession(
+                    id: "sessions/\(index).jsonl",
+                    threadID: "thread-\(index)",
+                    title: index == 6 ? "Needle Result" : "Session \(index)",
+                    modelProvider: "openai",
+                    cwd: "/tmp/project-alpha",
+                    updatedAt: 2_000 - TimeInterval(index)
+                )
+            },
+            availableProviderIDs: ["openai"]
+        )
+        let viewModel = CodexSessionsTabViewModel(
+            provider: provider,
+            service: MockCodexSessionsService(state: .init(snapshots: [snapshot]))
+        )
+
+        await viewModel.load()
+        XCTAssertEqual(viewModel.sections.first?.visibleSessionCount, 5)
+        XCTAssertFalse(viewModel.sections.first?.sessions.contains(where: { $0.id == "sessions/6.jsonl" }) ?? true)
+
+        viewModel.searchQuery = "needle"
+
+        XCTAssertEqual(viewModel.sections.count, 1)
+        XCTAssertEqual(viewModel.sections.first?.visibleSessionCount, 1)
+        XCTAssertEqual(viewModel.sections.first?.sessions.map(\.id), ["sessions/6.jsonl"])
+        XCTAssertFalse(viewModel.sections.first?.isExpanded ?? true)
+    }
+
+    func testBDD_GivenExpandedSectionWhenSearchClears_WhenFilteringEnds_ThenOriginalExpansionStateIsPreserved() async throws {
+        let provider = makeCodexProvider()
+        let snapshot = CodexSessionSnapshot(
+            sessions: Array(0..<8).map { index in
+                makeSession(
+                    id: "sessions/\(index).jsonl",
+                    threadID: "thread-\(index)",
+                    title: index == 6 ? "Needle Result" : "Session \(index)",
+                    modelProvider: "openai",
+                    cwd: "/tmp/project-alpha",
+                    updatedAt: 2_000 - TimeInterval(index)
+                )
+            },
+            availableProviderIDs: ["openai"]
+        )
+        let viewModel = CodexSessionsTabViewModel(
+            provider: provider,
+            service: MockCodexSessionsService(state: .init(snapshots: [snapshot]))
+        )
+
+        await viewModel.load()
+        let sectionID = try XCTUnwrap(viewModel.sections.first?.id)
+        viewModel.toggleSectionExpansion(sectionID)
+        XCTAssertEqual(viewModel.sections.first?.visibleSessionCount, 8)
+        XCTAssertTrue(viewModel.sections.first?.isExpanded ?? false)
+
+        viewModel.searchQuery = "needle"
+        XCTAssertEqual(viewModel.sections.first?.sessions.map(\.id), ["sessions/6.jsonl"])
+
+        viewModel.searchQuery = ""
+        XCTAssertEqual(viewModel.sections.first?.visibleSessionCount, 8)
+        XCTAssertTrue(viewModel.sections.first?.isExpanded ?? false)
+    }
+
     func testBDD_GivenProviderGrouping_WhenSwitchingGrouping_ThenProviderViewRemainsAvailable() async throws {
         let provider = makeCodexProvider()
         let snapshot = CodexSessionSnapshot(
@@ -308,8 +447,62 @@ final class CodexSessionsTabViewModelTests: XCTestCase {
 
         XCTAssertEqual(viewModel.groupingMode, .provider)
         XCTAssertEqual(viewModel.sections.count, 2)
-        let sectionTitles = Set(viewModel.sections.map { $0.title })
-        XCTAssertEqual(sectionTitles, ["openai", "anthropic"])
+        XCTAssertEqual(viewModel.sections.map(\.title), ["openai", "anthropic"])
+    }
+
+    func testBDD_GivenProviderGroupsHaveDifferentLatestSessionTimes_WhenSwitchingGrouping_ThenSectionsSortByLatestSessionTimeDescending() async throws {
+        let provider = makeCodexProvider()
+        let snapshot = CodexSessionSnapshot(
+            sessions: [
+                makeSession(
+                    id: "sessions/openai-old.jsonl",
+                    threadID: "thread-openai-old",
+                    title: "OpenAI Old",
+                    modelProvider: "openai",
+                    cwd: "/tmp/project-alpha",
+                    updatedAt: 1_000
+                ),
+                makeSession(
+                    id: "sessions/openai-new.jsonl",
+                    threadID: "thread-openai-new",
+                    title: "OpenAI New",
+                    modelProvider: "openai",
+                    cwd: "/tmp/project-alpha",
+                    updatedAt: 3_000
+                ),
+                makeSession(
+                    id: "sessions/anthropic-newer.jsonl",
+                    threadID: "thread-anthropic-newer",
+                    title: "Anthropic Newer",
+                    modelProvider: "anthropic",
+                    cwd: "/tmp/project-beta",
+                    updatedAt: 4_000
+                ),
+                makeSession(
+                    id: "sessions/gemini-mid.jsonl",
+                    threadID: "thread-gemini-mid",
+                    title: "Gemini Mid",
+                    modelProvider: "gemini",
+                    cwd: "/tmp/project-gamma",
+                    updatedAt: 2_000
+                ),
+            ],
+            availableProviderIDs: ["openai", "anthropic", "gemini"]
+        )
+        let viewModel = CodexSessionsTabViewModel(
+            provider: provider,
+            service: MockCodexSessionsService(state: .init(snapshots: [snapshot]))
+        )
+
+        await viewModel.load()
+        viewModel.setGroupingMode(.provider)
+
+        XCTAssertEqual(viewModel.sections.map(\.title), ["anthropic", "openai", "gemini"])
+        XCTAssertEqual(viewModel.sections.map { $0.sessions.first?.id ?? "" }, [
+            "sessions/anthropic-newer.jsonl",
+            "sessions/openai-new.jsonl",
+            "sessions/gemini-mid.jsonl",
+        ])
     }
 
     func testBDD_GivenSessionsCarryRawMetadata_WhenLoading_ThenRowsPreserveForkedFromOriginatorAndSource() async throws {

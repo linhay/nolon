@@ -432,3 +432,98 @@
 - 当前 feature 状态：
   - 从 `project-first 浏览模型重定` 进入 `已落地`
   - 后续变更应基于本状态继续迭代，不再把本节当作待讨论候选
+
+## 增量（2026-04-17：搜索与 compact usage 首屏可见）
+
+### 背景
+- 2026-04-16 与 2026-04-17 两轮 debate 已把 `Codex Sessions` 的搜索与行级 usage 展示收敛为可执行 MVP。
+- 当前页面虽然已有 project-first 分组、row 级 usage 数据与 compact row 容器，但仍存在两个明显缺口：
+  - 用户无法在大量会话中直接搜索 `title / ID / project / provider`
+  - compact row 首屏看不到 usage，只有详情面板可见
+- 对应 debate 纪要：
+  - [20260416-codex-sessions-search-usage-v01.md](/Users/linhey/Desktop/FlowUp-Libs/nolon/docs-linhay/debate/20260416/codex-sessions/20260416-codex-sessions-search-usage-v01.md)
+  - [20260417-codex-sessions-search-usage-v01.md](/Users/linhey/Desktop/FlowUp-Libs/nolon/docs-linhay/debate/20260417/codex-sessions/20260417-codex-sessions-search-usage-v01.md)
+
+### 目标
+1. 在 `Sessions` 页增加显式搜索输入，支持按主信息即时过滤会话。
+2. 搜索激活时返回完整匹配结果，不受 section 折叠态 `prefix(5)` 预览截断影响。
+3. 在 compact row 中显示 row 级 usage，让列表首屏直接可见用量。
+4. 窄宽下保护两行 row 可读性，usage 降级为只显示 total。
+
+### 非目标
+1. 不在本轮引入全文索引、远程搜索或磁盘增量搜索。
+2. 不在本轮新增 section / overview usage 聚合。
+3. 不在本轮引入 `.searchable` 或 debounce 节流。
+4. 不在本轮扩展 `forkedFromID / originator / source` 的搜索语义。
+
+### 产品约束
+1. 搜索必须复用仓内显式 `SearchField`，不改为 `.searchable`。
+2. 搜索字段首版限定为：
+   - `title`
+   - `summary`
+   - `displayID`（`threadID` 优先，否则 `id`）
+   - `cwd`
+   - `provider`
+3. 搜索插入点保持在 `allRows -> rebuildSectionStates()` 之间，不在 UI 层做二次过滤补丁。
+4. 搜索态不能污染原始 `expandedSectionIDs`，但必须绕过默认 `5` 条预览限制。
+5. compact row 的 usage 在窄宽基线下只显示 total，不显示 `in/out` 次级文案。
+6. provider 搜索既要命中 raw `modelProvider`，也要命中用户看到的 provider 友好名。
+7. 会话组排序必须按“组内最新会话时间”倒序，而不是按组名、provider 名或路径字典序。
+
+### BDD 验收（搜索与 usage 增量）
+1. Given `Sessions` 页已加载会话
+   When 用户在搜索框输入 `thread id` 片段
+   Then 页面按 `displayID` 即时过滤出匹配 rows。
+
+2. Given `Sessions` 页已加载会话
+   When 用户在搜索框输入 project 路径片段
+   Then 页面按 `cwd` 过滤，并保留对应 section 的完整匹配 rows。
+
+3. Given `Sessions` 页处于 project 分组且某个 section 默认只显示前 `5` 条
+   When 用户输入能命中该 section 第 `6` 条之后 session 的搜索词
+   Then 搜索态仍显示该匹配 session，而不是被折叠预览截断。
+
+4. Given 用户搜索 `openai`、`gemini` 或 `Claude`
+   When provider 原始值与友好显示名之一匹配
+   Then 该 session 被视为命中结果。
+
+5. Given 当前搜索词为空
+   When 用户清空搜索框
+   Then 页面恢复非搜索态 section 可见条数契约，且不改写原有展开/收起状态。
+
+6. Given compact row 的 usage 已成功加载
+   When 页面在常规宽度渲染 row
+   Then compact row 显示 total 和 `in/out` 次级文案。
+
+7. Given compact row 的 usage 已成功加载
+   When 页面在窄宽基线下渲染 row
+   Then compact row 只显示 total，不显示 `in/out`。
+
+8. Given usage 仍处于 placeholder 或 failed
+   When compact row 渲染
+   Then 继续显示原有 placeholder / failed 文案，不因为宽度降级丢失状态。
+
+9. Given 页面存在多个 project 或 provider 分组
+   When 构建 section 列表
+   Then 所有会话组按各组内最新 session 的 `updatedAt` 从新到旧排序；仅当最新时间相同才回退到标题字典序。
+
+### 实现落点（2026-04-17 增量）
+- `nolon/Skills/Domain/Providers/Views/CodexSessionsTabViewModel.swift`
+  - 新增 `searchQuery`
+  - 在 `rebuildSectionStates()` 前过滤 `allRows`
+  - 为 provider 搜索补充友好名归一化
+  - 在搜索态绕过默认 `5` 条预览限制
+- `nolon/Skills/Domain/Providers/Views/CodexSessionsTabView.swift`
+  - 在 overview card 下方接入 `SearchField`
+  - 把搜索框与 ViewModel 绑定
+- `libs/NolonUI/Sources/NolonUI/Components/Shared/UnifiedCodexSessionViews.swift`
+  - 把 `compactUsageItem(_:)` 真正接入 compact row
+  - 为窄宽路径增加 usage 次级文案降级逻辑
+- `nolonTests/CodexSessionsTabViewModelTests.swift`
+  - 搜索字段、搜索态全量结果、展开状态恢复
+- `nolonTests/CodexSessionsCardSnapshotTests.swift`
+  - loaded usage 窄宽快照
+
+### 验证
+- `xcodebuild test -project nolon.xcodeproj -scheme nolon-tests -destination 'platform=macOS' -only-testing:nolonTests/CodexSessionsTabViewModelTests`
+- `xcodebuild test -project nolon.xcodeproj -scheme nolon-tests -destination 'platform=macOS' -only-testing:nolonTests/CodexSessionsCardSnapshotTests`

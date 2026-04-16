@@ -301,7 +301,22 @@ public struct CodexSessionsSectionCardView: View {
         }
     }
 
+    @ViewBuilder
     private var sectionHeaderLead: some View {
+        if isExpandable {
+            Button(action: { onToggleCollapse(data.id) }) {
+                sectionHeaderLeadContent
+            }
+            .buttonStyle(.plain)
+            .contentShape(.rect)
+            .help(data.expansionTitle ?? "")
+            .accessibilityLabel(data.expansionTitle ?? "")
+        } else {
+            sectionHeaderLeadContent
+        }
+    }
+
+    private var sectionHeaderLeadContent: some View {
         HStack(alignment: .center, spacing: 10) {
             ZStack {
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
@@ -353,6 +368,11 @@ public struct CodexSessionsSectionCardView: View {
                 .help(actionMenuTitle)
             }
         }
+    }
+
+    private var isExpandable: Bool {
+        guard let expansionTitle = data.expansionTitle else { return false }
+        return !expansionTitle.isEmpty
     }
 
     private var headerBadgeRow: some View {
@@ -528,6 +548,34 @@ public struct CodexSessionsSectionCardView: View {
     }
 
     private func compactRowView(_ row: CodexSessionsRowData) -> some View {
+        ViewThatFits(in: .horizontal) {
+            compactRowContent(
+                row,
+                usage: compactUsageDisplayData(row.usage, showsSecondaryText: true)
+            )
+            .frame(minWidth: 700, alignment: .leading)
+
+            compactRowContent(
+                row,
+                usage: compactUsageDisplayData(row.usage, showsSecondaryText: false)
+            )
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 11)
+        .background(rowBackground(isSelected: selectedRowID == row.id))
+        .contentShape(RoundedRectangle(cornerRadius: DesignSystem.Metrics.cornerRadiusS, style: .continuous))
+        .onTapGesture {
+            onSelectRow(row)
+        }
+        .contextMenu {
+            rowContextMenu(row)
+        }
+    }
+
+    private func compactRowContent(
+        _ row: CodexSessionsRowData,
+        usage: CodexSessionsUsageDisplayData
+    ) -> some View {
         HStack(alignment: .center, spacing: 12) {
             VStack(alignment: .leading, spacing: 7) {
                 HStack(alignment: .center, spacing: 8) {
@@ -559,6 +607,9 @@ public struct CodexSessionsSectionCardView: View {
 
             Spacer(minLength: 8)
 
+            compactUsageItem(usage)
+                .frame(minWidth: 68, alignment: .leading)
+
             HStack(spacing: 10) {
                 Image(systemName: "chevron.right")
                     .font(.caption.weight(.semibold))
@@ -566,16 +617,6 @@ public struct CodexSessionsSectionCardView: View {
 
                 rowMenuButton(row)
             }
-        }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 11)
-        .background(rowBackground(isSelected: selectedRowID == row.id))
-        .contentShape(RoundedRectangle(cornerRadius: DesignSystem.Metrics.cornerRadiusS, style: .continuous))
-        .onTapGesture {
-            onSelectRow(row)
-        }
-        .contextMenu {
-            rowContextMenu(row)
         }
     }
 
@@ -690,6 +731,15 @@ public struct CodexSessionsSectionCardView: View {
             usageView(usage)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func compactUsageDisplayData(
+        _ usage: CodexSessionsUsageDisplayData,
+        showsSecondaryText: Bool
+    ) -> CodexSessionsUsageDisplayData {
+        guard showsSecondaryText == false else { return usage }
+        guard case .value(let primaryText, _) = usage else { return usage }
+        return .value(primaryText: primaryText, secondaryText: nil)
     }
 
     private func rowBackground(isSelected: Bool) -> some View {

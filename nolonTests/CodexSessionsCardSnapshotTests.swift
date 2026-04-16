@@ -170,6 +170,40 @@ struct CodexSessionsCardSnapshotTests {
         #expect(failure == nil || failure?.contains("Record mode is on") == true)
     }
 
+    @Test("narrow width loaded usage keeps total visible without secondary detail")
+    func narrowWidthLoadedUsageKeepsOnlyTotalVisible() {
+        let overview = makeOverviewCard(displayMode: .compact)
+
+        let section = makeSectionData(
+            isExpanded: true,
+            usage: .value(primaryText: "3.0K", secondaryText: "in 2.4K · out 600")
+        )
+
+        let host = makeHost(
+            SwiftUI.ScrollView(.vertical, showsIndicators: true) {
+                VStack(alignment: .leading, spacing: 18) {
+                    overview
+                    section
+                }
+                .padding(20)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(NolonUI.DesignSystem.Colors.Background.canvas)
+            },
+            size: Self.narrowSnapshotSize
+        )
+
+        let failure = withSnapshotTesting(record: .all) {
+            verifySnapshot(
+                of: host,
+                as: .image(size: Self.narrowSnapshotSize),
+                named: "narrow-width-project-list-loaded-usage",
+                snapshotDirectory: Self.snapshotDirectory
+            )
+        }
+
+        #expect(failure == nil || failure?.contains("Record mode is on") == true)
+    }
+
     @Test("provider secondary grouping remains migration friendly")
     func providerSecondaryGroupingRemainsMigrationFriendly() {
         let section = NolonUI.CodexSessionsSectionCardView(

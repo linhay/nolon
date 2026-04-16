@@ -20,6 +20,7 @@ struct CodexSessionsTabView: View {
     }
 
     var body: some View {
+        @Bindable var viewModel = viewModel
         LazyVStack(alignment: .leading, spacing: 16) {
             NolonUI.CodexSessionsOverviewCardView(
                 data: overviewData,
@@ -32,6 +33,17 @@ struct CodexSessionsTabView: View {
                     }
                     viewModel.setGroupingMode(groupingMode)
                 }
+            )
+
+            SearchField(
+                config: .init(
+                    placeholder: NSLocalizedString(
+                        "remote.search.placeholder",
+                        value: "Search",
+                        comment: "Search placeholder"
+                    ),
+                    text: $viewModel.searchQuery
+                )
             )
 
             sessionsContent
