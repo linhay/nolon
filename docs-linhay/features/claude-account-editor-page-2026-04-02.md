@@ -91,3 +91,14 @@
    - Claude 编辑器快照测试需覆盖 JSON 预览区。
    - 新建账号默认草稿测试需验证模型映射字段为空。
    - Claude settings 写回测试需验证空模型字段不会落盘到 `env`。
+
+## 进展更新（2026-04-17，Credential 明文展示）
+1. 用户新增交互要求：Claude 账号编辑页中的 `Credential` 输入框不再使用密文遮罩，编辑态需直接展示明文值。
+2. 2026-04-17 的 debate 结论（`docs-linhay/debate/20260417/provider-usage/20260417-claude-credential-plaintext-v01.md`）确认：
+   - 当前“密文”现象仅来自 UI 层的 `SecureField`。
+   - `credentialValue` 在草稿、JSON 预览、SQLite 持久化与激活写回链路中始终按明文字符串流转。
+   - 存储加密属于独立安全增强议题，不作为本次 UI 修复前置条件。
+3. 实现约束补充：
+   - 本次只调整 `ClaudeAccountEditorSheet` 的 Credential 输入控件，不改动 `ClaudeAccount`、`ClaudeAccountManager` 与 `settings.json` 写回协议。
+4. 测试要求补充：
+   - `ClaudeAccountEditorSheetSnapshotTests` 需新增 BDD 回归测试，验证编辑态不存在 `NSSecureTextField`，且明文 credential 会出现在普通可编辑文本框中。

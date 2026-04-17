@@ -1201,8 +1201,7 @@ public actor CodexAuthManager {
         return CodexAuthAccount.hashHex(for: raw)
     }
 
-    public func activeAccountId(for provider: Provider) async -> UUID? {
-        let accounts = (try? await loadAccounts()) ?? []
+    public func activeAccountId(for provider: Provider, accounts: [CodexAuthAccount]) -> UUID? {
         let registryActiveID = activeAccountIdFromRegistry(for: provider, accounts: accounts)
         if let registryActiveID,
            let registryAccount = accounts.first(where: { $0.id == registryActiveID }),
@@ -1232,6 +1231,11 @@ public actor CodexAuthManager {
         }
 
         return registryActiveID
+    }
+
+    public func activeAccountId(for provider: Provider) async -> UUID? {
+        let accounts = (try? await loadAccounts()) ?? []
+        return activeAccountId(for: provider, accounts: accounts)
     }
 
     public func managementStatus(for provider: Provider) async -> CodexManagementStatus {

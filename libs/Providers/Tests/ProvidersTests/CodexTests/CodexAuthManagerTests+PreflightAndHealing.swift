@@ -130,6 +130,132 @@ extension CodexAuthManagerTests {
         #expect(after.modificationDate == before.modificationDate)
     }
 
+    @Test("Given detached managed apikey auth keeps nolon account id but changes api key, when reconciling provider payload then existing snapshot is updated instead of creating a new account")
+    func reconcileUpdatesExistingManagedAPIKeySnapshotWhenOnlyAPIKeyChanges() async throws {
+        let root = try makeTempRoot("codex-auth-preflight-managed-apikey-rotate")
+        defer { try? root.delete() }
+
+        let manager = CodexAuthManager(rootURL: root.url)
+        let provider = makeCodexProvider(root: root)
+        let account = try await manager.addConfiguredAccount(
+            name: "OpenAI Direct",
+            apiKey: "sk-old-12345678",
+            relay: nil
+        )
+
+        let originalData = try #require(manager.accountAuthDataWithoutMaterialization(for: account))
+        var detachedObject = try #require(JSON(data: originalData).dictionaryObject)
+        detachedObject["OPENAI_API_KEY"] = "sk-new-87654321"
+        let detachedData = try JSONSerialization.data(withJSONObject: detachedObject, options: [])
+        let snapshots = try await manager.loadAccounts()
+        let affected = try await manager.upsertSnapshotFromProviderData(
+            authData: detachedData,
+            providerRaw: String(data: detachedData, encoding: .utf8),
+            snapshots: snapshots,
+            provider: provider,
+            excludedAccountID: nil
+        )
+
+        let accounts = try await manager.loadAccounts()
+        #expect(accounts.count == 1)
+        #expect(affected.id == account.id)
+
+        let updated = try #require(accounts.first(where: { $0.id == account.id }))
+        let updatedData = try #require(manager.accountAuthDataWithoutMaterialization(for: updated))
+        let updatedJSON = try JSON(data: updatedData)
+        #expect(updatedJSON["OPENAI_API_KEY"].string == "sk-new-87654321")
+    }
+
+    @Test("Given active managed apikey auth file is externally replaced with a new api key, when preflight runs then the active snapshot is updated instead of creating a new account")
+    func preflightUpdatesActiveManagedAPIKeySnapshotWhenProviderAuthFileReplaced() async throws {
+        let root = try makeTempRoot("codex-auth-preflight-managed-apikey-provider-file")
+        defer { try? root.delete() }
+
+        let manager = CodexAuthManager(rootURL: root.url)
+        let provider = makeCodexProvider(root: root)
+        let account = try await manager.addConfiguredAccount(
+            name: "OpenAI Direct",
+            apiKey: "sk-old-provider-1234",
+            relay: nil
+        )
+        do {
+            try await manager.activateAccountAndMarkActive(account, for: provider)
+        } catch {
+            Issue.record("activateAccountAndMarkActive failed: \(error)")
+            return
+        }
+
+        let providerAuth = try #require(await manager.authFile(for: provider))
+        try? FileManager.default.removeItem(at: providerAuth.url)
+        try providerAuth.overlay(with: Data(#"""
+        {
+          "auth_mode": "apikey",
+          "OPENAI_API_KEY": "sk-new-provider-5678"
+        }
+        """#.utf8))
+
+        let affected: CodexAuthAccount?
+        do {
+            affected = try await manager.preflightManagedAuthIfNeeded(
+                for: provider,
+                forceBackup: false,
+                reason: "test_managed_apikey_provider_file_replace"
+            )
+        } catch {
+            Issue.record("preflightManagedAuthIfNeeded failed: \(error)")
+            return
+        }
+
+        let accounts = try await manager.loadAccounts()
+        #expect(accounts.count == 1)
+        #expect(affected?.id == account.id)
+
+        let updated = try #require(accounts.first(where: { $0.id == account.id }))
+        let updatedData = try #require(manager.accountAuthDataWithoutMaterialization(for: updated))
+        let updatedJSON = try JSON(data: updatedData)
+        #expect(updatedJSON["OPENAI_API_KEY"].string == "sk-new-provider-5678")
+    }
+
+    @Test("Given active managed apikey symlink target is externally replaced with a new api key, when preflight runs then the active snapshot is updated instead of creating a new account")
+    func preflightUpdatesActiveManagedAPIKeySnapshotWhenSymlinkTargetReplaced() async throws {
+        let root = try makeTempRoot("codex-auth-preflight-managed-apikey-symlink-target")
+        defer { try? root.delete() }
+
+        let manager = CodexAuthManager(rootURL: root.url)
+        let provider = makeCodexProvider(root: root)
+        let account = try await manager.addConfiguredAccount(
+            name: "OpenAI Direct",
+            apiKey: "sk-old-symlink-1234",
+            relay: nil
+        )
+        try await manager.activateAccountAndMarkActive(account, for: provider)
+
+        let providerAuth = try #require(await manager.authFile(for: provider))
+        let activeManagedAuth = STFile(try providerAuth.destinationOfSymbolicLink().url.path)
+        try activeManagedAuth.overlay(with: Data(#"""
+        {
+          "auth_mode": "apikey",
+          "OPENAI_API_KEY": "sk-new-symlink-5678"
+        }
+        """#.utf8))
+
+        let affected = try await manager.preflightManagedAuthIfNeeded(
+            for: provider,
+            forceBackup: false,
+            reason: "test_managed_apikey_symlink_target_replace"
+        )
+
+        let accounts = try await manager.loadAccounts()
+        #expect(accounts.count == 1)
+        #expect(affected == nil)
+        #expect(await manager.activeAccountId(for: provider) == account.id)
+
+        let updated = try #require(accounts.first(where: { $0.id == account.id }))
+        let updatedData = try #require(manager.accountAuthDataWithoutMaterialization(for: updated))
+        let updatedJSON = try JSON(data: updatedData)
+        #expect(updatedJSON["OPENAI_API_KEY"].string == "sk-new-symlink-5678")
+    }
+
     @Test("Given detached provider auth with invalid json and healthy snapshot, when preflight runs then snapshot is kept as source of truth")
     func preflightPrefersHealthySnapshotWhenProviderAuthBroken() async throws {
         let root = try makeTempRoot("codex-auth-preflight-prefer-snapshot")
@@ -214,23 +340,21 @@ extension CodexAuthManagerTests {
         _ = try await manager.preflightManagedAuthIfNeeded(for: provider, forceBackup: true, reason: "seed_backup")
 
         let driftedRaw = #"{"tokens":{"id_token":"id-drift","access_token":"access-drift","account_id":"acct-shared"},"email":"drift@example.com"}"#
-        let activeID = try #require(await manager.activeAccountId(for: provider))
-        let activeResolved = try #require((try await manager.loadAccounts()).first(where: { $0.id == activeID }))
-        let activeFile = await manager.accountAuthFile(activeResolved)
+        let providerAuth = try #require(await manager.authFile(for: provider))
+        let activeFile = STFile(try providerAuth.destinationOfSymbolicLink().url.path)
         try activeFile.overlay(with: Data(driftedRaw.utf8))
 
         _ = try await manager.preflightManagedAuthIfNeeded(for: provider, forceBackup: false, reason: "detect_drift")
 
         let restoredActiveID = try #require(await manager.activeAccountId(for: provider))
         let restoredActive = try #require((try await manager.loadAccounts()).first(where: { $0.id == restoredActiveID }))
-        let restoredSummary = CodexAuthSummary.fromJSONData(try await manager.accountAuthFile(restoredActive).data())
+        let restoredSummary = CodexAuthSummary.fromJSONData(try #require(manager.accountAuthData(for: restoredActive)))
         #expect(restoredSummary.email == "active@example.com")
 
         let accounts = try await manager.loadAccounts()
         var driftedFound = false
         for account in accounts where account.id != restoredActiveID {
-            let file = await manager.accountAuthFile(account)
-            let summary = CodexAuthSummary.fromJSONData((try? file.data()) ?? Data())
+            let summary = CodexAuthSummary.fromJSONData(manager.accountAuthData(for: account) ?? Data())
             if summary.email == "drift@example.com" {
                 driftedFound = true
                 break
@@ -281,9 +405,8 @@ extension CodexAuthManagerTests {
           }
         }
         """#
-        let activeID = try #require(await manager.activeAccountId(for: provider))
-        let activeResolved = try #require((try await manager.loadAccounts()).first(where: { $0.id == activeID }))
-        let activeFile = await manager.accountAuthFile(activeResolved)
+        let providerAuth = try #require(await manager.authFile(for: provider))
+        let activeFile = STFile(try providerAuth.destinationOfSymbolicLink().url.path)
         try activeFile.overlay(with: Data(driftedRaw.utf8))
 
         _ = try await manager.preflightManagedAuthIfNeeded(for: provider, forceBackup: false, reason: "detect_drift")
@@ -298,7 +421,7 @@ extension CodexAuthManagerTests {
 
         let restoredActiveID = try #require(await manager.activeAccountId(for: provider))
         let restoredActive = try #require(accounts.first(where: { $0.id == restoredActiveID }))
-        let restoredSummary = CodexAuthSummary.fromJSONData(try await manager.accountAuthFile(restoredActive).data())
+        let restoredSummary = CodexAuthSummary.fromJSONData(try #require(manager.accountAuthData(for: restoredActive)))
         #expect(restoredSummary.email == "active@example.com")
     }
     @Test("Given active drift payload shares account id but has different email from existing snapshots, when preflight runs then drift payload is saved as a new snapshot")
@@ -344,9 +467,8 @@ extension CodexAuthManagerTests {
           }
         }
         """#
-        let activeID = try #require(await manager.activeAccountId(for: provider))
-        let activeResolved = try #require((try await manager.loadAccounts()).first(where: { $0.id == activeID }))
-        let activeFile = await manager.accountAuthFile(activeResolved)
+        let providerAuth = try #require(await manager.authFile(for: provider))
+        let activeFile = STFile(try providerAuth.destinationOfSymbolicLink().url.path)
         try activeFile.overlay(with: Data(driftedRaw.utf8))
 
         _ = try await manager.preflightManagedAuthIfNeeded(for: provider, forceBackup: false, reason: "detect_drift")
@@ -361,7 +483,7 @@ extension CodexAuthManagerTests {
 
         var newcomerCount = 0
         for account in accounts {
-            guard let data = try? await manager.accountAuthFile(account).data() else { continue }
+            guard let data = manager.accountAuthData(for: account) else { continue }
             let summary = CodexAuthSummary.fromJSONData(data)
             if summary.email == "newcomer@example.com" {
                 newcomerCount += 1

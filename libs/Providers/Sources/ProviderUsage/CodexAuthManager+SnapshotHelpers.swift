@@ -170,6 +170,29 @@ extension CodexAuthManager {
         return nil
     }
 
+    func matchManagedAPIKeySnapshotByNolonAccountID(
+        authIdentity: AccountIdentity,
+        snapshots: [AccountSnapshot],
+        excludedAccountID: UUID?
+    ) -> CodexAuthAccount? {
+        guard authIdentity.accountID == nil,
+              authIdentity.email == nil,
+              let authNolonAccountID = authIdentity.nolonAccountID
+        else {
+            return nil
+        }
+
+        let matches = snapshots.compactMap { snapshot -> CodexAuthAccount? in
+            guard snapshot.identity.nolonAccountID == authNolonAccountID,
+                  snapshot.account.id != excludedAccountID
+            else {
+                return nil
+            }
+            return snapshot.account
+        }
+        return pickLatestAccount(from: matches)
+    }
+
     func existingAuthRelativePaths() -> Set<String> {
         let rows = (try? queryCodexAccountsRowsFromSQLite()) ?? []
         let sqlitePaths = rows.map { sqliteRelativeAuthPath(for: $0.id) }
@@ -185,6 +208,12 @@ extension CodexAuthManager {
     func isRelayProfileAccount(_ account: CodexAuthAccount) -> Bool {
         guard let data = try? readAccountAuthData(account), !data.isEmpty else { return false }
         return CodexAuthSummary.fromJSONData(data).cardKind == .relayProfile
+    }
+
+    func isSelfManagedConfiguredAccount(_ account: CodexAuthAccount) -> Bool {
+        guard let data = try? readAccountAuthData(account), !data.isEmpty else { return false }
+        guard let cardKind = CodexAuthSummary.fromJSONData(data).cardKind else { return false }
+        return cardKind.isSelfManagedConfiguredAccount
     }
 
     func loadActiveAccountMap() -> [String: String] {
@@ -249,6 +278,14 @@ extension CodexAuthManager {
             excludedAccountID: nil
         ) {
             return strictMatch
+        }
+
+        if let managedMatch = matchManagedAPIKeySnapshotByNolonAccountID(
+            authIdentity: authIdentity,
+            snapshots: snapshots,
+            excludedAccountID: nil
+        ) {
+            return managedMatch
         }
 
         let apiKeyMatches = snapshots.compactMap { snapshot -> CodexAuthAccount? in
@@ -355,6 +392,23 @@ extension CodexAuthManager {
     func pickLatestAccount(from accounts: [CodexAuthAccount]) -> CodexAuthAccount? {
         guard !accounts.isEmpty else { return nil }
         return accounts.sorted(by: { $0.createdAt > $1.createdAt }).first
+    }
+
+    func preferredManagedAPIKeyAccount(
+        authData: Data,
+        authIdentity: AccountIdentity,
+        preferredAccount: CodexAuthAccount?
+    ) -> CodexAuthAccount? {
+        guard authIdentity.accountID == nil,
+              authIdentity.email == nil,
+              authIdentity.nolonAccountID == nil,
+              extractAPIKey(from: authData) != nil,
+              let preferredAccount,
+              isSelfManagedConfiguredAccount(preferredAccount)
+        else {
+            return nil
+        }
+        return preferredAccount
     }
 
     func createSnapshotAccount(authJSONString: String) throws -> CodexAuthAccount {

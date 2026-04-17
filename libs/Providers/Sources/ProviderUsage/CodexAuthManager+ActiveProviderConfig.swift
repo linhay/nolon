@@ -87,14 +87,23 @@ extension CodexAuthManager {
         switch try activeProviderConfigIntent(for: account, configFile: configFile) {
         case let .apply(relay):
             try configManager.applyRelayConfig(configFile: configFile, relay: relay)
-            migrationManager.migrateSessionProviders(
-                codexHome: codexHome,
-                sourceProviderIDs: [baselineProviderID, previousManagedProviderID].compactMap { $0 },
+            let sourceProviderIDs = migrationSourceProviderIDs(
+                baselineProviderID: baselineProviderID,
+                previousManagedProviderID: previousManagedProviderID,
                 targetProviderID: relay.providerID
             )
+            if !sourceProviderIDs.isEmpty {
+                migrationManager.migrateSessionProviders(
+                    codexHome: codexHome,
+                    sourceProviderIDs: sourceProviderIDs,
+                    targetProviderID: relay.providerID
+                )
+            }
         case .restore:
             try configManager.restoreManagedConfig(configFile: configFile)
-            if let previousManagedProviderID {
+            if let previousManagedProviderID,
+               normalizedManagedProviderID(previousManagedProviderID) != normalizedManagedProviderID(baselineProviderID)
+            {
                 migrationManager.migrateSessionProviders(
                     codexHome: codexHome,
                     sourceProviderIDs: [previousManagedProviderID],
@@ -106,17 +115,27 @@ extension CodexAuthManager {
         }
     }
 
-    public func refreshActiveProviderConfigIfNeeded(for account: CodexAuthAccount, provider: Provider) throws {
+    public func refreshActiveProviderFilesIfNeeded(
+        for account: CodexAuthAccount,
+        provider: Provider,
+        syncRuntimeConfig: Bool
+    ) throws {
         let activeID = resolveActiveAccountID(from: loadActiveAccountMap(), for: provider)
         guard activeID == account.id.uuidString else {
             return
         }
         try withAuthFileLock {
-            try syncActiveProviderConfig(for: account, provider: provider)
+            if syncRuntimeConfig {
+                try syncActiveProviderConfig(for: account, provider: provider)
+            }
             // Keep the provider-facing auth.json in sync with the latest SQLite snapshot
             // after editing the currently active configured account.
             try activateAccount(account, for: provider)
         }
+    }
+
+    public func refreshActiveProviderConfigIfNeeded(for account: CodexAuthAccount, provider: Provider) throws {
+        try refreshActiveProviderFilesIfNeeded(for: account, provider: provider, syncRuntimeConfig: true)
     }
 
     private func activeProviderConfigIntent(
@@ -203,6 +222,24 @@ extension CodexAuthManager {
             .replacingOccurrences(of: "-+", with: "-", options: .regularExpression)
             .trimmingCharacters(in: CharacterSet(charactersIn: "-"))
         return sanitized.isEmpty ? nil : sanitized
+    }
+
+    private func migrationSourceProviderIDs(
+        baselineProviderID: String,
+        previousManagedProviderID: String?,
+        targetProviderID: String
+    ) -> [String] {
+        if normalizedManagedProviderID(previousManagedProviderID) == normalizedManagedProviderID(targetProviderID) {
+            return []
+        }
+
+        var seen: Set<String> = []
+        return [baselineProviderID, previousManagedProviderID]
+            .compactMap { normalizedManagedProviderID($0) }
+            .filter { sourceProviderID in
+                guard sourceProviderID != targetProviderID else { return false }
+                return seen.insert(sourceProviderID).inserted
+            }
     }
 
     private func trimmedString(_ value: Any?) -> String? {

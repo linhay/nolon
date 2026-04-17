@@ -7,6 +7,7 @@ struct CodexConfigEditorSheet: View {
     @State private var authJSONEditorErrorMessage: String?
     @State private var lastRenderedAuthPreviewJSON = ""
     let modelProviderOptions: [String]
+    let isSaving: Bool
     let errorMessage: String?
     let onCancel: () -> Void
     let onValidateConnection: () -> Void
@@ -53,7 +54,7 @@ struct CodexConfigEditorSheet: View {
     }
 
     private var canValidateConnection: Bool {
-        canSaveDraft
+        canSaveDraft && !isSaving
     }
 
     private var emptyAuthPreviewJSON: String {
@@ -74,8 +75,21 @@ struct CodexConfigEditorSheet: View {
     private func stringBinding(_ keyPath: WritableKeyPath<ProviderUsageEngine.CodexConfigEditorDraft, String>) -> Binding<String> {
         Binding(
             get: { draft?[keyPath: keyPath] ?? "" },
-            set: { draft?[keyPath: keyPath] = $0 }
+            set: { value in
+                draft = Self.updatedDraft(draft) { draft in
+                    draft[keyPath: keyPath] = value
+                }
+            }
         )
+    }
+
+    static func updatedDraft(
+        _ draft: ProviderUsageEngine.CodexConfigEditorDraft?,
+        mutate: (inout ProviderUsageEngine.CodexConfigEditorDraft) -> Void
+    ) -> ProviderUsageEngine.CodexConfigEditorDraft? {
+        guard var draft else { return nil }
+        mutate(&draft)
+        return draft
     }
 
     var body: some View {
@@ -98,6 +112,7 @@ struct CodexConfigEditorSheet: View {
                             .padding(.horizontal, 24)
                             .padding(.vertical, 24)
                         }
+                        .disabled(isSaving)
 
                         Divider()
 
@@ -111,6 +126,7 @@ struct CodexConfigEditorSheet: View {
                         enableCancelShortcut: true,
                         action: onCancel
                     )
+                    .disabled(isSaving)
                     .padding(SkillDetailScaffoldMetrics.closeButtonPadding)
                     .accessibilityIdentifier("codex-config-editor-close")
                 }
@@ -178,7 +194,7 @@ struct CodexConfigEditorSheet: View {
                         comment: "Codex config editor api key hint"
                     )
                 ) {
-                    SecureField("", text: stringBinding(\.apiKey))
+                    TextField("", text: stringBinding(\.apiKey))
                         .textFieldStyle(.roundedBorder)
                 }
             }
@@ -214,7 +230,9 @@ struct CodexConfigEditorSheet: View {
                             Menu {
                                 ForEach(modelProviderOptions, id: \.self) { option in
                                     Button(option) {
-                                        draft?.modelProvider = option
+                                        draft = Self.updatedDraft(draft) { draft in
+                                            draft.modelProvider = option
+                                        }
                                     }
                                 }
                             } label: {
@@ -357,18 +375,32 @@ struct CodexConfigEditorSheet: View {
                 onCancel()
             }
             .buttonStyle(.bordered)
+            .disabled(isSaving)
+            .accessibilityIdentifier("codex-config-editor-cancel")
 
             Button(NSLocalizedString("codex.accounts.action.validate", value: "Validate", comment: "Validate configured account")) {
                 onValidateConnection()
             }
             .buttonStyle(.bordered)
             .disabled(!canValidateConnection)
+            .accessibilityIdentifier("codex-config-editor-validate")
 
-            Button(primaryActionTitle) {
+            Button {
                 onSave()
+            } label: {
+                Group {
+                    if isSaving {
+                        ProgressView()
+                            .controlSize(.small)
+                    } else {
+                        Text(primaryActionTitle)
+                    }
+                }
+                .frame(minWidth: 48)
             }
             .buttonStyle(.borderedProminent)
-            .disabled(!canSaveDraft)
+            .disabled(!canSaveDraft || isSaving)
+            .accessibilityIdentifier("codex-config-editor-save")
         }
         .padding(.horizontal, 24)
         .padding(.vertical, 16)

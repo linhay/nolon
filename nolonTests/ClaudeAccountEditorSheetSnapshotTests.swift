@@ -40,6 +40,21 @@ struct ClaudeAccountEditorSheetSnapshotTests {
         #expect(allTextValues(in: host.view).contains("https://relay.example.com/v1"))
     }
 
+    @Test("BDD: Given edit draft when rendering credential field then it uses plain text input")
+    func editEditorUsesPlainTextCredentialField() {
+        let host = makeHost(
+            ClaudeAccountEditorSheet(
+                draft: .constant(makeEditDraft()),
+                errorMessage: nil,
+                onCancel: {},
+                onSave: {}
+            )
+        )
+
+        #expect(findDescendant(in: host.view, as: NSSecureTextField.self) == nil)
+        #expect(editablePlainTextValues(in: host.view).contains("sk-ant-api-visible"))
+    }
+
     private func makeCreateDraft() -> ProviderUsageAccountsViewModel.ClaudeState.AccountEditorDraft {
         ProviderUsageAccountsViewModel.ClaudeState.AccountEditorDraft(
             mode: .create,
@@ -62,7 +77,7 @@ struct ClaudeAccountEditorSheetSnapshotTests {
             accountID: UUID(uuidString: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")!,
             name: "Relay Claude",
             credentialType: .apiKey,
-            credentialValue: "",
+            credentialValue: "sk-ant-api-visible",
             baseURL: "https://relay.example.com/v1",
             anthropicModel: "claude-primary",
             anthropicReasoningModel: "claude-reasoning",
@@ -112,6 +127,17 @@ struct ClaudeAccountEditorSheetSnapshotTests {
         }
         for child in root.subviews {
             results.append(contentsOf: allTextValues(in: child))
+        }
+        return results
+    }
+
+    private func editablePlainTextValues(in root: NSView) -> [String] {
+        var results: [String] = []
+        if let textField = root as? NSTextField, textField.isEditable, !(textField is NSSecureTextField) {
+            results.append(textField.stringValue)
+        }
+        for child in root.subviews {
+            results.append(contentsOf: editablePlainTextValues(in: child))
         }
         return results
     }

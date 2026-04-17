@@ -79,6 +79,7 @@ protocol ProviderUsageCodexEngineProtocol: AnyObject {
     var codexConfigEditorDraft: CodexConfigEditorDraft? { get set }
     var codexConfigEditorModelProviderOptions: [String] { get set }
     var codexConfigEditorErrorMessage: String? { get set }
+    var isSavingCodexConfigEditor: Bool { get set }
     var codexUsageQueryTestSuccessMessage: String? { get set }
     var codexUsageQueryTestErrorMessage: String? { get set }
     var isTestingCodexUsageQuery: Bool { get set }

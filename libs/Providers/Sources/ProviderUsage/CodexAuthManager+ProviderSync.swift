@@ -82,22 +82,20 @@ extension CodexAuthManager {
         }
 
         if providerAuthFile.isSymbolicLink {
-            if let destination = resolveSymlinkTarget(for: providerAuthFile) {
-                if let destinationData = try? Data(contentsOf: destination.url),
-                   let linked = matchAccount(authData: destinationData, accounts: snapshots) {
+            if let destination = resolveSymlinkTarget(for: providerAuthFile),
+               let destinationData = try? Data(contentsOf: destination.url),
+               !destinationData.isEmpty {
+                if let linked = matchAccount(authData: destinationData, accounts: snapshots) {
                     let activeID = activeAccountIdFromRegistry(for: provider, accounts: snapshots)
-                    if let activeID,
-                       let active = snapshots.first(where: { $0.id == activeID }),
-                       active.id != linked.id {
-                        try relinkProviderAuth(providerAuthFile: providerAuthFile, resolved: active, provider: provider)
-                        return active
-                    }
-                    if activeID != linked.id {
+                    if activeID == nil {
                         try setActiveAccount(linked, for: provider)
                         return linked
                     }
-                    return nil
                 }
+                // Keep active symlink content intact here.
+                // A changed symlink target is repaired in reconcileActiveSymlinkDriftIfNeeded,
+                // which can restore the original active snapshot while preserving the drifted payload.
+                return nil
             }
             if let activeID = activeAccountIdFromRegistry(for: provider, accounts: snapshots),
                let active = snapshots.first(where: { $0.id == activeID }) {
@@ -126,7 +124,8 @@ extension CodexAuthManager {
                 providerRaw: providerRaw,
                 snapshots: snapshots,
                 provider: provider,
-                excludedAccountID: nil
+                excludedAccountID: nil,
+                preferredManagedAccount: activeAccount
             ) else {
                 Self.logger.warning(
                     "Codex preflight skipped non-importable provider auth payload. provider=\(provider.id, privacy: .public)"
@@ -141,7 +140,8 @@ extension CodexAuthManager {
                     providerRaw: providerRaw,
                     snapshots: snapshots,
                     provider: provider,
-                    excludedAccountID: nil
+                    excludedAccountID: nil,
+                    preferredManagedAccount: activeAccount
                 ) else {
                     Self.logger.warning(
                         "Codex preflight skipped fallback upsert due to non-importable payload. provider=\(provider.id, privacy: .public)"
@@ -268,7 +268,8 @@ extension CodexAuthManager {
         providerRaw: String?,
         snapshots: [CodexAuthAccount],
         provider: Provider,
-        excludedAccountID: UUID?
+        excludedAccountID: UUID?,
+        preferredManagedAccount: CodexAuthAccount? = nil
     ) throws -> CodexAuthAccount {
         guard !authData.isEmpty else {
             throw CocoaError(.fileReadCorruptFile)
@@ -325,6 +326,24 @@ extension CodexAuthManager {
             try saveAccountAuthData(matched, data: normalized)
             return accountFromNormalizedPayloadData(normalized, fallbackRelativeAuthPath: matched.relativeAuthPath)
         }
+
+        if let preferredAccount = preferredManagedAPIKeyAccount(
+            authData: preparedPayload.data,
+            authIdentity: authIdentity,
+            preferredAccount: preferredManagedAccount
+        ),
+           preferredAccount.id != excludedAccountID
+        {
+            let normalized = try normalizeAccountPayloadData(
+                authJSONString: raw,
+                preferredId: preferredAccount.id,
+                preferredCreatedAt: preferredAccount.createdAt,
+                relativeAuthPath: preferredAccount.relativeAuthPath
+            )
+            try saveAccountAuthData(preferredAccount, data: normalized)
+            return accountFromNormalizedPayloadData(normalized, fallbackRelativeAuthPath: preferredAccount.relativeAuthPath)
+        }
+
         return try createSnapshotAccount(authJSONString: raw)
     }
 
@@ -388,10 +407,13 @@ extension CodexAuthManager {
         else { return nil }
 
         let accounts = try loadAccountsFromAuthFolder()
-        let linkedAccount: CodexAuthAccount? = {
+        let currentProviderData: Data? = {
             guard let destination = resolveSymlinkTarget(for: providerAuthFile) else { return nil }
-            guard let destinationData = try? Data(contentsOf: destination.url) else { return nil }
-            return matchAccount(authData: destinationData, accounts: accounts)
+            return try? Data(contentsOf: destination.url)
+        }()
+        let linkedAccount: CodexAuthAccount? = {
+            guard let currentProviderData, !currentProviderData.isEmpty else { return nil }
+            return matchAccount(authData: currentProviderData, accounts: accounts)
         }()
 
         let registryActiveID = activeAccountIdFromRegistry(for: provider, accounts: accounts)
@@ -407,7 +429,8 @@ extension CodexAuthManager {
             try setActiveAccount(activeAccount, for: provider)
         }
 
-        guard let activeData = try? readAccountAuthData(activeAccount), !activeData.isEmpty else { return nil }
+        let activeData = currentProviderData ?? (try? readAccountAuthData(activeAccount))
+        guard let activeData, !activeData.isEmpty else { return nil }
 
         let currentHash = cleanedHashHex(for: activeData)
         var fingerprints = loadActiveFingerprintMap()
@@ -431,10 +454,31 @@ extension CodexAuthManager {
             return nil
         }
 
-        if isSameIdentity(backupData, activeData) {
+        let activeSummary = CodexAuthSummary.fromJSONData(activeData)
+        let activeIdentity = accountIdentity(from: activeData, summary: activeSummary)
+        let matchesPreferredManagedAPIKey =
+            preferredManagedAPIKeyAccount(
+                authData: activeData,
+                authIdentity: activeIdentity,
+                preferredAccount: activeAccount
+            )?.id == activeAccount.id
+
+        if isSameIdentity(backupData, activeData) || matchesPreferredManagedAPIKey {
+            let refreshedActive = try upsertSnapshotFromProviderData(
+                authData: activeData,
+                providerRaw: String(data: activeData, encoding: .utf8),
+                snapshots: accounts,
+                provider: provider,
+                excludedAccountID: nil,
+                preferredManagedAccount: activeAccount
+            )
+            try relinkProviderAuth(providerAuthFile: providerAuthFile, resolved: refreshedActive, provider: provider)
             fingerprints[provider.id] = currentHash
             try saveActiveFingerprintMap(fingerprints)
-            return nil
+            Self.logger.info(
+                "Codex active snapshot updated from active symlink drift without account split. provider=\(provider.id, privacy: .public) active=\(refreshedActive.id.uuidString, privacy: .public)"
+            )
+            return refreshedActive
         }
 
         // External CLI switched account through active symlink:
@@ -489,6 +533,12 @@ extension CodexAuthManager {
            let rightEmail = rhsIdentity.email
         {
             return leftEmail == rightEmail
+        }
+
+        if let leftNolonID = lhsIdentity.nolonAccountID,
+           let rightNolonID = rhsIdentity.nolonAccountID
+        {
+            return leftNolonID == rightNolonID
         }
         return false
     }

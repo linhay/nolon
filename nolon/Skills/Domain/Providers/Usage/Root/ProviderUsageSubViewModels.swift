@@ -74,6 +74,7 @@ final class ProviderUsageAccountsViewModel {
             engine.codexConfigEditorModelProviderOptions
         }
         var configEditorErrorMessage: String? { engine.codexConfigEditorErrorMessage }
+        var isSavingConfigEditor: Bool { engine.isSavingCodexConfigEditor }
         var usageQueryTestSuccessMessage: String? { engine.codexUsageQueryTestSuccessMessage }
         var usageQueryTestErrorMessage: String? { engine.codexUsageQueryTestErrorMessage }
         var isTestingUsageQuery: Bool { engine.isTestingCodexUsageQuery }

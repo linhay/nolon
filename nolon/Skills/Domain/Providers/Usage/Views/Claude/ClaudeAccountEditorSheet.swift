@@ -240,7 +240,7 @@ struct ClaudeAccountEditorSheet: View {
                         comment: "Claude credential hint"
                     )
                 ) {
-                    SecureField("", text: stringBinding(\.credentialValue))
+                    TextField("", text: stringBinding(\.credentialValue))
                         .textFieldStyle(.roundedBorder)
                 }
 

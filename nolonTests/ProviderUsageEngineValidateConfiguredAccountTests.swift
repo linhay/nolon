@@ -162,6 +162,184 @@ final class ProviderUsageEngineValidateConfiguredAccountTests: XCTestCase {
         XCTAssertFalse(relayObject.keys.contains("headers"))
     }
 
+    func testBDD_GivenEditedConfiguredAccount_WhenSavingNewAPIKey_ThenReopeningLoadsUpdatedAPIKey() async throws {
+        let root = try makeTempDirectory()
+        let manager = CodexAuthManager(rootURL: root)
+        let provider = Provider(
+            name: "Codex",
+            defaultSkillsPath: root.appendingPathComponent("skills", isDirectory: true).path,
+            workflowPath: "/tmp/codex-prompts",
+            installMethod: .symlink,
+            templateId: "codex"
+        )
+        let account = try await manager.addConfiguredAccount(
+            name: "OpenAI Direct",
+            apiKey: "sk-live-old",
+            relay: nil
+        )
+        let viewModel = ProviderUsageEngine(provider: provider, codexAuthManager: manager)
+        viewModel.codexAccounts = [account]
+        viewModel.codexAccountSummaries[account.id] = CodexAuthSummary(cardKind: .officialAPIKey)
+
+        viewModel.beginEditCodexConfiguredAccount(id: account.id)
+        var draft = try XCTUnwrap(viewModel.codexConfigEditorDraft)
+        draft.apiKey = "sk-live-new"
+        viewModel.codexConfigEditorDraft = draft
+
+        await viewModel.saveCodexConfigEditor()
+
+        let reloadedAccounts = try await manager.loadAccounts()
+        viewModel.codexAccounts = reloadedAccounts
+        viewModel.codexAccountSummaries[account.id] = CodexAuthSummary(cardKind: .officialAPIKey)
+
+        viewModel.beginEditCodexConfiguredAccount(id: account.id)
+
+        XCTAssertEqual(viewModel.codexConfigEditorDraft?.apiKey, "sk-live-new")
+    }
+
+    func testBDD_GivenEditedConfiguredAccount_WhenSavingNewAPIKey_ThenImmediateReopenUsesLocalPatchedState() async throws {
+        let root = try makeTempDirectory()
+        let manager = CodexAuthManager(rootURL: root)
+        let provider = Provider(
+            name: "Codex",
+            defaultSkillsPath: root.appendingPathComponent("skills", isDirectory: true).path,
+            workflowPath: "/tmp/codex-prompts",
+            installMethod: .symlink,
+            templateId: "codex"
+        )
+        let account = try await manager.addConfiguredAccount(
+            name: "OpenAI Direct",
+            apiKey: "sk-live-old",
+            relay: nil
+        )
+        let viewModel = ProviderUsageEngine(provider: provider, codexAuthManager: manager)
+        viewModel.codexAccounts = [account]
+        viewModel.codexAccountSummaries[account.id] = CodexAuthSummary(cardKind: .officialAPIKey)
+
+        viewModel.beginEditCodexConfiguredAccount(id: account.id)
+        var draft = try XCTUnwrap(viewModel.codexConfigEditorDraft)
+        draft.apiKey = "sk-live-immediate"
+        viewModel.codexConfigEditorDraft = draft
+
+        await viewModel.saveCodexConfigEditor()
+        viewModel.beginEditCodexConfiguredAccount(id: account.id)
+
+        XCTAssertEqual(viewModel.codexConfigEditorDraft?.apiKey, "sk-live-immediate")
+    }
+
+    func testBDD_GivenActiveOfficialAPIKeyAccount_WhenSavingNewAPIKey_ThenItRefreshesActiveAuthWithoutRewritingConfig() async throws {
+        let root = try makeTempDirectory()
+        let providerHome = root.appendingPathComponent("provider-home", isDirectory: true)
+        let skillsPath = providerHome.appendingPathComponent("skills", isDirectory: true).path
+        try FileManager.default.createDirectory(at: providerHome, withIntermediateDirectories: true)
+        try writeConfig(
+            to: providerHome.appendingPathComponent("config.toml"),
+            content: #"""
+            approval_policy = "on-request"
+            model = "gpt-5.4"
+            """#
+        )
+
+        let provider = Provider(
+            name: "Codex",
+            defaultSkillsPath: skillsPath,
+            workflowPath: "/tmp/codex-prompts",
+            installMethod: .symlink,
+            templateId: "codex"
+        )
+        let manager = CodexAuthManager(rootURL: root)
+        let account = try await manager.addConfiguredAccount(
+            name: "OpenAI Direct",
+            apiKey: "sk-live-old",
+            relay: nil
+        )
+        try await manager.activateAccountAndMarkActive(account, for: provider)
+
+        let configURL = providerHome.appendingPathComponent("config.toml")
+        let expectedConfig = try String(contentsOf: configURL, encoding: .utf8)
+
+        let viewModel = ProviderUsageEngine(provider: provider, codexAuthManager: manager)
+        viewModel.codexAccounts = [account]
+        viewModel.codexAccountSummaries[account.id] = CodexAuthSummary(cardKind: .officialAPIKey)
+
+        viewModel.beginEditCodexConfiguredAccount(id: account.id)
+        var draft = try XCTUnwrap(viewModel.codexConfigEditorDraft)
+        draft.apiKey = "sk-live-updated"
+        viewModel.codexConfigEditorDraft = draft
+
+        await viewModel.saveCodexConfigEditor()
+
+        let actualConfig = try String(contentsOf: configURL, encoding: .utf8)
+        let activeAuthData = try Data(
+            contentsOf: providerHome.appendingPathComponent("auth.json")
+        )
+        let activeAuth = try JSON(data: activeAuthData)
+
+        XCTAssertEqual(actualConfig, expectedConfig)
+        XCTAssertEqual(activeAuth["OPENAI_API_KEY"].string, "sk-live-updated")
+    }
+
+    func testBDD_GivenActiveRelayAccount_WhenSavingNewBaseURL_ThenItRewritesManagedConfig() async throws {
+        let root = try makeTempDirectory()
+        let providerHome = root.appendingPathComponent("provider-home", isDirectory: true)
+        let skillsPath = providerHome.appendingPathComponent("skills", isDirectory: true).path
+        try FileManager.default.createDirectory(at: providerHome, withIntermediateDirectories: true)
+        try writeConfig(
+            to: providerHome.appendingPathComponent("config.toml"),
+            content: #"""
+            approval_policy = "on-request"
+            model_provider = "jobmd"
+
+            [model_providers.jobmd]
+            name = "jobmd"
+            base_url = "https://relay.example.com/v1"
+            requires_openai_auth = true
+            wire_api = "responses"
+            """#
+        )
+
+        let provider = Provider(
+            name: "Codex",
+            defaultSkillsPath: skillsPath,
+            workflowPath: "/tmp/codex-prompts",
+            installMethod: .symlink,
+            templateId: "codex"
+        )
+        let manager = CodexAuthManager(rootURL: root)
+        let account = try await manager.addConfiguredAccount(
+            name: "Relay",
+            apiKey: "rk-live-old",
+            relay: CodexAuthManager.ConfiguredRelay(
+                baseURL: "https://relay.example.com/v1",
+                modelProvider: "jobmd"
+            )
+        )
+        try await manager.activateAccountAndMarkActive(account, for: provider)
+
+        let viewModel = ProviderUsageEngine(provider: provider, codexAuthManager: manager)
+        viewModel.codexAccounts = [account]
+        viewModel.codexAccountSummaries[account.id] = CodexAuthSummary(
+            cardKind: .relayProfile,
+            relayBaseURL: "https://relay.example.com/v1",
+            relayModelProvider: "jobmd"
+        )
+
+        viewModel.beginEditCodexConfiguredAccount(id: account.id)
+        var draft = try XCTUnwrap(viewModel.codexConfigEditorDraft)
+        draft.baseURL = "https://relay-updated.example.com/v1"
+        viewModel.codexConfigEditorDraft = draft
+
+        await viewModel.saveCodexConfigEditor()
+
+        let config = try String(
+            contentsOf: providerHome.appendingPathComponent("config.toml"),
+            encoding: .utf8
+        )
+
+        XCTAssertTrue(config.contains(#"base_url = "https://relay-updated.example.com/v1""#))
+        XCTAssertFalse(config.contains(#"base_url = "https://relay.example.com/v1""#))
+    }
+
     func testBDD_GivenChatGPTSnapshot_WhenEditingAuthJSON_ThenDoesNotPresentConfigEditorSheet() async throws {
         let root = try makeTempDirectory()
         let manager = CodexAuthManager(rootURL: root)

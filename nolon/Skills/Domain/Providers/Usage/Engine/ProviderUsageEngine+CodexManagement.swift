@@ -17,6 +17,12 @@ import GRDB
 import STJSON
 
 extension ProviderUsageEngine {
+    enum CodexActiveRuntimeRefreshScope {
+        case none
+        case authOnly
+        case authAndConfig
+    }
+
     func beginImportAuthFiles() {
         codexImportConnectionTestsTask?.cancel()
         codexImportConnectionTestsTask = nil
@@ -239,6 +245,130 @@ extension ProviderUsageEngine {
               let summary = codexAccountSummaries[id]
         else { return }
 
+        let draft = codexConfiguredAccountEditorDraft(account: account, summary: summary)
+        codexConfigEditorDraft = draft
+        codexConfigEditorModelProviderOptions = loadCodexConfigEditorModelProviderOptions(
+            current: draft.modelProvider
+        )
+        codexConfigEditorErrorMessage = nil
+        codexUsageQueryTestSuccessMessage = nil
+        codexUsageQueryTestErrorMessage = nil
+        isShowingCodexConfigEditor = true
+    }
+
+    func dismissCodexConfigEditor() {
+        codexConfigEditorErrorMessage = nil
+        codexUsageQueryTestSuccessMessage = nil
+        codexUsageQueryTestErrorMessage = nil
+        isTestingCodexUsageQuery = false
+        isSavingCodexConfigEditor = false
+        codexConfigEditorDraft = nil
+        codexConfigEditorModelProviderOptions = []
+        isShowingCodexConfigEditor = false
+    }
+
+    func saveCodexConfigEditor() async {
+        guard let draft = codexConfigEditorDraft else { return }
+        guard !isSavingCodexConfigEditor else { return }
+
+        let apiKey = Self.trimmed(draft.apiKey)
+        guard !apiKey.isEmpty else {
+            codexConfigEditorErrorMessage = NSLocalizedString(
+                "codex.accounts.config.error.api_key_required",
+                value: "API Key is required.",
+                comment: "Codex config missing API key"
+            )
+            return
+        }
+
+        let relay: CodexAuthManager.ConfiguredRelay?
+        do {
+            relay = try makeCodexConfiguredRelay(from: draft)
+        } catch {
+            codexConfigEditorErrorMessage = error.localizedDescription
+            return
+        }
+
+        isSavingCodexConfigEditor = true
+        defer { isSavingCodexConfigEditor = false }
+
+        do {
+            let preferredName = resolvedConfiguredAccountName(
+                userInputName: draft.name,
+                baseURLText: draft.baseURL,
+                apiKey: apiKey,
+                editingAccountID: {
+                    if case let .edit(accountID) = draft.mode { return accountID }
+                    return nil
+                }()
+            )
+            let savedAccount: CodexAuthAccount
+            let refreshScope: CodexActiveRuntimeRefreshScope
+            switch draft.mode {
+            case .newAPIKey:
+                savedAccount = try await codexAuthManager.addConfiguredAccount(
+                    name: preferredName,
+                    apiKey: apiKey,
+                    relay: relay,
+                    usageQuery: nil
+                )
+                refreshScope = .none
+            case let .edit(accountID):
+                guard let account = codexAccounts.first(where: { $0.id == accountID }) else { return }
+                let existingDraft = codexConfiguredAccountEditorDraft(
+                    account: account,
+                    summary: codexAccountSummaries[accountID] ?? CodexAuthSummary()
+                )
+                try await codexAuthManager.updateConfiguredAccount(
+                    account,
+                    name: preferredName,
+                    apiKey: apiKey,
+                    relay: relay,
+                    usageQuery: nil
+                )
+                savedAccount = CodexAuthAccount(
+                    id: account.id,
+                    name: preferredName,
+                    createdAt: account.createdAt,
+                    relativeAuthPath: account.relativeAuthPath
+                )
+                refreshScope = codexActiveRuntimeRefreshScope(
+                    previous: existingDraft,
+                    current: draft
+                )
+                switch refreshScope {
+                case .none:
+                    break
+                case .authOnly:
+                    try await codexAuthManager.refreshActiveProviderFilesIfNeeded(
+                        for: savedAccount,
+                        provider: provider,
+                        syncRuntimeConfig: false
+                    )
+                case .authAndConfig:
+                    try await codexAuthManager.refreshActiveProviderFilesIfNeeded(
+                        for: savedAccount,
+                        provider: provider,
+                        syncRuntimeConfig: true
+                    )
+                }
+            }
+            await applySavedCodexConfiguredAccountLocally(savedAccount)
+            activeCodexAccountId = await codexAuthManager.activeAccountId(for: provider, accounts: codexAccounts)
+            if refreshScope != .none {
+                codexAuthFilePath = await codexAuthManager.authFile(for: provider)?.url.path
+                currentCodexAuthHashHex = await codexAuthManager.currentAuthHashHex(for: provider)
+            }
+            dismissCodexConfigEditor()
+        } catch {
+            codexConfigEditorErrorMessage = error.localizedDescription
+        }
+    }
+
+    func codexConfiguredAccountEditorDraft(
+        account: CodexAuthAccount,
+        summary: CodexAuthSummary
+    ) -> CodexConfigEditorDraft {
         let rawJSON: JSON? = {
             guard let data = codexAuthManager.accountAuthData(for: account) else { return nil }
             return try? JSON(data: data)
@@ -253,8 +383,8 @@ extension ProviderUsageEngine {
             return try? JSONDecoder().decode(CodexHTTPUsageQuery.self, from: data)
         }()
 
-        let draft = CodexConfigEditorDraft(
-            mode: .edit(accountID: id),
+        return CodexConfigEditorDraft(
+            mode: .edit(accountID: account.id),
             name: account.name,
             apiKey: rawJSON?["OPENAI_API_KEY"].string ?? "",
             baseURL: summary.relayBaseURL ?? "",
@@ -278,81 +408,55 @@ extension ProviderUsageEngine {
             httpUsageCostLast30DaysPath: usageQuery?.mapping?.costLast30DaysUSDPath ?? "",
             httpUsageErrorMessagePath: usageQuery?.mapping?.errorMessagePath ?? ""
         )
-        codexConfigEditorDraft = draft
-        codexConfigEditorModelProviderOptions = loadCodexConfigEditorModelProviderOptions(
-            current: draft.modelProvider
+    }
+
+    func codexActiveRuntimeRefreshScope(
+        previous: CodexConfigEditorDraft,
+        current: CodexConfigEditorDraft
+    ) -> CodexActiveRuntimeRefreshScope {
+        if (try? makeCodexConfiguredRelay(from: previous)) != (try? makeCodexConfiguredRelay(from: current)) {
+            return .authAndConfig
+        }
+        if Self.trimmed(previous.apiKey) != Self.trimmed(current.apiKey) {
+            return .authOnly
+        }
+        return .none
+    }
+
+    func applySavedCodexConfiguredAccountLocally(_ account: CodexAuthAccount) async {
+        if let index = codexAccounts.firstIndex(where: { $0.id == account.id }) {
+            codexAccounts[index] = account
+        } else {
+            codexAccounts.append(account)
+        }
+
+        if let authData = codexAuthManager.accountAuthDataWithoutMaterialization(for: account) {
+            codexAccountSummaries[account.id] = CodexAuthSummary.fromJSONData(authData)
+        } else {
+            codexAccountSummaries.removeValue(forKey: account.id)
+        }
+
+        let (updatedOutcome, refreshedAt) = await buildCachedCodexAccountOutcome(
+            for: account,
+            summary: codexAccountSummaries[account.id]
         )
-        codexConfigEditorErrorMessage = nil
-        codexUsageQueryTestSuccessMessage = nil
-        codexUsageQueryTestErrorMessage = nil
-        isShowingCodexConfigEditor = true
-    }
-
-    func dismissCodexConfigEditor() {
-        codexConfigEditorErrorMessage = nil
-        codexUsageQueryTestSuccessMessage = nil
-        codexUsageQueryTestErrorMessage = nil
-        isTestingCodexUsageQuery = false
-        codexConfigEditorDraft = nil
-        codexConfigEditorModelProviderOptions = []
-        isShowingCodexConfigEditor = false
-    }
-
-    func saveCodexConfigEditor() async {
-        guard let draft = codexConfigEditorDraft else { return }
-
-        let apiKey = Self.trimmed(draft.apiKey)
-        guard !apiKey.isEmpty else {
-            codexConfigEditorErrorMessage = NSLocalizedString(
-                "codex.accounts.config.error.api_key_required",
-                value: "API Key is required.",
-                comment: "Codex config missing API key"
-            )
-            return
+        if let index = codexAccountOutcomes.firstIndex(where: { outcome in
+            guard case let .tokenAccount(tokenAccount) = outcome.account else { return false }
+            return tokenAccount.id == account.id
+        }) {
+            codexAccountOutcomes[index] = updatedOutcome
+        } else {
+            codexAccountOutcomes.append(updatedOutcome)
         }
 
-        let relay: CodexAuthManager.ConfiguredRelay?
-        do {
-            relay = try makeCodexConfiguredRelay(from: draft)
-        } catch {
-            codexConfigEditorErrorMessage = error.localizedDescription
-            return
+        if let refreshedAt {
+            codexAccountCreditsRefreshedAt[account.id] = refreshedAt
+        } else {
+            codexAccountCreditsRefreshedAt.removeValue(forKey: account.id)
         }
 
-        do {
-            let preferredName = resolvedConfiguredAccountName(
-                userInputName: draft.name,
-                baseURLText: draft.baseURL,
-                apiKey: apiKey,
-                editingAccountID: {
-                    if case let .edit(accountID) = draft.mode { return accountID }
-                    return nil
-                }()
-            )
-            switch draft.mode {
-            case .newAPIKey:
-                _ = try await codexAuthManager.addConfiguredAccount(
-                    name: preferredName,
-                    apiKey: apiKey,
-                    relay: relay,
-                    usageQuery: nil
-                )
-            case let .edit(accountID):
-                guard let account = codexAccounts.first(where: { $0.id == accountID }) else { return }
-                try await codexAuthManager.updateConfiguredAccount(
-                    account,
-                    name: preferredName,
-                    apiKey: apiKey,
-                    relay: relay,
-                    usageQuery: nil
-                )
-                try await codexAuthManager.refreshActiveProviderConfigIfNeeded(for: account, provider: provider)
-            }
-            dismissCodexConfigEditor()
-            await reloadCodexFromDisk(refreshUsage: false)
-        } catch {
-            codexConfigEditorErrorMessage = error.localizedDescription
-        }
+        normalizeCodexGroupingOptionIfNeeded()
+        reorderCodexAccountOutcomesForDisplay()
     }
 
     static func resolvedCodexModelProvider(_ raw: String) -> String {

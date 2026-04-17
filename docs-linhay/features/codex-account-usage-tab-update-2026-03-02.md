@@ -132,6 +132,7 @@
 13. Given 用户填写 `API Key` 与 `Base URL`，When 保存，Then 表单会使用用户填写的 `Base URL`，且 `model_provider` 留空时按默认 `nolon` 处理。
 14. Given 用户打开 `新增 API Key` 弹框，When 查看关闭动作，Then 右上角显示统一关闭组件，底部不再重复出现 `Cancel` 按钮。
 15. Given 用户在官方 API Key 或 Relay 账号卡片菜单点击 `编辑`，When 系统处理该动作，Then 打开 `CodexConfigEditorSheet` 并载入当前账号配置，而不是直接打开 `auth.json` 文件。
+15a. Given 用户在 `CodexConfigEditorSheet` 修改 API Key 或 Relay 配置并点击保存，When 底层仍在执行账号写盘与 active provider config 同步，Then 弹框必须立即进入 saving 状态，显示进度反馈并阻止重复操作，直到保存完成或失败。
 16. Given 用户进入 Codex 批量选择模式，When 点击多张卡片，Then 这些卡片进入选中态，且不会触发账号激活。
 17. Given 用户在批量选择模式下已选中多张卡片，When 执行导出，Then 生成一个包含这些 auth.json 快照的 ZIP 文件。
 18. Given 用户导入一个包含多个 auth.json 的 ZIP，When 导入完成，Then 所有合法账号被新增为卡片，非法文件被忽略并显示校验摘要。
@@ -171,6 +172,59 @@
 - `ProviderUsageViewModel`：新增 `CodexAccountGroupingOption`、`CodexAccountSortOption`、`CodexPrimaryHeaderAction`、`codexAccountDisplaySections`、分组折叠状态，并抽出配置编辑器标题/副标题/主按钮文案。
 - `ProviderUsageViewModel`：新增导入 modal 状态、候选项分组/选择状态、自动连接测试与按选中项导入逻辑。
 - `CodexConfigEditorSheet`：改成简化直出编辑器，只保留 `model_provider / API Key / Base URL` 三个字段。
+
+## 进展更新（2026-04-17：API Key 明文展示与保存反馈）
+1. 用户新增交互要求：
+   - `API Key` 输入框不再使用密文遮罩，编辑态直接展示明文值。
+   - 用户修改 API Key 后点击保存时，弹框不能表现为“卡住”，而要立即给出保存中反馈。
+2. 代码链路结论：
+   - `API Key` 的密文展示仅由 `CodexConfigEditorSheet` 中的 `SecureField` 导致。
+   - 保存动作会等待 `updateConfiguredAccount(...)` 与当前激活账号的 `refreshActiveProviderConfigIfNeeded(...)` 完成；这段等待本身是预期行为，但旧 UI 没有 saving 态，容易被误判为卡顿。
+3. 本轮收敛方案：
+   - 将 `CodexConfigEditorSheet` 的 `API Key` 输入改为 `TextField`。
+   - 为 Codex config editor 增加 `isSaving` 状态，保存中显示 `ProgressView`，并禁用关闭、校验和重复保存操作。
+4. 回归验证要求：
+   - `CodexConfigEditorSheetSnapshotTests` 需验证编辑态不存在 `NSSecureTextField`，且保存中能看到进度指示。
+
+## 补充更新（2026-04-17：编辑态写回与重开回填）
+1. 新增缺陷反馈：
+   - 用户修改已存在账号的 `API Key` 后再次打开编辑器，看到的仍是旧值。
+   - 用户再次编辑时，只要把 `API Key` 删除到空字符串，编辑器主体就会消失。
+2. 根因定位：
+   - `CodexConfigEditorSheet` 对 `@Binding var draft: CodexConfigEditorDraft?` 使用了 `draft?[keyPath:] = value` 与 `draft?.modelProvider = option` 这种可选结构体的隐式局部写回。
+   - 该写法不会稳定触发整个 `draft` 回写到 `ProviderUsageEngine.codexConfigEditorDraft`，导致界面临时值、保存值与重开回填值可能不一致；在删除到空字符串时，这个丢失风险会表现为编辑器主体消失。
+3. 本轮收敛方案：
+   - `CodexConfigEditorSheet` 新增 `updatedDraft(...)`，把所有字段更新统一改为显式整包写回。
+   - `API Key`、`Name`、`Base URL` 与 `model_provider` 菜单都走同一条显式写回路径，避免可选 draft 局部修改丢失。
+   - 持久化层不改协议与 SQLite 语义，只修编辑页草稿状态同步链路。
+4. 回归验证要求：
+   - `CodexConfigEditorSheetSnapshotTests` 新增用例，验证显式写回后即使把 `API Key` 改成空字符串，draft 仍然存在。
+   - `ProviderUsageEngineValidateConfiguredAccountTests` 新增用例，验证保存新 `API Key` 后重新打开编辑器会回填新值。
+   - `xcodebuild test -project nolon.xcodeproj -scheme nolon-tests -destination 'platform=macOS' -only-testing:nolonTests/CodexConfigEditorSheetSnapshotTests` 通过（5 tests）
+   - `xcodebuild test -project nolon.xcodeproj -scheme nolon-tests -destination 'platform=macOS' -only-testing:nolonTests/ProviderUsageEngineValidateConfiguredAccountTests` 通过（12 tests）
+
+## 补充更新（2026-04-17：配置型账号保存链路瘦身）
+1. 新增性能边界：
+   - `Usage` 已拆到其他页面，账号编辑页不再需要为了保存单个账号触发整页 usage 重算。
+   - 当前需求仅覆盖“编辑单个配置型账号后，本页状态立即正确、active 运行态必要同步正确”。
+2. 根因定位：
+   - 原 `saveCodexConfigEditor()` 在编辑已存在账号时，会串行等待 `updateConfiguredAccount(...)`、`refreshActiveProviderConfigIfNeeded(...)` 和手动 `reloadCodexFromDisk(refreshUsage: false)`。
+   - 其中手动 `reloadCodexFromDisk` 会全量重载 `accounts / summaries / outcomes / grouping / active id / watcher`，而 GRDB SQLite observation 写库后还会再触发一次刷新，导致“编辑一个账号”退化成“前台做两次全量同步”。
+   - `activeAccountId(for:)` 旧实现内部还会再次 `loadAccounts()`，把已经在内存里的 `codexAccounts` 又重新扫了一遍 SQLite。
+3. 本轮收敛方案：
+   - 去掉保存成功后的手动全量 `reloadCodexFromDisk(refreshUsage: false)`，改为先本地 patch `codexAccounts / summaries / outcomes`，由 observation 作为后台兜底刷新。
+   - `activeAccountId(for:)` 新增复用已加载 `accounts` 的重载，避免保存和显示链路里重复 `loadAccounts()`。
+   - active 配置型账号保存时按字段 diff 决定同步范围：
+     - 仅改 `name`：`none`
+     - 仅改 `API Key`：只刷新 active `auth.json`
+     - Relay 相关字段变更：刷新 `auth.json + config.toml`
+   - `CodexActiveProviderConfig` 内部补充 provider migration 去重，避免相同 providerID 的重复 session migration。
+4. 验收与回归要求：
+   - 保存新 `API Key` 后，立刻重新打开编辑器，看到的是本地 patch 后的新值，不依赖下一轮全量 reload。
+   - active 官方 API key 账号只改 `API Key` 时，`auth.json` 更新，但 `config.toml` 保持不变。
+   - active relay 账号改 `Base URL` 时，托管 `config.toml` 会按新 relay 配置重写。
+   - `xcodebuild test -project nolon.xcodeproj -scheme nolon-tests -destination 'platform=macOS' -only-testing:nolonTests/ProviderUsageEngineValidateConfiguredAccountTests` 通过（15 tests）
+   - `xcodebuild test -project nolon.xcodeproj -scheme nolon-tests -destination 'platform=macOS' -only-testing:nolonTests/CodexConfigEditorSheetSnapshotTests` 通过（5 tests）
 
 ## 后续扩展
 - HTTP 用量查询能力已单独落到 [codex-http-usage-query-2026-03-07.md](/Users/linhey/Desktop/FlowUp-Libs/nolon/docs-linhay/features/codex-http-usage-query-2026-03-07.md)，并作为配置型卡片的可选能力接在 Codex CLI 用量链路前面。

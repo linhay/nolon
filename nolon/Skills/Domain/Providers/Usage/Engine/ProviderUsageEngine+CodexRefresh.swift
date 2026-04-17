@@ -33,7 +33,7 @@ extension ProviderUsageEngine {
         accounts: [CodexAuthAccount]
     ) async -> ProviderAccountUsageOutcome {
         guard case let .success(result) = outcome.outcome.result else { return outcome }
-        guard let activeId = await codexAuthManager.activeAccountId(for: provider),
+        guard let activeId = await codexAuthManager.activeAccountId(for: provider, accounts: accounts),
               let activeAccount = accounts.first(where: { $0.id == activeId }),
               let cache = try? await codexAuthManager.loadUsageCache(for: activeAccount)
         else { return outcome }

@@ -141,6 +141,7 @@ final class ProviderUsageEngine: CopyToastPresenting {
     var codexConfigEditorDraft: CodexConfigEditorDraft?
     var codexConfigEditorModelProviderOptions: [String] = []
     var codexConfigEditorErrorMessage: String?
+    var isSavingCodexConfigEditor = false
     var isTestingCodexUsageQuery = false
     var codexUsageQueryTestSuccessMessage: String?
     var codexUsageQueryTestErrorMessage: String?
@@ -1015,7 +1016,7 @@ final class ProviderUsageEngine: CopyToastPresenting {
             codexAccountSummaries = loadCodexAccountSummaries(accounts: codexAccounts)
             codexAccountCustomGroupNames = (try? await codexAuthManager.loadCustomGroupNamesByAccountID()) ?? [:]
             normalizeCodexGroupingOptionIfNeeded()
-            activeCodexAccountId = await codexAuthManager.activeAccountId(for: provider)
+            activeCodexAccountId = await codexAuthManager.activeAccountId(for: provider, accounts: codexAccounts)
             codexAccountOutcomes = await loadCachedCodexAccountOutcomes(
                 accounts: codexAccounts,
                 summaries: codexAccountSummaries
@@ -1173,7 +1174,7 @@ final class ProviderUsageEngine: CopyToastPresenting {
         codexAccountSummaries = loadCodexAccountSummaries(accounts: codexAccounts)
         codexAccountCustomGroupNames = (try? await codexAuthManager.loadCustomGroupNamesByAccountID()) ?? [:]
         normalizeCodexGroupingOptionIfNeeded()
-        activeCodexAccountId = await codexAuthManager.activeAccountId(for: provider)
+        activeCodexAccountId = await codexAuthManager.activeAccountId(for: provider, accounts: codexAccounts)
         codexAccountOutcomes = await loadCachedCodexAccountOutcomes(
             accounts: codexAccounts,
             summaries: codexAccountSummaries
@@ -1226,6 +1227,77 @@ final class ProviderUsageEngine: CopyToastPresenting {
         Task { await load() }
     }
 
+    func buildCachedCodexAccountOutcome(
+        for account: CodexAuthAccount,
+        summary: CodexAuthSummary?
+    ) async -> (ProviderAccountUsageOutcome, Date?) {
+        let tokenAccount = ProviderTokenAccount(
+            id: account.id,
+            label: account.name,
+            token: "",
+            addedAt: account.createdAt.timeIntervalSince1970,
+            lastUsed: nil
+        )
+
+        if let summary,
+           summary.cardKind?.isSelfManagedConfiguredAccount != true,
+           let persistedFailure = persistedCodexFailureOutcome(for: tokenAccount, summary: summary)
+        {
+            return (
+                ProviderAccountUsageOutcome(
+                    provider: .codex,
+                    account: .tokenAccount(tokenAccount),
+                    outcome: persistedFailure
+                ),
+                nil
+            )
+        }
+
+        if let cache = try? await codexAuthManager.loadUsageCache(for: account) {
+            let refreshedAt: Date?
+            if let credits = cache.credits, !credits.remaining.isNaN {
+                refreshedAt = cache.creditsRefreshedAt ?? cache.cachedAt
+            } else {
+                refreshedAt = nil
+            }
+            return (
+                ProviderAccountUsageOutcome(
+                    provider: .codex,
+                    account: .tokenAccount(tokenAccount),
+                    outcome: ProviderFetchOutcome(
+                        fetchKind: cache.fetchKind,
+                        result: .success(cache.toFetchResult())
+                    )
+                ),
+                refreshedAt
+            )
+        }
+
+        let placeholderUsage = UsageSnapshot(
+            identity: nil,
+            primary: nil,
+            secondary: nil,
+            tertiary: nil,
+            updatedAt: account.createdAt
+        )
+        let placeholderResult = ProviderFetchResult(
+            usage: placeholderUsage,
+            credits: nil,
+            cost: nil,
+            sourceLabel: NSLocalizedString("usage.monitor.cache.placeholder", value: "Cached", comment: "Placeholder cached usage label"),
+            fetchKind: .cli,
+            strategyKind: .direct
+        )
+        return (
+            ProviderAccountUsageOutcome(
+                provider: .codex,
+                account: .tokenAccount(tokenAccount),
+                outcome: ProviderFetchOutcome(fetchKind: .cli, result: .success(placeholderResult))
+            ),
+            nil
+        )
+    }
+
     func loadCachedCodexAccountOutcomes(
         accounts: [CodexAuthAccount],
         summaries: [UUID: CodexAuthSummary]
@@ -1235,65 +1307,13 @@ final class ProviderUsageEngine: CopyToastPresenting {
         var creditsRefreshedAt: [UUID: Date] = [:]
 
         for account in accounts {
-            let tokenAccount = ProviderTokenAccount(
-                id: account.id,
-                label: account.name,
-                token: "",
-                addedAt: account.createdAt.timeIntervalSince1970,
-                lastUsed: nil
+            let (outcome, refreshedAt) = await buildCachedCodexAccountOutcome(
+                for: account,
+                summary: summaries[account.id]
             )
-
-            if let summary = summaries[account.id],
-               summary.cardKind?.isSelfManagedConfiguredAccount != true,
-               let persistedFailure = persistedCodexFailureOutcome(for: tokenAccount, summary: summary)
-            {
-                outcomes.append(
-                    ProviderAccountUsageOutcome(
-                        provider: .codex,
-                        account: .tokenAccount(tokenAccount),
-                        outcome: persistedFailure
-                    )
-                )
-            } else if let cache = try? await codexAuthManager.loadUsageCache(for: account) {
-                if let credits = cache.credits, !credits.remaining.isNaN {
-                    creditsRefreshedAt[account.id] = cache.creditsRefreshedAt ?? cache.cachedAt
-                }
-                let cachedResult = cache.toFetchResult()
-                let cachedOutcome = ProviderFetchOutcome(
-                    fetchKind: cache.fetchKind,
-                    result: .success(cachedResult)
-                )
-                outcomes.append(
-                    ProviderAccountUsageOutcome(
-                        provider: .codex,
-                        account: .tokenAccount(tokenAccount),
-                        outcome: cachedOutcome
-                    )
-                )
-            } else {
-                let placeholderUsage = UsageSnapshot(
-                    identity: nil,
-                    primary: nil,
-                    secondary: nil,
-                    tertiary: nil,
-                    updatedAt: account.createdAt
-                )
-                let placeholderResult = ProviderFetchResult(
-                    usage: placeholderUsage,
-                    credits: nil,
-                    cost: nil,
-                    sourceLabel: NSLocalizedString("usage.monitor.cache.placeholder", value: "Cached", comment: "Placeholder cached usage label"),
-                    fetchKind: .cli,
-                    strategyKind: .direct
-                )
-                let placeholderOutcome = ProviderFetchOutcome(fetchKind: .cli, result: .success(placeholderResult))
-                outcomes.append(
-                    ProviderAccountUsageOutcome(
-                        provider: .codex,
-                        account: .tokenAccount(tokenAccount),
-                        outcome: placeholderOutcome
-                    )
-                )
+            outcomes.append(outcome)
+            if let refreshedAt {
+                creditsRefreshedAt[account.id] = refreshedAt
             }
         }
 

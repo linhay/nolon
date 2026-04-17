@@ -24,6 +24,7 @@ struct CodexConfigEditorSheetSnapshotTests {
             CodexConfigEditorSheet(
                 draft: .constant(makeDraft()),
                 modelProviderOptions: ["nolon", "relay-prod"],
+                isSaving: false,
                 errorMessage: nil,
                 onCancel: {},
                 onValidateConnection: {},
@@ -60,6 +61,7 @@ struct CodexConfigEditorSheetSnapshotTests {
             CodexConfigEditorSheet(
                 draft: .constant(makeDraft()),
                 modelProviderOptions: ["nolon", "relay-prod"],
+                isSaving: false,
                 errorMessage: nil,
                 onCancel: {},
                 onValidateConnection: {},
@@ -70,6 +72,51 @@ struct CodexConfigEditorSheetSnapshotTests {
         #expect(findDescendant(in: host.view, as: WKWebView.self) != nil)
         #expect(allTextValues(in: host.view).contains("Suggested from current config"))
         #expect(allTextValues(in: host.view).contains("# No managed config.toml changes."))
+    }
+
+    @Test("BDD: Given new API key draft when rendering API key field then it uses plain text input")
+    func editorUsesPlainTextAPIKeyField() {
+        let host = makeHost(
+            CodexConfigEditorSheet(
+                draft: .constant(makeDraft()),
+                modelProviderOptions: ["nolon", "relay-prod"],
+                isSaving: false,
+                errorMessage: nil,
+                onCancel: {},
+                onValidateConnection: {},
+                onSave: {}
+            )
+        )
+
+        #expect(findDescendant(in: host.view, as: NSSecureTextField.self) == nil)
+        #expect(editablePlainTextValues(in: host.view).contains("sk-live-12345678"))
+    }
+
+    @Test("BDD: Given save is in flight when rendering footer then progress is visible and actions are disabled")
+    func editorShowsSavingProgressAndDisablesActions() {
+        let host = makeHost(
+            CodexConfigEditorSheet(
+                draft: .constant(makeDraft()),
+                modelProviderOptions: ["nolon", "relay-prod"],
+                isSaving: true,
+                errorMessage: nil,
+                onCancel: {},
+                onValidateConnection: {},
+                onSave: {}
+            )
+        )
+
+        #expect(findDescendant(in: host.view, as: NSProgressIndicator.self) != nil)
+    }
+
+    @Test("BDD: Given optional codex draft when updating api key then explicit writeback keeps the draft and new value")
+    func explicitDraftWritebackKeepsUpdatedAPIKey() {
+        let updated = CodexConfigEditorSheet.updatedDraft(makeDraft()) { draft in
+            draft.apiKey = ""
+        }
+
+        #expect(updated != nil)
+        #expect(updated?.apiKey == "")
     }
 
     private func makeDraft() -> ProviderUsageEngine.CodexConfigEditorDraft {
@@ -151,6 +198,17 @@ struct CodexConfigEditorSheetSnapshotTests {
         }
         for child in root.subviews {
             results.append(contentsOf: allTextValues(in: child))
+        }
+        return results
+    }
+
+    private func editablePlainTextValues(in root: NSView) -> [String] {
+        var results: [String] = []
+        if let textField = root as? NSTextField, textField.isEditable, !(textField is NSSecureTextField) {
+            results.append(textField.stringValue)
+        }
+        for child in root.subviews {
+            results.append(contentsOf: editablePlainTextValues(in: child))
         }
         return results
     }

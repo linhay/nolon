@@ -151,6 +151,7 @@ struct ProviderUsageView: View, DebugPageLocatable {
                         set: { viewModel.codex.configEditorDraft = $0 }
                     ),
                     modelProviderOptions: viewModel.codex.configEditorModelProviderOptions,
+                    isSaving: viewModel.codex.isSavingConfigEditor,
                     errorMessage: viewModel.codex.configEditorErrorMessage,
                     onCancel: { viewModel.codex.dismissConfigEditor() },
                     onValidateConnection: { Task { await viewModel.codex.validateConnectionDraft() } },
