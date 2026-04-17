@@ -20,6 +20,9 @@ enum CodexSessionsSectionDataBuilder {
         usageState: (String) -> CodexSessionsTabViewModel.SessionUsageState
     ) -> CodexSessionsSectionData {
         let presentationKind = sectionPresentationKind(for: section)
+        let usageStatesBySessionID = Dictionary(
+            uniqueKeysWithValues: section.sessions.map { ($0.id, usageState($0.id)) }
+        )
         let actions: [CodexSessionsActionItemData]
         if let sourceProviderID = section.rewriteSourceProviderID {
             actions = targetProviders(sourceProviderID).map { targetProviderID in
@@ -46,6 +49,7 @@ enum CodexSessionsSectionDataBuilder {
         return CodexSessionsSectionData(
             id: section.id,
             title: section.title,
+            usage: buildSectionUsageData(section, usageStatesBySessionID: usageStatesBySessionID),
             titleSecondaryText: section.titleSecondaryText,
             subtitle: makeSectionSubtitle(section, groupingMode: groupingMode, presentationKind: presentationKind),
             presentationKind: presentationKind,
@@ -67,10 +71,76 @@ enum CodexSessionsSectionDataBuilder {
                     session,
                     groupingMode: groupingMode,
                     targetProviders: targetProviders,
-                    usageState: usageState(session.id)
+                    usageState: usageStatesBySessionID[session.id] ?? .failed
                 )
             }
         )
+    }
+
+    nonisolated private static func buildSectionUsageData(
+        _ section: CodexSessionsTabViewModel.SessionSection,
+        usageStatesBySessionID: [String: CodexSessionsTabViewModel.SessionUsageState]
+    ) -> CodexSessionsUsageDisplayData? {
+        if section.isPlaceholder {
+            return .placeholder(
+                text: NSLocalizedString(
+                    "codex.sessions.usage.loading",
+                    value: "Loading…",
+                    comment: "Usage loading placeholder"
+                )
+            )
+        }
+
+        let usageStates = section.sessions.compactMap { usageStatesBySessionID[$0.id] }
+        guard !usageStates.isEmpty else { return nil }
+
+        var totalInputTokens = 0
+        var totalOutputTokens = 0
+        var hasLoadedUsage = false
+        var hasPlaceholderUsage = false
+        var hasFailedUsage = false
+
+        for state in usageStates {
+            switch state {
+            case .placeholder:
+                hasPlaceholderUsage = true
+            case .failed:
+                hasFailedUsage = true
+            case .loaded(let usage):
+                hasLoadedUsage = true
+                totalInputTokens += usage.inputTokens
+                totalOutputTokens += usage.outputTokens
+            }
+        }
+
+        if hasLoadedUsage {
+            return .value(
+                primaryText: TokenCountFormatters.compact(totalInputTokens + totalOutputTokens),
+                secondaryText: "in \(TokenCountFormatters.compact(totalInputTokens)) · out \(TokenCountFormatters.compact(totalOutputTokens))"
+            )
+        }
+
+        if hasPlaceholderUsage {
+            return .placeholder(
+                text: NSLocalizedString(
+                    "codex.sessions.usage.loading",
+                    value: "Loading…",
+                    comment: "Usage loading placeholder"
+                )
+            )
+        }
+
+        if hasFailedUsage {
+            return .failed(
+                text: NSLocalizedString(
+                    "codex.sessions.usage.unavailable",
+                    value: "Unavailable",
+                    comment: "Usage unavailable label"
+                )
+            )
+        }
+
+        return nil
     }
 
     nonisolated private static func makeSectionBadges(
@@ -281,6 +351,13 @@ enum CodexSessionsSectionDataBuilder {
         groupingMode: CodexSessionsTabViewModel.SessionGroupingMode,
         presentationKind: CodexSessionsSectionPresentationKind
     ) -> String? {
+        if section.isPlaceholder {
+            return NSLocalizedString(
+                "codex.sessions.section.subtitle.scanning",
+                value: "Scanning sessions in this project…",
+                comment: "Project skeleton placeholder subtitle"
+            )
+        }
         switch presentationKind {
         case .readOnly:
             return NSLocalizedString(
@@ -308,6 +385,9 @@ enum CodexSessionsSectionDataBuilder {
     nonisolated private static func expansionTitle(
         for section: CodexSessionsTabViewModel.SessionSection
     ) -> String? {
+        guard !section.isPlaceholder else {
+            return nil
+        }
         guard section.totalSessionCount > CodexSessionsTabViewModel.defaultVisibleSessionCountPerSection else {
             return nil
         }

@@ -18,6 +18,7 @@ struct CodexSessionStoreTests {
         timestamp: String,
         modelProvider: String?,
         archived: Bool = false,
+        cwd: String = "/tmp/project",
         forkedFromID: String? = nil,
         originator: String? = nil,
         source: String? = "cli"
@@ -30,7 +31,7 @@ struct CodexSessionStoreTests {
         var payload: [String: Any] = [
             "id": threadID,
             "timestamp": timestamp,
-            "cwd": "/tmp/project",
+            "cwd": cwd,
         ]
         if let source {
             payload["source"] = source
@@ -204,6 +205,18 @@ struct CodexSessionStoreTests {
         try file.overlay(with: content)
     }
 
+    private func parseISO8601(_ raw: String) throws -> Date {
+        let fractionalFormatter = ISO8601DateFormatter()
+        fractionalFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        if let date = fractionalFormatter.date(from: raw) {
+            return date
+        }
+
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime]
+        return try #require(formatter.date(from: raw))
+    }
+
     @Test("Given session meta has blank provider and fractional timestamp, when loading snapshot, then store falls back to default provider and parses the timestamp")
     func loadSnapshotFallsBackToDefaultProviderAndParsesFractionalTimestamp() throws {
         let root = try makeTempRoot("codex-session-store-default-provider")
@@ -256,6 +269,122 @@ struct CodexSessionStoreTests {
 
         #expect(session.modelProvider == "provider-relay")
         #expect(session.title == "Existing thread")
+    }
+
+    @Test("Given rollout files span multiple projects, when loading project skeleton snapshot, then counts and latest timestamps are aggregated per project")
+    func loadProjectSkeletonSnapshotAggregatesProjects() throws {
+        let root = try makeTempRoot("codex-session-store-project-skeleton")
+        defer { try? root.delete() }
+
+        let codexHome = root.folder("provider")
+        _ = codexHome.createIfNotExists()
+
+        _ = try writeRolloutSessionMeta(
+            codexHome: codexHome,
+            threadID: "alpha-live",
+            timestamp: "2026-04-10T10:00:00Z",
+            modelProvider: "openai",
+            cwd: "/tmp/project-alpha"
+        )
+        _ = try writeRolloutSessionMeta(
+            codexHome: codexHome,
+            threadID: "alpha-archived",
+            timestamp: "2026-04-10T12:00:00Z",
+            modelProvider: "openai",
+            archived: true,
+            cwd: "/tmp/project-alpha"
+        )
+        _ = try writeRolloutSessionMeta(
+            codexHome: codexHome,
+            threadID: "beta-live",
+            timestamp: "2026-04-10T13:00:00Z",
+            modelProvider: "anthropic",
+            cwd: "/tmp/project-beta"
+        )
+        _ = try writeRolloutSessionMeta(
+            codexHome: codexHome,
+            threadID: "unknown-live",
+            timestamp: "2026-04-10T09:00:00Z",
+            modelProvider: "gemini",
+            cwd: "   "
+        )
+
+        let skeletonSnapshot = try CodexSessionStore(defaultProviderID: "openai")
+            .loadProjectSkeletonSnapshot(codexHome: codexHome)
+
+        #expect(skeletonSnapshot.projects.map(\.projectPath) == [
+            "/tmp/project-beta",
+            "/tmp/project-alpha",
+            nil,
+        ])
+        let expectedBetaDate = try parseISO8601("2026-04-10T13:00:00Z")
+        let expectedAlphaDate = try parseISO8601("2026-04-10T12:00:00Z")
+
+        let beta = try #require(skeletonSnapshot.projects.first)
+        #expect(beta.liveCount == 1)
+        #expect(beta.archivedCount == 0)
+        #expect(beta.latestUpdatedAt == expectedBetaDate)
+
+        let alpha = try #require(skeletonSnapshot.projects.dropFirst().first)
+        #expect(alpha.liveCount == 1)
+        #expect(alpha.archivedCount == 1)
+        #expect(alpha.latestUpdatedAt == expectedAlphaDate)
+
+        let unknown = try #require(skeletonSnapshot.projects.last)
+        #expect(unknown.liveCount == 1)
+        #expect(unknown.archivedCount == 0)
+        #expect(unknown.projectPath == nil)
+    }
+
+    @Test("Given multiple rollout files, when streaming snapshots, then each batch only yields delta sessions and the last event marks completion")
+    func snapshotStreamYieldsDeltaEvents() async throws {
+        let root = try makeTempRoot("codex-session-store-delta-stream")
+        defer { try? root.delete() }
+
+        let codexHome = root.folder("provider")
+        _ = codexHome.createIfNotExists()
+
+        let threadIDs = (0..<5).map { "thread-\($0)" }
+        for (index, threadID) in threadIDs.enumerated() {
+            _ = try writeRolloutSessionMeta(
+                codexHome: codexHome,
+                threadID: threadID,
+                timestamp: "2026-04-10T1\(index):00:00Z",
+                modelProvider: "openai",
+                cwd: "/tmp/project-\(index < 3 ? "alpha" : "beta")"
+            )
+        }
+        try createStateDatabase(
+            codexHome: codexHome,
+            threads: threadIDs.enumerated().map { index, threadID in
+                (
+                    id: threadID,
+                    title: "Thread \(index)",
+                    modelProvider: "openai",
+                    updatedAt: Int64(1_000 + index),
+                    archived: false
+                )
+            }
+        )
+
+        let stream = CodexSessionStore(defaultProviderID: "openai").snapshotStream(
+            codexHome: codexHome,
+            batchSize: 2
+        )
+
+        var events: [CodexSessionSnapshotDelta] = []
+        for try await event in stream {
+            events.append(event)
+        }
+
+        #expect(events.count == 3)
+        #expect(events.map(\.sessions.count) == [2, 2, 1])
+        #expect(events.dropLast().allSatisfy { !$0.isComplete })
+        #expect(events.last?.isComplete == true)
+
+        let streamedIDs = events.flatMap(\.sessions).map(\.id)
+        #expect(Set(streamedIDs).count == 5)
+        #expect(streamedIDs.count == 5)
     }
 
     @Test("Given session meta includes raw metadata, when loading snapshot, then store preserves forked from originator and source")

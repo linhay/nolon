@@ -62,6 +62,58 @@ public struct CodexSessionSnapshot: Sendable, Equatable {
     }
 }
 
+public struct CodexSessionSnapshotDelta: Sendable, Equatable {
+    public let sessions: [CodexSessionRecord]
+    public let availableProviderIDs: [String]
+    public let isComplete: Bool
+
+    public init(
+        sessions: [CodexSessionRecord],
+        availableProviderIDs: [String],
+        isComplete: Bool
+    ) {
+        self.sessions = sessions
+        self.availableProviderIDs = availableProviderIDs
+        self.isComplete = isComplete
+    }
+}
+
+public struct CodexSessionProjectSkeleton: Sendable, Equatable, Identifiable {
+    public let projectPath: String?
+    public let liveCount: Int
+    public let archivedCount: Int
+    public let latestUpdatedAt: Date?
+
+    public init(
+        projectPath: String?,
+        liveCount: Int,
+        archivedCount: Int,
+        latestUpdatedAt: Date?
+    ) {
+        self.projectPath = projectPath
+        self.liveCount = liveCount
+        self.archivedCount = archivedCount
+        self.latestUpdatedAt = latestUpdatedAt
+    }
+
+    public var id: String {
+        projectPath ?? "unknown-project"
+    }
+}
+
+public struct CodexSessionProjectSkeletonSnapshot: Sendable, Equatable {
+    public let projects: [CodexSessionProjectSkeleton]
+    public let availableProviderIDs: [String]
+
+    public init(
+        projects: [CodexSessionProjectSkeleton],
+        availableProviderIDs: [String]
+    ) {
+        self.projects = projects
+        self.availableProviderIDs = availableProviderIDs
+    }
+}
+
 public struct CodexSessionProviderRewriteRequest: Sendable, Equatable {
     public let threadIDs: [String]
     public let targetProviderID: String
@@ -161,6 +213,13 @@ public struct CodexSessionStore: Sendable {
         let archivedFileURLs: [URL]
     }
 
+    private struct ProjectSkeletonAccumulator: Sendable, Equatable {
+        let projectPath: String?
+        var liveCount: Int
+        var archivedCount: Int
+        var latestUpdatedAt: Date?
+    }
+
     private final class RolloutRewriteAccumulator: @unchecked Sendable {
         private let lock = NSLock()
         private var updatedFiles = 0
@@ -206,6 +265,10 @@ public struct CodexSessionStore: Sendable {
         try loadSnapshot(codexHome: STFolder(codexHome))
     }
 
+    public func loadProjectSkeletonSnapshot(codexHome: URL) throws -> CodexSessionProjectSkeletonSnapshot {
+        try loadProjectSkeletonSnapshot(codexHome: STFolder(codexHome))
+    }
+
     public func loadSessionUsage(
         codexHome: URL,
         rolloutPath: String
@@ -246,14 +309,14 @@ public struct CodexSessionStore: Sendable {
     public func snapshotStream(
         codexHome: URL,
         batchSize: Int = 24
-    ) -> AsyncThrowingStream<CodexSessionSnapshot, Error> {
+    ) -> AsyncThrowingStream<CodexSessionSnapshotDelta, Error> {
         snapshotStream(codexHome: STFolder(codexHome), batchSize: batchSize)
     }
 
     public func snapshotStream(
         codexHome: STFolder,
         batchSize: Int = 24
-    ) -> AsyncThrowingStream<CodexSessionSnapshot, Error> {
+    ) -> AsyncThrowingStream<CodexSessionSnapshotDelta, Error> {
         let effectiveBatchSize = max(1, batchSize)
 
         return AsyncThrowingStream { continuation in
@@ -282,17 +345,17 @@ public struct CodexSessionStore: Sendable {
                             ]
                         )
                         continuation.yield(
-                            CodexSessionSnapshot(
+                            CodexSessionSnapshotDelta(
                                 sessions: [],
-                                availableProviderIDs: availableProviderIDs
+                                availableProviderIDs: availableProviderIDs,
+                                isComplete: true
                             )
                         )
                         continuation.finish()
                         return
                     }
 
-                    var sessions: [CodexSessionRecord] = []
-                    sessions.reserveCapacity(scannedFiles.count)
+                    var emittedSessionCount = 0
 
                     for startIndex in stride(from: 0, to: scannedFiles.count, by: effectiveBatchSize) {
                         if Task.isCancelled {
@@ -309,13 +372,14 @@ public struct CodexSessionStore: Sendable {
                             )
                         }
                         let sortedBatch = batch.sorted(by: Self.sortSessions(_:_:))
-                        sessions = Self.mergeSortedSessions(existing: sessions, incoming: sortedBatch)
+                        emittedSessionCount += sortedBatch.count
                         yieldedBatchCount += 1
 
                         continuation.yield(
-                            CodexSessionSnapshot(
-                                sessions: sessions,
-                                availableProviderIDs: availableProviderIDs
+                            CodexSessionSnapshotDelta(
+                                sessions: sortedBatch,
+                                availableProviderIDs: availableProviderIDs,
+                                isComplete: endIndex == scannedFiles.count
                             )
                         )
                     }
@@ -329,7 +393,7 @@ public struct CodexSessionStore: Sendable {
                             "batch_count": yieldedBatchCount,
                             "batch_size": effectiveBatchSize,
                             "scanned_file_count": scannedFiles.count,
-                            "session_count": sessions.count,
+                            "session_count": emittedSessionCount,
                             "state_thread_count": stateIndex.threadsByID.count,
                         ]
                     )
@@ -383,6 +447,56 @@ public struct CodexSessionStore: Sendable {
             ]
         )
         return snapshot
+    }
+
+    public func loadProjectSkeletonSnapshot(
+        codexHome: STFolder
+    ) throws -> CodexSessionProjectSkeletonSnapshot {
+        let scannedFiles = CodexSessionScanner.scanFiles(codexHome: codexHome, includeArchived: true)
+        var projectsByKey: [String: ProjectSkeletonAccumulator] = [:]
+
+        for scannedFile in scannedFiles {
+            let sessionMeta = CodexSessionScanner.readSessionMeta(from: scannedFile)
+            let projectPath = Self.normalizedProjectPath(from: sessionMeta?.cwd)
+            let projectKey = projectPath ?? "unknown-project"
+            let updatedAt = Self.parseISO8601(sessionMeta?.timestamp)
+                ?? Self.fileModificationDate(path: scannedFile.file.path)
+
+            var accumulator = projectsByKey[projectKey] ?? .init(
+                projectPath: projectPath,
+                liveCount: 0,
+                archivedCount: 0,
+                latestUpdatedAt: nil
+            )
+            if scannedFile.archived {
+                accumulator.archivedCount += 1
+            } else {
+                accumulator.liveCount += 1
+            }
+            if let updatedAt {
+                let currentLatest = accumulator.latestUpdatedAt ?? .distantPast
+                if updatedAt > currentLatest {
+                    accumulator.latestUpdatedAt = updatedAt
+                }
+            }
+            projectsByKey[projectKey] = accumulator
+        }
+
+        let projects = projectsByKey.values
+            .map {
+                CodexSessionProjectSkeleton(
+                    projectPath: $0.projectPath,
+                    liveCount: $0.liveCount,
+                    archivedCount: $0.archivedCount,
+                    latestUpdatedAt: $0.latestUpdatedAt
+                )
+            }
+            .sorted(by: Self.sortProjectSkeletons(_:_:))
+
+        return .init(
+            projects: projects,
+            availableProviderIDs: loadAvailableProviderIDs(codexHome: codexHome)
+        )
     }
 
     public func previewRewrite(
@@ -714,6 +828,27 @@ public struct CodexSessionStore: Sendable {
         }
         append(defaultProviderID)
         return result
+    }
+
+    private static func normalizedProjectPath(from cwd: String?) -> String? {
+        guard let cwd = cwd?.trimmingCharacters(in: .whitespacesAndNewlines), !cwd.isEmpty else {
+            return nil
+        }
+        return URL(fileURLWithPath: cwd).standardizedFileURL.path
+    }
+
+    private static func sortProjectSkeletons(
+        _ lhs: CodexSessionProjectSkeleton,
+        _ rhs: CodexSessionProjectSkeleton
+    ) -> Bool {
+        let leftDate = lhs.latestUpdatedAt ?? .distantPast
+        let rightDate = rhs.latestUpdatedAt ?? .distantPast
+        if leftDate != rightDate {
+            return leftDate > rightDate
+        }
+        let leftPath = lhs.projectPath ?? "~"
+        let rightPath = rhs.projectPath ?? "~"
+        return leftPath.localizedCaseInsensitiveCompare(rightPath) == .orderedAscending
     }
 
     private func loadStateIndex(in codexHome: STFolder) throws -> StateIndex {

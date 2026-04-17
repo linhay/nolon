@@ -18,68 +18,74 @@ public struct CodexSessionsOverviewCardView: View {
     }
 
     public var body: some View {
-        VStack(alignment: .leading, spacing: verticalSpacing) {
+        VStack(alignment: .leading, spacing: 0) {
             header
 
-            statusBanners
+            Divider()
 
-            LazyVGrid(
-                columns: [GridItem(.adaptive(minimum: 118), spacing: 10, alignment: .top)],
-                alignment: .leading,
-                spacing: 10
-            ) {
-                ForEach(data.metrics) { metric in
-                    metricCard(metric)
-                }
+            metricsBand
+
+            if hasFooterStatus {
+                Divider()
+
+                footerStatusBar
             }
         }
-        .padding(cardPadding)
         .frame(maxWidth: .infinity, alignment: .leading)
         .dsCard(
-            background: DesignSystem.Colors.Background.elevated.opacity(0.96),
+            background: DesignSystem.Colors.Background.surface.opacity(0.98),
             cornerRadius: DesignSystem.Metrics.cornerRadiusL,
-            borderColor: DesignSystem.Colors.Component.border.opacity(0.32),
+            borderColor: DesignSystem.Colors.Component.border.opacity(0.2),
             shadow: .subtle
         )
     }
 
     private var header: some View {
         ViewThatFits(in: .horizontal) {
-            HStack(alignment: .top, spacing: 14) {
+            HStack(alignment: .center, spacing: 12) {
                 headerLead
                 Spacer(minLength: 12)
                 headerControls
             }
-            .frame(minWidth: 660, alignment: .leading)
+            .padding(.horizontal, horizontalPadding)
+            .padding(.vertical, headerVerticalPadding)
+            .frame(minWidth: 620, alignment: .leading)
 
-            VStack(alignment: .leading, spacing: 10) {
+            VStack(alignment: .leading, spacing: 12) {
                 headerLead
                 headerControls
             }
+            .padding(.horizontal, horizontalPadding)
+            .padding(.vertical, headerVerticalPadding)
         }
     }
 
     private var headerLead: some View {
-        HStack(alignment: .top, spacing: 10) {
-            ZStack {
-                Circle()
-                    .fill(DesignSystem.Colors.primary.opacity(0.14))
-                    .frame(width: iconSize, height: iconSize)
+        ViewThatFits(in: .horizontal) {
+            HStack(alignment: .firstTextBaseline, spacing: 10) {
+                Text(data.title)
+                    .font(.headline.weight(.semibold))
+                    .foregroundStyle(DesignSystem.Colors.Text.primary)
+                    .lineLimit(1)
 
-                Image(systemName: "arrow.left.arrow.right.circle.fill")
-                    .font(.system(size: iconFontSize, weight: .semibold))
-                    .foregroundStyle(DesignSystem.Colors.primary)
+                Text(data.subtitle)
+                    .font(.caption)
+                    .foregroundStyle(DesignSystem.Colors.Text.secondary)
+                    .lineLimit(1)
+                    .help(data.subtitle)
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(data.title)
                     .font(.headline.weight(.semibold))
                     .foregroundStyle(DesignSystem.Colors.Text.primary)
+                    .lineLimit(1)
 
                 Text(data.subtitle)
-                    .font(data.displayMode == .compact ? .caption.weight(.medium) : .caption)
+                    .font(.caption)
                     .foregroundStyle(DesignSystem.Colors.Text.secondary)
-                    .lineLimit(data.displayMode == .compact ? 1 : 2)
+                    .lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)
                     .help(data.subtitle)
             }
@@ -92,7 +98,7 @@ public struct CodexSessionsOverviewCardView: View {
                 groupingPicker
                 headerRefreshButton
             }
-            .frame(minWidth: 260, alignment: .trailing)
+            .frame(minWidth: 228, alignment: .trailing)
 
             VStack(alignment: .leading, spacing: 8) {
                 groupingPicker
@@ -119,23 +125,132 @@ public struct CodexSessionsOverviewCardView: View {
                 }
             }
             .pickerStyle(.segmented)
-            .frame(minWidth: 180, idealWidth: 220, maxWidth: 240)
+            .controlSize(.small)
+            .frame(minWidth: 180, idealWidth: 216, maxWidth: 240)
             .accessibilityLabel(groupingTitle)
         }
     }
 
     private var headerRefreshButton: some View {
         Button(action: onRefresh) {
-            Label(data.refreshTitle, systemImage: "arrow.clockwise")
+            Image(systemName: "arrow.clockwise")
+                .font(.system(size: 12, weight: .semibold))
+                .frame(width: 28, height: 28)
         }
-        .buttonStyle(.bordered)
-        .controlSize(.regular)
+        .buttonStyle(.plain)
+        .foregroundStyle(
+            data.isRefreshDisabled
+                ? DesignSystem.Colors.Text.tertiary
+                : DesignSystem.Colors.Text.secondary
+        )
+        .background(
+            RoundedRectangle(cornerRadius: DesignSystem.Metrics.cornerRadiusS, style: .continuous)
+                .fill(DesignSystem.Colors.Background.elevated.opacity(data.isRefreshDisabled ? 0.45 : 0.88))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: DesignSystem.Metrics.cornerRadiusS, style: .continuous)
+                .stroke(DesignSystem.Colors.Component.border.opacity(0.18), lineWidth: 1)
+        )
         .disabled(data.isRefreshDisabled)
+        .help(data.refreshTitle)
+        .accessibilityLabel(data.refreshTitle)
+    }
+
+    private var metricsBand: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 0) {
+                ForEach(Array(data.metrics.enumerated()), id: \.element.id) { index, metric in
+                    metricColumn(metric)
+
+                    if index < data.metrics.count - 1 {
+                        Divider()
+                    }
+                }
+            }
+
+            VStack(spacing: 0) {
+                ForEach(Array(data.metrics.enumerated()), id: \.element.id) { index, metric in
+                    metricColumn(metric)
+
+                    if index < data.metrics.count - 1 {
+                        Divider()
+                    }
+                }
+            }
+        }
+    }
+
+    private func metricColumn(_ metric: CodexSessionsMetricData) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .center, spacing: 6) {
+                Circle()
+                    .fill(metricAccentColor(for: metric.id))
+                    .frame(width: 6, height: 6)
+
+                Text(metric.title)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(DesignSystem.Colors.Text.tertiary)
+                    .lineLimit(1)
+            }
+
+            Text(metric.value)
+                .font(metricValueFont)
+                .monospacedDigit()
+                .foregroundStyle(DesignSystem.Colors.Text.primary)
+                .lineLimit(1)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, horizontalPadding)
+        .padding(.vertical, metricVerticalPadding)
     }
 
     @ViewBuilder
-    private var statusBanners: some View {
-        let entries = [
+    private var footerStatusBar: some View {
+        let entries = footerEntries
+        if !entries.isEmpty {
+            ViewThatFits(in: .horizontal) {
+                HStack(alignment: .center, spacing: 12) {
+                    ForEach(entries, id: \.id) { entry in
+                        footerStatusEntry(entry)
+                    }
+                    Spacer(minLength: 0)
+                }
+                .padding(.horizontal, horizontalPadding)
+                .padding(.vertical, footerVerticalPadding)
+
+                VStack(alignment: .leading, spacing: 8) {
+                    ForEach(entries, id: \.id) { entry in
+                        footerStatusEntry(entry)
+                    }
+                }
+                .padding(.horizontal, horizontalPadding)
+                .padding(.vertical, footerVerticalPadding)
+            }
+            .background(DesignSystem.Colors.Background.elevated.opacity(0.45))
+        }
+    }
+
+    private func footerStatusEntry(_ entry: BannerEntry) -> some View {
+        HStack(alignment: .center, spacing: 6) {
+            Image(systemName: entry.systemImage)
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(entry.tint)
+
+            Text(entry.message)
+                .font(.caption2)
+                .foregroundStyle(DesignSystem.Colors.Text.secondary)
+                .lineLimit(1)
+                .help(entry.message)
+        }
+    }
+
+    private func bannerEntry(id: String, message: String?, systemImage: String, tint: Color) -> BannerEntry? {
+        guard let message, !message.isEmpty else { return nil }
+        return BannerEntry(id: id, message: message, systemImage: systemImage, tint: tint)
+    }
+
+    private var footerEntries: [BannerEntry] {
+        [
             bannerEntry(
                 id: "status",
                 message: data.statusMessage,
@@ -148,88 +263,57 @@ public struct CodexSessionsOverviewCardView: View {
                 systemImage: "arrow.clockwise.circle.fill",
                 tint: DesignSystem.Colors.Status.info
             ),
-        ].compactMap { $0 }
+            bannerEntry(
+                id: "pagination",
+                message: data.paginationMessage,
+                systemImage: "ellipsis.circle.fill",
+                tint: DesignSystem.Colors.Status.warning
+            ),
+        ]
+        .compactMap { $0 }
+    }
 
-        if !entries.isEmpty {
-            FlowLayout(spacing: 8) {
-                ForEach(entries, id: \.id) { entry in
-                    compactStatusBanner(
-                        message: entry.message,
-                        systemImage: entry.systemImage,
-                        tint: entry.tint
-                    )
-                }
-            }
+    private var hasFooterStatus: Bool {
+        !footerEntries.isEmpty
+    }
+
+    private func metricAccentColor(for metricID: String) -> Color {
+        switch metricID {
+        case "rewritable":
+            return DesignSystem.Colors.Status.success
+        case "attention":
+            return DesignSystem.Colors.Status.warning
+        case "groups":
+            return DesignSystem.Colors.Status.info
+        default:
+            return DesignSystem.Colors.primary
         }
     }
 
-    private func metricCard(_ metric: CodexSessionsMetricData) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(metric.title)
-                .font(.caption2.weight(.medium))
-                .foregroundStyle(DesignSystem.Colors.Text.tertiary)
-
-            Text(metric.value)
-                .font(.title3.weight(.semibold))
-                .foregroundStyle(DesignSystem.Colors.Text.primary)
-                .lineLimit(1)
-        }
-        .padding(data.displayMode == .compact ? 10 : 12)
-        .frame(maxWidth: .infinity, minHeight: data.displayMode == .compact ? 60 : 68, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: DesignSystem.Metrics.cornerRadiusM, style: .continuous)
-                .fill(DesignSystem.Colors.Background.surface.opacity(0.94))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: DesignSystem.Metrics.cornerRadiusM, style: .continuous)
-                .stroke(DesignSystem.Colors.Component.border.opacity(0.24), lineWidth: 1)
-        )
+    private var metricValueFont: Font {
+        data.displayMode == .compact
+            ? .title3.weight(.semibold)
+            : .title2.weight(.semibold)
     }
 
-    private func compactStatusBanner(message: String, systemImage: String, tint: Color) -> some View {
-        HStack(alignment: .center, spacing: 6) {
-            Image(systemName: systemImage)
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(tint)
-
-            Text(message)
-                .font(.caption)
-                .foregroundStyle(DesignSystem.Colors.Text.secondary)
-                .lineLimit(1)
-                .help(message)
-        }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 6)
-        .background(tint.opacity(0.08), in: Capsule())
-        .overlay(
-            Capsule()
-                .stroke(tint.opacity(0.16), lineWidth: 1)
-        )
-    }
-
-    private func bannerEntry(id: String, message: String?, systemImage: String, tint: Color) -> BannerEntry? {
-        guard let message, !message.isEmpty else { return nil }
-        return BannerEntry(id: id, message: message, systemImage: systemImage, tint: tint)
-    }
-
-    private var verticalSpacing: CGFloat {
-        data.displayMode == .compact ? 10 : 12
-    }
-
-    private var cardPadding: CGFloat {
+    private var horizontalPadding: CGFloat {
         data.displayMode == .compact ? 14 : 16
     }
 
-    private var iconSize: CGFloat {
-        data.displayMode == .compact ? 30 : 34
+    private var headerVerticalPadding: CGFloat {
+        data.displayMode == .compact ? 12 : 13
     }
 
-    private var iconFontSize: CGFloat {
-        data.displayMode == .compact ? 14 : 16
+    private var metricVerticalPadding: CGFloat {
+        data.displayMode == .compact ? 11 : 12
+    }
+
+    private var footerVerticalPadding: CGFloat {
+        data.displayMode == .compact ? 7 : 8
     }
 }
 
-public struct CodexSessionsSectionCardView: View {
+public struct CodexSessionsSectionCardView<ExpandedRowContent: View>: View {
     public let data: CodexSessionsSectionData
     public let onTapSectionAction: (String) -> Void
     public let onTapRowAction: (CodexSessionsRowData, String) -> Void
@@ -237,6 +321,8 @@ public struct CodexSessionsSectionCardView: View {
     public let onToggleCollapse: (String) -> Void
     public let selectedRowID: String?
     public let onSelectRow: (CodexSessionsRowData) -> Void
+    public let expandedRowID: String?
+    public let expandedRowContent: (CodexSessionsRowData) -> ExpandedRowContent
 
     public init(
         data: CodexSessionsSectionData,
@@ -245,7 +331,9 @@ public struct CodexSessionsSectionCardView: View {
         onRevealInFinder: @escaping (CodexSessionsRowData) -> Void,
         onToggleCollapse: @escaping (String) -> Void = { _ in },
         selectedRowID: String? = nil,
-        onSelectRow: @escaping (CodexSessionsRowData) -> Void = { _ in }
+        onSelectRow: @escaping (CodexSessionsRowData) -> Void = { _ in },
+        expandedRowID: String? = nil,
+        @ViewBuilder expandedRowContent: @escaping (CodexSessionsRowData) -> ExpandedRowContent
     ) {
         self.data = data
         self.onTapSectionAction = onTapSectionAction
@@ -254,6 +342,8 @@ public struct CodexSessionsSectionCardView: View {
         self.onToggleCollapse = onToggleCollapse
         self.selectedRowID = selectedRowID
         self.onSelectRow = onSelectRow
+        self.expandedRowID = expandedRowID
+        self.expandedRowContent = expandedRowContent
     }
 
     public var body: some View {
@@ -328,14 +418,20 @@ public struct CodexSessionsSectionCardView: View {
                     .foregroundStyle(sectionAccentColor)
             }
 
-            HStack(alignment: .center, spacing: 8) {
-                Text(data.title)
-                    .font(.headline.weight(.semibold))
-                    .foregroundStyle(DesignSystem.Colors.Text.primary)
-                    .lineLimit(1)
+            VStack(alignment: .leading, spacing: 6) {
+                if let usage = data.usage {
+                    sectionHeaderUsage(usage)
+                }
 
-                if !data.badges.isEmpty {
-                    headerBadgeRow
+                HStack(alignment: .center, spacing: 8) {
+                    Text(data.title)
+                        .font(.headline.weight(.semibold))
+                        .foregroundStyle(DesignSystem.Colors.Text.primary)
+                        .lineLimit(1)
+
+                    if !data.badges.isEmpty {
+                        headerBadgeRow
+                    }
                 }
             }
         }
@@ -379,6 +475,70 @@ public struct CodexSessionsSectionCardView: View {
         HStack(spacing: 6) {
             ForEach(data.badges) { badge in
                 sectionHeaderBadge(text: badge.text)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func sectionHeaderUsage(_ usage: CodexSessionsUsageDisplayData) -> some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(alignment: .center, spacing: 8) {
+                Text(
+                    NSLocalizedString(
+                        "codex.sessions.table.usage",
+                        value: "Usage",
+                        comment: "Session table column header"
+                    )
+                )
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(DesignSystem.Colors.Text.tertiary)
+
+                sectionHeaderUsageValue(usage, showsSecondaryText: true)
+            }
+
+            HStack(alignment: .center, spacing: 8) {
+                Text(
+                    NSLocalizedString(
+                        "codex.sessions.table.usage",
+                        value: "Usage",
+                        comment: "Session table column header"
+                    )
+                )
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(DesignSystem.Colors.Text.tertiary)
+
+                sectionHeaderUsageValue(usage, showsSecondaryText: false)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func sectionHeaderUsageValue(
+        _ usage: CodexSessionsUsageDisplayData,
+        showsSecondaryText: Bool
+    ) -> some View {
+        switch usage {
+        case .placeholder(let text):
+            Text(text)
+                .font(.caption)
+                .foregroundStyle(DesignSystem.Colors.Text.tertiary)
+        case .failed(let text):
+            Text(text)
+                .font(.caption.weight(.medium))
+                .foregroundStyle(DesignSystem.Colors.Status.warning)
+        case .value(let primaryText, let secondaryText):
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                Text(primaryText)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(DesignSystem.Colors.Text.primary)
+                    .monospacedDigit()
+
+                if showsSecondaryText, let secondaryText, !secondaryText.isEmpty {
+                    Text(secondaryText)
+                        .font(.caption2.monospaced())
+                        .foregroundStyle(DesignSystem.Colors.Text.tertiary)
+                        .lineLimit(1)
+                }
             }
         }
     }
@@ -452,6 +612,9 @@ public struct CodexSessionsSectionCardView: View {
                 .overlay(DesignSystem.Colors.Component.border.opacity(0.3))
             ForEach(Array(data.rows.enumerated()), id: \.element.id) { index, row in
                 tableRowView(row, layout: layout)
+                if expandedRowID == row.id {
+                    expandedRowView(row)
+                }
                 if index < data.rows.count - 1 {
                     Divider()
                         .overlay(DesignSystem.Colors.Component.border.opacity(0.15))
@@ -467,6 +630,9 @@ public struct CodexSessionsSectionCardView: View {
         VStack(alignment: .leading, spacing: 0) {
             ForEach(Array(data.rows.enumerated()), id: \.element.id) { index, row in
                 compactRowView(row)
+                if expandedRowID == row.id {
+                    expandedRowView(row)
+                }
                 if index < data.rows.count - 1 {
                     Divider()
                         .overlay(DesignSystem.Colors.Component.border.opacity(0.15))
@@ -572,6 +738,13 @@ public struct CodexSessionsSectionCardView: View {
         }
     }
 
+    private func expandedRowView(_ row: CodexSessionsRowData) -> some View {
+        expandedRowContent(row)
+            .padding(.horizontal, 12)
+            .padding(.bottom, 12)
+            .transition(.opacity.combined(with: .move(edge: .top)))
+    }
+
     private func compactRowContent(
         _ row: CodexSessionsRowData,
         usage: CodexSessionsUsageDisplayData
@@ -611,7 +784,7 @@ public struct CodexSessionsSectionCardView: View {
                 .frame(minWidth: 68, alignment: .leading)
 
             HStack(spacing: 10) {
-                Image(systemName: "chevron.right")
+                Image(systemName: selectedRowID == row.id ? "chevron.down" : "chevron.right")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(DesignSystem.Colors.Text.quaternary)
 
@@ -1035,42 +1208,71 @@ public struct CodexSessionsSectionCardView: View {
         let metadataSpacing: CGFloat
         let usesCompactIDText: Bool
 
-        static let regular = TableLayout(
-            minimumContentWidth: 940,
-            idColumnWidth: 180,
-            timeColumnWidth: 134,
-            providerColumnWidth: 148,
-            usageColumnWidth: 140,
-            menuColumnWidth: 60,
-            columnSpacing: 12,
-            horizontalPadding: 14,
-            verticalPadding: 10,
-            summaryLineLimit: 0,
-            providerLineLimit: 2,
-            metadataSpacing: 6,
-            usesCompactIDText: false
-        )
+        static var regular: TableLayout {
+            TableLayout(
+                minimumContentWidth: 940,
+                idColumnWidth: 180,
+                timeColumnWidth: 134,
+                providerColumnWidth: 148,
+                usageColumnWidth: 140,
+                menuColumnWidth: 60,
+                columnSpacing: 12,
+                horizontalPadding: 14,
+                verticalPadding: 10,
+                summaryLineLimit: 0,
+                providerLineLimit: 2,
+                metadataSpacing: 6,
+                usesCompactIDText: false
+            )
+        }
 
-        static let medium = TableLayout(
-            minimumContentWidth: 760,
-            idColumnWidth: 150,
-            timeColumnWidth: 118,
-            providerColumnWidth: 118,
-            usageColumnWidth: 108,
-            menuColumnWidth: 48,
-            columnSpacing: 10,
-            horizontalPadding: 12,
-            verticalPadding: 10,
-            summaryLineLimit: 0,
-            providerLineLimit: 3,
-            metadataSpacing: 5,
-            usesCompactIDText: true
-        )
+        static var medium: TableLayout {
+            TableLayout(
+                minimumContentWidth: 760,
+                idColumnWidth: 150,
+                timeColumnWidth: 118,
+                providerColumnWidth: 118,
+                usageColumnWidth: 108,
+                menuColumnWidth: 48,
+                columnSpacing: 10,
+                horizontalPadding: 12,
+                verticalPadding: 10,
+                summaryLineLimit: 0,
+                providerLineLimit: 3,
+                metadataSpacing: 5,
+                usesCompactIDText: true
+            )
+        }
     }
 
     private func copyToPasteboard(_ value: String) {
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(value, forType: .string)
+    }
+}
+
+public extension CodexSessionsSectionCardView where ExpandedRowContent == EmptyView {
+    init(
+        data: CodexSessionsSectionData,
+        onTapSectionAction: @escaping (String) -> Void,
+        onTapRowAction: @escaping (CodexSessionsRowData, String) -> Void,
+        onRevealInFinder: @escaping (CodexSessionsRowData) -> Void,
+        onToggleCollapse: @escaping (String) -> Void = { _ in },
+        selectedRowID: String? = nil,
+        onSelectRow: @escaping (CodexSessionsRowData) -> Void = { _ in }
+    ) {
+        self.init(
+            data: data,
+            onTapSectionAction: onTapSectionAction,
+            onTapRowAction: onTapRowAction,
+            onRevealInFinder: onRevealInFinder,
+            onToggleCollapse: onToggleCollapse,
+            selectedRowID: selectedRowID,
+            onSelectRow: onSelectRow,
+            expandedRowID: nil
+        ) { _ in
+            EmptyView()
+        }
     }
 }
 

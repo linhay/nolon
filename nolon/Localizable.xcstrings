@@ -9719,18 +9719,6 @@
         }
       }
     },
-    "codex.sessions.detail.command" : {
-      "comment" : "Codex sessions detail quick command title",
-      "extractionState" : "extracted_with_value",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Quick Command"
-          }
-        }
-      }
-    },
     "codex.sessions.detail.copy_command" : {
       "comment" : "Copy codex session resume command",
       "extractionState" : "extracted_with_value",
@@ -9750,7 +9738,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "new",
-            "value" : "Copy Resume Command"
+            "value" : "Command"
           }
         }
       }
@@ -9762,7 +9750,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "new",
-            "value" : "Copy Project Path"
+            "value" : "Project"
           }
         }
       }
@@ -9774,7 +9762,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "new",
-            "value" : "Copy Rollout Path"
+            "value" : "Rollout"
           }
         }
       }
@@ -10483,6 +10471,18 @@
           "stringUnit" : {
             "state" : "new",
             "value" : "This section only contains read-only sessions."
+          }
+        }
+      }
+    },
+    "codex.sessions.section.subtitle.scanning" : {
+      "comment" : "Project skeleton placeholder subtitle",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Scanning sessions in this project…"
           }
         }
       }
@@ -14545,7 +14545,7 @@
     },
     "remote.search.placeholder" : {
       "comment" : "Search placeholder",
-      "extractionState" : "stale",
+      "extractionState" : "extracted_with_value",
       "localizations" : {
         "en" : {
           "stringUnit" : {

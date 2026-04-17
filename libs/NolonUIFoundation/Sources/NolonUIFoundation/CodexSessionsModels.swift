@@ -207,6 +207,7 @@ public struct CodexSessionsRowData: Identifiable, Equatable, Sendable {
 public struct CodexSessionsSectionData: Identifiable, Equatable, Sendable {
     public let id: String
     public let title: String
+    public let usage: CodexSessionsUsageDisplayData?
     public let titleSecondaryText: String?
     public let subtitle: String?
     public let presentationKind: CodexSessionsSectionPresentationKind
@@ -220,6 +221,7 @@ public struct CodexSessionsSectionData: Identifiable, Equatable, Sendable {
     public init(
         id: String,
         title: String,
+        usage: CodexSessionsUsageDisplayData? = nil,
         titleSecondaryText: String? = nil,
         subtitle: String?,
         presentationKind: CodexSessionsSectionPresentationKind = .rewritableGroup,
@@ -232,6 +234,7 @@ public struct CodexSessionsSectionData: Identifiable, Equatable, Sendable {
     ) {
         self.id = id
         self.title = title
+        self.usage = usage
         self.titleSecondaryText = titleSecondaryText
         self.subtitle = subtitle
         self.presentationKind = presentationKind

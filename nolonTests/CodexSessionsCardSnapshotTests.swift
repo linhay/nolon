@@ -81,7 +81,8 @@ struct CodexSessionsCardSnapshotTests {
     func expandedProjectSectionKeepsFlatRowsWhileUsageIsResolved() {
         let section = makeSectionData(
             isExpanded: true,
-            usage: .value(primaryText: "3.0K", secondaryText: "in 2.4K · out 600")
+            usage: .value(primaryText: "3.0K", secondaryText: "in 2.4K · out 600"),
+            sectionUsage: .value(primaryText: "6.4K", secondaryText: "in 4.8K · out 1.6K")
         )
 
         let host = makeHost(
@@ -111,6 +112,7 @@ struct CodexSessionsCardSnapshotTests {
         let section = makeSectionData(
             isExpanded: true,
             usage: .value(primaryText: "3.0K", secondaryText: "in 2.4K · out 600"),
+            sectionUsage: .value(primaryText: "6.4K", secondaryText: "in 4.8K · out 1.6K"),
             selectedRowID: "row-1"
         )
 
@@ -176,7 +178,8 @@ struct CodexSessionsCardSnapshotTests {
 
         let section = makeSectionData(
             isExpanded: true,
-            usage: .value(primaryText: "3.0K", secondaryText: "in 2.4K · out 600")
+            usage: .value(primaryText: "3.0K", secondaryText: "in 2.4K · out 600"),
+            sectionUsage: .value(primaryText: "6.4K", secondaryText: "in 4.8K · out 1.6K")
         )
 
         let host = makeHost(
@@ -204,12 +207,43 @@ struct CodexSessionsCardSnapshotTests {
         #expect(failure == nil || failure?.contains("Record mode is on") == true)
     }
 
+    @Test("section header shows aggregated usage above the group title")
+    func sectionHeaderShowsAggregatedUsageAboveGroupTitle() {
+        let section = makeSectionData(
+            isExpanded: false,
+            usage: .value(primaryText: "3.0K", secondaryText: "in 2.4K · out 600"),
+            sectionUsage: .value(primaryText: "6.4K", secondaryText: "in 4.8K · out 1.6K")
+        )
+
+        let host = makeHost(
+            VStack(alignment: .leading, spacing: 18) {
+                section
+            }
+            .padding(24)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .background(NolonUI.DesignSystem.Colors.Background.canvas),
+            size: CGSize(width: 980, height: 260)
+        )
+
+        let failure = withSnapshotTesting(record: .all) {
+            verifySnapshot(
+                of: host,
+                as: .image(size: CGSize(width: 980, height: 260)),
+                named: "section-header-group-usage",
+                snapshotDirectory: Self.snapshotDirectory
+            )
+        }
+
+        #expect(failure == nil || failure?.contains("Record mode is on") == true)
+    }
+
     @Test("provider secondary grouping remains migration friendly")
     func providerSecondaryGroupingRemainsMigrationFriendly() {
         let section = NolonUI.CodexSessionsSectionCardView(
             data: .init(
                 id: "provider-openai",
                 title: "openai",
+                usage: .failed(text: "Unavailable"),
                 titleSecondaryText: "/Users/linhey/.nolon/providers/openai/sessions/2026/04/15",
                 subtitle: "Read-only provider bundle. Sessions can be inspected, but migration stays disabled here.",
                 presentationKind: .rewritableGroup,
@@ -275,42 +309,7 @@ struct CodexSessionsCardSnapshotTests {
     @Test("detail panel surfaces quick resume command and path actions")
     func detailPanelSurfacesQuickResumeCommandAndPathActions() {
         let detail = CodexSessionsDetailPanelView(
-            data: .init(
-                title: "Refactor session list layout",
-                providerText: "OpenAI (openai)",
-                timeText: "2026-04-15 20:30",
-                projectPath: "/tmp/project-alpha",
-                groupTitle: "project-alpha",
-                groupSecondaryText: "/tmp/project-alpha",
-                summary: "Move dense row metadata into the panel and keep the list compact like cc-switch.",
-                usageText: "3.0K · in 2.4K · out 600",
-                rolloutPath: "sessions/2026/04/15/refactor.jsonl",
-                stateRowCount: 8,
-                metadataItems: [
-                    .init(id: "forked", icon: "arrow.triangle.branch", text: "Forked from parent-thread", style: .code),
-                    .init(id: "source", icon: "paperplane", text: "Source: cli"),
-                    .init(id: "originator", icon: "person.crop.circle", text: "Originator: codex"),
-                ],
-                statusTexts: ["Live"],
-                resumeCommand: "cd /tmp/project-alpha && codex resume --last thread-refactor",
-                rowData: .init(
-                    id: "row-detail",
-                    title: "Refactor session list layout",
-                    idText: "thread-refactor",
-                    timeText: "2026-04-15 20:30",
-                    providerText: "OpenAI (openai)",
-                    usage: .value(primaryText: "3.0K", secondaryText: "in 2.4K · out 600"),
-                    isArchived: false,
-                    isEditable: true,
-                    summary: "Move dense row metadata into the panel and keep the list compact like cc-switch.",
-                    rolloutPath: "sessions/2026/04/15/refactor.jsonl",
-                    showInFinderTitle: "Show in Finder",
-                    copyPathTitle: "Copy Path",
-                    stateRowCount: 8,
-                    actions: [],
-                    readOnlyText: nil
-                )
-            ),
+            data: makeDetailData(),
             onResume: {},
             onCopyCommand: {},
             onRevealInFinder: {},
@@ -325,14 +324,94 @@ struct CodexSessionsCardSnapshotTests {
             .padding(24)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             .background(NolonUI.DesignSystem.Colors.Background.canvas),
-            size: CGSize(width: 980, height: 520)
+            size: CGSize(width: 980, height: 360)
         )
 
         let failure = withSnapshotTesting(record: .all) {
             verifySnapshot(
                 of: host,
-                as: .image(size: CGSize(width: 980, height: 520)),
+                as: .image(size: CGSize(width: 980, height: 360)),
                 named: "detail-panel-quick-command",
+                snapshotDirectory: Self.snapshotDirectory
+            )
+        }
+
+        #expect(failure == nil || failure?.contains("Record mode is on") == true)
+    }
+
+    @Test("selected row expands inline detail below the tapped session")
+    func selectedRowExpandsInlineDetailBelowTappedSession() {
+        let section = NolonUI.CodexSessionsSectionCardView(
+            data: .init(
+                id: "project-alpha",
+                title: "project-alpha",
+                usage: .value(primaryText: "12.0K", secondaryText: "in 9.0K · out 3.0K"),
+                titleSecondaryText: "/tmp/project-alpha",
+                subtitle: "Inline detail should stay attached to the selected row instead of dropping to the page footer.",
+                presentationKind: .rewritableGroup,
+                badges: [
+                    .init(id: "live", text: "Live 5"),
+                    .init(id: "archived", text: "Archived 1"),
+                ],
+                actions: [],
+                actionMenuTitle: nil,
+                isExpanded: true,
+                expansionTitle: "Collapse",
+                rows: (0..<4).map { index in
+                    .init(
+                        id: "row-\(index)",
+                        title: index == 1 ? "Refactor session list layout" : "Session \(index)",
+                        nameMetadataItems: [],
+                        idText: "thread-\(index)",
+                        timeText: "2026-04-15 2\(index):30",
+                        providerText: "OpenAI (openai)",
+                        usage: .value(primaryText: "3.0K", secondaryText: "in 2.4K · out 600"),
+                        isArchived: index == 3,
+                        isEditable: true,
+                        summary: "Inline detail should sit under the selected session row.",
+                        rolloutPath: "sessions/2026/04/15/\(index).jsonl",
+                        showInFinderTitle: "Show in Finder",
+                        copyPathTitle: "Copy Path",
+                        stateRowCount: 8,
+                        actions: [],
+                        readOnlyText: nil
+                    )
+                }
+            ),
+            onTapSectionAction: { _ in },
+            onTapRowAction: { _, _ in },
+            onRevealInFinder: { _ in },
+            onToggleCollapse: { _ in },
+            selectedRowID: "row-1",
+            onSelectRow: { _ in },
+            expandedRowID: "row-1",
+            expandedRowContent: { _ in
+                CodexSessionsDetailPanelView(
+                    data: makeDetailData(),
+                    onResume: {},
+                    onCopyCommand: {},
+                    onRevealInFinder: {},
+                    onCopyProjectPath: {},
+                    onCopyRolloutPath: {}
+                )
+            }
+        )
+
+        let host = makeHost(
+            VStack(alignment: .leading, spacing: 18) {
+                section
+            }
+            .padding(24)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .background(NolonUI.DesignSystem.Colors.Background.canvas),
+            size: CGSize(width: 980, height: 720)
+        )
+
+        let failure = withSnapshotTesting(record: .all) {
+            verifySnapshot(
+                of: host,
+                as: .image(size: CGSize(width: 980, height: 720)),
+                named: "inline-detail-selected-row",
                 snapshotDirectory: Self.snapshotDirectory
             )
         }
@@ -369,12 +448,14 @@ struct CodexSessionsCardSnapshotTests {
     private func makeSectionData(
         isExpanded: Bool,
         usage: CodexSessionsUsageDisplayData,
+        sectionUsage: CodexSessionsUsageDisplayData? = nil,
         selectedRowID: String? = nil
-    ) -> NolonUI.CodexSessionsSectionCardView {
+    ) -> some View {
         NolonUI.CodexSessionsSectionCardView(
             data: .init(
                 id: "project-alpha",
                 title: "project-alpha",
+                usage: sectionUsage ?? usage,
                 titleSecondaryText: "/tmp/workspaces/project-alpha/very/deep/path/that/should/stay/on/one/line",
                 subtitle: "Project rewrite group. Move stays available from the menu without consuming a full banner row.",
                 presentationKind: .rewritableGroup,
@@ -462,6 +543,45 @@ struct CodexSessionsCardSnapshotTests {
             ),
             onRefresh: {},
             onSelectGroupingID: { _ in }
+        )
+    }
+
+    private func makeDetailData() -> CodexSessionsDetailPanelData {
+        .init(
+            title: "Refactor session list layout",
+            providerText: "OpenAI (openai)",
+            timeText: "2026-04-15 20:30",
+            projectPath: "/tmp/project-alpha",
+            groupTitle: "project-alpha",
+            groupSecondaryText: "/tmp/project-alpha",
+            summary: "Move dense row metadata into an inline panel so browsing stays stable in large session lists.",
+            usageText: "3.0K · in 2.4K · out 600",
+            rolloutPath: "sessions/2026/04/15/refactor.jsonl",
+            stateRowCount: 8,
+            metadataItems: [
+                .init(id: "forked", icon: "arrow.triangle.branch", text: "Forked from parent-thread", style: .code),
+                .init(id: "source", icon: "paperplane", text: "Source: cli"),
+                .init(id: "originator", icon: "person.crop.circle", text: "Originator: codex"),
+            ],
+            statusTexts: ["Live"],
+            resumeCommand: "cd /tmp/project-alpha && codex resume --last thread-refactor",
+            rowData: .init(
+                id: "row-detail",
+                title: "Refactor session list layout",
+                idText: "thread-refactor",
+                timeText: "2026-04-15 20:30",
+                providerText: "OpenAI (openai)",
+                usage: .value(primaryText: "3.0K", secondaryText: "in 2.4K · out 600"),
+                isArchived: false,
+                isEditable: true,
+                summary: "Move dense row metadata into an inline panel so browsing stays stable in large session lists.",
+                rolloutPath: "sessions/2026/04/15/refactor.jsonl",
+                showInFinderTitle: "Show in Finder",
+                copyPathTitle: "Copy Path",
+                stateRowCount: 8,
+                actions: [],
+                readOnlyText: nil
+            )
         )
     }
 

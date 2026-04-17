@@ -181,6 +181,57 @@ final class CodexSessionsSectionDataBuilderTests: XCTestCase {
         )
     }
 
+    func testBDD_GivenLoadedUsagesAcrossSection_WhenBuildingSectionData_ThenAggregatesGroupUsage() throws {
+        let section = makeSection(
+            title: "project-alpha",
+            titleSecondaryText: "/tmp/project-alpha",
+            rewriteSourceProviderID: "openai",
+            providerCount: 1,
+            totalSessionCount: 3,
+            visibleCount: 3,
+            isExpanded: true
+        )
+
+        let usageStates: [String: CodexSessionsTabViewModel.SessionUsageState] = [
+            "sessions/live-0.jsonl": .loaded(.init(inputTokens: 2_400, cachedInputTokens: 0, outputTokens: 600)),
+            "sessions/live-1.jsonl": .loaded(.init(inputTokens: 1_200, cachedInputTokens: 0, outputTokens: 400)),
+            "sessions/live-2.jsonl": .placeholder,
+        ]
+
+        let data = CodexSessionsSectionDataBuilder.buildSectionData(
+            section,
+            groupingMode: .project,
+            targetProviders: { _ in [] },
+            usageState: { usageStates[$0] ?? .failed }
+        )
+
+        XCTAssertEqual(
+            data.usage,
+            .value(primaryText: "4.6K", secondaryText: "in 3.6K · out 1.0K")
+        )
+    }
+
+    func testBDD_GivenNoResolvedUsageAndFailures_WhenBuildingSectionData_ThenShowsUnavailableGroupUsage() throws {
+        let section = makeSection(
+            title: "project-alpha",
+            titleSecondaryText: "/tmp/project-alpha",
+            rewriteSourceProviderID: "openai",
+            providerCount: 1,
+            totalSessionCount: 2,
+            visibleCount: 2,
+            isExpanded: false
+        )
+
+        let data = CodexSessionsSectionDataBuilder.buildSectionData(
+            section,
+            groupingMode: .project,
+            targetProviders: { _ in [] },
+            usageState: { _ in .failed }
+        )
+
+        XCTAssertEqual(data.usage, .failed(text: "Unavailable"))
+    }
+
     private func makeSection(
         title: String,
         titleSecondaryText: String?,

@@ -527,3 +527,278 @@
 ### 验证
 - `xcodebuild test -project nolon.xcodeproj -scheme nolon-tests -destination 'platform=macOS' -only-testing:nolonTests/CodexSessionsTabViewModelTests`
 - `xcodebuild test -project nolon.xcodeproj -scheme nolon-tests -destination 'platform=macOS' -only-testing:nolonTests/CodexSessionsCardSnapshotTests`
+
+## 增量（2026-04-17：会话行下内联展开详情）
+
+### 背景
+- 当前会话详情在页面最下方统一展示，用户点击某条会话后，详情会脱离原始上下文。
+- 在 3000+ 会话的长列表中，这种“点一条、跳到底部看详情”的模式几乎不可用。
+- 旧版详情卡片层级偏重，高度过大，不适合作为会话列表中的展开项。
+
+### 目标
+1. 点击会话后，详情直接在该会话行下方展开。
+2. 把详情改成紧凑的行内检查面板，压缩旧版大卡片高度。
+3. 保留现有 resume、Finder、复制路径、复制命令等动作。
+
+### 非目标
+1. 本轮不改为右侧双栏详情。
+2. 本轮不新增业务字段或后端查询。
+3. 本轮不改变当前 selection/rewrite 数据来源。
+
+### BDD 验收（inline detail 增量）
+1. Given 用户点击任意会话行
+   When 会话被选中
+   Then 详情显示在该行正下方，而不是列表底部。
+
+2. Given 某条会话已经展开详情
+   When 用户点击另一条会话
+   Then 原详情收起，新详情移动到新会话行下方。
+
+3. Given 会话详情已经展开
+   When 用户继续滚动同一个 section
+   Then 详情仍然跟随该行，不脱离该行上下文。
+
+4. Given 窄宽度窗口
+   When 行内详情显示
+   Then 布局仍保持紧凑，不产生旧版大卡片那样的超高面板。
+
+### 实现落点（2026-04-17 inline detail 增量）
+- `libs/NolonUI/Sources/NolonUI/Components/Shared/UnifiedCodexSessionViews.swift`
+  - 为 section row 增加内联 expanded content 插槽
+- `nolon/Skills/Domain/Providers/Views/CodexSessionsTabView.swift`
+  - 删除列表底部统一详情块
+  - 重做 `CodexSessionsDetailPanelView` 为紧凑版
+- `nolonTests/CodexSessionsCardSnapshotTests.swift`
+  - 新增/更新 inline detail 快照场景
+
+## 增量（2026-04-17：大样本会话下先发布项目骨架）
+
+### 背景
+- 用户的 `Codex Sessions` 已累积 3000+ 会话；当前 `snapshotStream` 会随着扫描进度持续发布“已扫描到的全量 sessions”。
+- `CodexSessionsTabViewModel` 每收到一个 snapshot 都会重建全部 project section，导致 section 在扫描过程中持续插入、重排、刷新。
+- 在大样本下，列表会出现明显跳动，用户无法稳定滚动或浏览。
+
+### 目标
+1. 首屏先稳定展示 project sections 骨架，而不是边扫描边插入真实 rows。
+2. project skeleton 发布后，再渐进把各项目的真实会话 rows 填充进去。
+3. 已经出现在列表中的 section 应尽量复用同一 `section.id`，减少 SwiftUI diff 抖动。
+4. 默认 `project-first` 浏览路径下，先保证“可停留、可滚动、可浏览”，再补齐细节数据。
+
+### 非目标
+1. 本轮不引入虚拟列表、分页游标或全文索引。
+2. 本轮不重写 `snapshotStream` 的主扫描与排序策略，只在其前增加轻量预扫描阶段。
+3. 本轮不新增复杂 placeholder row UI；使用现有 section card 的空 rows 能力承接占位。
+
+### 产品约束
+1. skeleton 至少提供：
+   - `section id`
+   - `title`
+   - `path`
+   - `liveCount`
+   - `archivedCount`
+   - `latestUpdatedAt`
+2. skeleton 阶段 section 不渲染真实 rows，因此 `sessions` 必须为空。
+3. skeleton 阶段不能触发 row usage 预取。
+4. section 一旦首屏出现，后续 rows 回填时必须尽量复用同一 `section.id`。
+5. project 分组顺序仍按组内最新会话时间倒序；当仅 skeleton 可用时，也要按 skeleton 的 `latestUpdatedAt` 排序。
+6. refresh 期间仍优先发布最新 skeleton，避免重新回到“边扫边跳”的状态。
+
+### BDD 验收（project skeleton 增量）
+1. Given `Codex Sessions` 有 3000+ 会话
+   When 页面开始加载
+   Then 先出现稳定的 project sections skeleton，而不是逐批插入真实 rows。
+
+2. Given 某个 project section 仍处于 skeleton 阶段
+   When section card 渲染
+   Then 该 section 显示 header、badge 与状态文案，但 `sessions` 为空。
+
+3. Given skeleton section 已经显示在列表中
+   When 后续 stream snapshot 补齐该项目会话
+   Then 复用同一 `section.id`，并从空 rows 切换为真实 rows。
+
+4. Given stream 仍在持续扫描
+   When 新 batch 到达
+   Then 已出现的 project section 顺序保持稳定，不因后续 batch 频繁重排。
+
+5. Given 用户触发 refresh
+   When 新一轮加载开始
+   Then 仍优先发布 skeleton，再渐进填充真实 rows。
+
+### 实现落点（2026-04-17 project skeleton 增量）
+- `libs/Providers/Sources/Providers/Codex/CodexSessionStore.swift`
+  - 新增 project skeleton 预扫描能力
+  - 复用 `CodexSessionScanner.scanFiles` + `readSessionMeta`
+  - 聚合 project path、live/archived 计数与最新更新时间
+- `nolon/Skills/Domain/Providers/Views/CodexSessionsTabViewModel.swift`
+  - 在 streaming load 前先请求 project skeleton
+  - 在 ViewModel 中维护 placeholder section 状态
+  - skeleton 与真实 rows 合并时复用同一 section id
+  - placeholder section 不参与 selection repair 与 usage prime
+- `nolon/Skills/Domain/Providers/Views/CodexSessionsSectionDataBuilder.swift`
+  - 为 placeholder section 提供轻量 subtitle
+- `nolonTests/CodexSessionsTabViewModelTests.swift`
+  - 新增先 skeleton 后 rows、占位为空 rows、复用 section id、排序稳定等用例
+- `libs/Providers/Tests/ProvidersTests/CodexTests/CodexSessionStoreTests.swift`
+  - 新增 project skeleton 聚合测试
+
+### 验证
+- `xcodebuild test -project nolon.xcodeproj -scheme nolon-tests -destination 'platform=macOS' -only-testing:nolonTests/CodexSessionsTabViewModelTests`
+- `swift test --package-path libs/Providers --filter CodexSessionStoreTests`
+
+## 增量（2026-04-17：加载架构重构与持久化边界）
+
+### 背景
+- 仅靠 project skeleton 预扫描，已经能把“首屏空白”问题压下来，但还没有切掉真正的根因链：
+  - `snapshotStream` 仍按 batch 输出“当前累计的全量 sessions”
+  - ViewModel 仍按 batch 全量替换 rows 并重建 sections
+  - section 顺序仍可能因流式阶段的 `latestUpdatedAt` 变化而反复调整
+- 用户已经明确接受“直接推倒重来”，因此本轮允许改动加载协议和 ViewModel 内部状态模型，但仍要求：
+  - 先保证 project-first 浏览稳定
+  - 再考虑二阶段缓存或更重的索引层
+
+### 目标
+1. 把 `snapshotStream` 从“累计全量 snapshot”改成“delta stream + completion event”。
+2. 让 `CodexSessionsTabViewModel` 从“全量 rows 重建”改成“增量索引 + query state”。
+3. 在 skeleton 可用时，把 skeleton 顺序作为流式阶段的稳定 section 锚点，完成前不重排 section。
+4. 搜索改为 debounce 后再应用，避免每个字符输入都触发全量重建。
+5. 明确持久化边界：
+   - `groupingMode` 作为轻量偏好跨重启恢复
+   - `searchQuery` / `selectedSessionID` 不跨重启恢复
+
+### 非目标
+1. 本轮不引入新的 SQLite / FTS 索引层。
+2. 本轮不做会话数据磁盘缓存；这属于 phase 2 评估项。
+3. 本轮不恢复页面级 `Load More` 语义，继续沿用 section 级 `5` 条预览 + 展开模型。
+
+### 产品约束
+1. Provider 层 delta 必须满足：
+   - 每个 batch 只输出本批新增或更新的 session
+   - 最后一批必须显式标记 `isComplete`
+   - 不得重复发送之前 batch 已发过、且内容未变化的 rows
+2. ViewModel 必须维护稳定选择态：
+   - 当选中的 session 仍存在时，不得因流式填充、折叠态或暂时不可见而跳回第一条
+3. skeleton 阶段与流式阶段都必须复用同一 `section.id`。
+4. `Codex Sessions` 专属偏好不得并入 `AppSettingsStore`。
+5. phase 1 仅持久化 `groupingMode`；其他状态暂不跨重启。
+6. 手动 `refresh` 不要求实时流式可见；允许保留当前列表，待一次性新 snapshot 准备完成后再整体替换。
+
+### BDD 验收（delta + query state 增量）
+1. Given provider 下存在 3000+ 会话
+   When `snapshotStream` 逐批发布数据
+   Then 每批只发布增量 rows，而不是累计全量 snapshot。
+
+2. Given skeleton 已按 project 顺序首屏显示
+   When 后续 delta batch 持续到达
+   Then section 框架顺序保持稳定，直到 stream 完成前都不因最新会话变化而重排。
+
+3. Given 用户已经选中一个仍存在的 session
+   When 后续 delta batch 到达，或 section 因折叠只显示前 5 条
+   Then `selectedSessionID` 保持不变，不自动回退到第一条。
+
+4. Given 用户在搜索框内快速连续输入
+   When 查询文本持续变化
+   Then 只有 debounce 后的查询才驱动列表过滤，而不是每次击键都重建 sections。
+
+5. Given 用户把分组模式切到 `provider`
+   When 退出并重新打开应用
+   Then `Sessions` 页恢复为 `provider` 分组。
+
+6. Given 用户关闭并重新打开应用
+   When 回到 `Sessions` 页
+   Then `searchQuery` 与 `selectedSessionID` 不自动恢复。
+
+7. Given 用户已经进入 `Codex Sessions`
+   When 用户主动点击刷新
+   Then 当前列表保持可浏览，不重新进入流式抖动状态
+   And 刷新完成后一次性切换到最新 snapshot。
+
+### 实现落点（2026-04-17 delta + 持久化增量）
+- `libs/Providers/Sources/Providers/Codex/CodexSessionStore.swift`
+  - 新增 delta stream 事件结构
+  - `snapshotStream` 改为逐批输出增量 rows，并在结束时发出 completion event
+- `nolon/Skills/Domain/Providers/Views/CodexSessionsTabViewModel.swift`
+  - 维护 session 增量索引与 section query state
+  - skeleton 顺序锁定、stream 完成后再解除
+  - 手动 refresh 改为稳态单次 snapshot reload，不再复用实时 delta stream
+  - 搜索 debounce
+  - 选择态修正为“session 仍存在即保持”
+- `nolon/Skills/Domain/Providers/Views/CodexSessionsPreferencesStore.swift`
+  - provider-scoped `UserDefaults` 偏好存储
+  - phase 1 仅管理 `groupingMode`
+- `nolonTests/CodexSessionsTabViewModelTests.swift`
+  - 新增/更新：delta 流期间顺序稳定、selection 稳定、debounce 查询、groupingMode 恢复
+- `libs/Providers/Tests/ProvidersTests/CodexTests/CodexSessionStoreTests.swift`
+  - 新增 delta stream 契约测试
+
+## 增量（2026-04-17：组头显示当组用量）
+
+### 背景
+- 当前 `Codex Sessions` 已在 row 级异步回填 usage，但 section header 只显示标题、路径和 badge。
+- 当用户按 `project` 或 `provider` 浏览大量会话时，需要先在组头看到“这一组大概消耗了多少”，而不是逐条点开或横向扫 usage 列。
+
+### 目标
+1. 每个 section 组头显示该组当前可聚合的 usage。
+2. usage 展示位于标题区域上方，优先服务快速浏览，而不是塞进 subtitle。
+3. 组头 usage 复用现有 row usage 语义，避免引入第二套展示状态。
+
+### 产品约束
+1. section usage 必须由 builder 聚合，而不是由 View 直接遍历 row 临时拼接。
+2. section usage 状态与 row usage 对齐：
+   - 全部仍在加载时显示 `Loading…`
+   - 至少存在一条已加载 usage 时，显示当前已解析总量
+   - 没有成功值且存在失败时显示 `Unavailable`
+3. 窄宽布局下仍优先保留总量；次级 `in/out` 细节可降级，但不能让总量消失。
+
+### BDD 验收（组头用量）
+1. Given 某个 project section 下已有多条 session usage 回填成功
+   When 渲染该 section header
+   Then 组头上方显示该组总量，并显示 `in/out` 汇总明细。
+
+2. Given 某个 section 下所有 row usage 仍在加载
+   When 首屏渲染该组
+   Then 组头显示 `Loading…`，且不阻塞 row 列表浏览。
+
+3. Given 某个 section 下没有成功 usage，且至少一条 usage 解析失败
+   When 渲染该组
+   Then 组头显示 `Unavailable`。
+
+### 实现落点
+- `libs/NolonUIFoundation/Sources/NolonUIFoundation/CodexSessionsModels.swift`
+  - `CodexSessionsSectionData` 新增 `usage`
+- `nolon/Skills/Domain/Providers/Views/CodexSessionsSectionDataBuilder.swift`
+  - 聚合 section.sessions 的 usageState
+- `libs/NolonUI/Sources/NolonUI/Components/Shared/UnifiedCodexSessionViews.swift`
+  - 在 section header 顶部增加 usage block
+- `nolonTests/CodexSessionsSectionDataBuilderTests.swift`
+  - 覆盖 section usage 聚合规则
+- `nolonTests/CodexSessionsCardSnapshotTests.swift`
+  - 覆盖组头显示 usage 的视觉回归
+
+## 增量（2026-04-17：恢复到会话页时自动刷新）
+
+### 背景
+- 当前 `Codex Sessions` 页面只在首次进入时通过 `loadIfNeeded()` 触发加载。
+- 当用户停留在 `Sessions` 页，把 App 退到后台后再重新激活，或恢复到该页面时，没有新的刷新触发点。
+- 用户感知结果是：重新打开 App 后还停在 `Sessions` 页，但列表仍是旧数据。
+
+### 目标
+1. 当 `Sessions` 页已经完成过一次加载后，App 重新变为 `active` 时执行一次稳态刷新。
+2. 该刷新沿用现有 `refresh()` 语义，不回退到 skeleton，也不重启流式抖动。
+3. 未完成首次加载前，不因为 `scenePhase` 变化额外触发一次重复刷新。
+
+### BDD 验收（恢复刷新）
+1. Given 用户当前停留在 `Codex Sessions` 页，且页面已完成初始加载
+   When App 退到后台后重新变为 `active`
+   Then 页面执行一次稳态 `refresh()`，并展示最新 snapshot。
+
+2. Given `Codex Sessions` 页还没有完成首次加载
+   When App 生命周期切到 `active`
+   Then 不额外触发 `refresh()`，避免与初始加载重复。
+
+### 实现落点
+- `nolon/Skills/Domain/Providers/Views/CodexSessionsTabView.swift`
+  - 监听 `scenePhase`，在页面可见且重新进入 `active` 时通知 ViewModel
+- `nolon/Skills/Domain/Providers/Views/CodexSessionsTabViewModel.swift`
+  - 新增“App 激活后按需刷新”入口，复用现有 `refresh()` 逻辑
+- `nolonTests/CodexSessionsTabViewModelTests.swift`
+  - 覆盖已加载后 active refresh 与未加载前不刷新

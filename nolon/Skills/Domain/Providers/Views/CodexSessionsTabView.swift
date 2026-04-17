@@ -10,6 +10,7 @@ import STFilePath
 struct CodexSessionsTabView: View {
     let provider: Provider
 
+    @Environment(\.scenePhase) private var scenePhase
     @State private var viewModel: CodexSessionsTabViewModel
 
     init(provider: Provider, viewModel: CodexSessionsTabViewModel? = nil) {
@@ -52,6 +53,10 @@ struct CodexSessionsTabView: View {
         .task(id: provider.id) {
             _ = await viewModel.loadIfNeeded()
         }
+        .onChange(of: scenePhase) { oldValue, newValue in
+            guard oldValue != .active, newValue == .active else { return }
+            Task { await viewModel.refreshOnAppActivationIfNeeded() }
+        }
         .confirmationAlert(
             data: viewModel.confirmationAlertData,
             isPresented: Binding(
@@ -82,6 +87,7 @@ struct CodexSessionsTabView: View {
                     data: .init(
                         id: "skeleton-section-\(sectionIndex)",
                         title: "project-alpha",
+                        usage: .placeholder(text: "Loading…"),
                         titleSecondaryText: "/tmp/project-alpha",
                         subtitle: nil,
                         badges: [
@@ -151,56 +157,7 @@ struct CodexSessionsTabView: View {
         } else {
             LazyVStack(alignment: .leading, spacing: 16) {
                 ForEach(viewModel.sections) { section in
-                    NolonUI.CodexSessionsSectionCardView(
-                        data: CodexSessionsSectionDataBuilder.buildSectionData(
-                            section,
-                            groupingMode: viewModel.groupingMode,
-                            targetProviders: { viewModel.targetProviders(for: $0) },
-                            usageState: { viewModel.usageState(for: $0) }
-                        ),
-                        onTapSectionAction: { targetProviderID in
-                            Task {
-                                await viewModel.requestRewrite(for: section, targetProviderID: targetProviderID)
-                            }
-                        },
-                        onTapRowAction: { row, targetProviderID in
-                            guard let session = section.sessions.first(where: { $0.id == row.id }) else { return }
-                            Task {
-                                await viewModel.requestRewrite(for: session, targetProviderID: targetProviderID)
-                            }
-                        },
-                        onRevealInFinder: { row in
-                            revealInFinder(for: row)
-                        },
-                        onToggleCollapse: { sectionID in
-                            viewModel.toggleSectionExpansion(sectionID)
-                        },
-                        selectedRowID: viewModel.selectedSessionID,
-                        onSelectRow: { row in
-                            viewModel.selectSession(row.id)
-                        }
-                    )
-                }
-
-                if let detailData = selectedSessionDetailData {
-                    CodexSessionsDetailPanelView(
-                        data: detailData,
-                        onResume: detailData.resumeCommand == nil ? nil : {
-                            resumeSelectedSession(detailData)
-                        },
-                        onCopyCommand: detailData.resumeCommand == nil ? nil : {
-                            copyToPasteboard(detailData.resumeCommand ?? "")
-                        },
-                        onRevealInFinder: {
-                            revealInFinder(for: detailData.rowData)
-                        },
-                        onCopyProjectPath: detailData.projectPath == nil ? nil : {
-                            copyToPasteboard(detailData.projectPath ?? "")
-                        },
-                        onCopyRolloutPath: {
-                            copyToPasteboard(detailData.rowData.rolloutPath)
-                        }
-                    )
+                    sectionCard(for: section)
                 }
             }
         }
@@ -233,21 +190,80 @@ struct CodexSessionsTabView: View {
         NSWorkspace.shared.activateFileViewerSelecting([targetURL])
     }
 
-    private var selectedSessionDetailData: CodexSessionsDetailPanelData? {
-        guard let session = viewModel.selectedSession else { return nil }
-        let rowData = CodexSessionsSectionDataBuilder.buildRowData(
-            session,
+    private func sectionCard(
+        for section: CodexSessionsTabViewModel.SessionSection
+    ) -> some View {
+        let sectionData = CodexSessionsSectionDataBuilder.buildSectionData(
+            section,
             groupingMode: viewModel.groupingMode,
             targetProviders: { viewModel.targetProviders(for: $0) },
-            usageState: viewModel.usageState(for: session.id)
+            usageState: { viewModel.usageState(for: $0) }
         )
+        let expandedRowID = section.sessions.contains(where: { $0.id == viewModel.selectedSessionID })
+            ? viewModel.selectedSessionID
+            : nil
+
+        return NolonUI.CodexSessionsSectionCardView(
+            data: sectionData,
+            onTapSectionAction: { targetProviderID in
+                Task {
+                    await viewModel.requestRewrite(for: section, targetProviderID: targetProviderID)
+                }
+            },
+            onTapRowAction: { row, targetProviderID in
+                guard let session = section.sessions.first(where: { $0.id == row.id }) else { return }
+                Task {
+                    await viewModel.requestRewrite(for: session, targetProviderID: targetProviderID)
+                }
+            },
+            onRevealInFinder: { row in
+                revealInFinder(for: row)
+            },
+            onToggleCollapse: { sectionID in
+                viewModel.toggleSectionExpansion(sectionID)
+            },
+            selectedRowID: viewModel.selectedSessionID,
+            onSelectRow: { row in
+                viewModel.selectSession(row.id)
+            },
+            expandedRowID: expandedRowID
+        ) { row in
+            if let detailData = detailPanelData(for: row, in: section) {
+                CodexSessionsDetailPanelView(
+                    data: detailData,
+                    onResume: detailData.resumeCommand == nil ? nil : {
+                        resumeSelectedSession(detailData)
+                    },
+                    onCopyCommand: detailData.resumeCommand == nil ? nil : {
+                        copyToPasteboard(detailData.resumeCommand ?? "")
+                    },
+                    onRevealInFinder: {
+                        revealInFinder(for: detailData.rowData)
+                    },
+                    onCopyProjectPath: detailData.projectPath == nil ? nil : {
+                        copyToPasteboard(detailData.projectPath ?? "")
+                    },
+                    onCopyRolloutPath: {
+                        copyToPasteboard(detailData.rowData.rolloutPath)
+                    }
+                )
+            }
+        }
+    }
+
+    private func detailPanelData(
+        for rowData: CodexSessionsRowData,
+        in section: CodexSessionsTabViewModel.SessionSection
+    ) -> CodexSessionsDetailPanelData? {
+        guard viewModel.selectedSessionID == rowData.id else { return nil }
+        guard let session = section.sessions.first(where: { $0.id == rowData.id }) else { return nil }
         return CodexSessionsDetailPanelData(
             title: session.title,
             providerText: rowData.providerText,
             timeText: rowData.timeText,
             projectPath: session.cwd,
-            groupTitle: viewModel.selectedSection?.title,
-            groupSecondaryText: viewModel.selectedSection?.titleSecondaryText,
+            groupTitle: section.title,
+            groupSecondaryText: section.titleSecondaryText,
             summary: session.summary,
             usageText: usageSummary(for: rowData.usage),
             rolloutPath: rowData.rolloutPath,
@@ -374,86 +390,46 @@ struct CodexSessionsDetailPanelView: View {
     let onCopyRolloutPath: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: 12) {
             header
 
             if let summary = data.summary, !summary.isEmpty {
                 Text(summary)
-                    .font(.subheadline)
+                    .font(.caption)
                     .foregroundStyle(DesignSystem.Colors.Text.secondary)
+                    .lineLimit(3)
                     .fixedSize(horizontal: false, vertical: true)
             }
 
             if let resumeCommand = data.resumeCommand, !resumeCommand.isEmpty {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text(
-                        NSLocalizedString(
-                            "codex.sessions.detail.command",
-                            value: "Quick Command",
-                            comment: "Codex sessions detail quick command title"
-                        )
-                    )
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(DesignSystem.Colors.Text.tertiary)
-
-                    HStack(spacing: 10) {
-                        Text(resumeCommand)
-                            .font(.caption.monospaced())
-                            .foregroundStyle(DesignSystem.Colors.Text.secondary)
-                            .lineLimit(1)
-                            .textSelection(.enabled)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-
-                        if let onCopyCommand {
-                            Button(action: onCopyCommand) {
-                                Label(
-                                    NSLocalizedString(
-                                        "codex.sessions.detail.copy_command",
-                                        value: "Copy Command",
-                                        comment: "Copy codex session resume command"
-                                    ),
-                                    systemImage: "doc.on.doc"
-                                )
-                            }
-                            .buttonStyle(.borderless)
-                        }
-                    }
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 10)
-                    .background(
-                        RoundedRectangle(cornerRadius: DesignSystem.Metrics.cornerRadiusM, style: .continuous)
-                            .fill(DesignSystem.Colors.Background.surface.opacity(0.9))
-                    )
-                    .overlay(
-                        RoundedRectangle(cornerRadius: DesignSystem.Metrics.cornerRadiusM, style: .continuous)
-                            .stroke(DesignSystem.Colors.Component.border.opacity(0.22), lineWidth: 1)
-                    )
-                }
+                commandStrip(resumeCommand)
             }
 
-            quickActions
+            actionBar
             metadataGrid
         }
-        .padding(20)
+        .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .dsCard(
-            background: DesignSystem.Colors.Background.elevated.opacity(0.96),
-            cornerRadius: DesignSystem.Metrics.cornerRadiusL,
-            borderColor: DesignSystem.Colors.Component.border.opacity(0.28),
-            shadow: NolonUI.DesignSystem.CardShadow.subtle
+        .background(
+            RoundedRectangle(cornerRadius: DesignSystem.Metrics.cornerRadiusM, style: .continuous)
+                .fill(DesignSystem.Colors.Background.surface.opacity(0.86))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: DesignSystem.Metrics.cornerRadiusM, style: .continuous)
+                .stroke(DesignSystem.Colors.Component.border.opacity(0.18), lineWidth: 1)
         )
     }
 
     private var header: some View {
         ViewThatFits(in: .horizontal) {
-            HStack(alignment: .top, spacing: 16) {
+            HStack(alignment: .top, spacing: 12) {
                 headerLead
-                Spacer(minLength: 16)
+                Spacer(minLength: 12)
                 headerActions
             }
-            .frame(minWidth: 640, alignment: .leading)
+            .frame(minWidth: 620, alignment: .leading)
 
-            VStack(alignment: .leading, spacing: 14) {
+            VStack(alignment: .leading, spacing: 10) {
                 headerLead
                 headerActions
             }
@@ -462,46 +438,71 @@ struct CodexSessionsDetailPanelView: View {
 
     private var headerLead: some View {
         HStack(alignment: .top, spacing: 12) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .fill(DesignSystem.Colors.primary.opacity(0.12))
-                    .frame(width: 42, height: 42)
-
-                Image(systemName: "bubble.left.and.bubble.right.fill")
-                    .font(.system(size: 18, weight: .semibold))
-                    .foregroundStyle(DesignSystem.Colors.primary)
-            }
-
             VStack(alignment: .leading, spacing: 8) {
-                Text(data.title)
-                    .font(.title3.weight(.semibold))
-                    .foregroundStyle(DesignSystem.Colors.Text.primary)
-                    .lineLimit(2)
+                HStack(alignment: .center, spacing: 8) {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .fill(DesignSystem.Colors.primary.opacity(0.12))
+                            .frame(width: 28, height: 28)
 
-                HStack(spacing: 8) {
-                    Label(data.timeText, systemImage: "clock")
-                    Text("·")
-                    Text(data.providerText)
-                    if let groupTitle = data.groupTitle, !groupTitle.isEmpty {
-                        Text("·")
-                        Text(groupTitle)
+                        Image(systemName: "bubble.left.and.bubble.right.fill")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(DesignSystem.Colors.primary)
                     }
+
+                    Text(data.title)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(DesignSystem.Colors.Text.primary)
+                        .lineLimit(2)
+
+                    statusPills
                 }
-                .font(.caption)
-                .foregroundStyle(DesignSystem.Colors.Text.secondary)
-                .lineLimit(1)
+
+                contextLine
 
                 if let projectPath = data.projectPath, !projectPath.isEmpty {
                     Button(action: { onCopyProjectPath?() }) {
                         Label(projectPath, systemImage: "folder")
                             .lineLimit(1)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.borderless)
+                    .controlSize(.small)
                     .foregroundStyle(DesignSystem.Colors.Text.tertiary)
                     .help(projectPath)
                 }
             }
         }
+    }
+
+    @ViewBuilder
+    private var statusPills: some View {
+        if !data.statusTexts.isEmpty {
+            FlowLayout(spacing: 6) {
+                ForEach(data.statusTexts, id: \.self) { text in
+                    Text(text)
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(DesignSystem.Colors.Text.secondary)
+                        .padding(.horizontal, 7)
+                        .padding(.vertical, 3)
+                        .background(DesignSystem.Colors.Background.elevated.opacity(0.9), in: Capsule())
+                }
+            }
+        }
+    }
+
+    private var contextLine: some View {
+        HStack(spacing: 8) {
+            Label(data.timeText, systemImage: "clock")
+            Text("·")
+            Text(data.providerText)
+            if let groupTitle = data.groupTitle, !groupTitle.isEmpty {
+                Text("·")
+                Text(groupTitle)
+            }
+        }
+        .font(.caption2)
+        .foregroundStyle(DesignSystem.Colors.Text.secondary)
+        .lineLimit(1)
     }
 
     private var headerActions: some View {
@@ -518,7 +519,8 @@ struct CodexSessionsDetailPanelView: View {
                     systemImage: "play.fill"
                 )
             }
-            .buttonStyle(.borderedProminent)
+            .buttonStyle(.bordered)
+            .controlSize(.small)
             .disabled(onResume == nil)
 
             Button(action: onRevealInFinder) {
@@ -532,15 +534,57 @@ struct CodexSessionsDetailPanelView: View {
                 )
             }
             .buttonStyle(.bordered)
+            .controlSize(.small)
         }
     }
 
-    private var quickActions: some View {
+    private func commandStrip(_ resumeCommand: String) -> some View {
+        HStack(alignment: .center, spacing: 8) {
+            Image(systemName: "terminal")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(DesignSystem.Colors.Text.tertiary)
+
+            Text(resumeCommand)
+                .font(.caption.monospaced())
+                .foregroundStyle(DesignSystem.Colors.Text.secondary)
+                .lineLimit(1)
+                .textSelection(.enabled)
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+            if let onCopyCommand {
+                Button(action: onCopyCommand) {
+                    Image(systemName: "doc.on.doc")
+                        .font(.system(size: 11, weight: .semibold))
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(DesignSystem.Colors.Text.secondary)
+                .help(
+                    NSLocalizedString(
+                        "codex.sessions.detail.copy_command",
+                        value: "Copy Command",
+                        comment: "Copy codex session resume command"
+                    )
+                )
+            }
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .background(
+            RoundedRectangle(cornerRadius: DesignSystem.Metrics.cornerRadiusS, style: .continuous)
+                .fill(DesignSystem.Colors.Background.elevated.opacity(0.86))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: DesignSystem.Metrics.cornerRadiusS, style: .continuous)
+                .stroke(DesignSystem.Colors.Component.border.opacity(0.14), lineWidth: 1)
+        )
+    }
+
+    private var actionBar: some View {
         FlowLayout(spacing: 10) {
             actionChip(
                 title: NSLocalizedString(
                     "codex.sessions.detail.copy_rollout",
-                    value: "Copy Rollout Path",
+                    value: "Rollout",
                     comment: "Copy rollout path"
                 ),
                 systemImage: "doc.on.doc"
@@ -552,7 +596,7 @@ struct CodexSessionsDetailPanelView: View {
                 actionChip(
                     title: NSLocalizedString(
                         "codex.sessions.detail.copy_project",
-                        value: "Copy Project Path",
+                        value: "Project",
                         comment: "Copy project path"
                     ),
                     systemImage: "folder.badge.plus"
@@ -565,7 +609,7 @@ struct CodexSessionsDetailPanelView: View {
                 actionChip(
                     title: NSLocalizedString(
                         "codex.sessions.detail.copy_command_short",
-                        value: "Copy Resume Command",
+                        value: "Command",
                         comment: "Copy resume command"
                     ),
                     systemImage: "terminal"
@@ -580,10 +624,10 @@ struct CodexSessionsDetailPanelView: View {
         let items = detailMetadataItems()
         return LazyVGrid(
             columns: [
-                GridItem(.adaptive(minimum: 220), spacing: 12, alignment: .top),
+                GridItem(.adaptive(minimum: 170), spacing: 8, alignment: .top),
             ],
             alignment: .leading,
-            spacing: 12
+            spacing: 8
         ) {
             ForEach(Array(items.enumerated()), id: \.offset) { _, item in
                 metadataCard(
@@ -656,33 +700,33 @@ struct CodexSessionsDetailPanelView: View {
     private func actionChip(title: String, systemImage: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Label(title, systemImage: systemImage)
-                .font(.caption.weight(.medium))
+                .font(.caption2.weight(.semibold))
         }
         .buttonStyle(.bordered)
         .controlSize(.small)
     }
 
     private func metadataCard(title: String, value: String, systemImage: String, monospaced: Bool) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 5) {
             Label(title, systemImage: systemImage)
-                .font(.caption.weight(.semibold))
+                .font(.caption2.weight(.semibold))
                 .foregroundStyle(DesignSystem.Colors.Text.tertiary)
 
             Text(value)
-                .font(monospaced ? .caption.monospaced() : .subheadline)
+                .font(monospaced ? .caption2.monospaced() : .caption)
                 .foregroundStyle(DesignSystem.Colors.Text.secondary)
-                .lineLimit(3)
+                .lineLimit(2)
                 .textSelection(.enabled)
         }
-        .padding(12)
+        .padding(10)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
-            RoundedRectangle(cornerRadius: DesignSystem.Metrics.cornerRadiusM, style: .continuous)
-                .fill(DesignSystem.Colors.Background.surface.opacity(0.88))
+            RoundedRectangle(cornerRadius: DesignSystem.Metrics.cornerRadiusS, style: .continuous)
+                .fill(DesignSystem.Colors.Background.elevated.opacity(0.72))
         )
         .overlay(
-            RoundedRectangle(cornerRadius: DesignSystem.Metrics.cornerRadiusM, style: .continuous)
-                .stroke(DesignSystem.Colors.Component.border.opacity(0.18), lineWidth: 1)
+            RoundedRectangle(cornerRadius: DesignSystem.Metrics.cornerRadiusS, style: .continuous)
+                .stroke(DesignSystem.Colors.Component.border.opacity(0.14), lineWidth: 1)
         )
     }
 
