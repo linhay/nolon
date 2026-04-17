@@ -33,6 +33,12 @@ struct CodexSessionsTabView: View {
                         return
                     }
                     viewModel.setGroupingMode(groupingMode)
+                },
+                onSelectSortingID: { sortingID in
+                    guard let sortMode = CodexSessionsTabViewModel.SessionSortMode(rawValue: sortingID) else {
+                        return
+                    }
+                    viewModel.setSortMode(sortMode)
                 }
             )
 
@@ -167,6 +173,7 @@ struct CodexSessionsTabView: View {
         CodexSessionsOverviewDataBuilder.build(
             .init(
                 groupingMode: viewModel.groupingMode,
+                sortMode: viewModel.sortMode,
                 totalSessionCount: viewModel.totalSessionCount,
                 groupCount: viewModel.groupCount,
                 rewritableGroupCount: viewModel.rewritableGroupCount,

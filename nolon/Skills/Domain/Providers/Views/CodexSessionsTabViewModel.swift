@@ -72,10 +72,18 @@ final class CodexSessionsTabViewModel {
     nonisolated static let performanceNotification = Notification.Name("CodexSessionsTabViewModel.performance")
     nonisolated private static let logger = Logger(subsystem: "com.nolon", category: "CodexSessionsTabViewModel")
     nonisolated static let defaultVisibleSessionCountPerSection = 5
+    nonisolated private static let usageSortingParallelism = 6
 
     enum SessionGroupingMode: String, CaseIterable, Identifiable, Sendable {
         case project = "project"
         case provider = "provider"
+
+        var id: String { rawValue }
+    }
+
+    enum SessionSortMode: String, CaseIterable, Identifiable, Sendable {
+        case recent = "recent"
+        case usage = "usage"
 
         var id: String { rawValue }
     }
@@ -149,6 +157,7 @@ final class CodexSessionsTabViewModel {
         let titleSecondaryText: String?
         let rewriteSourceLabel: String
         let rewriteSourceProviderID: String?
+        let usageSessionIDs: [String]
         let sessions: [SessionRow]
         let totalSessionCount: Int
         let editableThreadIDs: [String]
@@ -164,6 +173,7 @@ final class CodexSessionsTabViewModel {
             titleSecondaryText: String?,
             rewriteSourceLabel: String,
             rewriteSourceProviderID: String?,
+            usageSessionIDs: [String],
             sessions: [SessionRow],
             totalSessionCount: Int,
             editableThreadIDs: [String],
@@ -178,6 +188,7 @@ final class CodexSessionsTabViewModel {
             self.titleSecondaryText = titleSecondaryText
             self.rewriteSourceLabel = rewriteSourceLabel
             self.rewriteSourceProviderID = rewriteSourceProviderID
+            self.usageSessionIDs = usageSessionIDs
             self.sessions = sessions
             self.totalSessionCount = totalSessionCount
             self.editableThreadIDs = editableThreadIDs
@@ -233,6 +244,8 @@ final class CodexSessionsTabViewModel {
         let editableThreadIDs: [String]
         let providerCount: Int
         let latestUpdatedAt: Date?
+        let usageTotalTokens: Int
+        let usageAvailabilityRank: Int
         let isPlaceholder: Bool
 
         nonisolated var hasEditableSessions: Bool {
@@ -268,6 +281,7 @@ final class CodexSessionsTabViewModel {
     var pendingRewrite: PendingRewrite?
     var showsInitialSkeleton = false
     var groupingMode: SessionGroupingMode = .project
+    var sortMode: SessionSortMode = .recent
     var selectedSessionID: String?
     var searchQuery: String = "" {
         didSet {
@@ -291,8 +305,11 @@ final class CodexSessionsTabViewModel {
     private var expandedSectionIDs: Set<String> = []
     private var usageBySessionID: [String: SessionUsageState] = [:]
     private var usageTasks: [String: Task<Void, Never>] = [:]
+    private var queuedUsageSessionIDs: [String] = []
+    private var queuedUsageSessionIDSet: Set<String> = []
     private var appliedSearchQuery: String = ""
     private var searchDebounceTask: Task<Void, Never>?
+    private var usageSortRebuildTask: Task<Void, Never>?
     private var isProjectOrderLocked = false
 
     private var allRows: [SessionRow] {
@@ -312,6 +329,7 @@ final class CodexSessionsTabViewModel {
         let resolvedPreferencesStore = preferencesStore ?? CodexSessionsPreferencesStore(providerID: provider.id)
         self.preferencesStore = resolvedPreferencesStore
         self.groupingMode = resolvedPreferencesStore.groupingMode
+        self.sortMode = resolvedPreferencesStore.sortMode
         self.searchDebounceNanoseconds = searchDebounceNanoseconds
     }
 
@@ -402,6 +420,7 @@ final class CodexSessionsTabViewModel {
             titleSecondaryText: sectionState.titleSecondaryText,
             rewriteSourceLabel: sectionState.rewriteSourceLabel,
             rewriteSourceProviderID: sectionState.rewriteSourceProviderID,
+            usageSessionIDs: sectionState.sessions.map(\.id),
             sessions: visibleSessions(for: sectionState, isExpanded: isExpanded),
             totalSessionCount: sectionState.totalSessionCount,
             editableThreadIDs: sectionState.editableThreadIDs,
@@ -600,6 +619,7 @@ final class CodexSessionsTabViewModel {
                 startedAt: startedAt,
                 extra: [
                     "grouping_mode": groupingMode.rawValue,
+                    "sort_mode": sortMode.rawValue,
                     "section_count": sections.count,
                     "session_count": totalSessionCount,
                     "visible_session_count": visibleSessionCount,
@@ -634,6 +654,13 @@ final class CodexSessionsTabViewModel {
         guard groupingMode != newValue else { return }
         groupingMode = newValue
         preferencesStore.groupingMode = newValue
+        rebuildSectionStates()
+    }
+
+    func setSortMode(_ newValue: SessionSortMode) {
+        guard sortMode != newValue else { return }
+        sortMode = newValue
+        preferencesStore.sortMode = newValue
         rebuildSectionStates()
     }
 
@@ -868,7 +895,7 @@ final class CodexSessionsTabViewModel {
 
         if isSearchActive {
             let filteredRows = Self.filteredRows(from: allRows, searchQuery: appliedSearchQuery)
-            allSectionStates = Self.makeSectionStates(from: filteredRows, groupingMode: groupingMode)
+            allSectionStates = makeSectionStates(from: filteredRows, groupingMode: groupingMode)
             validSectionStates = currentSectionStatesForGrouping()
         } else {
             let sectionStates = currentSectionStatesForGrouping()
@@ -900,6 +927,7 @@ final class CodexSessionsTabViewModel {
                     titleSecondaryText: section.titleSecondaryText,
                     rewriteSourceLabel: section.rewriteSourceLabel,
                     rewriteSourceProviderID: section.rewriteSourceProviderID,
+                    usageSessionIDs: section.sessions.map(\.id),
                     sessions: visibleSessions,
                     totalSessionCount: section.totalSessionCount,
                     editableThreadIDs: section.editableThreadIDs,
@@ -938,10 +966,14 @@ final class CodexSessionsTabViewModel {
         case .project:
             let actualStates = makeProjectSectionStates()
             guard !projectSkeletons.isEmpty else { return actualStates }
-            return Self.mergeProjectSectionStates(
+            let merged = Self.mergeProjectSectionStates(
                 actualStates: actualStates,
                 projectSkeletons: projectSkeletons
             )
+            if sortMode == .usage {
+                return merged.sorted(by: sortSections(_:_:))
+            }
+            return merged
 
         case .provider:
             return makeProviderSectionStates()
@@ -956,7 +988,7 @@ final class CodexSessionsTabViewModel {
             let providerIDs = Set(sessions.map(\.modelProvider))
             let rewriteSourceProviderID = providerIDs.count == 1 ? providerIDs.first : nil
             let projectName = Self.projectDisplayName(for: normalizedPath)
-            return Self.makeSectionState(
+            return makeSectionState(
                 id: sectionID,
                 title: projectName,
                 titleSecondaryText: normalizedPath.map { $0 == "unknown-project" ? nil : $0 } ?? nil,
@@ -967,14 +999,14 @@ final class CodexSessionsTabViewModel {
                 editableThreadIDsOverride: rewriteSourceProviderID == nil ? [] : nil
             )
         }
-        return states.sorted(by: Self.sortSections(_:_:))
+        return states.sorted(by: sortSections(_:_:))
     }
 
     private func makeProviderSectionStates() -> [SessionSectionState] {
         providerRowIDsBySectionID.compactMap { sectionID, rowIDs -> SessionSectionState? in
             let sessions = rowIDs.compactMap { rowsByID[$0] }
             guard let providerID = sessions.first?.modelProvider, !sessions.isEmpty else { return nil }
-            return Self.makeSectionState(
+            return makeSectionState(
                 id: sectionID,
                 title: providerID,
                 titleSecondaryText: nil,
@@ -983,7 +1015,7 @@ final class CodexSessionsTabViewModel {
                 sessions: sessions
             )
         }
-        .sorted(by: Self.sortSections(_:_:))
+        .sorted(by: sortSections(_:_:))
     }
 
     private func resetRowIndexes() {
@@ -1035,7 +1067,7 @@ final class CodexSessionsTabViewModel {
             guard let lhs = rowsByID[lhsID], let rhs = rowsByID[rhsID] else {
                 return lhsID.localizedCaseInsensitiveCompare(rhsID) == .orderedAscending
             }
-            return Self.sortSessionRows(lhs, rhs)
+            return sortSessionRows(lhs, rhs)
         }
         buckets[sectionID] = rowIDs
     }
@@ -1097,23 +1129,23 @@ final class CodexSessionsTabViewModel {
         )
     }
 
-    nonisolated private static func makeSectionStates(
+    private func makeSectionStates(
         from rows: [SessionRow],
         groupingMode: SessionGroupingMode
     ) -> [SessionSectionState] {
         switch groupingMode {
         case .project:
             let grouped = Dictionary(grouping: rows) { row in
-                normalizedProjectPath(for: row.cwd) ?? "unknown-project"
+                Self.normalizedProjectPath(for: row.cwd) ?? "unknown-project"
             }
             return grouped
                 .map { normalizedPath, value in
                     let sortedSessions = value.sorted(by: sortSessionRows(_:_:))
                     let providerIDs = Set(sortedSessions.map(\.modelProvider))
                     let rewriteSourceProviderID = providerIDs.count == 1 ? providerIDs.first : nil
-                    let projectName = projectDisplayName(for: normalizedPath)
+                    let projectName = Self.projectDisplayName(for: normalizedPath)
                     return makeSectionState(
-                        id: projectSectionID(for: normalizedPath),
+                        id: Self.projectSectionID(for: normalizedPath),
                         title: projectName,
                         titleSecondaryText: normalizedPath == "unknown-project" ? nil : normalizedPath,
                         rewriteSourceLabel: projectName,
@@ -1143,7 +1175,7 @@ final class CodexSessionsTabViewModel {
         }
     }
 
-    nonisolated private static func makeSectionState(
+    private func makeSectionState(
         id: String,
         title: String,
         titleSecondaryText: String?,
@@ -1154,6 +1186,7 @@ final class CodexSessionsTabViewModel {
         editableThreadIDsOverride: [String]? = nil
     ) -> SessionSectionState {
         let sortedSessions = sessions.sorted(by: sortSessionRows(_:_:))
+        let usageOrdering = aggregateUsageOrdering(for: sortedSessions)
         return SessionSectionState(
             id: id,
             title: title,
@@ -1170,6 +1203,8 @@ final class CodexSessionsTabViewModel {
             },
             providerCount: providerCountOverride ?? Set(sortedSessions.map(\.modelProvider)).count,
             latestUpdatedAt: sortedSessions.first?.updatedAt,
+            usageTotalTokens: usageOrdering.totalTokens,
+            usageAvailabilityRank: usageOrdering.availabilityRank,
             isPlaceholder: false
         )
     }
@@ -1194,7 +1229,16 @@ final class CodexSessionsTabViewModel {
         }
 
         if !actualByID.isEmpty {
-            merged.append(contentsOf: actualByID.values.sorted(by: sortSections(_:_:)))
+            merged.append(
+                contentsOf: actualByID.values.sorted { lhs, rhs in
+                    let leftDate = lhs.latestUpdatedAt ?? .distantPast
+                    let rightDate = rhs.latestUpdatedAt ?? .distantPast
+                    if leftDate != rightDate {
+                        return leftDate > rightDate
+                    }
+                    return lhs.title.localizedCaseInsensitiveCompare(rhs.title) == .orderedAscending
+                }
+            )
         }
 
         return merged
@@ -1218,11 +1262,63 @@ final class CodexSessionsTabViewModel {
             editableThreadIDs: [],
             providerCount: 0,
             latestUpdatedAt: skeleton.latestUpdatedAt,
+            usageTotalTokens: 0,
+            usageAvailabilityRank: 1,
             isPlaceholder: true
         )
     }
 
-    nonisolated private static func sortSections(_ lhs: SessionSectionState, _ rhs: SessionSectionState) -> Bool {
+    private func aggregateUsageOrdering(
+        for sessions: [SessionRow]
+    ) -> (totalTokens: Int, availabilityRank: Int) {
+        var totalTokens = 0
+        var hasLoadedUsage = false
+        var hasPendingUsage = false
+
+        for session in sessions {
+            let ordering = usageOrderingValue(for: session.id)
+            totalTokens += ordering.totalTokens
+            if ordering.availabilityRank == 2 {
+                hasLoadedUsage = true
+            } else if ordering.availabilityRank == 1 {
+                hasPendingUsage = true
+            }
+        }
+
+        let availabilityRank: Int
+        if hasLoadedUsage {
+            availabilityRank = 2
+        } else if hasPendingUsage {
+            availabilityRank = 1
+        } else {
+            availabilityRank = 0
+        }
+
+        return (totalTokens, availabilityRank)
+    }
+
+    private func usageOrderingValue(
+        for sessionID: String
+    ) -> (totalTokens: Int, availabilityRank: Int) {
+        switch usageBySessionID[sessionID] ?? .placeholder {
+        case .loaded(let usage):
+            return (max(0, usage.inputTokens + usage.outputTokens), 2)
+        case .placeholder:
+            return (0, 1)
+        case .failed:
+            return (0, 0)
+        }
+    }
+
+    private func sortSections(_ lhs: SessionSectionState, _ rhs: SessionSectionState) -> Bool {
+        if sortMode == .usage {
+            if lhs.usageTotalTokens != rhs.usageTotalTokens {
+                return lhs.usageTotalTokens > rhs.usageTotalTokens
+            }
+            if lhs.usageAvailabilityRank != rhs.usageAvailabilityRank {
+                return lhs.usageAvailabilityRank > rhs.usageAvailabilityRank
+            }
+        }
         let leftDate = lhs.latestUpdatedAt ?? .distantPast
         let rightDate = rhs.latestUpdatedAt ?? .distantPast
         if leftDate != rightDate {
@@ -1326,11 +1422,25 @@ final class CodexSessionsTabViewModel {
         return texts
     }
 
-    nonisolated private static func sortSessionRows(_ lhs: SessionRow, _ rhs: SessionRow) -> Bool {
+    private func sortSessionRows(_ lhs: SessionRow, _ rhs: SessionRow) -> Bool {
+        if sortMode == .usage {
+            let lhsUsage = usageOrderingValue(for: lhs.id)
+            let rhsUsage = usageOrderingValue(for: rhs.id)
+            if lhsUsage.totalTokens != rhsUsage.totalTokens {
+                return lhsUsage.totalTokens > rhsUsage.totalTokens
+            }
+            if lhsUsage.availabilityRank != rhsUsage.availabilityRank {
+                return lhsUsage.availabilityRank > rhsUsage.availabilityRank
+            }
+        }
         let leftDate = lhs.updatedAt ?? .distantPast
         let rightDate = rhs.updatedAt ?? .distantPast
         if leftDate != rightDate {
             return leftDate > rightDate
+        }
+        let titleComparison = lhs.title.localizedCaseInsensitiveCompare(rhs.title)
+        if titleComparison != .orderedSame {
+            return titleComparison == .orderedAscending
         }
         return lhs.displayID.localizedCaseInsensitiveCompare(rhs.displayID) == .orderedAscending
     }
@@ -1366,20 +1476,69 @@ final class CodexSessionsTabViewModel {
     }
 
     private func primeVisibleSessionUsages() {
-        let visibleRows = sections.flatMap(\.sessions)
-        guard !visibleRows.isEmpty else { return }
-        let codexHome = provider.codexHomeFolder.url
+        let sourceRows: [SessionRow]
+        if sortMode == .usage {
+            sourceRows = allSectionStates.flatMap(\.sessions)
+        } else {
+            sourceRows = sections.flatMap(\.sessions)
+        }
+        primeSessionUsages(for: sourceRows)
+    }
 
-        for row in visibleRows {
-            guard usageBySessionID[row.id] == nil, usageTasks[row.id] == nil else { continue }
+    private func pruneUsageState(validSessionIDs: Set<String>) {
+        for (sessionID, task) in usageTasks where !validSessionIDs.contains(sessionID) {
+            task.cancel()
+            usageTasks.removeValue(forKey: sessionID)
+        }
+        queuedUsageSessionIDs.removeAll { !validSessionIDs.contains($0) }
+        queuedUsageSessionIDSet = queuedUsageSessionIDSet.intersection(validSessionIDs)
+        usageBySessionID = usageBySessionID.filter { validSessionIDs.contains($0.key) }
+    }
+
+    private func cancelUsageTasks() {
+        for task in usageTasks.values {
+            task.cancel()
+        }
+        usageTasks.removeAll()
+        queuedUsageSessionIDs.removeAll()
+        queuedUsageSessionIDSet.removeAll()
+        usageSortRebuildTask?.cancel()
+        usageSortRebuildTask = nil
+    }
+
+    private func primeSessionUsages(for rows: [SessionRow]) {
+        guard !rows.isEmpty else { return }
+
+        for row in rows {
+            guard usageBySessionID[row.id] == nil else { continue }
+            guard usageTasks[row.id] == nil else { continue }
+            guard queuedUsageSessionIDSet.contains(row.id) == false else { continue }
             usageBySessionID[row.id] = .placeholder
-            let service = self.service
-            let sessionID = row.id
-            let rolloutPath = row.rolloutPath
+            queuedUsageSessionIDs.append(row.id)
+            queuedUsageSessionIDSet.insert(row.id)
+        }
+
+        drainUsageQueueIfNeeded()
+    }
+
+    private func drainUsageQueueIfNeeded() {
+        let codexHome = provider.codexHomeFolder.url
+        let service = self.service
+
+        while usageTasks.count < Self.usageSortingParallelism,
+              let sessionID = queuedUsageSessionIDs.first {
+            queuedUsageSessionIDs.removeFirst()
+            queuedUsageSessionIDSet.remove(sessionID)
+
+            guard let row = rowsByID[sessionID] else {
+                usageBySessionID.removeValue(forKey: sessionID)
+                continue
+            }
 
             usageTasks[sessionID] = Task { [weak self] in
                 let nextState: SessionUsageState
                 do {
+                    let rolloutPath = row.rolloutPath
                     let usage = try await Task.detached(priority: .utility) {
                         try service.loadSessionUsage(codexHome: codexHome, rolloutPath: rolloutPath)
                     }.value
@@ -1396,24 +1555,28 @@ final class CodexSessionsTabViewModel {
                     guard let self else { return }
                     self.usageTasks[sessionID] = nil
                     self.usageBySessionID[sessionID] = nextState
+                    if self.sortMode == .usage {
+                        self.scheduleUsageSortRebuild()
+                    }
+                    self.drainUsageQueueIfNeeded()
                 }
             }
         }
     }
 
-    private func pruneUsageState(validSessionIDs: Set<String>) {
-        for (sessionID, task) in usageTasks where !validSessionIDs.contains(sessionID) {
-            task.cancel()
-            usageTasks.removeValue(forKey: sessionID)
+    private func scheduleUsageSortRebuild() {
+        usageSortRebuildTask?.cancel()
+        usageSortRebuildTask = Task { [weak self] in
+            do {
+                try await Task.sleep(nanoseconds: 120_000_000)
+            } catch {
+                return
+            }
+            await MainActor.run {
+                guard let self, self.sortMode == .usage else { return }
+                self.rebuildSectionStates()
+            }
         }
-        usageBySessionID = usageBySessionID.filter { validSessionIDs.contains($0.key) }
-    }
-
-    private func cancelUsageTasks() {
-        for task in usageTasks.values {
-            task.cancel()
-        }
-        usageTasks.removeAll()
     }
 
     private func repairSelection() {

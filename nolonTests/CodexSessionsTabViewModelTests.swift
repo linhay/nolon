@@ -280,6 +280,166 @@ final class CodexSessionsTabViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.sections.first?.visibleSessionCount, 6)
     }
 
+    func testBDD_GivenLoadedSessions_WhenSortingByUsage_ThenRowsReorderByDescendingUsage() async throws {
+        let provider = makeCodexProvider()
+        let snapshot = CodexSessionSnapshot(
+            sessions: [
+                makeSession(
+                    id: "sessions/newest-low.jsonl",
+                    threadID: "thread-newest-low",
+                    title: "Newest Low Usage",
+                    modelProvider: "openai",
+                    cwd: "/tmp/project-alpha",
+                    updatedAt: 3_000
+                ),
+                makeSession(
+                    id: "sessions/older-high.jsonl",
+                    threadID: "thread-older-high",
+                    title: "Older High Usage",
+                    modelProvider: "openai",
+                    cwd: "/tmp/project-alpha",
+                    updatedAt: 2_000
+                ),
+                makeSession(
+                    id: "sessions/oldest-mid.jsonl",
+                    threadID: "thread-oldest-mid",
+                    title: "Oldest Mid Usage",
+                    modelProvider: "openai",
+                    cwd: "/tmp/project-alpha",
+                    updatedAt: 1_000
+                ),
+            ],
+            availableProviderIDs: ["openai"]
+        )
+        let state = MockCodexSessionsServiceState(snapshots: [snapshot])
+        state.usageResults["sessions/newest-low.jsonl"] = .success(
+            .init(inputTokens: 100, cachedInputTokens: 0, outputTokens: 20)
+        )
+        state.usageResults["sessions/older-high.jsonl"] = .success(
+            .init(inputTokens: 8_000, cachedInputTokens: 0, outputTokens: 2_000)
+        )
+        state.usageResults["sessions/oldest-mid.jsonl"] = .success(
+            .init(inputTokens: 2_000, cachedInputTokens: 0, outputTokens: 500)
+        )
+        state.usageDelayNanoseconds = 15_000_000
+
+        let viewModel = CodexSessionsTabViewModel(
+            provider: provider,
+            service: MockCodexSessionsService(state: state)
+        )
+
+        await viewModel.load()
+        XCTAssertEqual(
+            viewModel.sections.first?.sessions.map(\.id),
+            ["sessions/newest-low.jsonl", "sessions/older-high.jsonl", "sessions/oldest-mid.jsonl"]
+        )
+
+        viewModel.setSortMode(.usage)
+
+        try await waitUntil {
+            viewModel.sections.first?.sessions.map(\.id) == [
+                "sessions/older-high.jsonl",
+                "sessions/oldest-mid.jsonl",
+                "sessions/newest-low.jsonl",
+            ]
+        }
+    }
+
+    func testBDD_GivenLoadedSections_WhenSortingByUsage_ThenGroupsReorderByAggregatedUsageDescending() async throws {
+        let provider = makeCodexProvider()
+        let snapshot = CodexSessionSnapshot(
+            sessions: [
+                makeSession(
+                    id: "sessions/project-alpha-newer.jsonl",
+                    threadID: "thread-alpha-newer",
+                    title: "Project Alpha Newer",
+                    modelProvider: "openai",
+                    cwd: "/tmp/project-alpha",
+                    updatedAt: 4_000
+                ),
+                makeSession(
+                    id: "sessions/project-alpha-older.jsonl",
+                    threadID: "thread-alpha-older",
+                    title: "Project Alpha Older",
+                    modelProvider: "openai",
+                    cwd: "/tmp/project-alpha",
+                    updatedAt: 3_000
+                ),
+                makeSession(
+                    id: "sessions/project-beta-latest.jsonl",
+                    threadID: "thread-beta-latest",
+                    title: "Project Beta Latest",
+                    modelProvider: "anthropic",
+                    cwd: "/tmp/project-beta",
+                    updatedAt: 5_000
+                ),
+            ],
+            availableProviderIDs: ["openai", "anthropic"]
+        )
+        let state = MockCodexSessionsServiceState(snapshots: [snapshot])
+        state.usageResults["sessions/project-alpha-newer.jsonl"] = .success(
+            .init(inputTokens: 6_000, cachedInputTokens: 0, outputTokens: 2_000)
+        )
+        state.usageResults["sessions/project-alpha-older.jsonl"] = .success(
+            .init(inputTokens: 3_000, cachedInputTokens: 0, outputTokens: 1_000)
+        )
+        state.usageResults["sessions/project-beta-latest.jsonl"] = .success(
+            .init(inputTokens: 500, cachedInputTokens: 0, outputTokens: 100)
+        )
+        state.usageDelayNanoseconds = 15_000_000
+
+        let viewModel = CodexSessionsTabViewModel(
+            provider: provider,
+            service: MockCodexSessionsService(state: state)
+        )
+
+        await viewModel.load()
+        XCTAssertEqual(viewModel.sections.map(\.title), ["project-beta", "project-alpha"])
+
+        viewModel.setSortMode(.usage)
+
+        try await waitUntil {
+            viewModel.sections.map(\.title) == ["project-alpha", "project-beta"]
+        }
+    }
+
+    func testBDD_GivenUsageSortWithoutResolvedUsage_WhenSorting_ThenRowsFallbackToRecentActivityOrder() async throws {
+        let provider = makeCodexProvider()
+        let snapshot = CodexSessionSnapshot(
+            sessions: [
+                makeSession(
+                    id: "sessions/recent.jsonl",
+                    threadID: "thread-recent",
+                    title: "Recent",
+                    modelProvider: "openai",
+                    cwd: "/tmp/project-alpha",
+                    updatedAt: 3_000
+                ),
+                makeSession(
+                    id: "sessions/older.jsonl",
+                    threadID: "thread-older",
+                    title: "Older",
+                    modelProvider: "openai",
+                    cwd: "/tmp/project-alpha",
+                    updatedAt: 2_000
+                ),
+            ],
+            availableProviderIDs: ["openai"]
+        )
+        let viewModel = CodexSessionsTabViewModel(
+            provider: provider,
+            service: MockCodexSessionsService(state: .init(snapshots: [snapshot]))
+        )
+
+        await viewModel.load()
+        viewModel.setSortMode(.usage)
+
+        XCTAssertEqual(
+            viewModel.sections.first?.sessions.map(\.id),
+            ["sessions/recent.jsonl", "sessions/older.jsonl"]
+        )
+    }
+
     func testBDD_GivenSearchQueryMatchesDisplayID_WhenFiltering_ThenOnlyMatchingRowsRemainVisible() async throws {
         let provider = makeCodexProvider()
         let snapshot = CodexSessionSnapshot(
@@ -860,6 +1020,43 @@ final class CodexSessionsTabViewModelTests: XCTestCase {
 
         await viewModel.load()
         XCTAssertEqual(viewModel.groupingMode, .provider)
+    }
+
+    func testBDD_GivenPersistedSortMode_WhenCreatingViewModel_ThenSortModeRestoresFromPreferencesStore() async throws {
+        let provider = makeCodexProvider()
+        let suiteName = "CodexSessionsTabViewModelTests.sorting.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defaults.removePersistentDomain(forName: suiteName)
+        let preferencesStore = CodexSessionsPreferencesStore(
+            providerID: provider.id,
+            userDefaults: defaults
+        )
+        preferencesStore.sortMode = .usage
+
+        let snapshot = CodexSessionSnapshot(
+            sessions: [
+                makeSession(
+                    id: "sessions/a.jsonl",
+                    threadID: "thread-a",
+                    title: "Alpha",
+                    modelProvider: "openai",
+                    cwd: "/tmp/project-alpha",
+                    updatedAt: 1_000
+                )
+            ],
+            availableProviderIDs: ["openai"]
+        )
+
+        let viewModel = CodexSessionsTabViewModel(
+            provider: provider,
+            service: MockCodexSessionsService(state: .init(snapshots: [snapshot])),
+            preferencesStore: preferencesStore
+        )
+
+        XCTAssertEqual(viewModel.sortMode, .usage)
+
+        await viewModel.load()
+        XCTAssertEqual(viewModel.sortMode, .usage)
     }
 
     func testBDD_GivenLoadedSessionsPage_WhenAppBecomesActive_ThenRefreshUsesStableSnapshotReload() async throws {

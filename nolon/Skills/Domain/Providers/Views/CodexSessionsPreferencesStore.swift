@@ -6,6 +6,10 @@ final class CodexSessionsPreferencesStore {
         static func groupingMode(providerID: String) -> String {
             "codex.sessions.\(providerID).grouping_mode"
         }
+
+        static func sortMode(providerID: String) -> String {
+            "codex.sessions.\(providerID).sort_mode"
+        }
     }
 
     private let providerID: String
@@ -28,6 +32,21 @@ final class CodexSessionsPreferencesStore {
         }
         set {
             userDefaults.set(newValue.rawValue, forKey: Keys.groupingMode(providerID: providerID))
+        }
+    }
+
+    var sortMode: CodexSessionsTabViewModel.SessionSortMode {
+        get {
+            guard
+                let rawValue = userDefaults.string(forKey: Keys.sortMode(providerID: providerID)),
+                let sortMode = CodexSessionsTabViewModel.SessionSortMode(rawValue: rawValue)
+            else {
+                return .recent
+            }
+            return sortMode
+        }
+        set {
+            userDefaults.set(newValue.rawValue, forKey: Keys.sortMode(providerID: providerID))
         }
     }
 }

@@ -7,6 +7,7 @@ final class CodexSessionsOverviewDataBuilderTests: XCTestCase {
         let data = CodexSessionsOverviewDataBuilder.build(
             .init(
                 groupingMode: .project,
+                sortMode: .recent,
                 totalSessionCount: 18,
                 groupCount: 4,
                 rewritableGroupCount: 3,
@@ -31,6 +32,7 @@ final class CodexSessionsOverviewDataBuilderTests: XCTestCase {
         let data = CodexSessionsOverviewDataBuilder.build(
             .init(
                 groupingMode: .provider,
+                sortMode: .recent,
                 totalSessionCount: 18,
                 groupCount: 4,
                 rewritableGroupCount: 3,
@@ -54,6 +56,7 @@ final class CodexSessionsOverviewDataBuilderTests: XCTestCase {
         let data = CodexSessionsOverviewDataBuilder.build(
             .init(
                 groupingMode: .project,
+                sortMode: .recent,
                 totalSessionCount: 18,
                 groupCount: 4,
                 rewritableGroupCount: 3,
@@ -87,6 +90,7 @@ final class CodexSessionsOverviewDataBuilderTests: XCTestCase {
         let data = CodexSessionsOverviewDataBuilder.build(
             .init(
                 groupingMode: .project,
+                sortMode: .recent,
                 totalSessionCount: 18,
                 groupCount: 4,
                 rewritableGroupCount: 3,
@@ -109,6 +113,7 @@ final class CodexSessionsOverviewDataBuilderTests: XCTestCase {
         let data = CodexSessionsOverviewDataBuilder.build(
             .init(
                 groupingMode: .provider,
+                sortMode: .recent,
                 totalSessionCount: 18,
                 groupCount: 4,
                 rewritableGroupCount: 3,

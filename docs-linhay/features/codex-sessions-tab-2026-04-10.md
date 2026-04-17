@@ -258,6 +258,105 @@
 ### 非目标
 1. 不在本轮引入新的后台任务实体、取消/重试模型。
 2. 不把当前 `statusMessage/backgroundScanningMessage` 升级成状态中心。
+
+## 增量（2026-04-17：会话与会话组支持按用量排序）
+
+### 背景
+- 当前 `Codex Sessions` 的排序口径只有 `updatedAt`，无论是 project/provider 分组，还是 section 内部 session rows，全部按最近更新时间降序。
+- 页面已经支持异步解析单条 session usage，也支持在组头展示聚合用量，但这些用量信息仍然只是展示，不参与排序。
+- 当用户需要快速定位“最耗 token 的项目”或“最耗 token 的单条会话”时，当前页无法直接完成这一筛选。
+
+### 目标
+1. `Codex Sessions` overview card 新增排序模式切换，至少支持：
+   - `按最近活动`
+   - `按用量`
+2. 当排序模式为 `按用量` 时：
+   - section 内 session rows 按单条 session 总 token 用量降序排列。
+   - groups / sections 按组内聚合总 token 用量降序排列。
+3. 排序偏好需要按 provider 持久化，重新进入页面后恢复上次选择。
+4. `按用量` 排序不能阻塞首屏；usage 继续后台解析，排序允许渐进收敛，但在用量缺失时必须有稳定回退顺序。
+
+### 回退规则
+1. 默认排序模式仍为 `按最近活动`。
+2. `按用量` 下，已解析 usage 的 session / section 优先按总 token 用量降序比较。
+3. 当用量相同，或某一项还未解析 / 解析失败时，回退到既有的 `updatedAt` 降序。
+4. 当 `updatedAt` 仍相同，再按稳定字符串键（title / display id）比较，避免同值项抖动。
+
+### BDD 验收（用量排序增量）
+1. Given overview 当前处于 `按最近活动`
+   When 用户切换到 `按用量`
+   Then overview 显示已选中的排序模式，且该选择会写入本地偏好。
+
+2. Given 同一 section 中多条 session 的 usage 已解析
+   When 排序模式为 `按用量`
+   Then 这些 session rows 按总 token 用量从高到低显示，而不是继续按时间降序。
+
+3. Given 多个 groups / sections 的聚合 usage 已解析
+   When 排序模式为 `按用量`
+   Then groups / sections 按聚合总 token 用量从高到低显示，而不是继续按最近会话时间排序。
+
+4. Given 页面重新创建 view model
+   When 当前 provider 存在已持久化的排序偏好
+   Then `Codex Sessions` 恢复该排序模式，而不是重置为默认值。
+
+5. Given 排序模式为 `按用量`，且部分会话尚未解析 usage
+   When 页面正在后台回填 usage
+   Then 首屏仍立即可见，未解析项按最近活动回退排序，待 usage 回填后再渐进重排。
+
+## 增量（2026-04-17：usage 独立索引）
+
+### 背景
+- `Codex Sessions` 已经把 usage 从“只在详情页可见”推进到：
+  - row 级可见
+  - section 组头可见
+  - 会话与会话组可按 usage 排序
+- 但当前 `loadSessionUsage(...)` 仍按 session 逐个整文件读取 rollout，再逐行 reduce。
+- 在 3000+ 会话场景下，这会把“按用量排序”和“组头快速浏览”退化成后台长期解析与渐进重排。
+- 2026-04-17 的独立索引评估已明确：在“排序/搜索也是常用功能”的前提下，`usage` 是第一优先级的专门化独立索引。
+
+### 目标
+1. 为 session usage 引入可丢弃的独立索引层。
+2. 让 row usage、组头 usage、按 usage 排序优先读取索引，而不是反复整文件解析。
+3. 支持文件级差量更新；当 rollout 只是 append 时，只解析新增尾部。
+
+### 非目标
+1. 本轮不引入 `search` FTS。
+2. 本轮不引入 `state projection` 独立索引。
+3. 本轮不改 `snapshotStream / loadSnapshot / skeleton` 主扫描链路。
+4. 本轮不要求 usage 刷新达到实时强一致。
+
+### 约束
+1. usage 索引必须是可丢弃缓存，不是真源。
+2. 真源仍然只有 rollout 文件。
+3. 索引缺失、失效或损坏时，必须自动回退到现有全量解析路径。
+4. usage 不能并入 row/header 主索引主链路，避免把首屏冷路径和高频交互缓存绑死。
+5. 索引落盘位置应在 `Application Support/Nolon/codex-sessions/`，不能进 `UserDefaults`。
+
+### BDD 验收（usage 独立索引）
+1. Given 某条 session usage 第一次被读取
+   When `CodexSessionStore.loadSessionUsage(...)` 完成
+   Then 返回正确 totals
+   And 后续读取可命中 usage 索引。
+
+2. Given 某条 rollout 文件没有变化
+   When 再次读取 usage
+   Then 不再需要整文件全量解析
+   And 返回与上次一致的 totals。
+
+3. Given 某条 rollout 文件只 append 了新的 token_count 事件
+   When 再次读取 usage
+   Then 只解析新增尾部
+   And 返回合并后的最新 totals。
+
+4. Given 某条 rollout 文件被整体替换、截断或索引已失效
+   When 再次读取 usage
+   Then 自动回退全量解析
+   And 不影响 row usage、组头 usage 与按 usage 排序的正确性。
+
+5. Given 当前页面按 usage 排序
+   When usage 索引已命中
+   Then 会话和会话组应更快收敛到稳定顺序
+   And 不再依赖每次都重读整份 rollout 文件。
 3. 不修改 session list、section card 与 detail panel 的信息架构。
 
 ### 产品约束
@@ -747,7 +846,8 @@
    - 全部仍在加载时显示 `Loading…`
    - 至少存在一条已加载 usage 时，显示当前已解析总量
    - 没有成功值且存在失败时显示 `Unavailable`
-3. 窄宽布局下仍优先保留总量；次级 `in/out` 细节可降级，但不能让总量消失。
+3. section header 的 usage 聚合范围必须覆盖该组全部 session，不能受折叠态可见 rows 数量限制影响。
+4. 窄宽布局下仍优先保留总量；次级 `in/out` 细节可降级，但不能让总量消失。
 
 ### BDD 验收（组头用量）
 1. Given 某个 project section 下已有多条 session usage 回填成功
@@ -762,11 +862,16 @@
    When 渲染该组
    Then 组头显示 `Unavailable`。
 
+4. Given 某个 section 处于折叠态，且只有前 5 条 row 当前可见
+   When 渲染该组 header usage
+   Then 组头 usage 仍按该组全部 session 聚合
+   And 不能只统计当前可见 rows。
+
 ### 实现落点
 - `libs/NolonUIFoundation/Sources/NolonUIFoundation/CodexSessionsModels.swift`
   - `CodexSessionsSectionData` 新增 `usage`
 - `nolon/Skills/Domain/Providers/Views/CodexSessionsSectionDataBuilder.swift`
-  - 聚合 section.sessions 的 usageState
+  - 聚合 section.usageSessionIDs 的 usageState，分离“组头聚合来源”和“当前可见 rows”
 - `libs/NolonUI/Sources/NolonUI/Components/Shared/UnifiedCodexSessionViews.swift`
   - 在 section header 顶部增加 usage block
 - `nolonTests/CodexSessionsSectionDataBuilderTests.swift`

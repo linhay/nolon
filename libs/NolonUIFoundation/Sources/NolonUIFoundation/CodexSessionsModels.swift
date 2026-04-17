@@ -84,6 +84,16 @@ public struct CodexSessionsGroupingOptionData: Identifiable, Equatable, Sendable
     }
 }
 
+public struct CodexSessionsSortingOptionData: Identifiable, Equatable, Sendable {
+    public let id: String
+    public let title: String
+
+    public init(id: String, title: String) {
+        self.id = id
+        self.title = title
+    }
+}
+
 public enum CodexSessionsOverviewDisplayMode: Equatable, Sendable {
     case compact
     case diagnostic
@@ -97,6 +107,9 @@ public struct CodexSessionsOverviewData: Equatable, Sendable {
     public let groupingTitle: String?
     public let groupingOptions: [CodexSessionsGroupingOptionData]
     public let selectedGroupingID: String?
+    public let sortingTitle: String?
+    public let sortingOptions: [CodexSessionsSortingOptionData]
+    public let selectedSortingID: String?
     public let statusMessage: String?
     public let backgroundScanningMessage: String?
     public let paginationMessage: String?
@@ -111,6 +124,9 @@ public struct CodexSessionsOverviewData: Equatable, Sendable {
         groupingTitle: String?,
         groupingOptions: [CodexSessionsGroupingOptionData],
         selectedGroupingID: String?,
+        sortingTitle: String?,
+        sortingOptions: [CodexSessionsSortingOptionData],
+        selectedSortingID: String?,
         statusMessage: String?,
         backgroundScanningMessage: String?,
         paginationMessage: String?,
@@ -124,6 +140,9 @@ public struct CodexSessionsOverviewData: Equatable, Sendable {
         self.groupingTitle = groupingTitle
         self.groupingOptions = groupingOptions
         self.selectedGroupingID = selectedGroupingID
+        self.sortingTitle = sortingTitle
+        self.sortingOptions = sortingOptions
+        self.selectedSortingID = selectedSortingID
         self.statusMessage = statusMessage
         self.backgroundScanningMessage = backgroundScanningMessage
         self.paginationMessage = paginationMessage

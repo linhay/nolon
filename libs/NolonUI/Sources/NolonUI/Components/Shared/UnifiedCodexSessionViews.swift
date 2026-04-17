@@ -6,15 +6,18 @@ public struct CodexSessionsOverviewCardView: View {
     public let data: CodexSessionsOverviewData
     public let onRefresh: () -> Void
     public let onSelectGroupingID: ((String) -> Void)?
+    public let onSelectSortingID: ((String) -> Void)?
 
     public init(
         data: CodexSessionsOverviewData,
         onRefresh: @escaping () -> Void,
-        onSelectGroupingID: ((String) -> Void)? = nil
+        onSelectGroupingID: ((String) -> Void)? = nil,
+        onSelectSortingID: ((String) -> Void)? = nil
     ) {
         self.data = data
         self.onRefresh = onRefresh
         self.onSelectGroupingID = onSelectGroupingID
+        self.onSelectSortingID = onSelectSortingID
     }
 
     public var body: some View {
@@ -96,12 +99,14 @@ public struct CodexSessionsOverviewCardView: View {
         ViewThatFits(in: .horizontal) {
             HStack(alignment: .center, spacing: 8) {
                 groupingPicker
+                sortingMenu
                 headerRefreshButton
             }
             .frame(minWidth: 228, alignment: .trailing)
 
             VStack(alignment: .leading, spacing: 8) {
                 groupingPicker
+                sortingMenu
                 headerRefreshButton
             }
         }
@@ -128,6 +133,47 @@ public struct CodexSessionsOverviewCardView: View {
             .controlSize(.small)
             .frame(minWidth: 180, idealWidth: 216, maxWidth: 240)
             .accessibilityLabel(groupingTitle)
+        }
+    }
+
+    @ViewBuilder
+    private var sortingMenu: some View {
+        if let sortingTitle = data.sortingTitle,
+           let selectedSortingID = data.selectedSortingID,
+           !data.sortingOptions.isEmpty
+        {
+            Menu {
+                ForEach(data.sortingOptions) { option in
+                    Button {
+                        onSelectSortingID?(option.id)
+                    } label: {
+                        HStack {
+                            Text(option.title)
+                            if option.id == selectedSortingID {
+                                Spacer(minLength: 8)
+                                Image(systemName: "checkmark")
+                            }
+                        }
+                    }
+                }
+            } label: {
+                Label(currentSortingTitle(selectedSortingID: selectedSortingID), systemImage: "arrow.up.arrow.down")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(DesignSystem.Colors.Text.secondary)
+                    .padding(.horizontal, 10)
+                    .frame(height: 28)
+                    .background(
+                        RoundedRectangle(cornerRadius: DesignSystem.Metrics.cornerRadiusS, style: .continuous)
+                            .fill(DesignSystem.Colors.Background.elevated.opacity(0.88))
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: DesignSystem.Metrics.cornerRadiusS, style: .continuous)
+                            .stroke(DesignSystem.Colors.Component.border.opacity(0.18), lineWidth: 1)
+                    )
+            }
+            .menuStyle(.borderlessButton)
+            .help(sortingTitle)
+            .accessibilityLabel(sortingTitle)
         }
     }
 
@@ -275,6 +321,13 @@ public struct CodexSessionsOverviewCardView: View {
 
     private var hasFooterStatus: Bool {
         !footerEntries.isEmpty
+    }
+
+    private func currentSortingTitle(selectedSortingID: String) -> String {
+        guard let option = data.sortingOptions.first(where: { $0.id == selectedSortingID }) else {
+            return data.sortingTitle ?? ""
+        }
+        return option.title
     }
 
     private func metricAccentColor(for metricID: String) -> Color {

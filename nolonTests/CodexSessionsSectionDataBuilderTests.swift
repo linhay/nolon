@@ -86,6 +86,10 @@ final class CodexSessionsSectionDataBuilderTests: XCTestCase {
             titleSecondaryText: "/tmp/project-alpha",
             rewriteSourceLabel: "project-alpha",
             rewriteSourceProviderID: nil,
+            usageSessionIDs: [
+                "sessions/live-a.jsonl",
+                "sessions/live-b.jsonl",
+            ],
             sessions: [
                 .init(
                     id: "sessions/live-a.jsonl",
@@ -211,6 +215,41 @@ final class CodexSessionsSectionDataBuilderTests: XCTestCase {
         )
     }
 
+    func testBDD_GivenCollapsedSectionWithHiddenSessionUsage_WhenBuildingSectionData_ThenGroupUsageIncludesHiddenSessions() throws {
+        let section = makeSection(
+            title: "project-alpha",
+            titleSecondaryText: "/tmp/project-alpha",
+            rewriteSourceProviderID: "openai",
+            providerCount: 1,
+            totalSessionCount: 8,
+            visibleCount: 5,
+            isExpanded: false
+        )
+
+        let usageStates: [String: CodexSessionsTabViewModel.SessionUsageState] = [
+            "sessions/live-0.jsonl": .loaded(.init(inputTokens: 100, cachedInputTokens: 0, outputTokens: 20)),
+            "sessions/live-1.jsonl": .loaded(.init(inputTokens: 200, cachedInputTokens: 0, outputTokens: 40)),
+            "sessions/live-2.jsonl": .loaded(.init(inputTokens: 300, cachedInputTokens: 0, outputTokens: 60)),
+            "sessions/live-3.jsonl": .loaded(.init(inputTokens: 400, cachedInputTokens: 0, outputTokens: 80)),
+            "sessions/live-4.jsonl": .loaded(.init(inputTokens: 500, cachedInputTokens: 0, outputTokens: 100)),
+            "sessions/live-5.jsonl": .loaded(.init(inputTokens: 4_000, cachedInputTokens: 0, outputTokens: 1_000)),
+            "sessions/live-6.jsonl": .loaded(.init(inputTokens: 3_000, cachedInputTokens: 0, outputTokens: 700)),
+            "sessions/live-7.jsonl": .loaded(.init(inputTokens: 2_000, cachedInputTokens: 0, outputTokens: 500)),
+        ]
+
+        let data = CodexSessionsSectionDataBuilder.buildSectionData(
+            section,
+            groupingMode: .project,
+            targetProviders: { _ in [] },
+            usageState: { usageStates[$0] ?? .failed }
+        )
+
+        XCTAssertEqual(
+            data.usage,
+            .value(primaryText: "13.0K", secondaryText: "in 10.5K · out 2.5K")
+        )
+    }
+
     func testBDD_GivenNoResolvedUsageAndFailures_WhenBuildingSectionData_ThenShowsUnavailableGroupUsage() throws {
         let section = makeSection(
             title: "project-alpha",
@@ -277,6 +316,7 @@ final class CodexSessionsSectionDataBuilderTests: XCTestCase {
             titleSecondaryText: titleSecondaryText,
             rewriteSourceLabel: title,
             rewriteSourceProviderID: rewriteSourceProviderID,
+            usageSessionIDs: (0..<totalSessionCount).map { "sessions/live-\($0).jsonl" },
             sessions: sessions,
             totalSessionCount: totalSessionCount,
             editableThreadIDs: sessions.compactMap { $0.threadID },

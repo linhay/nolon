@@ -524,6 +524,12 @@ struct CodexSessionsCardSnapshotTests {
                     .init(id: "provider", title: "Provider"),
                 ],
                 selectedGroupingID: "project",
+                sortingTitle: "Sort By",
+                sortingOptions: [
+                    .init(id: "recent", title: "Recent Activity"),
+                    .init(id: "usage", title: "Usage"),
+                ],
+                selectedSortingID: "recent",
                 statusMessage: "Moved 3 sessions to Anthropic (anthropic).",
                 backgroundScanningMessage: displayMode == .diagnostic ? "Scanning sessions in background…" : nil,
                 paginationMessage: nil,
@@ -542,7 +548,8 @@ struct CodexSessionsCardSnapshotTests {
                 isRefreshDisabled: false
             ),
             onRefresh: {},
-            onSelectGroupingID: { _ in }
+            onSelectGroupingID: { _ in },
+            onSelectSortingID: { _ in }
         )
     }
 

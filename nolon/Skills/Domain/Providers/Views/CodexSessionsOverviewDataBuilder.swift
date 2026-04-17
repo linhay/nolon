@@ -4,6 +4,7 @@ import NolonUIFoundation
 enum CodexSessionsOverviewDataBuilder {
     struct Context: Equatable {
         let groupingMode: CodexSessionsTabViewModel.SessionGroupingMode
+        let sortMode: CodexSessionsTabViewModel.SessionSortMode
         let totalSessionCount: Int
         let groupCount: Int
         let rewritableGroupCount: Int
@@ -50,6 +51,30 @@ enum CodexSessionsOverviewDataBuilder {
                 ),
             ],
             selectedGroupingID: context.groupingMode.rawValue,
+            sortingTitle: NSLocalizedString(
+                "codex.sessions.sorting.title",
+                value: "Sort By",
+                comment: "Codex sessions sorting title"
+            ),
+            sortingOptions: [
+                .init(
+                    id: CodexSessionsTabViewModel.SessionSortMode.recent.rawValue,
+                    title: NSLocalizedString(
+                        "codex.sessions.sorting.recent",
+                        value: "Recent Activity",
+                        comment: "Codex sessions recent sorting title"
+                    )
+                ),
+                .init(
+                    id: CodexSessionsTabViewModel.SessionSortMode.usage.rawValue,
+                    title: NSLocalizedString(
+                        "codex.sessions.sorting.usage",
+                        value: "Usage",
+                        comment: "Codex sessions usage sorting title"
+                    )
+                ),
+            ],
+            selectedSortingID: context.sortMode.rawValue,
             statusMessage: context.statusMessage,
             backgroundScanningMessage: context.isLoading && context.hasVisibleSections
                 ? NSLocalizedString(

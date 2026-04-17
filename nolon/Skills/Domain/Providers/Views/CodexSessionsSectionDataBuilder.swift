@@ -21,7 +21,7 @@ enum CodexSessionsSectionDataBuilder {
     ) -> CodexSessionsSectionData {
         let presentationKind = sectionPresentationKind(for: section)
         let usageStatesBySessionID = Dictionary(
-            uniqueKeysWithValues: section.sessions.map { ($0.id, usageState($0.id)) }
+            uniqueKeysWithValues: section.usageSessionIDs.map { ($0, usageState($0)) }
         )
         let actions: [CodexSessionsActionItemData]
         if let sourceProviderID = section.rewriteSourceProviderID {
@@ -91,7 +91,7 @@ enum CodexSessionsSectionDataBuilder {
             )
         }
 
-        let usageStates = section.sessions.compactMap { usageStatesBySessionID[$0.id] }
+        let usageStates = section.usageSessionIDs.compactMap { usageStatesBySessionID[$0] }
         guard !usageStates.isEmpty else { return nil }
 
         var totalInputTokens = 0
