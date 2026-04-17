@@ -256,9 +256,14 @@ public struct CodexSessionStore: Sendable {
     }
 
     private let defaultProviderID: String
+    private let usageIndex: CodexSessionUsageIndex
 
-    public init(defaultProviderID: String = "openai") {
+    public init(
+        defaultProviderID: String = "openai",
+        usageIndexRootDirectory: URL? = nil
+    ) {
         self.defaultProviderID = Self.normalizedProviderID(defaultProviderID) ?? "openai"
+        self.usageIndex = CodexSessionUsageIndex(rootDirectory: usageIndexRootDirectory)
     }
 
     public func loadSnapshot(codexHome: URL) throws -> CodexSessionSnapshot {
@@ -273,37 +278,21 @@ public struct CodexSessionStore: Sendable {
         codexHome: URL,
         rolloutPath: String
     ) throws -> CodexSessionTokenTotals? {
-        let rolloutURL: URL
-        if rolloutPath.hasPrefix("/") {
-            rolloutURL = URL(fileURLWithPath: rolloutPath)
-        } else {
-            rolloutURL = codexHome.appendingPathComponent(rolloutPath)
-        }
+        try loadSessionUsageRecord(codexHome: codexHome, rolloutPath: rolloutPath).totals
+    }
 
-        guard FileManager.default.fileExists(atPath: rolloutURL.path) else {
-            return nil
-        }
+    func loadSessionUsageRecord(
+        codexHome: URL,
+        rolloutPath: String
+    ) throws -> CodexSessionUsageLoadResult {
+        try usageIndex.load(codexHome: codexHome, rolloutPath: rolloutPath)
+    }
 
-        let fileData = try Data(contentsOf: rolloutURL)
-        var currentModel: String?
-        var totals: CodexSessionTokenTotals?
-
-        for line in fileData.split(separator: 0x0A) {
-            guard !line.isEmpty else { continue }
-            let reduction = CodexSessionEventParser.reduceUsageLine(
-                data: Data(line),
-                currentModel: currentModel,
-                previousTotals: totals
-            )
-            if let updatedModel = reduction?.updatedModel {
-                currentModel = updatedModel
-            }
-            if let updatedTotals = reduction?.updatedTotals {
-                totals = updatedTotals
-            }
-        }
-
-        return totals
+    func loadUsageIndexEntry(
+        codexHome: URL,
+        rolloutPath: String
+    ) throws -> CodexSessionUsageIndexEntry? {
+        try usageIndex.loadEntry(codexHomePath: codexHome.path, rolloutPath: rolloutPath)
     }
 
     public func snapshotStream(

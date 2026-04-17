@@ -74,6 +74,40 @@ struct CodexSessionStoreTests {
         return file
     }
 
+    private func writeUsageRollout(
+        codexHome: STFolder,
+        rolloutPath: String = "sessions/usage.jsonl",
+        sessionID: String = "session-1",
+        model: String = "gpt-5",
+        usageLines: [String]
+    ) throws -> STFile {
+        let file = codexHome.file(rolloutPath)
+        _ = file.parentFolder()?.createIfNotExists()
+
+        let content = ([
+            #"{"timestamp":"2026-04-10T10:00:00Z","type":"session_meta","payload":{"id":"\#(sessionID)"}}"#,
+            #"{"timestamp":"2026-04-10T10:00:01Z","type":"turn_context","payload":{"model":"\#(model)"}}"#,
+        ] + usageLines).joined(separator: "\n") + "\n"
+
+        try file.overlay(with: content)
+        return file
+    }
+
+    private func appendRolloutLines(file: STFile, lines: [String]) throws {
+        let suffix = lines.joined(separator: "\n") + "\n"
+        if !file.isExists {
+            try file.overlay(with: suffix)
+            return
+        }
+
+        let handle = try FileHandle(forWritingTo: file.url)
+        defer {
+            try? handle.close()
+        }
+        try handle.seekToEnd()
+        try handle.write(contentsOf: Data(suffix.utf8))
+    }
+
     private func sqliteExecute(databaseURL: URL, sql: String, bindings: [SQLiteBinding] = []) throws {
         var db: OpaquePointer?
         guard sqlite3_open_v2(databaseURL.path, &db, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_FULLMUTEX, nil) == SQLITE_OK else {
@@ -680,6 +714,190 @@ struct CodexSessionStoreTests {
         #expect(metrics["scanned_file_count"] as? Int == 1)
         #expect((metrics["elapsed_ms"] as? Int ?? -1) >= 0)
         #expect((metrics["trace_id"] as? String)?.isEmpty == false)
+    }
+
+    @Test("Given rollout usage is loaded for the first time, when reading session usage, then store rebuilds from file and persists a usage index entry")
+    func loadSessionUsageBuildsUsageIndexEntryOnFirstRead() throws {
+        let root = try makeTempRoot("codex-session-usage-first-read")
+        defer { try? root.delete() }
+
+        let codexHome = root.folder("provider")
+        _ = codexHome.createIfNotExists()
+        _ = try writeUsageRollout(
+            codexHome: codexHome,
+            usageLines: [
+                #"{"timestamp":"2026-04-10T10:00:02Z","type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":120,"cached_input_tokens":20,"output_tokens":30,"total_tokens":150}}}}"#,
+            ]
+        )
+
+        let cacheRoot = root.folder("cache-root")
+        _ = cacheRoot.createIfNotExists()
+        let store = CodexSessionStore(
+            defaultProviderID: "openai",
+            usageIndexRootDirectory: cacheRoot.url
+        )
+
+        let result = try store.loadSessionUsageRecord(
+            codexHome: codexHome.url,
+            rolloutPath: "sessions/usage.jsonl"
+        )
+        let entry = try #require(
+            try store.loadUsageIndexEntry(
+                codexHome: codexHome.url,
+                rolloutPath: "sessions/usage.jsonl"
+            )
+        )
+
+        #expect(result.source == .fullRebuild)
+        #expect(result.totals == .init(inputTokens: 120, cachedInputTokens: 20, outputTokens: 30))
+        #expect(entry.sessionID == "session-1")
+        #expect(entry.parsedBytes > 0)
+    }
+
+    @Test("Given rollout usage index matches the current file, when reading session usage again, then store returns a cache hit")
+    func loadSessionUsageReturnsCacheHitWhenFileIsUnchanged() throws {
+        let root = try makeTempRoot("codex-session-usage-cache-hit")
+        defer { try? root.delete() }
+
+        let codexHome = root.folder("provider")
+        _ = codexHome.createIfNotExists()
+        _ = try writeUsageRollout(
+            codexHome: codexHome,
+            usageLines: [
+                #"{"timestamp":"2026-04-10T10:00:02Z","type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":90,"cached_input_tokens":10,"output_tokens":15,"total_tokens":105}}}}"#,
+            ]
+        )
+
+        let cacheRoot = root.folder("cache-root")
+        _ = cacheRoot.createIfNotExists()
+        let store = CodexSessionStore(
+            defaultProviderID: "openai",
+            usageIndexRootDirectory: cacheRoot.url
+        )
+
+        _ = try store.loadSessionUsageRecord(codexHome: codexHome.url, rolloutPath: "sessions/usage.jsonl")
+        let second = try store.loadSessionUsageRecord(
+            codexHome: codexHome.url,
+            rolloutPath: "sessions/usage.jsonl"
+        )
+
+        #expect(second.source == .cacheHit)
+        #expect(second.totals == .init(inputTokens: 90, cachedInputTokens: 10, outputTokens: 15))
+    }
+
+    @Test("Given rollout usage file appends new token lines, when reading session usage again, then store only parses the appended tail and merges totals")
+    func loadSessionUsageMergesAppendedTailDelta() throws {
+        let root = try makeTempRoot("codex-session-usage-append")
+        defer { try? root.delete() }
+
+        let codexHome = root.folder("provider")
+        _ = codexHome.createIfNotExists()
+        let file = try writeUsageRollout(
+            codexHome: codexHome,
+            usageLines: [
+                #"{"timestamp":"2026-04-10T10:00:02Z","type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":100,"cached_input_tokens":30,"output_tokens":25,"total_tokens":125}}}}"#,
+            ]
+        )
+
+        let cacheRoot = root.folder("cache-root")
+        _ = cacheRoot.createIfNotExists()
+        let store = CodexSessionStore(
+            defaultProviderID: "openai",
+            usageIndexRootDirectory: cacheRoot.url
+        )
+
+        let first = try store.loadSessionUsageRecord(
+            codexHome: codexHome.url,
+            rolloutPath: "sessions/usage.jsonl"
+        )
+        try appendRolloutLines(file: file, lines: [
+            #"{"timestamp":"2026-04-10T10:00:03Z","type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":107,"cached_input_tokens":33,"output_tokens":29,"total_tokens":136}}}}"#,
+        ])
+
+        let second = try store.loadSessionUsageRecord(
+            codexHome: codexHome.url,
+            rolloutPath: "sessions/usage.jsonl"
+        )
+
+        #expect(first.source == .fullRebuild)
+        #expect(second.source == .deltaAppend)
+        #expect(second.totals == .init(inputTokens: 107, cachedInputTokens: 33, outputTokens: 29))
+    }
+
+    @Test("Given rollout usage file is replaced with a smaller payload, when reading session usage again, then store falls back to a full rebuild")
+    func loadSessionUsageFallsBackToFullRebuildWhenFileIsReplaced() throws {
+        let root = try makeTempRoot("codex-session-usage-replace")
+        defer { try? root.delete() }
+
+        let codexHome = root.folder("provider")
+        _ = codexHome.createIfNotExists()
+        let file = try writeUsageRollout(
+            codexHome: codexHome,
+            usageLines: [
+                #"{"timestamp":"2026-04-10T10:00:02Z","type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":300,"cached_input_tokens":50,"output_tokens":40,"total_tokens":340}}}}"#,
+                #"{"timestamp":"2026-04-10T10:00:03Z","type":"event_msg","payload":{"type":"token_count","info":{"last_token_usage":{"input_tokens":10,"cached_input_tokens":5,"output_tokens":2,"total_tokens":12}}}}"#,
+            ]
+        )
+
+        let cacheRoot = root.folder("cache-root")
+        _ = cacheRoot.createIfNotExists()
+        let store = CodexSessionStore(
+            defaultProviderID: "openai",
+            usageIndexRootDirectory: cacheRoot.url
+        )
+
+        _ = try store.loadSessionUsageRecord(codexHome: codexHome.url, rolloutPath: "sessions/usage.jsonl")
+        try file.overlay(with: """
+        {"timestamp":"2026-04-10T10:00:00Z","type":"session_meta","payload":{"id":"session-1"}}
+        {"timestamp":"2026-04-10T10:00:01Z","type":"turn_context","payload":{"model":"gpt-5"}}
+        {"timestamp":"2026-04-10T10:00:02Z","type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":80,"cached_input_tokens":8,"output_tokens":9,"total_tokens":89}}}}
+        """)
+
+        let rebuilt = try store.loadSessionUsageRecord(
+            codexHome: codexHome.url,
+            rolloutPath: "sessions/usage.jsonl"
+        )
+
+        #expect(rebuilt.source == .fullRebuild)
+        #expect(rebuilt.totals == .init(inputTokens: 80, cachedInputTokens: 8, outputTokens: 9))
+    }
+
+    @Test("Given rollout usage file disappears after being indexed, when reading session usage again, then store returns nil and removes the usage index entry")
+    func loadSessionUsageRemovesUsageIndexEntryWhenFileDisappears() throws {
+        let root = try makeTempRoot("codex-session-usage-delete")
+        defer { try? root.delete() }
+
+        let codexHome = root.folder("provider")
+        _ = codexHome.createIfNotExists()
+        let file = try writeUsageRollout(
+            codexHome: codexHome,
+            usageLines: [
+                #"{"timestamp":"2026-04-10T10:00:02Z","type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":50,"cached_input_tokens":5,"output_tokens":7,"total_tokens":57}}}}"#,
+            ]
+        )
+
+        let cacheRoot = root.folder("cache-root")
+        _ = cacheRoot.createIfNotExists()
+        let store = CodexSessionStore(
+            defaultProviderID: "openai",
+            usageIndexRootDirectory: cacheRoot.url
+        )
+
+        _ = try store.loadSessionUsageRecord(codexHome: codexHome.url, rolloutPath: "sessions/usage.jsonl")
+        try file.delete()
+
+        let missing = try store.loadSessionUsageRecord(
+            codexHome: codexHome.url,
+            rolloutPath: "sessions/usage.jsonl"
+        )
+        let entry = try store.loadUsageIndexEntry(
+            codexHome: codexHome.url,
+            rolloutPath: "sessions/usage.jsonl"
+        )
+
+        #expect(missing.source == .fileMissing)
+        #expect(missing.totals == nil)
+        #expect(entry == nil)
     }
 
     @Test("Given selected live and archived sessions, when previewing and rewriting providers, then rollout files and sqlite rows are both updated")
