@@ -2117,5 +2117,67 @@
                        xml:lang="en" />
         </item>
 
+    
+        <item>
+            <title>2.1.15</title>
+            <pubDate>Sat, 18 Apr 2026 10:39:04 +0800</pubDate>
+            <sparkle:version>202604181029</sparkle:version>
+            <sparkle:shortVersionString>2.1.15</sparkle:shortVersionString>
+            <link>https://github.com/linhay/nolon/releases/download/v2.1.15/nolon-arm64.dmg</link>
+            <description><![CDATA[<div style="white-space: pre-wrap; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;">## nolon 2.1.15
+
+### Changes
+- docs(memory): record release preflight status
+- fix: stabilize build and provider skill scanning
+- feat: add codex session usage sorting
+- feat: add codex session usage index
+- feat: rebuild codex sessions loading and inline browsing
+- fix: stabilize provider account credential edits
+- fix: narrow gemini session usage scanning
+- docs: record codex sessions sorting validation
+- feat: add codex sessions search and compact usage
+- refactor(resources): extract NolonAgentsProfile and NolonAgentsProfilesService from view file
+- docs: consolidate docs-linhay memory and debate structure
+- test: stabilize codex auth compatibility coverage
+- feat: split provider account and usage tabs
+- fix: resolve installed skill scans for linked provider roots
+
+### Downloads
+
+| Platform | Architecture | Download |
+|----------|--------------|----------|
+| macOS | Apple Silicon (M1/M2/M3) | `nolon-arm64.dmg` |
+| macOS | Intel | `nolon-x86_64.dmg` |
+
+### Installation
+1. Download the appropriate DMG for your Mac
+   - **Apple Silicon** (M1, M2, M3 chips): `nolon-arm64.dmg`
+   - **Intel** (older Macs): `nolon-x86_64.dmg`
+2. Open the DMG and drag nolon to Applications
+3. Launch nolon from Applications
+
+### System Requirements
+- macOS 14.0 or later
+
+---
+*Built on 2026-04-18*</div>]]></description>
+            <enclosure url="https://github.com/linhay/nolon/releases/download/v2.1.15/nolon-arm64.dmg"
+                       sparkle:version="202604181029"
+                       sparkle:shortVersionString="2.1.15"
+                       sparkle:edSignature="OicxGP4/tYggbkIpp9rX6tuQnxTRjGukgKMBLOuCz5i4Q0ZVTBLwJM6y41v0MaQJyc5Y3DZxVwSSe/Fm5TWpDA=="
+                       length="20495556"
+                       type="application/x-apple-diskimage"
+                       sparkle:os="macos"
+                       xml:lang="en" />
+            <enclosure url="https://github.com/linhay/nolon/releases/download/v2.1.15/nolon-x86_64.dmg"
+                       sparkle:version="202604181029"
+                       sparkle:shortVersionString="2.1.15"
+                       sparkle:edSignature="9hJDSD3hHqTxnFcI+MyERuOVajfYhrpJGT0MIusBCESQ8l4Ytx9vkpaV5JZvGUlAIxfqES2Xs0GaJlluSo8lAA=="
+                       length="21284327"
+                       type="application/x-apple-diskimage"
+                       sparkle:os="macos"
+                       xml:lang="en" />
+        </item>
+
     </channel>
 </rss>
