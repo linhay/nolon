@@ -103,18 +103,31 @@ run_case_installed_binary_executes_codex_help() {
 
   local root_help
   root_help="$("${target}" --help)"
-  grep -q "USAGE: nolon <subcommand>" <<<"${root_help}" || fail "expected root help usage output"
+  grep -q "Usage: nolon <provider> <group> <action> \\[options\\]" <<<"${root_help}" || fail "expected root help usage output"
   grep -q "codex" <<<"${root_help}" || fail "expected root help to include codex subcommand"
+  grep -q "workflow" <<<"${root_help}" || fail "expected root help to include workflow subcommand"
 
   local codex_help
   codex_help="$("${target}" codex --help)"
-  grep -q "USAGE: nolon codex <subcommand>" <<<"${codex_help}" || fail "expected codex help usage output"
-  grep -q "auth" <<<"${codex_help}" || fail "expected codex help to include auth subcommand"
+  grep -q "Usage: nolon <provider> <group> <action> \\[options\\]" <<<"${codex_help}" || fail "expected codex help usage output"
+  grep -q "Providers:" <<<"${codex_help}" || fail "expected codex help to include providers section"
   grep -q "binary" <<<"${codex_help}" || fail "expected codex help to include binary subcommand"
+  grep -q "session" <<<"${codex_help}" || fail "expected codex help to include session subcommand"
+
+  local session_help
+  session_help="$("${target}" codex session --help)"
+  grep -q "Usage: nolon codex session <action> \\[options\\]" <<<"${session_help}" || fail "expected session help usage output"
+  grep -q "preview-rewrite" <<<"${session_help}" || fail "expected session help to include preview-rewrite action"
+  grep -q "rewrite" <<<"${session_help}" || fail "expected session help to include rewrite action"
+
+  local session_list_help
+  session_list_help="$("${target}" codex session list --help)"
+  grep -q "Usage: nolon codex session list \\[options\\]" <<<"${session_list_help}" || fail "expected session list help usage output"
+  grep -q -- "--group-by provider|time-project" <<<"${session_list_help}" || fail "expected session list help to include group-by option"
 
   local probe_help
   probe_help="$("${target}" codex status probe --help)"
-  grep -q "USAGE: nolon codex status probe" <<<"${probe_help}" || fail "expected status probe help usage output"
+  grep -q "Usage: nolon codex status probe \\[--provider <id>\\]" <<<"${probe_help}" || fail "expected status probe help usage output"
 }
 
 main() {
