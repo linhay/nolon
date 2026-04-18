@@ -19,6 +19,7 @@ final class NolonAccountsViewModel: CopyToastPresenting {
     typealias CopyTextAction = @Sendable (String) -> Void
     typealias OpenURLAction = @Sendable (URL) -> Void
     typealias ProviderUsageAccountsViewModelFactory = @MainActor @Sendable (Provider) -> ProviderUsageAccountsViewModel
+    typealias ProviderTokenTrendFetchAction = @Sendable (UsageProvider) async throws -> ProviderTokenTrendSnapshot?
 
     struct UsageSummary: Sendable, Equatable {
         let provider: UsageProvider
@@ -49,6 +50,12 @@ final class NolonAccountsViewModel: CopyToastPresenting {
         let isSnapshotOnly: Bool
     }
 
+    struct DashboardTrendSample: Identifiable, Sendable, Equatable {
+        let id: String
+        let label: String
+        let totalTokens: Int
+    }
+
     private(set) var settings: ProviderSettings
     private let usageMonitor: ProviderUsageMonitorService
     private let usageSettingsStore: UsageMonitorSettingsStore
@@ -57,9 +64,11 @@ final class NolonAccountsViewModel: CopyToastPresenting {
     private let copyTextAction: CopyTextAction
     private let openURLAction: OpenURLAction
     private let providerUsageAccountsViewModelFactory: ProviderUsageAccountsViewModelFactory
+    @ObservationIgnored private let providerTokenTrendFetchAction: ProviderTokenTrendFetchAction
     @ObservationIgnored private var providerUsageAccountsViewModelsByProviderID: [Provider.ID: ProviderUsageAccountsViewModel] = [:]
 
     var usageSummaryByProviderID: [Provider.ID: UsageSummary] = [:]
+    var tokenTrendPointsByProviderID: [Provider.ID: [ProviderTokenTrendPoint]] = [:]
     var accountSummariesByProviderID: [Provider.ID: [AccountUsageSummary]] = [:]
     var codexAccountSummaryByProviderID: [Provider.ID: CodexAccountSummary] = [:]
     var activeCodexAccountIDByProviderID: [Provider.ID: UUID] = [:]
@@ -80,7 +89,8 @@ final class NolonAccountsViewModel: CopyToastPresenting {
         codexActivateAction: CodexActivateAction? = nil,
         copyTextAction: CopyTextAction? = nil,
         openURLAction: OpenURLAction? = nil,
-        providerUsageViewModelFactory: ProviderUsageAccountsViewModelFactory? = nil
+        providerUsageViewModelFactory: ProviderUsageAccountsViewModelFactory? = nil,
+        providerTokenTrendFetchAction: ProviderTokenTrendFetchAction? = nil
     ) {
         let hasCustomViewModelDependencies = usageMonitor != nil || codexActivateAction != nil
         let tokenStore = FileTokenAccountStore(fileURL: ProviderUsagePaths.defaultTokenAccountsFileURL())
@@ -100,6 +110,12 @@ final class NolonAccountsViewModel: CopyToastPresenting {
         }
         self.openURLAction = openURLAction ?? { url in
             NSWorkspace.shared.open(url)
+        }
+        self.providerTokenTrendFetchAction = providerTokenTrendFetchAction ?? { provider in
+            try await ProviderUsageRegistry.fetchTokenTrendSnapshot(
+                for: provider,
+                trailingDays: nil
+            )
         }
         if let providerUsageViewModelFactory {
             self.providerUsageAccountsViewModelFactory = providerUsageViewModelFactory
@@ -129,6 +145,7 @@ final class NolonAccountsViewModel: CopyToastPresenting {
         // Provider payload may change while keeping same id (e.g. template/path migration).
         // Rebuild child VMs to avoid stale provider context.
         providerUsageAccountsViewModelsByProviderID.removeAll()
+        tokenTrendPointsByProviderID.removeAll()
     }
 
     func refresh() {
@@ -143,6 +160,7 @@ final class NolonAccountsViewModel: CopyToastPresenting {
         let sqlitePath = codexAuthManager.accountsSQLiteFile().url.path
 
         var latestUsage: [Provider.ID: UsageSummary] = [:]
+        var latestTokenTrendPoints: [Provider.ID: [ProviderTokenTrendPoint]] = [:]
         var latestAccountUsage: [Provider.ID: [AccountUsageSummary]] = [:]
         var latestCodexSummary: [Provider.ID: CodexAccountSummary] = [:]
         var latestActiveCodexAccounts: [Provider.ID: UUID] = [:]
@@ -158,6 +176,13 @@ final class NolonAccountsViewModel: CopyToastPresenting {
                 accountsViewModel.settings = usageSettingsStore.settings(for: provider)
                 await accountsViewModel.load()
                 let outcomes = accountsViewModel.outcomes
+                if let points = await Self.loadTokenTrendPoints(
+                    providerID: provider.id,
+                    usageProvider: usageProvider,
+                    fetchAction: providerTokenTrendFetchAction
+                ) {
+                    latestTokenTrendPoints[provider.id] = points
+                }
 
                 let accountSummaries = Self.makeAccountSummaries(outcomes: outcomes)
                 if let summary = Self.makeUsageSummary(provider: provider, usageProvider: usageProvider, outcomes: outcomes) {
@@ -223,6 +248,7 @@ final class NolonAccountsViewModel: CopyToastPresenting {
             }
         }
         usageSummaryByProviderID = latestUsage
+        tokenTrendPointsByProviderID = latestTokenTrendPoints
         accountSummariesByProviderID = latestAccountUsage
         codexAccountSummaryByProviderID = latestCodexSummary
         activeCodexAccountIDByProviderID = latestActiveCodexAccounts
@@ -499,6 +525,195 @@ extension NolonAccountsViewModel {
             accountEmail: accountEmail,
             primaryUsedPercent: firstSuccess?.usage.primary?.usedPercent
         )
+    }
+
+    func trendPanelSamples(
+        for window: AccountTimeWindow,
+        now: Date = Date(),
+        calendar: Calendar = .current
+    ) -> [AccountTrendSampleData] {
+        let samples = Self.makeDashboardTrendSamples(
+            pointsByProviderID: tokenTrendPointsByProviderID,
+            window: window,
+            now: now,
+            calendar: calendar
+        )
+        let maxValue = max(samples.map(\.totalTokens).max() ?? 0, 1)
+
+        return samples.enumerated().map { index, sample in
+            AccountTrendSampleData(
+                id: sample.id,
+                label: sample.label,
+                heightRatio: Double(sample.totalTokens) / Double(maxValue),
+                opacity: Self.dashboardTrendOpacity(index: index, count: samples.count)
+            )
+        }
+    }
+
+    static func makeDashboardTrendSamples(
+        pointsByProviderID: [Provider.ID: [ProviderTokenTrendPoint]],
+        window: AccountTimeWindow,
+        now: Date = Date(),
+        calendar: Calendar = .current,
+        maximumBars: Int = 7
+    ) -> [DashboardTrendSample] {
+        let normalizedCalendar = Self.normalizedCalendar(calendar)
+        let totalsByDay = aggregateTokenTotalsByDay(pointsByProviderID: pointsByProviderID)
+        let dayKeys = makeWindowDayKeys(
+            totalsByDay: totalsByDay,
+            window: window,
+            now: now,
+            calendar: normalizedCalendar
+        )
+        guard !dayKeys.isEmpty else { return [] }
+
+        let dailyValues = dayKeys.map { dayKey in
+            (dayKey: dayKey, totalTokens: totalsByDay[dayKey] ?? 0)
+        }
+        let groups = chunkedDailyValues(dailyValues, maximumBars: maximumBars)
+
+        return groups.enumerated().map { index, group in
+            DashboardTrendSample(
+                id: "trend-\(index)",
+                label: dashboardTrendLabel(for: group, now: now, calendar: normalizedCalendar),
+                totalTokens: group.reduce(0) { $0 + $1.totalTokens }
+            )
+        }
+    }
+
+    private static func loadTokenTrendPoints(
+        providerID: Provider.ID,
+        usageProvider: UsageProvider,
+        fetchAction: ProviderTokenTrendFetchAction
+    ) async -> [ProviderTokenTrendPoint]? {
+        guard supportsDashboardTrend(for: usageProvider) else { return nil }
+        do {
+            let snapshot = try await fetchAction(usageProvider)
+            let points = snapshot?.points.sorted { $0.date < $1.date } ?? []
+            return points.isEmpty ? nil : points
+        } catch {
+            logger.error(
+                "Accounts refresh(token trend) failed. providerID=\(providerID, privacy: .public) usageProvider=\(usageProvider.rawValue, privacy: .public) error=\(error.localizedDescription, privacy: .public)"
+            )
+            return nil
+        }
+    }
+
+    private static func supportsDashboardTrend(for usageProvider: UsageProvider) -> Bool {
+        switch usageProvider {
+        case .codex, .claude, .gemini, .antigravity:
+            return true
+        default:
+            return false
+        }
+    }
+
+    private static func aggregateTokenTotalsByDay(
+        pointsByProviderID: [Provider.ID: [ProviderTokenTrendPoint]]
+    ) -> [String: Int] {
+        var totalsByDay: [String: Int] = [:]
+        for points in pointsByProviderID.values {
+            for point in points {
+                totalsByDay[point.date, default: 0] += point.totalTokens
+            }
+        }
+        return totalsByDay
+    }
+
+    private static func makeWindowDayKeys(
+        totalsByDay: [String: Int],
+        window: AccountTimeWindow,
+        now: Date,
+        calendar: Calendar
+    ) -> [String] {
+        let today = calendar.startOfDay(for: now)
+        let dayCount: Int
+        if let windowDayCount = window.dayCount {
+            dayCount = max(1, windowDayCount)
+        } else if let earliest = totalsByDay.keys.sorted().first,
+                  let earliestDate = dayKeyFormatter(calendar: calendar).date(from: earliest)
+        {
+            let components = calendar.dateComponents([.day], from: earliestDate, to: today)
+            dayCount = max(1, (components.day ?? 0) + 1)
+        } else {
+            dayCount = 7
+        }
+
+        let formatter = dayKeyFormatter(calendar: calendar)
+        return (0..<dayCount).compactMap { offset in
+            guard let date = calendar.date(byAdding: .day, value: offset - (dayCount - 1), to: today) else {
+                return nil
+            }
+            return formatter.string(from: date)
+        }
+    }
+
+    private static func chunkedDailyValues(
+        _ dailyValues: [(dayKey: String, totalTokens: Int)],
+        maximumBars: Int
+    ) -> [[(dayKey: String, totalTokens: Int)]] {
+        let barLimit = max(1, maximumBars)
+        guard dailyValues.count > barLimit else {
+            return dailyValues.map { [$0] }
+        }
+
+        let chunkSize = Int(ceil(Double(dailyValues.count) / Double(barLimit)))
+        return stride(from: 0, to: dailyValues.count, by: chunkSize).map { start in
+            Array(dailyValues[start..<min(start + chunkSize, dailyValues.count)])
+        }
+    }
+
+    private static func dashboardTrendLabel(
+        for group: [(dayKey: String, totalTokens: Int)],
+        now: Date,
+        calendar: Calendar
+    ) -> String {
+        guard let first = group.first?.dayKey,
+              let last = group.last?.dayKey
+        else {
+            return "-"
+        }
+
+        let todayKey = dayKeyFormatter(calendar: calendar).string(from: calendar.startOfDay(for: now))
+        if group.count == 1, last == todayKey {
+            return NSLocalizedString("accounts.dashboard.today", value: "Today", comment: "Today label")
+        }
+
+        let firstLabel = shortDateLabel(first)
+        let lastLabel = shortDateLabel(last)
+        if first == last {
+            return lastLabel
+        }
+        return "\(firstLabel)-\(lastLabel)"
+    }
+
+    private static func shortDateLabel(_ dayKey: String) -> String {
+        let parts = dayKey.split(separator: "-", omittingEmptySubsequences: true)
+        guard parts.count == 3 else { return dayKey }
+        return "\(parts[1])/\(parts[2])"
+    }
+
+    private static func dayKeyFormatter(calendar: Calendar) -> DateFormatter {
+        let formatter = DateFormatter()
+        formatter.calendar = calendar
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = calendar.timeZone
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter
+    }
+
+    private static func normalizedCalendar(_ calendar: Calendar) -> Calendar {
+        var value = calendar
+        if value.locale == nil {
+            value.locale = Locale(identifier: "en_US_POSIX")
+        }
+        return value
+    }
+
+    private static func dashboardTrendOpacity(index: Int, count: Int) -> Double {
+        guard count > 1 else { return 0.9 }
+        let ratio = Double(index) / Double(max(count - 1, 1))
+        return max(0.38, 0.92 - ratio * 0.36)
     }
 
     static func makeAccountSummaries(

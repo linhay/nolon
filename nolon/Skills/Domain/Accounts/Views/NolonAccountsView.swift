@@ -128,7 +128,7 @@ struct NolonAccountsView: View, DebugPageLocatable {
                     isSelected: selectedWindow == window
                 )
             },
-            samples: trendSamples()
+            samples: viewModel.trendPanelSamples(for: selectedWindow)
         )
     }
 
@@ -144,29 +144,6 @@ struct NolonAccountsView: View, DebugPageLocatable {
                 )
             }
         )
-    }
-
-    private func trendSamples() -> [AccountTrendSampleData] {
-        let values = rankingItems().map(\.value)
-        let total = max(values.max() ?? 1, 1)
-        let today = values.reduce(0, +)
-        let p1 = max(1, today / 3)
-        let p2 = max(1, today / 2)
-        let p3 = max(1, (today * 2) / 3)
-        let points = [p1, p2, p3, today]
-
-        return points.enumerated().map { offset, value in
-            let ratio = CGFloat(value) / CGFloat(max(total, value))
-            let label = offset == 3
-                ? NSLocalizedString("accounts.dashboard.today", value: "Today", comment: "Today label")
-                : "03/\(offset + 6)"
-            return AccountTrendSampleData(
-                id: "trend-\(offset)",
-                label: label,
-                heightRatio: Double(ratio),
-                opacity: 0.9 - Double(offset) * 0.12
-            )
-        }
     }
 
     private func rankingItems() -> [AccountProviderRankingItem] {
@@ -254,7 +231,7 @@ struct NolonAccountsView: View, DebugPageLocatable {
     }
 }
 
-private enum AccountTimeWindow: String, CaseIterable, Hashable {
+enum AccountTimeWindow: String, CaseIterable, Hashable {
     case d7
     case d14
     case d30
@@ -266,6 +243,15 @@ private enum AccountTimeWindow: String, CaseIterable, Hashable {
         case .d14: return "14d"
         case .d30: return "30d"
         case .all: return "all"
+        }
+    }
+
+    var dayCount: Int? {
+        switch self {
+        case .d7: return 7
+        case .d14: return 14
+        case .d30: return 30
+        case .all: return nil
         }
     }
 }

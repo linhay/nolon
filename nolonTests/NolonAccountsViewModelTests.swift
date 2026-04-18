@@ -161,6 +161,97 @@ final class NolonAccountsViewModelTests: XCTestCase {
         XCTAssertEqual(aggregate?.primaryUsedPercent, 42)
     }
 
+    func testBDD_GivenProviderTokenTrendPoints_WhenBuildingDashboardTrendSamples_ThenAggregatesActualTodayAndYesterdayValues() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let now = calendar.date(from: DateComponents(year: 2026, month: 4, day: 18, hour: 12))!
+
+        let samples = NolonAccountsViewModel.makeDashboardTrendSamples(
+            pointsByProviderID: [
+                "codex": [
+                    ProviderTokenTrendPoint(
+                        date: "2026-04-17",
+                        totalTokens: 40,
+                        inputTokens: 20,
+                        outputTokens: 20,
+                        cacheReadTokens: 0
+                    ),
+                    ProviderTokenTrendPoint(
+                        date: "2026-04-18",
+                        totalTokens: 100,
+                        inputTokens: 60,
+                        outputTokens: 40,
+                        cacheReadTokens: 0
+                    )
+                ],
+                "gemini": [
+                    ProviderTokenTrendPoint(
+                        date: "2026-04-17",
+                        totalTokens: 20,
+                        inputTokens: 10,
+                        outputTokens: 10,
+                        cacheReadTokens: 0
+                    ),
+                    ProviderTokenTrendPoint(
+                        date: "2026-04-18",
+                        totalTokens: 60,
+                        inputTokens: 30,
+                        outputTokens: 30,
+                        cacheReadTokens: 0
+                    )
+                ]
+            ],
+            window: .d7,
+            now: now,
+            calendar: calendar,
+            maximumBars: 7
+        )
+
+        XCTAssertEqual(samples.count, 7)
+        XCTAssertEqual(samples.map(\.totalTokens), [0, 0, 0, 0, 0, 60, 160])
+        XCTAssertEqual(samples.last?.label, "Today")
+    }
+
+    func testBDD_GivenFourteenDayWindow_WhenBuildingDashboardTrendSamples_ThenUsesRequestedWindowBuckets() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let now = calendar.date(from: DateComponents(year: 2026, month: 4, day: 18, hour: 12))!
+
+        let dailyPoints = (0..<14).map { offset -> ProviderTokenTrendPoint in
+            let day = calendar.date(byAdding: .day, value: offset - 13, to: now)!
+            let formatter = DateFormatter()
+            formatter.calendar = calendar
+            formatter.locale = Locale(identifier: "en_US_POSIX")
+            formatter.timeZone = calendar.timeZone
+            formatter.dateFormat = "yyyy-MM-dd"
+            return ProviderTokenTrendPoint(
+                date: formatter.string(from: day),
+                totalTokens: offset + 1,
+                inputTokens: offset + 1,
+                outputTokens: 0,
+                cacheReadTokens: 0
+            )
+        }
+
+        let samples7d = NolonAccountsViewModel.makeDashboardTrendSamples(
+            pointsByProviderID: ["codex": dailyPoints],
+            window: .d7,
+            now: now,
+            calendar: calendar,
+            maximumBars: 7
+        )
+        let samples14d = NolonAccountsViewModel.makeDashboardTrendSamples(
+            pointsByProviderID: ["codex": dailyPoints],
+            window: .d14,
+            now: now,
+            calendar: calendar,
+            maximumBars: 7
+        )
+
+        XCTAssertEqual(samples7d.map(\.totalTokens), [8, 9, 10, 11, 12, 13, 14])
+        XCTAssertEqual(samples14d.map(\.totalTokens), [3, 7, 11, 15, 19, 23, 27])
+    }
+
     func testBDD_GivenMultipleAccountOutcomes_WhenBuildingAccountSummaries_ThenReturnsAllAccountsPerProvider() {
         let now = Date(timeIntervalSince1970: 1_700_200_000)
         let tokenID = UUID(uuidString: "11111111-2222-3333-4444-555555555555")!
