@@ -13,6 +13,7 @@ final class CodexSessionsOverviewDataBuilderTests: XCTestCase {
                 rewritableGroupCount: 3,
                 needsAttentionGroupCount: 1,
                 statusMessage: nil,
+                diagnosticMessage: nil,
                 isLoading: false,
                 hasVisibleSections: true,
                 isPreparingRewrite: false,
@@ -38,6 +39,7 @@ final class CodexSessionsOverviewDataBuilderTests: XCTestCase {
                 rewritableGroupCount: 3,
                 needsAttentionGroupCount: 1,
                 statusMessage: nil,
+                diagnosticMessage: nil,
                 isLoading: false,
                 hasVisibleSections: true,
                 isPreparingRewrite: false,
@@ -62,6 +64,7 @@ final class CodexSessionsOverviewDataBuilderTests: XCTestCase {
                 rewritableGroupCount: 3,
                 needsAttentionGroupCount: 1,
                 statusMessage: nil,
+                diagnosticMessage: nil,
                 isLoading: true,
                 hasVisibleSections: true,
                 isPreparingRewrite: false,
@@ -96,6 +99,7 @@ final class CodexSessionsOverviewDataBuilderTests: XCTestCase {
                 rewritableGroupCount: 3,
                 needsAttentionGroupCount: 1,
                 statusMessage: "Preparing rewrite preview…",
+                diagnosticMessage: nil,
                 isLoading: false,
                 hasVisibleSections: true,
                 isPreparingRewrite: true,
@@ -119,6 +123,7 @@ final class CodexSessionsOverviewDataBuilderTests: XCTestCase {
                 rewritableGroupCount: 3,
                 needsAttentionGroupCount: 1,
                 statusMessage: "Moved 3 sessions to Anthropic (anthropic).",
+                diagnosticMessage: nil,
                 isLoading: true,
                 hasVisibleSections: true,
                 isPreparingRewrite: false,
@@ -138,5 +143,27 @@ final class CodexSessionsOverviewDataBuilderTests: XCTestCase {
         )
         XCTAssertTrue(data.isRefreshDisabled)
         XCTAssertEqual(data.metrics.map(\.id), ["sessions", "groups", "rewritable", "attention"])
+    }
+
+    func testBDD_GivenDiagnosticMessage_WhenBuildingOverview_ThenRoutesItToDiagnosticFooterEntry() {
+        let data = CodexSessionsOverviewDataBuilder.build(
+            .init(
+                groupingMode: .project,
+                sortMode: .recent,
+                totalSessionCount: 18,
+                groupCount: 4,
+                rewritableGroupCount: 3,
+                needsAttentionGroupCount: 1,
+                statusMessage: nil,
+                diagnosticMessage: "Config warning: falling back to default provider.",
+                isLoading: false,
+                hasVisibleSections: true,
+                isPreparingRewrite: false,
+                isApplyingRewrite: false
+            )
+        )
+
+        XCTAssertNil(data.statusMessage)
+        XCTAssertEqual(data.paginationMessage, "Config warning: falling back to default provider.")
     }
 }

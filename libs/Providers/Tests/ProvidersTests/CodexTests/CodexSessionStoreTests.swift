@@ -305,6 +305,28 @@ struct CodexSessionStoreTests {
         #expect(session.title == "Existing thread")
     }
 
+    @Test("Given session meta thread id is blank, when loading snapshot, then store normalizes it to nil and marks the session read only")
+    func loadSnapshotNormalizesBlankThreadIDToNil() throws {
+        let root = try makeTempRoot("codex-session-store-blank-thread")
+        defer { try? root.delete() }
+
+        let codexHome = root.folder("provider")
+        _ = codexHome.createIfNotExists()
+
+        _ = try writeRolloutSessionMeta(
+            codexHome: codexHome,
+            threadID: "   ",
+            timestamp: "2026-04-10T10:00:00Z",
+            modelProvider: "openai"
+        )
+
+        let snapshot = try CodexSessionStore(defaultProviderID: "openai").loadSnapshot(codexHome: codexHome)
+        let session = try #require(snapshot.sessions.first)
+
+        #expect(session.threadID == nil)
+        #expect(session.editable == false)
+    }
+
     @Test("Given rollout files span multiple projects, when loading project skeleton snapshot, then counts and latest timestamps are aggregated per project")
     func loadProjectSkeletonSnapshotAggregatesProjects() throws {
         let root = try makeTempRoot("codex-session-store-project-skeleton")
@@ -662,6 +684,7 @@ struct CodexSessionStoreTests {
         )
 
         let warningRecorder = WarningRecorder()
+        let warningPaths = WarningRecorder()
         let observer = NotificationCenter.default.addObserver(
             forName: CodexSessionStore.warningNotification,
             object: nil,
@@ -669,6 +692,9 @@ struct CodexSessionStoreTests {
         ) { notification in
             if let message = notification.userInfo?["message"] as? String {
                 warningRecorder.append(message)
+            }
+            if let path = notification.userInfo?["codex_home_path"] as? String {
+                warningPaths.append(path)
             }
         }
         defer { NotificationCenter.default.removeObserver(observer) }
@@ -678,6 +704,7 @@ struct CodexSessionStoreTests {
         #expect(snapshot.availableProviderIDs == ["openai"])
         #expect(warningRecorder.messages.count == 1)
         #expect(warningRecorder.messages.first?.contains("config.toml") == true)
+        #expect(warningPaths.messages == [codexHome.url.path])
     }
 
     @Test("Given snapshot load completes, when store publishes performance metrics, then elapsed time and counts are included")
@@ -712,6 +739,7 @@ struct CodexSessionStoreTests {
         #expect(metrics["operation"] as? String == "load_snapshot")
         #expect(metrics["session_count"] as? Int == 1)
         #expect(metrics["scanned_file_count"] as? Int == 1)
+        #expect(metrics["codex_home_path"] as? String == codexHome.url.path)
         #expect((metrics["elapsed_ms"] as? Int ?? -1) >= 0)
         #expect((metrics["trace_id"] as? String)?.isEmpty == false)
     }
@@ -898,6 +926,67 @@ struct CodexSessionStoreTests {
         #expect(missing.source == .fileMissing)
         #expect(missing.totals == nil)
         #expect(entry == nil)
+    }
+
+    @Test("Given rollout contains parseable timestamps, when loading session timeline, then store returns the first and last event timestamps")
+    func loadSessionTimelineReturnsFirstAndLastTimestamp() throws {
+        let root = try makeTempRoot("codex-session-timeline-range")
+        defer { try? root.delete() }
+
+        let codexHome = root.folder("provider")
+        _ = codexHome.createIfNotExists()
+        _ = try writeUsageRollout(
+            codexHome: codexHome,
+            rolloutPath: "sessions/timeline.jsonl",
+            usageLines: [
+                #"{"timestamp":"2026-04-10T10:00:05Z","type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":10,"cached_input_tokens":0,"output_tokens":2,"total_tokens":12}}}}"#,
+                #"{"timestamp":"2026-04-10T10:02:30Z","type":"response_item","payload":{"type":"message","role":"assistant","content":[{"type":"output_text","text":"done"}]}}"#,
+            ]
+        )
+        let store = CodexSessionStore()
+
+        let timeline = try #require(
+            try store.loadSessionTimeline(
+                codexHome: codexHome.url,
+                rolloutPath: "sessions/timeline.jsonl"
+            )
+        )
+        let expectedStartedAt = try parseISO8601("2026-04-10T10:00:00Z")
+        let expectedLastActivityAt = try parseISO8601("2026-04-10T10:02:30Z")
+
+        #expect(timeline.startedAt == expectedStartedAt)
+        #expect(timeline.lastActivityAt == expectedLastActivityAt)
+    }
+
+    @Test("Given rollout has no parseable timestamps, when loading session timeline, then store leaves startedAt empty and falls back lastActivityAt to file metadata")
+    func loadSessionTimelineFallsBackToFileMetadataWhenTimestampsAreMissing() throws {
+        let root = try makeTempRoot("codex-session-timeline-fallback")
+        defer { try? root.delete() }
+
+        let codexHome = root.folder("provider")
+        _ = codexHome.createIfNotExists()
+        let file = codexHome.file("sessions/invalid-timeline.jsonl")
+        _ = file.parentFolder()?.createIfNotExists()
+        try file.overlay(with: """
+        {"timestamp":"not-a-date","type":"session_meta","payload":{"id":"session-1"}}
+        {"timestamp":"still-not-a-date","type":"response_item","payload":{"type":"message","role":"assistant","content":[{"type":"output_text","text":"done"}]}}
+        """)
+        let expectedLastActivityAt = try parseISO8601("2026-04-10T11:23:45Z")
+        try FileManager.default.setAttributes(
+            [.modificationDate: expectedLastActivityAt],
+            ofItemAtPath: file.path
+        )
+        let store = CodexSessionStore()
+
+        let timeline = try #require(
+            try store.loadSessionTimeline(
+                codexHome: codexHome.url,
+                rolloutPath: "sessions/invalid-timeline.jsonl"
+            )
+        )
+
+        #expect(timeline.startedAt == nil)
+        #expect(timeline.lastActivityAt == expectedLastActivityAt)
     }
 
     @Test("Given selected live and archived sessions, when previewing and rewriting providers, then rollout files and sqlite rows are both updated")
@@ -1179,6 +1268,7 @@ struct CodexSessionStoreTests {
         #expect(metrics["state_rows_updated"] as? Int == 1)
         #expect(metrics["live_rollout_files_updated"] as? Int == 1)
         #expect(metrics["failure_count"] as? Int == 0)
+        #expect(metrics["codex_home_path"] as? String == codexHome.url.path)
         #expect((metrics["preview_elapsed_ms"] as? Int ?? -1) >= 0)
         #expect((metrics["live_rollout_elapsed_ms"] as? Int ?? -1) >= 0)
         #expect((metrics["archived_rollout_elapsed_ms"] as? Int ?? -1) >= 0)

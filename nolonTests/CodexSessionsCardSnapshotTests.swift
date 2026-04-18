@@ -311,6 +311,10 @@ struct CodexSessionsCardSnapshotTests {
         let detail = CodexSessionsDetailPanelView(
             data: makeDetailData(),
             onResume: {},
+            onCopySessionID: {},
+            onCopyThreadID: {},
+            onCopyStartedAt: {},
+            onCopyLastActivity: {},
             onCopyCommand: {},
             onRevealInFinder: {},
             onCopyProjectPath: {},
@@ -332,6 +336,99 @@ struct CodexSessionsCardSnapshotTests {
                 of: host,
                 as: .image(size: CGSize(width: 980, height: 360)),
                 named: "detail-panel-quick-command",
+                snapshotDirectory: Self.snapshotDirectory
+            )
+        }
+
+        #expect(failure == nil || failure?.contains("Record mode is on") == true)
+    }
+
+    @Test("detail panel keeps timeline loading state separate from updated timestamp")
+    func detailPanelKeepsTimelineLoadingStateSeparateFromUpdatedTimestamp() {
+        let detail = CodexSessionsDetailPanelView(
+            data: makeDetailData(
+                startedAtText: "Loading…",
+                startedAtCopyValue: nil,
+                lastActivityText: "Loading…",
+                lastActivityCopyValue: nil
+            ),
+            onResume: {},
+            onCopySessionID: {},
+            onCopyThreadID: {},
+            onCopyStartedAt: nil,
+            onCopyLastActivity: nil,
+            onCopyCommand: {},
+            onRevealInFinder: {},
+            onCopyProjectPath: {},
+            onCopyRolloutPath: {}
+        )
+
+        let host = makeHost(
+            VStack(alignment: .leading, spacing: 18) {
+                detail
+            }
+            .padding(24)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .background(NolonUI.DesignSystem.Colors.Background.canvas),
+            size: CGSize(width: 980, height: 360)
+        )
+
+        let failure = withSnapshotTesting(record: .all) {
+            verifySnapshot(
+                of: host,
+                as: .image(size: CGSize(width: 980, height: 360)),
+                named: "detail-panel-loading-timeline",
+                snapshotDirectory: Self.snapshotDirectory
+            )
+        }
+
+        #expect(failure == nil || failure?.contains("Record mode is on") == true)
+    }
+
+    @Test("detail panel keeps failed timeline and missing thread compact")
+    func detailPanelKeepsFailedTimelineAndMissingThreadCompact() {
+        let detail = CodexSessionsDetailPanelView(
+            data: makeDetailData(
+                threadIDText: "Unavailable",
+                threadIDCopyValue: nil,
+                startedAtText: "Unknown",
+                startedAtCopyValue: nil,
+                lastActivityText: "Unknown",
+                lastActivityCopyValue: nil,
+                usage: .init(
+                    totalText: "Unavailable",
+                    inputText: nil,
+                    outputText: nil,
+                    cachedText: nil,
+                    isPlaceholder: true
+                )
+            ),
+            onResume: {},
+            onCopySessionID: {},
+            onCopyThreadID: nil,
+            onCopyStartedAt: nil,
+            onCopyLastActivity: nil,
+            onCopyCommand: {},
+            onRevealInFinder: {},
+            onCopyProjectPath: {},
+            onCopyRolloutPath: {}
+        )
+
+        let host = makeHost(
+            VStack(alignment: .leading, spacing: 18) {
+                detail
+            }
+            .padding(24)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .background(NolonUI.DesignSystem.Colors.Background.canvas),
+            size: CGSize(width: 980, height: 360)
+        )
+
+        let failure = withSnapshotTesting(record: .all) {
+            verifySnapshot(
+                of: host,
+                as: .image(size: CGSize(width: 980, height: 360)),
+                named: "detail-panel-failed-timeline",
                 snapshotDirectory: Self.snapshotDirectory
             )
         }
@@ -389,6 +486,10 @@ struct CodexSessionsCardSnapshotTests {
                 CodexSessionsDetailPanelView(
                     data: makeDetailData(),
                     onResume: {},
+                    onCopySessionID: {},
+                    onCopyThreadID: {},
+                    onCopyStartedAt: {},
+                    onCopyLastActivity: {},
                     onCopyCommand: {},
                     onRevealInFinder: {},
                     onCopyProjectPath: {},
@@ -553,16 +654,38 @@ struct CodexSessionsCardSnapshotTests {
         )
     }
 
-    private func makeDetailData() -> CodexSessionsDetailPanelData {
+    private func makeDetailData(
+        threadIDText: String = "thread-refactor",
+        threadIDCopyValue: String? = "thread-refactor",
+        startedAtText: String = "2026-04-15 19:58",
+        startedAtCopyValue: String? = "2026-04-15 19:58",
+        lastActivityText: String = "2026-04-15 20:30",
+        lastActivityCopyValue: String? = "2026-04-15 20:30",
+        usage: CodexSessionsDetailUsageData? = .init(
+            totalText: "3.0K",
+            inputText: "2.4K",
+            outputText: "600",
+            cachedText: "400",
+            isPlaceholder: false
+        )
+    ) -> CodexSessionsDetailPanelData {
         .init(
             title: "Refactor session list layout",
+            sessionIDText: "sessions/2026/04/15/refactor.jsonl",
+            sessionIDCopyValue: "sessions/2026/04/15/refactor.jsonl",
+            threadIDText: threadIDText,
+            threadIDCopyValue: threadIDCopyValue,
             providerText: "OpenAI (openai)",
-            timeText: "2026-04-15 20:30",
+            updatedAtText: "2026-04-15 20:30",
+            startedAtText: startedAtText,
+            startedAtCopyValue: startedAtCopyValue,
+            lastActivityText: lastActivityText,
+            lastActivityCopyValue: lastActivityCopyValue,
             projectPath: "/tmp/project-alpha",
             groupTitle: "project-alpha",
             groupSecondaryText: "/tmp/project-alpha",
             summary: "Move dense row metadata into an inline panel so browsing stays stable in large session lists.",
-            usageText: "3.0K · in 2.4K · out 600",
+            usage: usage,
             rolloutPath: "sessions/2026/04/15/refactor.jsonl",
             stateRowCount: 8,
             metadataItems: [

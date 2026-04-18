@@ -4,9 +4,6 @@
     "" : {
 
     },
-    "·" : {
-
-    },
     "%@ loading" : {
 
     },
@@ -9719,14 +9716,26 @@
         }
       }
     },
-    "codex.sessions.detail.copy_command" : {
-      "comment" : "Copy codex session resume command",
+    "codex.sessions.detail.cached" : {
+      "comment" : "Cached input tokens",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "new",
-            "value" : "Copy Command"
+            "value" : "Cached"
+          }
+        }
+      }
+    },
+    "codex.sessions.detail.context" : {
+      "comment" : "Context section",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Context"
           }
         }
       }
@@ -9738,31 +9747,19 @@
         "en" : {
           "stringUnit" : {
             "state" : "new",
-            "value" : "Command"
+            "value" : "Copy Command"
           }
         }
       }
     },
     "codex.sessions.detail.copy_project" : {
-      "comment" : "Copy project path",
+      "comment" : "Project path",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "new",
             "value" : "Project"
-          }
-        }
-      }
-    },
-    "codex.sessions.detail.copy_rollout" : {
-      "comment" : "Copy rollout path",
-      "extractionState" : "extracted_with_value",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Rollout"
           }
         }
       }
@@ -9779,14 +9776,14 @@
         }
       }
     },
-    "codex.sessions.detail.forked_from" : {
-      "comment" : "Session fork source title",
+    "codex.sessions.detail.diagnostics" : {
+      "comment" : "Diagnostics section",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "new",
-            "value" : "Forked From"
+            "value" : "Diagnostics"
           }
         }
       }
@@ -9803,26 +9800,50 @@
         }
       }
     },
-    "codex.sessions.detail.metadata" : {
-      "comment" : "Generic session metadata title",
+    "codex.sessions.detail.identity" : {
+      "comment" : "Identity section",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "new",
-            "value" : "Metadata"
+            "value" : "Identity"
           }
         }
       }
     },
-    "codex.sessions.detail.originator" : {
-      "comment" : "Session originator title",
+    "codex.sessions.detail.input" : {
+      "comment" : "Input tokens",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "new",
-            "value" : "Originator"
+            "value" : "Input"
+          }
+        }
+      }
+    },
+    "codex.sessions.detail.last_activity" : {
+      "comment" : "Session last activity",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Last Activity"
+          }
+        }
+      }
+    },
+    "codex.sessions.detail.output" : {
+      "comment" : "Output tokens",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Output"
           }
         }
       }
@@ -9851,26 +9872,74 @@
         }
       }
     },
-    "codex.sessions.detail.source" : {
-      "comment" : "Session source title",
+    "codex.sessions.detail.session_id" : {
+      "comment" : "Session identifier",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "new",
-            "value" : "Source"
+            "value" : "Session ID"
           }
         }
       }
     },
-    "codex.sessions.detail.status" : {
-      "comment" : "Session status",
+    "codex.sessions.detail.started_at" : {
+      "comment" : "Session start time",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "new",
-            "value" : "Status"
+            "value" : "Started"
+          }
+        }
+      }
+    },
+    "codex.sessions.detail.thread_id" : {
+      "comment" : "Thread identifier",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Thread ID"
+          }
+        }
+      }
+    },
+    "codex.sessions.detail.timeline" : {
+      "comment" : "Timeline section",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Timeline"
+          }
+        }
+      }
+    },
+    "codex.sessions.detail.unavailable" : {
+      "comment" : "Unavailable detail value",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Unavailable"
+          }
+        }
+      }
+    },
+    "codex.sessions.detail.updated_at" : {
+      "comment" : "Updated at summary",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Updated %@"
           }
         }
       }
@@ -10027,60 +10096,6 @@
           "stringUnit" : {
             "state" : "new",
             "value" : "Group By"
-          }
-        }
-      }
-    },
-    "codex.sessions.sorting.recent" : {
-      "comment" : "Codex sessions recent sorting title",
-      "extractionState" : "extracted_with_value",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Recent Activity"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "最近活动"
-          }
-        }
-      }
-    },
-    "codex.sessions.sorting.title" : {
-      "comment" : "Codex sessions sorting title",
-      "extractionState" : "extracted_with_value",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Sort By"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "排序"
-          }
-        }
-      }
-    },
-    "codex.sessions.sorting.usage" : {
-      "comment" : "Codex sessions usage sorting title",
-      "extractionState" : "extracted_with_value",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Usage"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "用量"
           }
         }
       }
@@ -10559,6 +10574,60 @@
         }
       }
     },
+    "codex.sessions.sorting.recent" : {
+      "comment" : "Codex sessions recent sorting title",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Recent Activity"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最近活动"
+          }
+        }
+      }
+    },
+    "codex.sessions.sorting.title" : {
+      "comment" : "Codex sessions sorting title",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Sort By"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "排序"
+          }
+        }
+      }
+    },
+    "codex.sessions.sorting.usage" : {
+      "comment" : "Codex sessions usage sorting title",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Usage"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "用量"
+          }
+        }
+      }
+    },
     "codex.sessions.status.scanning" : {
       "comment" : "Codex sessions background scanning status",
       "extractionState" : "extracted_with_value",
@@ -10573,6 +10642,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "正在后台扫描会话…"
+          }
+        }
+      }
+    },
+    "codex.sessions.status.slow_scan" : {
+      "comment" : "Codex sessions slow scan diagnostic message",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Session scan processed %1$d sessions in %2$d ms."
           }
         }
       }
@@ -10603,6 +10684,18 @@
           "stringUnit" : {
             "state" : "new",
             "value" : "Usage"
+          }
+        }
+      }
+    },
+    "codex.sessions.time.loading" : {
+      "comment" : "Loading session time",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Loading…"
           }
         }
       }
@@ -11002,6 +11095,9 @@
           }
         }
       }
+    },
+    "Collapse" : {
+      "comment" : "Collapse"
     },
     "Command" : {
       "extractionState" : "stale",
@@ -11647,6 +11743,9 @@
           }
         }
       }
+    },
+    "Expand" : {
+      "comment" : "Expand"
     },
     "gemini.import.confirm.import" : {
       "comment" : "Import existing Gemini login",
@@ -14388,8 +14487,8 @@
       }
     },
     "remote.detail.updated_label" : {
-      "comment" : "Updated",
-      "extractionState" : "stale",
+      "comment" : "Updated label",
+      "extractionState" : "extracted_with_value",
       "localizations" : {
         "en" : {
           "stringUnit" : {

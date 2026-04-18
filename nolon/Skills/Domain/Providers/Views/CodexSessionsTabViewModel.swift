@@ -13,6 +13,10 @@ protocol CodexSessionsTabServicing: Sendable {
         codexHome: URL,
         rolloutPath: String
     ) throws -> CodexSessionTokenTotals?
+    nonisolated func loadSessionTimeline(
+        codexHome: URL,
+        rolloutPath: String
+    ) throws -> CodexSessionTimeline?
     nonisolated func previewRewrite(
         codexHome: URL,
         request: CodexSessionProviderRewriteRequest
@@ -45,19 +49,27 @@ extension CodexSessionStore: CodexSessionsTabPreloadingServicing {}
 final class CodexSessionsTabViewModelStore {
     static let shared = CodexSessionsTabViewModelStore()
 
-    private var cached: [Provider.ID: CodexSessionsTabViewModel] = [:]
+    private struct CachedEntry {
+        let viewModel: CodexSessionsTabViewModel
+    }
+
+    private let viewModelFactory: @MainActor (Provider) -> CodexSessionsTabViewModel
+    private var cached: [Provider.ID: CachedEntry] = [:]
+
+    init(
+        viewModelFactory: @escaping @MainActor (Provider) -> CodexSessionsTabViewModel = {
+            CodexSessionsTabViewModel(provider: $0)
+        }
+    ) {
+        self.viewModelFactory = viewModelFactory
+    }
 
     func viewModel(for provider: Provider) -> CodexSessionsTabViewModel {
         if let existing = cached[provider.id] {
-            if existing.provider == provider {
-                return existing
-            }
-            let recreated = CodexSessionsTabViewModel(provider: provider)
-            cached[provider.id] = recreated
-            return recreated
+            return existing.viewModel
         }
-        let created = CodexSessionsTabViewModel(provider: provider)
-        cached[provider.id] = created
+        let created = viewModelFactory(provider)
+        cached[provider.id] = .init(viewModel: created)
         return created
     }
 
@@ -73,6 +85,7 @@ final class CodexSessionsTabViewModel {
     nonisolated private static let logger = Logger(subsystem: "com.nolon", category: "CodexSessionsTabViewModel")
     nonisolated static let defaultVisibleSessionCountPerSection = 5
     nonisolated private static let usageSortingParallelism = 6
+    nonisolated private static let slowStoreOperationThresholdMS = 1_500
 
     enum SessionGroupingMode: String, CaseIterable, Identifiable, Sendable {
         case project = "project"
@@ -91,6 +104,12 @@ final class CodexSessionsTabViewModel {
     enum SessionUsageState: Equatable, Sendable {
         case placeholder
         case loaded(CodexSessionTokenTotals)
+        case failed
+    }
+
+    enum SessionTimelineState: Equatable, Sendable {
+        case placeholder
+        case loaded(CodexSessionTimeline)
         case failed
     }
 
@@ -278,6 +297,9 @@ final class CodexSessionsTabViewModel {
     var isApplyingRewrite = false
     var alertMessage: String?
     var statusMessage: String?
+    var diagnosticMessage: String? {
+        diagnosticWarningMessage ?? diagnosticPerformanceMessage
+    }
     var pendingRewrite: PendingRewrite?
     var showsInitialSkeleton = false
     var groupingMode: SessionGroupingMode = .project
@@ -295,8 +317,11 @@ final class CodexSessionsTabViewModel {
     private let service: any CodexSessionsTabServicing
     private let preferencesStore: CodexSessionsPreferencesStore
     private let pageSize: Int
+    private let autoRefreshInterval: TimeInterval
+    private let dateProvider: @Sendable () -> Date
     private let searchDebounceNanoseconds: UInt64
     private var didStartInitialLoad = false
+    private var lastSuccessfulReloadAt: Date?
     private var rowsByID: [String: SessionRow] = [:]
     private var allSectionStates: [SessionSectionState] = []
     private var projectSkeletons: [CodexSessionProjectSkeleton] = []
@@ -307,10 +332,16 @@ final class CodexSessionsTabViewModel {
     private var usageTasks: [String: Task<Void, Never>] = [:]
     private var queuedUsageSessionIDs: [String] = []
     private var queuedUsageSessionIDSet: Set<String> = []
+    private var timelineBySessionID: [String: SessionTimelineState] = [:]
+    private var timelineTasks: [String: Task<Void, Never>] = [:]
+    private var timelineRequestIDsBySessionID: [String: UUID] = [:]
     private var appliedSearchQuery: String = ""
     private var searchDebounceTask: Task<Void, Never>?
     private var usageSortRebuildTask: Task<Void, Never>?
     private var isProjectOrderLocked = false
+    private var didInstallDiagnosticObservers = false
+    private var diagnosticWarningMessage: String?
+    private var diagnosticPerformanceMessage: String?
 
     private var allRows: [SessionRow] {
         Array(rowsByID.values)
@@ -321,6 +352,8 @@ final class CodexSessionsTabViewModel {
         service: any CodexSessionsTabServicing = CodexSessionStore(),
         pageSize: Int = 30,
         preferencesStore: CodexSessionsPreferencesStore? = nil,
+        autoRefreshInterval: TimeInterval = 60,
+        dateProvider: @escaping @Sendable () -> Date = Date.init,
         searchDebounceNanoseconds: UInt64 = 250_000_000
     ) {
         self.provider = provider
@@ -330,11 +363,16 @@ final class CodexSessionsTabViewModel {
         self.preferencesStore = resolvedPreferencesStore
         self.groupingMode = resolvedPreferencesStore.groupingMode
         self.sortMode = resolvedPreferencesStore.sortMode
+        self.autoRefreshInterval = max(1, autoRefreshInterval)
+        self.dateProvider = dateProvider
         self.searchDebounceNanoseconds = searchDebounceNanoseconds
     }
 
+    nonisolated deinit {}
+
     @discardableResult
     func loadIfNeeded() async -> Bool {
+        ensureDiagnosticObserversInstalled()
         guard !didStartInitialLoad else { return false }
         didStartInitialLoad = true
         await load()
@@ -523,18 +561,42 @@ final class CodexSessionsTabViewModel {
     }
 
     func load() async {
+        ensureDiagnosticObserversInstalled()
         didStartInitialLoad = true
         await reload(mode: .initial)
     }
 
+    func handleViewAppearance() async {
+        let didLoad = await loadIfNeeded()
+        guard !didLoad else { return }
+        await refreshIfStale()
+    }
+
     func refresh() async {
+        ensureDiagnosticObserversInstalled()
         await reload(mode: .refresh)
+    }
+
+    func refreshForForegroundTickIfNeeded() async {
+        await refreshIfStale()
     }
 
     func refreshOnAppActivationIfNeeded() async {
         guard didStartInitialLoad else { return }
         guard !isLoading, !isPreparingRewrite, !isApplyingRewrite else { return }
         await refresh()
+    }
+
+    private func refreshIfStale() async {
+        guard didStartInitialLoad else { return }
+        guard !isLoading, !isPreparingRewrite, !isApplyingRewrite else { return }
+        guard shouldRefreshForStaleness() else { return }
+        await refresh()
+    }
+
+    private func shouldRefreshForStaleness() -> Bool {
+        guard let lastSuccessfulReloadAt else { return true }
+        return dateProvider().timeIntervalSince(lastSuccessfulReloadAt) >= autoRefreshInterval
     }
 
     private func reload(mode: ReloadMode) async {
@@ -563,52 +625,61 @@ final class CodexSessionsTabViewModel {
             if mode == .initial,
                let streamingService = service as? any CodexSessionsTabStreamingServicing
             {
-                let stream = streamingService.snapshotStream(
-                    codexHome: codexHome,
-                    batchSize: min(max(8, pageSize / 3), 16)
-                )
-                var receivedSnapshot = false
-                var streamedSessionIDs: Set<String> = []
-                for try await snapshot in stream {
-                    if !receivedSnapshot {
-                        Self.emitPerformance(
-                            operation: "load_first_snapshot",
-                            traceID: traceID,
-                            providerID: provider.templateId ?? provider.id,
-                            startedAt: startedAt,
-                            extra: [
-                                "session_count": snapshot.sessions.count,
-                                "section_count": sections.count,
-                            ]
-                        )
-                    }
-                    receivedSnapshot = true
-                    streamedSessionIDs.formUnion(snapshot.sessions.map(\.id))
-                    let removedSessionIDs: [String]
-                    if snapshot.isComplete {
-                        removedSessionIDs = Array(Set(rowsByID.keys).subtracting(streamedSessionIDs))
-                    } else {
-                        removedSessionIDs = []
-                    }
-                    apply(deltaPresentation: Self.makeDeltaPresentation(from: snapshot, removedSessionIDs: removedSessionIDs))
-                    if !snapshot.sessions.isEmpty || snapshot.isComplete {
-                        showsInitialSkeleton = false
-                    }
-                }
-                if !receivedSnapshot {
-                    apply(snapshotPresentation:
-                        SessionPresentation(
-                            availableProviderIDs: [],
-                            rows: []
-                        )
+                do {
+                    let stream = streamingService.snapshotStream(
+                        codexHome: codexHome,
+                        batchSize: min(max(8, pageSize / 3), 16)
                     )
+                    var receivedSnapshot = false
+                    var streamedSessionIDs: Set<String> = []
+                    for try await snapshot in stream {
+                        if !receivedSnapshot {
+                            Self.emitPerformance(
+                                operation: "load_first_snapshot",
+                                traceID: traceID,
+                                providerID: provider.templateId ?? provider.id,
+                                startedAt: startedAt,
+                                extra: [
+                                    "session_count": snapshot.sessions.count,
+                                    "section_count": sections.count,
+                                ]
+                            )
+                        }
+                        receivedSnapshot = true
+                        streamedSessionIDs.formUnion(snapshot.sessions.map(\.id))
+                        let removedSessionIDs: [String]
+                        if snapshot.isComplete {
+                            removedSessionIDs = Array(Set(rowsByID.keys).subtracting(streamedSessionIDs))
+                        } else {
+                            removedSessionIDs = []
+                        }
+                        apply(deltaPresentation: Self.makeDeltaPresentation(from: snapshot, removedSessionIDs: removedSessionIDs))
+                        if !snapshot.sessions.isEmpty || snapshot.isComplete {
+                            showsInitialSkeleton = false
+                        }
+                    }
+                    if !receivedSnapshot {
+                        apply(snapshotPresentation:
+                            SessionPresentation(
+                                availableProviderIDs: [],
+                                rows: []
+                            )
+                        )
+                    }
+                } catch {
+                    Self.emitPerformance(
+                        operation: "load_stream_failed_fallback",
+                        traceID: traceID,
+                        providerID: provider.templateId ?? provider.id,
+                        startedAt: startedAt,
+                        extra: ["error": error.localizedDescription]
+                    )
+                    let presentation = try await loadSnapshotPresentation(codexHome: codexHome)
+                    apply(snapshotPresentation: presentation)
+                    showsInitialSkeleton = false
                 }
             } else {
-                let service = self.service
-                let presentation = try await Task.detached(priority: .userInitiated) {
-                    let snapshot = try service.loadSnapshot(codexHome: codexHome)
-                    return Self.makePresentation(from: snapshot)
-                }.value
+                let presentation = try await loadSnapshotPresentation(codexHome: codexHome)
                 apply(snapshotPresentation: presentation)
                 showsInitialSkeleton = false
             }
@@ -625,7 +696,9 @@ final class CodexSessionsTabViewModel {
                     "visible_session_count": visibleSessionCount,
                 ]
             )
+            lastSuccessfulReloadAt = dateProvider()
         } catch {
+            didStartInitialLoad = false
             sections = []
             availableTargetProviderIDs = []
             rowsByID = [:]
@@ -634,7 +707,9 @@ final class CodexSessionsTabViewModel {
             projectRowIDsBySectionID = [:]
             providerRowIDsBySectionID = [:]
             cancelUsageTasks()
+            cancelTimelineTasks()
             usageBySessionID = [:]
+            timelineBySessionID = [:]
             searchDebounceTask?.cancel()
             appliedSearchQuery = ""
             isProjectOrderLocked = false
@@ -648,6 +723,14 @@ final class CodexSessionsTabViewModel {
                 extra: ["error": error.localizedDescription]
             )
         }
+    }
+
+    private func loadSnapshotPresentation(codexHome: URL) async throws -> SessionPresentation {
+        let service = self.service
+        return try await Task.detached(priority: .userInitiated) {
+            let snapshot = try service.loadSnapshot(codexHome: codexHome)
+            return Self.makePresentation(from: snapshot)
+        }.value
     }
 
     func setGroupingMode(_ newValue: SessionGroupingMode) {
@@ -672,7 +755,11 @@ final class CodexSessionsTabViewModel {
         guard sections.flatMap(\.sessions).contains(where: { $0.id == sessionID }) else {
             return
         }
-        selectedSessionID = sessionID
+        if selectedSessionID == sessionID {
+            primeSelectedSessionTimelineIfNeeded(forceRetry: true)
+            return
+        }
+        updateSelectedSessionID(sessionID)
     }
 
     func loadNextPage() {
@@ -694,6 +781,10 @@ final class CodexSessionsTabViewModel {
 
     func usageState(for sessionID: String) -> SessionUsageState {
         usageBySessionID[sessionID] ?? .placeholder
+    }
+
+    func timelineState(for sessionID: String) -> SessionTimelineState {
+        timelineBySessionID[sessionID] ?? .placeholder
     }
 
     func requestRewrite(for session: SessionRow, targetProviderID: String) async {
@@ -859,6 +950,7 @@ final class CodexSessionsTabViewModel {
         }
         let validSessionIDs = Set(rowsByID.keys)
         pruneUsageState(validSessionIDs: validSessionIDs)
+        pruneTimelineState(validSessionIDs: validSessionIDs)
         isProjectOrderLocked = false
         rebuildSectionStates()
     }
@@ -868,7 +960,7 @@ final class CodexSessionsTabViewModel {
         projectSkeletons = projectSkeletonSnapshot.projects
         isProjectOrderLocked = groupingMode == .project && !projectSkeletons.isEmpty
         if rowsByID.isEmpty {
-            selectedSessionID = nil
+            updateSelectedSessionID(nil)
         }
         rebuildSectionStates()
     }
@@ -883,6 +975,7 @@ final class CodexSessionsTabViewModel {
         }
         let validSessionIDs = Set(rowsByID.keys)
         pruneUsageState(validSessionIDs: validSessionIDs)
+        pruneTimelineState(validSessionIDs: validSessionIDs)
         if deltaPresentation.isComplete {
             isProjectOrderLocked = false
         }
@@ -943,6 +1036,7 @@ final class CodexSessionsTabViewModel {
         sections = visibleSections
         repairSelection()
         primeVisibleSessionUsages()
+        primeSelectedSessionTimelineIfNeeded()
     }
 
     private func visibleSessions(
@@ -1495,6 +1589,15 @@ final class CodexSessionsTabViewModel {
         usageBySessionID = usageBySessionID.filter { validSessionIDs.contains($0.key) }
     }
 
+    private func pruneTimelineState(validSessionIDs: Set<String>) {
+        for (sessionID, task) in timelineTasks where !validSessionIDs.contains(sessionID) {
+            task.cancel()
+            timelineTasks.removeValue(forKey: sessionID)
+        }
+        timelineRequestIDsBySessionID = timelineRequestIDsBySessionID.filter { validSessionIDs.contains($0.key) }
+        timelineBySessionID = timelineBySessionID.filter { validSessionIDs.contains($0.key) }
+    }
+
     private func cancelUsageTasks() {
         for task in usageTasks.values {
             task.cancel()
@@ -1504,6 +1607,14 @@ final class CodexSessionsTabViewModel {
         queuedUsageSessionIDSet.removeAll()
         usageSortRebuildTask?.cancel()
         usageSortRebuildTask = nil
+    }
+
+    private func cancelTimelineTasks() {
+        for task in timelineTasks.values {
+            task.cancel()
+        }
+        timelineTasks.removeAll()
+        timelineRequestIDsBySessionID.removeAll()
     }
 
     private func primeSessionUsages(for rows: [SessionRow]) {
@@ -1579,10 +1690,73 @@ final class CodexSessionsTabViewModel {
         }
     }
 
+    private func primeSelectedSessionTimelineIfNeeded(forceRetry: Bool = false) {
+        guard let selectedSessionID,
+              timelineTasks[selectedSessionID] == nil,
+              let row = rowsByID[selectedSessionID]
+        else {
+            return
+        }
+
+        if forceRetry {
+            guard case .failed = timelineBySessionID[selectedSessionID] else {
+                return
+            }
+        } else {
+            guard timelineBySessionID[selectedSessionID] == nil else {
+                return
+            }
+        }
+
+        timelineBySessionID[selectedSessionID] = .placeholder
+        let codexHome = provider.codexHomeFolder.url
+        let service = self.service
+        let rolloutPath = row.rolloutPath
+        let requestID = UUID()
+        timelineRequestIDsBySessionID[selectedSessionID] = requestID
+
+        timelineTasks[selectedSessionID] = Task { [weak self] in
+            let nextState: SessionTimelineState
+            do {
+                let timeline = try await Task.detached(priority: .utility) {
+                    try service.loadSessionTimeline(codexHome: codexHome, rolloutPath: rolloutPath)
+                }.value
+                if let timeline {
+                    nextState = .loaded(timeline)
+                } else {
+                    nextState = .failed
+                }
+            } catch {
+                nextState = .failed
+            }
+
+            guard !Task.isCancelled else { return }
+
+            await MainActor.run {
+                guard let self else { return }
+                guard !Task.isCancelled else { return }
+                guard self.timelineRequestIDsBySessionID[selectedSessionID] == requestID else { return }
+                self.timelineTasks[selectedSessionID] = nil
+                self.timelineRequestIDsBySessionID[selectedSessionID] = nil
+                guard self.rowsByID[selectedSessionID] != nil else {
+                    self.timelineBySessionID.removeValue(forKey: selectedSessionID)
+                    return
+                }
+                self.timelineBySessionID[selectedSessionID] = nextState
+            }
+        }
+    }
+
+    private func updateSelectedSessionID(_ sessionID: String?) {
+        guard selectedSessionID != sessionID else { return }
+        selectedSessionID = sessionID
+        primeSelectedSessionTimelineIfNeeded()
+    }
+
     private func repairSelection() {
         let visibleRows = sections.flatMap(\.sessions)
         guard !visibleRows.isEmpty || !rowsByID.isEmpty else {
-            selectedSessionID = nil
+            updateSelectedSessionID(nil)
             return
         }
         if Self.isSearchActive(appliedSearchQuery) {
@@ -1590,14 +1764,14 @@ final class CodexSessionsTabViewModel {
                visibleRows.contains(where: { $0.id == selectedSessionID }) {
                 return
             }
-            selectedSessionID = visibleRows.first?.id
+            updateSelectedSessionID(visibleRows.first?.id)
             return
         }
         if let selectedSessionID,
            rowsByID[selectedSessionID] != nil {
             return
         }
-        selectedSessionID = visibleRows.first?.id
+        updateSelectedSessionID(visibleRows.first?.id)
     }
 
     private func makeStatusMessage(
@@ -1622,6 +1796,91 @@ final class CodexSessionsTabViewModel {
     private func makeStatusWarningSuffix(for failures: [String]) -> String {
         guard !failures.isEmpty else { return "" }
         return "\n" + failures.joined(separator: "\n")
+    }
+
+    private func installDiagnosticObservers() {
+        let center = NotificationCenter.default
+        _ = center.addObserver(
+            forName: CodexSessionStore.warningNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] notification in
+            MainActor.assumeIsolated { [weak self] in
+                self?.handleStoreWarningNotification(notification)
+            }
+        }
+        _ = center.addObserver(
+            forName: CodexSessionStore.performanceNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] notification in
+            MainActor.assumeIsolated { [weak self] in
+                self?.handleStorePerformanceNotification(notification)
+            }
+        }
+    }
+
+    private func ensureDiagnosticObserversInstalled() {
+        guard !didInstallDiagnosticObservers else { return }
+        didInstallDiagnosticObservers = true
+        installDiagnosticObservers()
+    }
+
+    private func handleStoreWarningNotification(_ notification: Notification) {
+        guard matchesStoreNotification(notification.userInfo) else { return }
+        guard let message = notification.userInfo?["message"] as? String, !message.isEmpty else {
+            return
+        }
+        diagnosticWarningMessage = message
+    }
+
+    private func handleStorePerformanceNotification(_ notification: Notification) {
+        guard matchesStoreNotification(notification.userInfo) else { return }
+        guard let operation = notification.userInfo?["operation"] as? String else { return }
+
+        switch operation {
+        case "snapshot_stream_failed":
+            let error = (notification.userInfo?["error"] as? String)?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            if let error, !error.isEmpty {
+                diagnosticPerformanceMessage = error
+            } else {
+                diagnosticPerformanceMessage = "Session snapshot stream failed."
+            }
+
+        case "load_snapshot", "snapshot_stream_complete":
+            let elapsedMS = notification.userInfo?["elapsed_ms"] as? Int ?? 0
+            if elapsedMS >= Self.slowStoreOperationThresholdMS {
+                let sessionCount = notification.userInfo?["session_count"] as? Int ?? totalSessionCount
+                diagnosticPerformanceMessage = String(
+                    format: NSLocalizedString(
+                        "codex.sessions.status.slow_scan",
+                        value: "Session scan processed %d sessions in %d ms.",
+                        comment: "Codex sessions slow scan diagnostic message"
+                    ),
+                    sessionCount,
+                    elapsedMS
+                )
+            } else {
+                diagnosticPerformanceMessage = nil
+            }
+
+        default:
+            break
+        }
+    }
+
+    private func matchesStoreNotification(_ userInfo: [AnyHashable: Any]?) -> Bool {
+        guard let userInfo else { return false }
+        let expectedPath = provider.codexHomeFolder.url.standardizedFileURL.path
+        if let path = userInfo["codex_home_path"] as? String {
+            let normalizedPath = URL(fileURLWithPath: path).standardizedFileURL.path
+            return normalizedPath == expectedPath
+        }
+        if let message = userInfo["message"] as? String {
+            return message.contains(expectedPath)
+        }
+        return false
     }
 
     nonisolated private static func emitPerformance(

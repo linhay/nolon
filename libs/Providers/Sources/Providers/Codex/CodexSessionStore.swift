@@ -78,6 +78,16 @@ public struct CodexSessionSnapshotDelta: Sendable, Equatable {
     }
 }
 
+public struct CodexSessionTimeline: Sendable, Equatable {
+    public let startedAt: Date?
+    public let lastActivityAt: Date?
+
+    public init(startedAt: Date?, lastActivityAt: Date?) {
+        self.startedAt = startedAt
+        self.lastActivityAt = lastActivityAt
+    }
+}
+
 public struct CodexSessionProjectSkeleton: Sendable, Equatable, Identifiable {
     public let projectPath: String?
     public let liveCount: Int
@@ -281,6 +291,40 @@ public struct CodexSessionStore: Sendable {
         try loadSessionUsageRecord(codexHome: codexHome, rolloutPath: rolloutPath).totals
     }
 
+    public func loadSessionTimeline(
+        codexHome: URL,
+        rolloutPath: String
+    ) throws -> CodexSessionTimeline? {
+        let rolloutFileURL = Self.resolveRolloutFileURL(codexHome: codexHome, rolloutPath: rolloutPath)
+        guard FileManager.default.fileExists(atPath: rolloutFileURL.path) else {
+            return nil
+        }
+
+        let data = try Data(contentsOf: rolloutFileURL)
+        var startedAt: Date?
+        var lastActivityAt: Date?
+
+        for rawLine in data.split(separator: 0x0A, omittingEmptySubsequences: true) {
+            let lineData = Data(rawLine)
+            guard let parsedLine = try? CodexGeneratedFilesParser.parseRolloutLine(data: lineData) else {
+                continue
+            }
+            guard let timestamp = Self.parseISO8601(parsedLine.timestamp) else {
+                continue
+            }
+            if startedAt == nil {
+                startedAt = timestamp
+            }
+            lastActivityAt = timestamp
+        }
+
+        if startedAt == nil, lastActivityAt == nil {
+            lastActivityAt = Self.fileModificationDate(path: rolloutFileURL.path)
+        }
+
+        return .init(startedAt: startedAt, lastActivityAt: lastActivityAt)
+    }
+
     func loadSessionUsageRecord(
         codexHome: URL,
         rolloutPath: String
@@ -328,6 +372,7 @@ public struct CodexSessionStore: Sendable {
                                 "available_provider_count": availableProviderIDs.count,
                                 "batch_count": 0,
                                 "batch_size": effectiveBatchSize,
+                                "codex_home_path": codexHome.url.standardizedFileURL.path,
                                 "scanned_file_count": 0,
                                 "session_count": 0,
                                 "state_thread_count": stateIndex.threadsByID.count,
@@ -381,6 +426,7 @@ public struct CodexSessionStore: Sendable {
                             "available_provider_count": availableProviderIDs.count,
                             "batch_count": yieldedBatchCount,
                             "batch_size": effectiveBatchSize,
+                            "codex_home_path": codexHome.url.standardizedFileURL.path,
                             "scanned_file_count": scannedFiles.count,
                             "session_count": emittedSessionCount,
                             "state_thread_count": stateIndex.threadsByID.count,
@@ -392,7 +438,10 @@ public struct CodexSessionStore: Sendable {
                         operation: "snapshot_stream_failed",
                         traceID: traceID,
                         startedAt: startedAt,
-                        extra: ["error": error.localizedDescription]
+                        extra: [
+                            "codex_home_path": codexHome.url.standardizedFileURL.path,
+                            "error": error.localizedDescription,
+                        ]
                     )
                     continuation.finish(throwing: error)
                 }
@@ -430,6 +479,7 @@ public struct CodexSessionStore: Sendable {
             startedAt: startedAt,
             extra: [
                 "available_provider_count": snapshot.availableProviderIDs.count,
+                "codex_home_path": codexHome.url.standardizedFileURL.path,
                 "scanned_file_count": scannedFiles.count,
                 "session_count": snapshot.sessions.count,
                 "state_thread_count": stateIndex.threadsByID.count,
@@ -678,6 +728,7 @@ public struct CodexSessionStore: Sendable {
             extra: [
                 "archived_rollout_files_updated": result.archivedRolloutFilesUpdated,
                 "archived_rollout_elapsed_ms": archivedRolloutElapsedMs,
+                "codex_home_path": codexHome.url.standardizedFileURL.path,
                 "failure_count": result.failures.count,
                 "live_rollout_elapsed_ms": liveRolloutElapsedMs,
                 "live_rollout_files_updated": result.liveRolloutFilesUpdated,
@@ -750,7 +801,9 @@ public struct CodexSessionStore: Sendable {
             return nil
         }
 
-        let trimmedThreadID = sessionMeta.threadID?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedThreadID = sessionMeta.threadID?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .nilIfEmpty
         let stateThread = trimmedThreadID.flatMap { stateIndex.threadsByID[$0] }
         let stateRow = stateThread?.latestRow
 
@@ -812,7 +865,10 @@ public struct CodexSessionStore: Sendable {
             NotificationCenter.default.post(
                 name: Self.warningNotification,
                 object: nil,
-                userInfo: ["message": message]
+                userInfo: [
+                    "codex_home_path": codexHome.url.standardizedFileURL.path,
+                    "message": message,
+                ]
             )
         }
         append(defaultProviderID)
@@ -1415,6 +1471,13 @@ public struct CodexSessionStore: Sendable {
         } catch {
             return nil
         }
+    }
+
+    private static func resolveRolloutFileURL(codexHome: URL, rolloutPath: String) -> URL {
+        if rolloutPath.hasPrefix("/") {
+            return URL(fileURLWithPath: rolloutPath)
+        }
+        return STFolder(codexHome).file(rolloutPath).url
     }
 
     private static func elapsedMilliseconds(since startedAt: CFAbsoluteTime) -> Int {

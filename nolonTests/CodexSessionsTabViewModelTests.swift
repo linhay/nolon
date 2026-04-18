@@ -1,6 +1,8 @@
 import XCTest
 import ProviderCatalog
 import CodexProvider
+import NolonResourceKit
+import STFilePath
 @testable import nolon
 
 @MainActor
@@ -278,6 +280,147 @@ final class CodexSessionsTabViewModelTests: XCTestCase {
 
         XCTAssertTrue(viewModel.sections.first?.isExpanded ?? false)
         XCTAssertEqual(viewModel.sections.first?.visibleSessionCount, 6)
+    }
+
+    func testBDD_GivenSelectedSession_WhenTimelineLoads_ThenTimelineStateResolvesWithoutResettingSelection() async throws {
+        let provider = makeCodexProvider()
+        let snapshot = CodexSessionSnapshot(
+            sessions: [
+                makeSession(
+                    id: "sessions/selected.jsonl",
+                    threadID: "thread-selected",
+                    title: "Selected Session",
+                    modelProvider: "openai",
+                    cwd: "/tmp/project-alpha",
+                    updatedAt: 1_400
+                ),
+            ],
+            availableProviderIDs: ["openai"]
+        )
+        let state = MockCodexSessionsServiceState(snapshots: [snapshot])
+        state.timelineResults["sessions/selected.jsonl"] = .success(
+            .init(
+                startedAt: Date(timeIntervalSince1970: 1_000),
+                lastActivityAt: Date(timeIntervalSince1970: 1_300)
+            )
+        )
+        state.timelineDelayNanoseconds = 20_000_000
+        let viewModel = CodexSessionsTabViewModel(
+            provider: provider,
+            service: MockCodexSessionsService(state: state)
+        )
+
+        await viewModel.load()
+
+        XCTAssertEqual(viewModel.selectedSessionID, "sessions/selected.jsonl")
+        XCTAssertEqual(viewModel.timelineState(for: "sessions/selected.jsonl"), .placeholder)
+
+        try await waitUntil {
+            if state.timelineRequests == ["sessions/selected.jsonl"] {
+                return true
+            }
+            return false
+        }
+
+        try await waitUntil {
+            if case let .loaded(timeline) = viewModel.timelineState(for: "sessions/selected.jsonl") {
+                return timeline.startedAt == Date(timeIntervalSince1970: 1_000)
+                    && timeline.lastActivityAt == Date(timeIntervalSince1970: 1_300)
+            }
+            return false
+        }
+
+        XCTAssertEqual(viewModel.selectedSessionID, "sessions/selected.jsonl")
+    }
+
+    func testBDD_GivenTimelineWithoutStartedAt_WhenLoadingTimeline_ThenStateKeepsNilStartedAtAndResolvedLastActivity() async throws {
+        let provider = makeCodexProvider()
+        let snapshot = CodexSessionSnapshot(
+            sessions: [
+                makeSession(
+                    id: "sessions/fallback.jsonl",
+                    threadID: "thread-fallback",
+                    title: "Fallback Session",
+                    modelProvider: "openai",
+                    cwd: "/tmp/project-alpha",
+                    updatedAt: 1_500
+                ),
+            ],
+            availableProviderIDs: ["openai"]
+        )
+        let state = MockCodexSessionsServiceState(snapshots: [snapshot])
+        state.timelineResults["sessions/fallback.jsonl"] = .success(
+            .init(
+                startedAt: nil,
+                lastActivityAt: Date(timeIntervalSince1970: 1_450)
+            )
+        )
+        let viewModel = CodexSessionsTabViewModel(
+            provider: provider,
+            service: MockCodexSessionsService(state: state)
+        )
+
+        await viewModel.load()
+
+        try await waitUntil {
+            if case let .loaded(timeline) = viewModel.timelineState(for: "sessions/fallback.jsonl") {
+                return timeline.startedAt == nil
+                    && timeline.lastActivityAt == Date(timeIntervalSince1970: 1_450)
+            }
+            return false
+        }
+    }
+
+    func testBDD_GivenTimelineFails_WhenSelectingSameSessionAgain_ThenViewModelRetriesLoad() async throws {
+        let provider = makeCodexProvider()
+        let snapshot = CodexSessionSnapshot(
+            sessions: [
+                makeSession(
+                    id: "sessions/retry.jsonl",
+                    threadID: "thread-retry",
+                    title: "Retry Session",
+                    modelProvider: "openai",
+                    cwd: "/tmp/project-alpha",
+                    updatedAt: 1_600
+                ),
+            ],
+            availableProviderIDs: ["openai"]
+        )
+        let state = MockCodexSessionsServiceState(snapshots: [snapshot])
+        state.timelineResults["sessions/retry.jsonl"] = .failure(NSError(domain: "timeline", code: 1))
+        let viewModel = CodexSessionsTabViewModel(
+            provider: provider,
+            service: MockCodexSessionsService(state: state)
+        )
+
+        await viewModel.load()
+
+        try await waitUntil {
+            viewModel.timelineState(for: "sessions/retry.jsonl") == .failed
+        }
+        XCTAssertEqual(state.timelineRequests, ["sessions/retry.jsonl"])
+
+        state.timelineResults["sessions/retry.jsonl"] = .success(
+            .init(
+                startedAt: Date(timeIntervalSince1970: 1_500),
+                lastActivityAt: Date(timeIntervalSince1970: 1_590)
+            )
+        )
+
+        viewModel.selectSession("sessions/retry.jsonl")
+        XCTAssertEqual(viewModel.timelineState(for: "sessions/retry.jsonl"), .placeholder)
+
+        try await waitUntil {
+            state.timelineRequests == ["sessions/retry.jsonl", "sessions/retry.jsonl"]
+        }
+
+        try await waitUntil {
+            if case let .loaded(timeline) = viewModel.timelineState(for: "sessions/retry.jsonl") {
+                return timeline.startedAt == Date(timeIntervalSince1970: 1_500)
+                    && timeline.lastActivityAt == Date(timeIntervalSince1970: 1_590)
+            }
+            return false
+        }
     }
 
     func testBDD_GivenLoadedSessions_WhenSortingByUsage_ThenRowsReorderByDescendingUsage() async throws {
@@ -1106,6 +1249,106 @@ final class CodexSessionsTabViewModelTests: XCTestCase {
         XCTAssertEqual(state.loadSnapshotCallCount, 1)
     }
 
+    func testBDD_GivenLoadedSessionsPage_WhenViewAppearsAfterStaleInterval_ThenRefreshUsesStableSnapshotReload() async throws {
+        let provider = makeCodexProvider()
+        let clock = MutableDateProvider(now: Date(timeIntervalSince1970: 1_000))
+        let initialSnapshot = CodexSessionSnapshot(
+            sessions: [
+                makeSession(
+                    id: "sessions/a.jsonl",
+                    threadID: "thread-a",
+                    title: "Alpha",
+                    modelProvider: "openai",
+                    cwd: "/tmp/project-alpha",
+                    updatedAt: 1_000
+                )
+            ],
+            availableProviderIDs: ["openai"]
+        )
+        let refreshedSnapshot = CodexSessionSnapshot(
+            sessions: [
+                makeSession(
+                    id: "sessions/b.jsonl",
+                    threadID: "thread-b",
+                    title: "Beta Latest",
+                    modelProvider: "openai",
+                    cwd: "/tmp/project-alpha",
+                    updatedAt: 2_000
+                )
+            ],
+            availableProviderIDs: ["openai"]
+        )
+        let state = MockCodexSessionsServiceState(snapshots: [initialSnapshot])
+        let viewModel = CodexSessionsTabViewModel(
+            provider: provider,
+            service: MockCodexSessionsService(state: state),
+            autoRefreshInterval: 30,
+            dateProvider: { clock.now }
+        )
+
+        await viewModel.handleViewAppearance()
+        XCTAssertEqual(viewModel.sections.first?.sessions.first?.title, "Alpha")
+        XCTAssertEqual(state.snapshotStreamCallCount, 1)
+        XCTAssertEqual(state.loadSnapshotCallCount, 0)
+
+        state.snapshots = [refreshedSnapshot]
+        clock.now = Date(timeIntervalSince1970: 1_031)
+
+        await viewModel.handleViewAppearance()
+
+        XCTAssertEqual(viewModel.sections.first?.sessions.first?.title, "Beta Latest")
+        XCTAssertEqual(state.snapshotStreamCallCount, 1)
+        XCTAssertEqual(state.loadSnapshotCallCount, 1)
+    }
+
+    func testBDD_GivenFreshLoadedSessionsPage_WhenForegroundRefreshTickRuns_ThenRefreshIsSkipped() async throws {
+        let provider = makeCodexProvider()
+        let clock = MutableDateProvider(now: Date(timeIntervalSince1970: 1_000))
+        let initialSnapshot = CodexSessionSnapshot(
+            sessions: [
+                makeSession(
+                    id: "sessions/a.jsonl",
+                    threadID: "thread-a",
+                    title: "Alpha",
+                    modelProvider: "openai",
+                    cwd: "/tmp/project-alpha",
+                    updatedAt: 1_000
+                )
+            ],
+            availableProviderIDs: ["openai"]
+        )
+        let refreshedSnapshot = CodexSessionSnapshot(
+            sessions: [
+                makeSession(
+                    id: "sessions/b.jsonl",
+                    threadID: "thread-b",
+                    title: "Beta Latest",
+                    modelProvider: "openai",
+                    cwd: "/tmp/project-alpha",
+                    updatedAt: 2_000
+                )
+            ],
+            availableProviderIDs: ["openai"]
+        )
+        let state = MockCodexSessionsServiceState(snapshots: [initialSnapshot])
+        let viewModel = CodexSessionsTabViewModel(
+            provider: provider,
+            service: MockCodexSessionsService(state: state),
+            autoRefreshInterval: 30,
+            dateProvider: { clock.now }
+        )
+
+        await viewModel.handleViewAppearance()
+        state.snapshots = [refreshedSnapshot]
+        clock.now = Date(timeIntervalSince1970: 1_010)
+
+        await viewModel.refreshForForegroundTickIfNeeded()
+
+        XCTAssertEqual(viewModel.sections.first?.sessions.first?.title, "Alpha")
+        XCTAssertEqual(state.snapshotStreamCallCount, 1)
+        XCTAssertEqual(state.loadSnapshotCallCount, 0)
+    }
+
     func testBDD_GivenSessionsNeverLoaded_WhenAppBecomesActive_ThenRefreshIsSkipped() async throws {
         let provider = makeCodexProvider()
         let snapshot = CodexSessionSnapshot(
@@ -1132,6 +1375,70 @@ final class CodexSessionsTabViewModelTests: XCTestCase {
         XCTAssertTrue(viewModel.sections.isEmpty)
         XCTAssertEqual(state.snapshotStreamCallCount, 0)
         XCTAssertEqual(state.loadSnapshotCallCount, 0)
+    }
+
+    func testBDD_GivenMatchingStoreWarningNotification_WhenObserved_ThenViewModelPublishesDiagnosticMessage() async throws {
+        let provider = makeCodexProvider()
+        let viewModel = CodexSessionsTabViewModel(
+            provider: provider,
+            service: MockCodexSessionsService(state: .init(snapshots: []))
+        )
+        let message = "CodexSessionStore warning for \(provider.codexHomeFolder.url.path)"
+
+        await viewModel.load()
+
+        NotificationCenter.default.post(
+            name: CodexSessionStore.warningNotification,
+            object: nil,
+            userInfo: [
+                "message": message,
+                "codex_home_path": provider.codexHomeFolder.url.path,
+            ]
+        )
+
+        try await waitUntil {
+            viewModel.diagnosticMessage == message
+        }
+    }
+
+    func testBDD_GivenMatchingSlowStorePerformanceNotification_WhenObserved_ThenViewModelPublishesAndClearsDiagnosticMessage() async throws {
+        let provider = makeCodexProvider()
+        let viewModel = CodexSessionsTabViewModel(
+            provider: provider,
+            service: MockCodexSessionsService(state: .init(snapshots: []))
+        )
+
+        await viewModel.load()
+
+        NotificationCenter.default.post(
+            name: CodexSessionStore.performanceNotification,
+            object: nil,
+            userInfo: [
+                "operation": "load_snapshot",
+                "elapsed_ms": 2_400,
+                "session_count": 42,
+                "codex_home_path": provider.codexHomeFolder.url.path,
+            ]
+        )
+
+        try await waitUntil {
+            viewModel.diagnosticMessage?.contains("42") == true
+        }
+
+        NotificationCenter.default.post(
+            name: CodexSessionStore.performanceNotification,
+            object: nil,
+            userInfo: [
+                "operation": "load_snapshot",
+                "elapsed_ms": 120,
+                "session_count": 42,
+                "codex_home_path": provider.codexHomeFolder.url.path,
+            ]
+        )
+
+        try await waitUntil {
+            viewModel.diagnosticMessage == nil
+        }
     }
 
     func testBDD_GivenSessionsViewModel_WhenLoadIfNeededRunsTwice_ThenSnapshotStreamLoadsOnlyOnce() async throws {
@@ -1162,6 +1469,82 @@ final class CodexSessionsTabViewModelTests: XCTestCase {
         XCTAssertFalse(secondDidLoad)
         XCTAssertEqual(serviceState.snapshotStreamCallCount, 1)
         XCTAssertEqual(viewModel.sections.count, 1)
+    }
+
+    func testBDD_GivenInitialSnapshotStreamFailsButSnapshotLoadSucceeds_WhenLoading_ThenViewModelFallsBackToSnapshotRows() async throws {
+        let provider = makeCodexProvider()
+        let snapshot = CodexSessionSnapshot(
+            sessions: [
+                makeSession(
+                    id: "sessions/fallback.jsonl",
+                    threadID: "thread-fallback",
+                    title: "Fallback Session",
+                    modelProvider: "openai",
+                    cwd: "/tmp/project-alpha",
+                    updatedAt: 2_000
+                ),
+            ],
+            availableProviderIDs: ["openai"]
+        )
+        let state = MockCodexSessionsServiceState(snapshots: [snapshot])
+        state.snapshotStreamError = NSError(domain: "stream", code: 1, userInfo: [
+            NSLocalizedDescriptionKey: "stream failed"
+        ])
+        let viewModel = CodexSessionsTabViewModel(
+            provider: provider,
+            service: MockCodexSessionsService(state: state)
+        )
+
+        await viewModel.load()
+
+        XCTAssertEqual(state.snapshotStreamCallCount, 1)
+        XCTAssertEqual(state.loadSnapshotCallCount, 1)
+        XCTAssertEqual(viewModel.sections.count, 1)
+        XCTAssertEqual(viewModel.sections.first?.sessions.map(\.id), ["sessions/fallback.jsonl"])
+        XCTAssertEqual(viewModel.selectedSessionID, "sessions/fallback.jsonl")
+    }
+
+    func testBDD_GivenInitialLoadFails_WhenLoadIfNeededRunsAgain_ThenViewModelRetriesLoading() async throws {
+        let provider = makeCodexProvider()
+        let snapshot = CodexSessionSnapshot(
+            sessions: [
+                makeSession(
+                    id: "sessions/retry.jsonl",
+                    threadID: "thread-retry",
+                    title: "Retry Session",
+                    modelProvider: "openai",
+                    cwd: "/tmp/project-alpha",
+                    updatedAt: 2_000
+                ),
+            ],
+            availableProviderIDs: ["openai"]
+        )
+        let state = MockCodexSessionsServiceState(snapshots: [snapshot])
+        state.snapshotStreamError = NSError(domain: "stream", code: 1, userInfo: [
+            NSLocalizedDescriptionKey: "stream failed"
+        ])
+        state.loadSnapshotError = NSError(domain: "snapshot", code: 2, userInfo: [
+            NSLocalizedDescriptionKey: "snapshot failed"
+        ])
+        let viewModel = CodexSessionsTabViewModel(
+            provider: provider,
+            service: MockCodexSessionsService(state: state)
+        )
+
+        let firstDidLoad = await viewModel.loadIfNeeded()
+
+        XCTAssertTrue(firstDidLoad)
+        XCTAssertTrue(viewModel.sections.isEmpty)
+
+        state.snapshotStreamError = nil
+        state.loadSnapshotError = nil
+
+        let secondDidLoad = await viewModel.loadIfNeeded()
+
+        XCTAssertTrue(secondDidLoad)
+        XCTAssertEqual(state.snapshotStreamCallCount, 2)
+        XCTAssertEqual(viewModel.sections.first?.sessions.map(\.id), ["sessions/retry.jsonl"])
+        XCTAssertEqual(viewModel.selectedSessionID, "sessions/retry.jsonl")
     }
 
     func testBDD_GivenThreadIDAndWorkingDirectory_WhenBuildingResumeCommand_ThenCommandIsShellSafe() {
@@ -1239,6 +1622,14 @@ final class CodexSessionsTabViewModelTests: XCTestCase {
     }
 }
 
+private final class MutableDateProvider: @unchecked Sendable {
+    var now: Date
+
+    init(now: Date) {
+        self.now = now
+    }
+}
+
 private final class MockCodexSessionsServiceState: @unchecked Sendable {
     var snapshots: [CodexSessionSnapshot]
     var streamSnapshots: [CodexSessionSnapshot]
@@ -1250,13 +1641,18 @@ private final class MockCodexSessionsServiceState: @unchecked Sendable {
     var rewriteRequests: [CodexSessionProviderRewriteRequest] = []
     var rewriteConfirmedPreviews: [CodexSessionRewritePreview?] = []
     var usageResults: [String: Result<CodexSessionTokenTotals?, Error>] = [:]
+    var timelineResults: [String: Result<CodexSessionTimeline?, Error>] = [:]
     var usageDelayNanoseconds: UInt64 = 0
+    var timelineDelayNanoseconds: UInt64 = 0
     var snapshotDelayNanoseconds: UInt64 = 0
     var initialStreamDelayNanoseconds: UInt64 = 0
     var interSnapshotDelayNanoseconds: UInt64 = 0
+    var loadSnapshotError: Error?
+    var snapshotStreamError: Error?
     var snapshotStreamCallCount = 0
     var loadSnapshotCallCount = 0
     var preloadCallCount = 0
+    var timelineRequests: [String] = []
 
     init(
         snapshots: [CodexSessionSnapshot],
@@ -1291,6 +1687,9 @@ private struct MockCodexSessionsService: CodexSessionsTabServicing, CodexSession
     func loadSnapshot(codexHome: URL) throws -> CodexSessionSnapshot {
         _ = codexHome
         state.loadSnapshotCallCount += 1
+        if let error = state.loadSnapshotError {
+            throw error
+        }
         if state.snapshotDelayNanoseconds > 0 {
             Thread.sleep(forTimeInterval: Double(state.snapshotDelayNanoseconds) / 1_000_000_000)
         }
@@ -1309,6 +1708,21 @@ private struct MockCodexSessionsService: CodexSessionsTabServicing, CodexSession
             Thread.sleep(forTimeInterval: Double(state.usageDelayNanoseconds) / 1_000_000_000)
         }
         if let result = state.usageResults[rolloutPath] {
+            return try result.get()
+        }
+        return nil
+    }
+
+    func loadSessionTimeline(
+        codexHome: URL,
+        rolloutPath: String
+    ) throws -> CodexSessionTimeline? {
+        _ = codexHome
+        state.timelineRequests.append(rolloutPath)
+        if state.timelineDelayNanoseconds > 0 {
+            Thread.sleep(forTimeInterval: Double(state.timelineDelayNanoseconds) / 1_000_000_000)
+        }
+        if let result = state.timelineResults[rolloutPath] {
             return try result.get()
         }
         return nil
@@ -1366,6 +1780,10 @@ private struct MockCodexSessionsService: CodexSessionsTabServicing, CodexSession
                 for (index, delta) in deltas.enumerated() {
                     if index == 0 && state.initialStreamDelayNanoseconds > 0 {
                         try? await Task.sleep(nanoseconds: state.initialStreamDelayNanoseconds)
+                    }
+                    if let error = state.snapshotStreamError {
+                        continuation.finish(throwing: error)
+                        return
                     }
                     continuation.yield(delta)
                     if index < deltas.count - 1 {

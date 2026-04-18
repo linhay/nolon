@@ -110,3 +110,36 @@
   - 3000+ 会话下首屏是否先出项目
   - 列表是否仍然跳动
   - 搜索和切组是否稳定
+
+## 2026-04-18 执行收口
+
+### 最终实现口径
+- 会话页首次进入统一走 `handleViewAppearance()`：
+  - 未加载过时执行初次加载
+  - 已加载且距离上次成功刷新超过 staleness 阈值时，执行一次稳态 snapshot refresh
+- 前台刷新不再追求实时：
+  - App 回到 active 时按 staleness 判断是否 refresh
+  - 页面停留期间仅做 60 秒一次的前台轮询检查，命中 stale 才 refresh
+- overview 卡片上的诊断信息不再单独造状态通道：
+  - `CodexSessionStore.warning/performance` 统一补充 `codex_home_path`
+  - App 侧只消费当前 provider 对应的 warning / slow / failed 事件
+  - 通过 `diagnosticMessage` 落到 overview footer，和状态信息并存
+
+### 缓存与生命周期决策
+- `CodexSessionsTabViewModelStore` 最终只承担“按 `provider.id` 复用同一 ViewModel”的身份缓存。
+- 不再在 store 层做 stale VM 淘汰、重建或 LRU 回收。
+- 原因已明确：
+  - `CodexSessionsTabViewModel` 在对象析构路径上存在稳定的 `malloc: pointer being freed was not allocated` 崩溃
+  - 崩溃不依赖 observer 是否移除，也不依赖 store 是否做 filter/remove
+  - 因此 freshness 必须下沉到 ViewModel 内部，用时间戳判断触发 refresh，而不是替换对象
+
+### 链路补强
+- 初次 `snapshotStream` 失败时，自动回退到 `loadSnapshot`，避免 UI 空白但 CLI 可读的分叉状态。
+- 若初次加载整体失败，`didStartInitialLoad` 会复位，允许同一 ViewModel 后续重试。
+- 安装版 `nolon` CLI 已补 smoke coverage，确保 `codex session` / `codex session list` 子命令不会再因安装产物滞后而缺失。
+
+### 本轮验证
+- `xcodebuild test -skipPackageUpdates -project nolon.xcodeproj -scheme nolon-tests -destination 'platform=macOS' -only-testing:nolonTests/CodexSessionsOverviewDataBuilderTests`
+- `xcodebuild test -skipPackageUpdates -project nolon.xcodeproj -scheme nolon-tests -destination 'platform=macOS' -only-testing:nolonTests/CodexSessionsTabViewModelTests`
+- `swift test --package-path libs/Providers --filter CodexSessionStoreTests`
+- `~/.nolon/bin/nolon codex session list --provider codex`

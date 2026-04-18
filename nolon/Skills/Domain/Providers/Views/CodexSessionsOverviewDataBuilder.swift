@@ -10,6 +10,7 @@ enum CodexSessionsOverviewDataBuilder {
         let rewritableGroupCount: Int
         let needsAttentionGroupCount: Int
         let statusMessage: String?
+        let diagnosticMessage: String?
         let isLoading: Bool
         let hasVisibleSections: Bool
         let isPreparingRewrite: Bool
@@ -83,7 +84,7 @@ enum CodexSessionsOverviewDataBuilder {
                     comment: "Codex sessions background scanning status"
                 )
                 : nil,
-            paginationMessage: nil,
+            paginationMessage: context.diagnosticMessage,
             metrics: metrics(for: context, displayMode: displayMode),
             isRefreshDisabled: context.isLoading || context.isPreparingRewrite || context.isApplyingRewrite
         )
