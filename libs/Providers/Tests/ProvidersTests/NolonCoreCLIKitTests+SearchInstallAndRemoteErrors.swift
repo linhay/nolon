@@ -495,7 +495,7 @@ extension NolonCoreCLIKitTests {
         #expect(result.exitCode == 0)
         #expect(result.stderr.isEmpty)
         #expect(result.stdout.contains("- codex/karpathy-guidelines"))
-        #expect(result.stdout.contains(providerLink.subpath("karpathy-guidelines").url.path))
+        #expect(result.stdout.contains(STFolder(providerLink.url).subpath("karpathy-guidelines").url.path))
         #expect(result.stdout.contains("skills_total: 1"))
     }
     @Test("runner skills verbose installed filter omits redundant installed tag and unknown origin")

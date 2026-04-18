@@ -26,51 +26,69 @@ fi
 
 echo "🚀 Running Nolon gate..."
 
+PROJECT="nolon.xcodeproj"
 SCHEME="${XCODE_SCHEME:-nolon-app}"
 BUILD_CONFIGURATION="${XCODE_CONFIGURATION:-Release}"
 TEST_CONFIGURATION="${XCODE_TEST_CONFIGURATION:-Debug}"
 RUN_TESTS="${RUN_TESTS:-1}"
 DESTINATION="${XCODE_DESTINATION:-platform=macOS}"
 TEST_SCOPE="${TEST_SCOPE:-unit}"
+NO_SPM_UPDATE="${NO_SPM_UPDATE:-1}"
+XCODEBUILD_BIN="${XCODEBUILD_BIN:-xcodebuild}"
 
-XCODEBUILD_ARGS=(
-    -project nolon.xcodeproj
+COMMON_XCODEBUILD_ARGS=(
+    -project "${PROJECT}"
     -scheme "${SCHEME}"
-    -configuration "${BUILD_CONFIGURATION}"
     -destination "${DESTINATION}"
 )
 
-# Optional: avoid hitting the network / updating SwiftPM dependencies.
-# Useful when you already have checkouts in DerivedData and want a deterministic build.
-if [[ "${NO_SPM_UPDATE:-0}" == "1" ]]; then
-    XCODEBUILD_ARGS+=(-disableAutomaticPackageResolution)
+# Default to skipping remote package updates so local builds stay resilient
+# when the network is flaky. Opt out with NO_SPM_UPDATE=0 if you explicitly
+# want xcodebuild to refresh remote package state.
+if [[ "${NO_SPM_UPDATE}" == "1" ]]; then
+    COMMON_XCODEBUILD_ARGS+=(
+        -skipPackageUpdates
+    )
 fi
 
 # Optional: customize DerivedData location (e.g. /tmp/nolonDerivedData).
 if [[ -n "${DERIVED_DATA_PATH:-}" ]]; then
-    XCODEBUILD_ARGS+=(-derivedDataPath "${DERIVED_DATA_PATH}")
+    COMMON_XCODEBUILD_ARGS+=(-derivedDataPath "${DERIVED_DATA_PATH}")
+fi
+
+run_xcodebuild() {
+    "${XCODEBUILD_BIN}" "$@"
+}
+
+BUILD_ARGS=(
+    "${COMMON_XCODEBUILD_ARGS[@]}"
+    -configuration "${BUILD_CONFIGURATION}"
+)
+
+if [[ "${NO_SPM_UPDATE}" == "1" ]]; then
+    echo "ℹ️ Package resolution: locked (NO_SPM_UPDATE=1)"
+else
+    echo "ℹ️ Package resolution: remote updates enabled"
 fi
 
 if [[ "${SKIP_CLEAN:-0}" != "1" ]]; then
-    XCODEBUILD_ARGS+=(clean)
+    BUILD_ARGS+=(clean)
 fi
 
-XCODEBUILD_ARGS+=(build)
+BUILD_ARGS+=(build)
 
 echo "ℹ️ Scheme: ${SCHEME}"
 echo "ℹ️ Build configuration: ${BUILD_CONFIGURATION}"
 echo "ℹ️ Destination: ${DESTINATION}"
 
-xcodebuild "${XCODEBUILD_ARGS[@]}"
+run_xcodebuild "${BUILD_ARGS[@]}"
 echo "✅ Build succeeded!"
 
 if [[ "${RUN_TESTS}" == "1" ]]; then
     echo "🧪 Running tests..."
     TEST_ARGS=(
-        -project nolon.xcodeproj \
-        -scheme "${SCHEME}" \
+        "${COMMON_XCODEBUILD_ARGS[@]}" \
         -configuration "${TEST_CONFIGURATION}" \
-        -destination "${DESTINATION}" \
         test
     )
 
@@ -92,7 +110,7 @@ if [[ "${RUN_TESTS}" == "1" ]]; then
             ;;
     esac
 
-    xcodebuild "${TEST_ARGS[@]}"
+    run_xcodebuild "${TEST_ARGS[@]}"
     echo "✅ Tests passed! (${TEST_SCOPE})"
 else
     echo "⏭️ Tests skipped (RUN_TESTS=${RUN_TESTS})"

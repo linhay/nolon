@@ -352,7 +352,7 @@ struct NolonSkillsRepositoryServiceTests {
         #expect(result.states.count == 1)
         #expect(result.states.first?.skillID == "karpathy-guidelines")
         #expect(result.states.first?.state == .installed)
-        #expect(result.states.first?.path == providerLink.subpath("karpathy-guidelines").url.path)
+        #expect(result.states.first?.path == STFolder(providerLink.url).subpath("karpathy-guidelines").url.path)
     }
 
     @Test("migrate skill links from global to provider")
