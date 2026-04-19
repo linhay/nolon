@@ -38,17 +38,20 @@ public enum CodexSessionScanner {
         public let relativePath: String
         public let archived: Bool
         public let fileIdentity: String?
+        public let sessionMeta: SessionMeta?
 
         public init(
             file: STFile,
             relativePath: String,
             archived: Bool,
-            fileIdentity: String?
+            fileIdentity: String?,
+            sessionMeta: SessionMeta?
         ) {
             self.file = file
             self.relativePath = relativePath
             self.archived = archived
             self.fileIdentity = fileIdentity
+            self.sessionMeta = sessionMeta
         }
     }
 
@@ -113,7 +116,8 @@ public enum CodexSessionScanner {
                         file: file,
                         relativePath: relativePath(for: file.url.path, baseURL: root.parentFolder()?.url),
                         archived: root.url.lastPathComponent == "archived_sessions",
-                        fileIdentity: fileIdentityString(file: file)
+                        fileIdentity: fileIdentityString(file: file),
+                        sessionMeta: readSessionMeta(from: file)
                     )
                 )
             }
@@ -125,7 +129,14 @@ public enum CodexSessionScanner {
     }
 
     public static func readSessionMeta(from file: ScannedFile) -> SessionMeta? {
-        guard let handle = try? FileHandle(forReadingFrom: file.file.url) else { return nil }
+        if let sessionMeta = file.sessionMeta {
+            return sessionMeta
+        }
+        return readSessionMeta(from: file.file)
+    }
+
+    public static func readSessionMeta(from file: STFile) -> SessionMeta? {
+        guard let handle = try? FileHandle(forReadingFrom: file.url) else { return nil }
         defer { try? handle.close() }
 
         var pending = Data()

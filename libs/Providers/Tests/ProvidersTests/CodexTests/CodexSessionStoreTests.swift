@@ -222,6 +222,258 @@ struct CodexSessionStoreTests {
         return String(cString: value)
     }
 
+    @Test("Given projection cache writes a session snapshot, when loading it back, then payload round trips")
+    func projectionCacheRoundTripsSessionSnapshot() throws {
+        let root = try makeTempRoot("codex-projection-cache")
+        let codexHome = root.folder(".codex")
+        _ = codexHome.createIfNotExists()
+        let cacheRoot = root.folder("cache-root")
+        _ = cacheRoot.createIfNotExists()
+
+        let cache = CodexSessionProjectionCache(rootDirectory: cacheRoot.url)
+        let snapshot = CodexSessionSnapshot(
+            sessions: [
+                .init(
+                    id: "sessions/a.jsonl",
+                    threadID: "thread-a",
+                    title: "Alpha",
+                    summary: "summary",
+                    forkedFromID: nil,
+                    originator: "codex",
+                    source: "cli",
+                    modelProvider: "openai",
+                    archived: false,
+                    rolloutPath: "sessions/a.jsonl",
+                    cwd: "/tmp/project-alpha",
+                    updatedAt: Date(timeIntervalSince1970: 1_000),
+                    stateRowCount: 1,
+                    editable: true
+                )
+            ],
+            availableProviderIDs: ["openai", "anthropic"]
+        )
+
+        try cache.saveSnapshot(snapshot, codexHome: codexHome.url, sourceRunID: "test-run")
+        let loaded = try cache.loadSnapshot(codexHome: codexHome.url)
+
+        #expect(loaded == snapshot)
+    }
+
+    @Test("Given projection cache writes a skeleton snapshot, when loading it back, then payload round trips")
+    func projectionCacheRoundTripsProjectSkeletonSnapshot() throws {
+        let root = try makeTempRoot("codex-projection-cache")
+        let codexHome = root.folder(".codex")
+        _ = codexHome.createIfNotExists()
+        let cacheRoot = root.folder("cache-root")
+        _ = cacheRoot.createIfNotExists()
+
+        let cache = CodexSessionProjectionCache(rootDirectory: cacheRoot.url)
+        let snapshot = CodexSessionProjectSkeletonSnapshot(
+            projects: [
+                .init(
+                    projectPath: "/tmp/project-alpha",
+                    liveCount: 10,
+                    archivedCount: 2,
+                    latestUpdatedAt: Date(timeIntervalSince1970: 2_000)
+                )
+            ],
+            availableProviderIDs: ["openai"]
+        )
+
+        try cache.saveProjectSkeletonSnapshot(snapshot, codexHome: codexHome.url, sourceRunID: "test-run")
+        let loaded = try cache.loadProjectSkeletonSnapshot(codexHome: codexHome.url)
+
+        #expect(loaded == snapshot)
+    }
+
+    @Test("Given projection cache is marked dirty, when loading status, then dirty metadata is persisted")
+    func projectionCachePersistsDirtyStatus() throws {
+        let root = try makeTempRoot("codex-projection-cache-status")
+        let codexHome = root.folder(".codex")
+        _ = codexHome.createIfNotExists()
+        let cacheRoot = root.folder("cache-root")
+        _ = cacheRoot.createIfNotExists()
+
+        let cache = CodexSessionProjectionCache(rootDirectory: cacheRoot.url)
+
+        try cache.markDirty(codexHome: codexHome.url)
+        let loadedStatus = try cache.loadStatus(codexHome: codexHome.url)
+        let status = try #require(loadedStatus)
+
+        #expect(status.isDirty == true)
+        #expect(status.lastSourceChangeAt != nil)
+        #expect(status.snapshotUpdatedAt == nil)
+        #expect(status.skeletonUpdatedAt == nil)
+    }
+
+    @Test("Given projection cache is dirty, when saving snapshot, then dirty flag is cleared and snapshot timestamp is refreshed")
+    func projectionCacheSnapshotWriteClearsDirtyStatus() throws {
+        let root = try makeTempRoot("codex-projection-cache-snapshot-status")
+        let codexHome = root.folder(".codex")
+        _ = codexHome.createIfNotExists()
+        let cacheRoot = root.folder("cache-root")
+        _ = cacheRoot.createIfNotExists()
+
+        let cache = CodexSessionProjectionCache(rootDirectory: cacheRoot.url)
+        try cache.markDirty(codexHome: codexHome.url)
+
+        let snapshot = CodexSessionSnapshot(
+            sessions: [
+                .init(
+                    id: "sessions/a.jsonl",
+                    threadID: "thread-a",
+                    title: "Alpha",
+                    summary: nil,
+                    forkedFromID: nil,
+                    originator: "codex",
+                    source: "cli",
+                    modelProvider: "openai",
+                    archived: false,
+                    rolloutPath: "sessions/a.jsonl",
+                    cwd: "/tmp/project-alpha",
+                    updatedAt: Date(timeIntervalSince1970: 1_000),
+                    stateRowCount: 1,
+                    editable: true
+                )
+            ],
+            availableProviderIDs: ["openai"]
+        )
+
+        try cache.saveSnapshot(snapshot, codexHome: codexHome.url, sourceRunID: "refresh-run")
+        let loadedStatus = try cache.loadStatus(codexHome: codexHome.url)
+        let status = try #require(loadedStatus)
+
+        #expect(status.isDirty == false)
+        #expect(status.lastSourceChangeAt != nil)
+        #expect(status.snapshotUpdatedAt != nil)
+    }
+
+    @Test("Given projection cache is dirty, when saving skeleton snapshot, then skeleton timestamp updates without clearing dirty")
+    func projectionCacheSkeletonWritePreservesDirtyStatus() throws {
+        let root = try makeTempRoot("codex-projection-cache-skeleton-status")
+        let codexHome = root.folder(".codex")
+        _ = codexHome.createIfNotExists()
+        let cacheRoot = root.folder("cache-root")
+        _ = cacheRoot.createIfNotExists()
+
+        let cache = CodexSessionProjectionCache(rootDirectory: cacheRoot.url)
+        try cache.markDirty(codexHome: codexHome.url)
+
+        let snapshot = CodexSessionProjectSkeletonSnapshot(
+            projects: [
+                .init(
+                    projectPath: "/tmp/project-alpha",
+                    liveCount: 3,
+                    archivedCount: 1,
+                    latestUpdatedAt: Date(timeIntervalSince1970: 2_000)
+                )
+            ],
+            availableProviderIDs: ["openai"]
+        )
+
+        try cache.saveProjectSkeletonSnapshot(snapshot, codexHome: codexHome.url, sourceRunID: "warmup-run")
+        let loadedStatus = try cache.loadStatus(codexHome: codexHome.url)
+        let status = try #require(loadedStatus)
+
+        #expect(status.isDirty == true)
+        #expect(status.skeletonUpdatedAt != nil)
+        #expect(status.snapshotUpdatedAt == nil)
+    }
+
+    @Test("Given cached projection schema is stale, when loading snapshot, then cache is ignored")
+    func projectionCacheIgnoresSchemaMismatch() throws {
+        let root = try makeTempRoot("codex-projection-cache")
+        let codexHome = root.folder(".codex")
+        _ = codexHome.createIfNotExists()
+        let cacheRoot = root.folder("cache-root")
+        _ = cacheRoot.createIfNotExists()
+
+        let cache = CodexSessionProjectionCache(rootDirectory: cacheRoot.url)
+        let databaseURL = cacheRoot.url.appendingPathComponent("projection-cache-v1.sqlite", isDirectory: false)
+        try sqliteExecute(
+            databaseURL: databaseURL,
+            sql: """
+            CREATE TABLE IF NOT EXISTS projection_snapshots (
+                codex_home_path TEXT NOT NULL,
+                kind TEXT NOT NULL,
+                schema_version INTEGER NOT NULL,
+                payload_json TEXT NOT NULL,
+                updated_at_unix_ms INTEGER NOT NULL,
+                source_run_id TEXT,
+                PRIMARY KEY (codex_home_path, kind)
+            );
+            """
+        )
+        try sqliteExecute(
+            databaseURL: databaseURL,
+            sql: """
+            INSERT INTO projection_snapshots (
+                codex_home_path,
+                kind,
+                schema_version,
+                payload_json,
+                updated_at_unix_ms,
+                source_run_id
+            ) VALUES (?, ?, ?, ?, ?, ?);
+            """,
+            bindings: [
+                .text(codexHome.url.path),
+                .text("session_snapshot"),
+                .int64(999),
+                .text(#"{"available_provider_ids":["openai"],"sessions":[]}"#),
+                .int64(1_000),
+                .text("legacy-run"),
+            ]
+        )
+
+        let loaded = try cache.loadSnapshot(codexHome: codexHome.url)
+
+        #expect(loaded == nil)
+    }
+
+    @Test("Given store loads a fresh snapshot, when reading cached projection, then persisted snapshot is available")
+    func storePersistsProjectionSnapshotAfterLoadSnapshot() throws {
+        let root = try makeTempRoot("codex-projection-cache")
+        let codexHome = root.folder(".codex")
+        _ = codexHome.createIfNotExists()
+        let cacheRoot = root.folder("cache-root")
+        _ = cacheRoot.createIfNotExists()
+
+        _ = try writeRolloutSessionMeta(
+            codexHome: codexHome,
+            threadID: "thread-a",
+            timestamp: "2026-04-10T10:00:00Z",
+            modelProvider: "openai",
+            cwd: "/tmp/project-alpha"
+        )
+        try createStateDatabase(
+            codexHome: codexHome,
+            threads: [
+                (
+                    id: "thread-a",
+                    title: "Alpha",
+                    modelProvider: "openai",
+                    updatedAt: 1_000,
+                    archived: false
+                )
+            ]
+        )
+
+        let store = CodexSessionStore(
+            usageIndexRootDirectory: cacheRoot.url,
+            projectionCacheRootDirectory: cacheRoot.url,
+            enableInventoryCache: false
+        )
+
+        let snapshot = try store.loadSnapshot(codexHome: codexHome)
+        let cached = try store.loadCachedSnapshot(codexHome: codexHome.url)
+        let status = try store.cachedProjectionStatus(codexHome: codexHome.url)
+
+        #expect(cached == snapshot)
+        #expect(status?.isDirty == false)
+        #expect(status?.snapshotUpdatedAt != nil)
+    }
+
     private func writeSessionIndex(
         codexHome: STFolder,
         entries: [(id: String, threadName: String, updatedAt: String)]
@@ -390,6 +642,82 @@ struct CodexSessionStoreTests {
         #expect(unknown.liveCount == 1)
         #expect(unknown.archivedCount == 0)
         #expect(unknown.projectPath == nil)
+    }
+
+    @Test("Given inventory cache enabled, when snapshot follows skeleton load within TTL, then scan results are reused")
+    func inventoryCacheReusesScanResultsAcrossSequentialLoads() throws {
+        let root = try makeTempRoot("codex-session-store-inventory-cache-hit")
+        defer { try? root.delete() }
+
+        let codexHome = root.folder("provider")
+        _ = codexHome.createIfNotExists()
+
+        _ = try writeRolloutSessionMeta(
+            codexHome: codexHome,
+            threadID: "thread-1",
+            timestamp: "2026-04-10T10:00:00Z",
+            modelProvider: "openai",
+            cwd: "/tmp/project-a"
+        )
+
+        let store = CodexSessionStore(
+            defaultProviderID: "openai",
+            enableInventoryCache: true,
+            inventoryCacheTTL: 60
+        )
+
+        let skeleton = try store.loadProjectSkeletonSnapshot(codexHome: codexHome)
+        #expect(skeleton.projects.count == 1)
+
+        _ = try writeRolloutSessionMeta(
+            codexHome: codexHome,
+            threadID: "thread-2",
+            timestamp: "2026-04-10T10:05:00Z",
+            modelProvider: "openai",
+            cwd: "/tmp/project-b"
+        )
+
+        let snapshot = try store.loadSnapshot(codexHome: codexHome)
+        #expect(snapshot.sessions.count == 1)
+        #expect(snapshot.sessions.map(\.threadID) == ["thread-1"])
+    }
+
+    @Test("Given inventory cache disabled, when snapshot follows skeleton load, then latest scan results are returned")
+    func inventoryCacheCanBeDisabledForFreshScans() throws {
+        let root = try makeTempRoot("codex-session-store-inventory-cache-miss")
+        defer { try? root.delete() }
+
+        let codexHome = root.folder("provider")
+        _ = codexHome.createIfNotExists()
+
+        _ = try writeRolloutSessionMeta(
+            codexHome: codexHome,
+            threadID: "thread-1",
+            timestamp: "2026-04-10T10:00:00Z",
+            modelProvider: "openai",
+            cwd: "/tmp/project-a"
+        )
+
+        let store = CodexSessionStore(
+            defaultProviderID: "openai",
+            enableInventoryCache: false,
+            inventoryCacheTTL: 60
+        )
+
+        let skeleton = try store.loadProjectSkeletonSnapshot(codexHome: codexHome)
+        #expect(skeleton.projects.count == 1)
+
+        _ = try writeRolloutSessionMeta(
+            codexHome: codexHome,
+            threadID: "thread-2",
+            timestamp: "2026-04-10T10:05:00Z",
+            modelProvider: "openai",
+            cwd: "/tmp/project-b"
+        )
+
+        let snapshot = try store.loadSnapshot(codexHome: codexHome)
+        #expect(snapshot.sessions.count == 2)
+        #expect(Set(snapshot.sessions.compactMap(\.threadID)) == Set(["thread-1", "thread-2"]))
     }
 
     @Test("Given multiple rollout files, when streaming snapshots, then each batch only yields delta sessions and the last event marks completion")
@@ -735,13 +1063,71 @@ struct CodexSessionStoreTests {
         let snapshot = try CodexSessionStore(defaultProviderID: "openai").loadSnapshot(codexHome: codexHome)
 
         #expect(snapshot.sessions.count == 1)
-        let metrics = try #require(recorder.payloads.last)
+        let metrics = try #require(
+            recorder.payloads.last(where: { payload in
+                payload["operation"] as? String == "load_snapshot"
+                    && payload["codex_home_path"] as? String == codexHome.url.path
+            })
+        )
         #expect(metrics["operation"] as? String == "load_snapshot")
         #expect(metrics["session_count"] as? Int == 1)
         #expect(metrics["scanned_file_count"] as? Int == 1)
         #expect(metrics["codex_home_path"] as? String == codexHome.url.path)
         #expect((metrics["elapsed_ms"] as? Int ?? -1) >= 0)
         #expect((metrics["trace_id"] as? String)?.isEmpty == false)
+    }
+
+    @Test("Given one unreadable state sqlite, when loading snapshot, then store warns and skips the bad database")
+    func loadSnapshotSkipsUnreadableStateDatabase() throws {
+        let root = try makeTempRoot("codex-session-store-unreadable-state-db")
+        defer { try? root.delete() }
+
+        let codexHome = root.folder("provider")
+        _ = codexHome.createIfNotExists()
+
+        let threadID = UUID().uuidString.lowercased()
+        _ = try writeRolloutSessionMeta(
+            codexHome: codexHome,
+            threadID: threadID,
+            timestamp: "2026-04-10T10:00:00Z",
+            modelProvider: "openai"
+        )
+        try createStateDatabase(
+            codexHome: codexHome,
+            threads: [
+                (id: threadID, title: "Readable DB Title", modelProvider: "openai", updatedAt: 1_000, archived: false),
+            ]
+        )
+
+        let unreadableDatabase = codexHome.file("state_bad.sqlite")
+        try unreadableDatabase.overlay(with: "not-a-readable-sqlite")
+        try FileManager.default.setAttributes([.posixPermissions: 0o000], ofItemAtPath: unreadableDatabase.path)
+        defer {
+            try? FileManager.default.setAttributes([.posixPermissions: 0o644], ofItemAtPath: unreadableDatabase.path)
+        }
+
+        let warningRecorder = WarningRecorder()
+        let warningObserver = NotificationCenter.default.addObserver(
+            forName: CodexSessionStore.warningNotification,
+            object: nil,
+            queue: nil
+        ) { notification in
+            if let message = notification.userInfo?["message"] as? String {
+                warningRecorder.append(message)
+            }
+        }
+        defer { NotificationCenter.default.removeObserver(warningObserver) }
+
+        let snapshot = try CodexSessionStore(defaultProviderID: "openai").loadSnapshot(codexHome: codexHome)
+
+        #expect(snapshot.sessions.count == 1)
+        #expect(snapshot.sessions.first?.title == "Readable DB Title")
+        #expect(
+            warningRecorder.messages.contains { message in
+                message.contains("skipped unreadable state database")
+                    && message.contains(unreadableDatabase.path)
+            }
+        )
     }
 
     @Test("Given rollout usage is loaded for the first time, when reading session usage, then store rebuilds from file and persists a usage index entry")

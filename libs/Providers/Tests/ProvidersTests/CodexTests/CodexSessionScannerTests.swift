@@ -102,6 +102,64 @@ struct CodexSessionScannerTests {
         #expect(meta.source == "cli")
     }
 
+    @Test("scanFiles caches session meta on scanned file entries")
+    func scanFilesCachesSessionMeta() throws {
+        let root = try makeTempRoot("codex-session-scanner-cache")
+        defer { try? root.delete() }
+
+        let codexHome = root.folder("provider")
+        _ = codexHome.createIfNotExists()
+
+        let file = try writeSessionFile(
+            codexHome: codexHome,
+            directory: "sessions",
+            date: "2026/04/10",
+            filename: "cached-meta.jsonl",
+            threadID: "thread-cached",
+            modelProvider: "OpenAI"
+        )
+
+        let scannedFile = try #require(
+            CodexSessionScanner.scanFiles(codexHome: codexHome, includeArchived: false)
+                .first(where: {
+                    $0.file.url.standardizedFileURL.path == file.url.standardizedFileURL.path
+                })
+        )
+
+        let cachedMeta = try #require(scannedFile.sessionMeta)
+        #expect(cachedMeta.threadID == "thread-cached")
+        #expect(cachedMeta.modelProvider == "openai")
+    }
+
+    @Test("readSessionMeta returns cached session meta without reopening deleted rollout file")
+    func readSessionMetaUsesCachedEntryAfterFileDeletion() throws {
+        let root = try makeTempRoot("codex-session-scanner-cache-fallback")
+        defer { try? root.delete() }
+
+        let cachedMeta = CodexSessionScanner.SessionMeta(
+            threadID: "thread-cached",
+            forkedFromID: "parent-thread",
+            originator: "codex",
+            source: "cli",
+            modelProvider: "openai",
+            cwd: "/tmp/project",
+            timestamp: "2026-04-10T10:00:00Z"
+        )
+        let missingFile = root.file("missing.jsonl")
+        let scannedFile = CodexSessionScanner.ScannedFile(
+            file: missingFile,
+            relativePath: "sessions/missing.jsonl",
+            archived: false,
+            fileIdentity: nil,
+            sessionMeta: cachedMeta
+        )
+
+        let meta = try #require(CodexSessionScanner.readSessionMeta(from: scannedFile))
+        #expect(meta.threadID == "thread-cached")
+        #expect(meta.forkedFromID == "parent-thread")
+        #expect(meta.modelProvider == "openai")
+    }
+
     private func makeTempRoot(_ prefix: String) throws -> STFolder {
         let root = STFolder("/tmp").folder("\(prefix)-\(UUID().uuidString)")
         _ = root.createIfNotExists()

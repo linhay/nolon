@@ -791,6 +791,60 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
         )
     }
 
+    public func sessionBenchmark(providerID: String) async throws -> NolonCodexSessionBenchmarkPayload {
+        let canonicalProviderID = try Self.canonicalProviderID(providerID)
+        let provider = try Self.provider(for: canonicalProviderID)
+        let codexHomeURL = provider.codexHomeFolder.url
+
+        func measureRun(
+            label: String,
+            inventoryCacheEnabled: Bool
+        ) async throws -> NolonCodexSessionBenchmarkRunView {
+            try await Task.detached(priority: .userInitiated) {
+                let store = CodexSessionStore(enableInventoryCache: inventoryCacheEnabled)
+
+                let totalStartedAt = CFAbsoluteTimeGetCurrent()
+
+                let skeletonStartedAt = CFAbsoluteTimeGetCurrent()
+                let skeleton = try store.loadProjectSkeletonSnapshot(codexHome: codexHomeURL)
+                let skeletonElapsedMs = Self.elapsedMilliseconds(since: skeletonStartedAt)
+
+                let streamStartedAt = CFAbsoluteTimeGetCurrent()
+                var streamedSessionCount = 0
+                let stream = store.snapshotStream(codexHome: codexHomeURL, batchSize: 10)
+                for try await delta in stream {
+                    streamedSessionCount += delta.sessions.count
+                }
+                let streamElapsedMs = Self.elapsedMilliseconds(since: streamStartedAt)
+
+                let snapshotStartedAt = CFAbsoluteTimeGetCurrent()
+                let snapshot = try store.loadSnapshot(codexHome: codexHomeURL)
+                let snapshotElapsedMs = Self.elapsedMilliseconds(since: snapshotStartedAt)
+
+                return NolonCodexSessionBenchmarkRunView(
+                    label: label,
+                    inventoryCacheEnabled: inventoryCacheEnabled,
+                    skeletonElapsedMs: skeletonElapsedMs,
+                    streamElapsedMs: streamElapsedMs,
+                    snapshotElapsedMs: snapshotElapsedMs,
+                    totalElapsedMs: Self.elapsedMilliseconds(since: totalStartedAt),
+                    projectCount: skeleton.projects.count,
+                    streamedSessionCount: streamedSessionCount,
+                    snapshotSessionCount: snapshot.sessions.count
+                )
+            }.value
+        }
+
+        let baseline = try await measureRun(label: "baseline", inventoryCacheEnabled: false)
+        let optimized = try await measureRun(label: "optimized", inventoryCacheEnabled: true)
+
+        return NolonCodexSessionBenchmarkPayload(
+            providerID: canonicalProviderID,
+            codexHomePath: codexHomeURL.standardizedFileURL.path,
+            runs: [baseline, optimized]
+        )
+    }
+
     public func sessionPreviewRewrite(
         providerID: String,
         requestSource: NolonCodexSessionSelectionSource,
@@ -1045,6 +1099,10 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
         defer { Task { await service.shutdown() } }
         try await service.initialize(clientName: "nolon", clientVersion: "1.0.0")
         _ = try await service.readAccount(refreshToken: true)
+    }
+
+    private static func elapsedMilliseconds(since startedAt: CFAbsoluteTime) -> Int {
+        Int(((CFAbsoluteTimeGetCurrent() - startedAt) * 1_000).rounded())
     }
 
     private static func loginViaAppServer(

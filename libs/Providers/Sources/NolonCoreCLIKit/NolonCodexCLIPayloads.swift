@@ -39,6 +39,7 @@ public protocol NolonCodexCLIServing: Sendable {
         providerID: String,
         groupBy: NolonCodexSessionListGrouping
     ) async throws -> NolonCodexSessionListPayload
+    func sessionBenchmark(providerID: String) async throws -> NolonCodexSessionBenchmarkPayload
     func sessionPreviewRewrite(
         providerID: String,
         requestSource: NolonCodexSessionSelectionSource,
@@ -160,6 +161,14 @@ public extension NolonCodexCLIServing {
 
     func sessionList(providerID: String) async throws -> NolonCodexSessionListPayload {
         try await sessionList(providerID: providerID, groupBy: .provider)
+    }
+
+    func sessionBenchmark(providerID: String) async throws -> NolonCodexSessionBenchmarkPayload {
+        _ = providerID
+        throw NolonCoreCLIError.domainFailed(
+            code: "unsupported_command",
+            message: "Session benchmark is not supported by this Codex CLI service."
+        )
     }
 
     func sessionPreviewRewrite(
@@ -638,6 +647,24 @@ public struct NolonCodexSessionListPayload: Codable, Sendable, Equatable {
         self.totalLiveCount = totalLiveCount
         self.totalArchivedCount = totalArchivedCount
     }
+}
+
+public struct NolonCodexSessionBenchmarkRunView: Codable, Sendable, Equatable {
+    public let label: String
+    public let inventoryCacheEnabled: Bool
+    public let skeletonElapsedMs: Int
+    public let streamElapsedMs: Int
+    public let snapshotElapsedMs: Int
+    public let totalElapsedMs: Int
+    public let projectCount: Int
+    public let streamedSessionCount: Int
+    public let snapshotSessionCount: Int
+}
+
+public struct NolonCodexSessionBenchmarkPayload: Codable, Sendable, Equatable {
+    public let providerID: String
+    public let codexHomePath: String
+    public let runs: [NolonCodexSessionBenchmarkRunView]
 }
 
 public struct NolonCodexSessionRewritePreviewView: Codable, Sendable, Equatable {

@@ -1,6 +1,11 @@
 import Foundation
 import SQLite3
 
+public enum CodexSessionCachedUsageLookupResult: Equatable, Sendable {
+    case miss
+    case hit(CodexSessionTokenTotals?)
+}
+
 enum CodexSessionUsageLoadSource: Equatable, Sendable {
     case cacheHit
     case deltaAppend

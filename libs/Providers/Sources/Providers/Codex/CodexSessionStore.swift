@@ -124,6 +124,25 @@ public struct CodexSessionProjectSkeletonSnapshot: Sendable, Equatable {
     }
 }
 
+public struct CodexSessionProjectionStatus: Sendable, Equatable {
+    public let isDirty: Bool
+    public let lastSourceChangeAt: Date?
+    public let snapshotUpdatedAt: Date?
+    public let skeletonUpdatedAt: Date?
+
+    public init(
+        isDirty: Bool,
+        lastSourceChangeAt: Date?,
+        snapshotUpdatedAt: Date?,
+        skeletonUpdatedAt: Date?
+    ) {
+        self.isDirty = isDirty
+        self.lastSourceChangeAt = lastSourceChangeAt
+        self.snapshotUpdatedAt = snapshotUpdatedAt
+        self.skeletonUpdatedAt = skeletonUpdatedAt
+    }
+}
+
 public struct CodexSessionProviderRewriteRequest: Sendable, Equatable {
     public let threadIDs: [String]
     public let targetProviderID: String
@@ -196,6 +215,7 @@ public struct CodexSessionStore: Sendable {
     public static let performanceNotification = Notification.Name("CodexSessionStore.performance")
     private static let logger = Logger(subsystem: "com.nolon", category: "CodexSessionStore")
     private static let rolloutRewriteParallelism = 6
+    private static let defaultInventoryCacheTTL: TimeInterval = 5
 
     private struct StateThreadRow: Sendable, Equatable {
         let threadID: String
@@ -228,6 +248,14 @@ public struct CodexSessionStore: Sendable {
         var liveCount: Int
         var archivedCount: Int
         var latestUpdatedAt: Date?
+    }
+
+    private struct InventoryCacheEntry: Sendable {
+        var refreshedAt: Date
+        var scannedFiles: [CodexSessionScanner.ScannedFile]? = nil
+        var availableProviderIDs: [String]? = nil
+        var stateIndex: StateIndex? = nil
+        var sessionIndex: SessionIndex? = nil
     }
 
     private final class RolloutRewriteAccumulator: @unchecked Sendable {
@@ -265,15 +293,68 @@ public struct CodexSessionStore: Sendable {
         }
     }
 
+    private final class InventoryCache: @unchecked Sendable {
+        private let lock = NSLock()
+        private var entries: [String: InventoryCacheEntry] = [:]
+
+        func value<T>(
+            for key: String,
+            now: Date,
+            ttl: TimeInterval,
+            extractor: (InventoryCacheEntry) -> T?
+        ) -> T? {
+            lock.lock()
+            defer { lock.unlock() }
+            guard let entry = entries[key] else { return nil }
+            guard now.timeIntervalSince(entry.refreshedAt) <= ttl else {
+                entries.removeValue(forKey: key)
+                return nil
+            }
+            return extractor(entry)
+        }
+
+        func update(
+            for key: String,
+            now: Date,
+            mutate: (inout InventoryCacheEntry) -> Void
+        ) {
+            lock.lock()
+            defer { lock.unlock() }
+            var entry = entries[key] ?? InventoryCacheEntry(refreshedAt: now)
+            entry.refreshedAt = now
+            mutate(&entry)
+            entries[key] = entry
+        }
+
+        func invalidate(for key: String) {
+            lock.lock()
+            entries.removeValue(forKey: key)
+            lock.unlock()
+        }
+    }
+
     private let defaultProviderID: String
     private let usageIndex: CodexSessionUsageIndex
+    private let projectionCache: CodexSessionProjectionCache
+    private let enableInventoryCache: Bool
+    private let inventoryCacheTTL: TimeInterval
+    private let inventoryCache = InventoryCache()
 
     public init(
         defaultProviderID: String = "openai",
-        usageIndexRootDirectory: URL? = nil
+        usageIndexRootDirectory: URL? = nil,
+        projectionCacheRootDirectory: URL? = nil,
+        enableInventoryCache: Bool? = nil,
+        inventoryCacheTTL: TimeInterval = 5
     ) {
         self.defaultProviderID = Self.normalizedProviderID(defaultProviderID) ?? "openai"
         self.usageIndex = CodexSessionUsageIndex(rootDirectory: usageIndexRootDirectory)
+        self.projectionCache = CodexSessionProjectionCache(rootDirectory: projectionCacheRootDirectory)
+        self.enableInventoryCache = enableInventoryCache ?? Self.environmentFlag(
+            named: "NOLON_CODEX_SESSION_ENABLE_INVENTORY_CACHE",
+            defaultValue: true
+        )
+        self.inventoryCacheTTL = max(0, inventoryCacheTTL)
     }
 
     public func loadSnapshot(codexHome: URL) throws -> CodexSessionSnapshot {
@@ -284,11 +365,37 @@ public struct CodexSessionStore: Sendable {
         try loadProjectSkeletonSnapshot(codexHome: STFolder(codexHome))
     }
 
+    public func loadCachedSnapshot(codexHome: URL) throws -> CodexSessionSnapshot? {
+        try projectionCache.loadSnapshot(codexHome: codexHome)
+    }
+
+    public func loadCachedProjectSkeletonSnapshot(codexHome: URL) throws -> CodexSessionProjectSkeletonSnapshot? {
+        try projectionCache.loadProjectSkeletonSnapshot(codexHome: codexHome)
+    }
+
+    public func cachedProjectionStatus(codexHome: URL) throws -> CodexSessionProjectionStatus? {
+        try projectionCache.loadStatus(codexHome: codexHome)
+    }
+
+    public func markProjectionDirty(codexHome: URL) throws {
+        try projectionCache.markDirty(codexHome: codexHome)
+    }
+
     public func loadSessionUsage(
         codexHome: URL,
         rolloutPath: String
     ) throws -> CodexSessionTokenTotals? {
         try loadSessionUsageRecord(codexHome: codexHome, rolloutPath: rolloutPath).totals
+    }
+
+    public func loadCachedSessionUsage(
+        codexHome: URL,
+        rolloutPath: String
+    ) throws -> CodexSessionCachedUsageLookupResult {
+        guard let entry = try loadUsageIndexEntry(codexHome: codexHome, rolloutPath: rolloutPath) else {
+            return .miss
+        }
+        return .hit(entry.totals)
     }
 
     public func loadSessionTimeline(
@@ -357,11 +464,12 @@ public struct CodexSessionStore: Sendable {
                 let traceID = UUID().uuidString
                 let startedAt = CFAbsoluteTimeGetCurrent()
                 do {
-                    let stateIndex = try loadStateIndex(in: codexHome)
-                    let sessionIndex = loadSessionIndex(in: codexHome)
-                    let scannedFiles = CodexSessionScanner.scanFiles(codexHome: codexHome, includeArchived: true)
-                    let availableProviderIDs = loadAvailableProviderIDs(codexHome: codexHome)
+                    let stateIndex = try cachedStateIndex(in: codexHome)
+                    let sessionIndex = cachedSessionIndex(in: codexHome)
+                    let scannedFiles = cachedScannedFiles(in: codexHome)
+                    let availableProviderIDs = cachedAvailableProviderIDs(in: codexHome)
                     var yieldedBatchCount = 0
+                    var accumulatedSessions: [CodexSessionRecord] = []
 
                     guard !scannedFiles.isEmpty else {
                         Self.emitPerformance(
@@ -406,6 +514,7 @@ public struct CodexSessionStore: Sendable {
                             )
                         }
                         let sortedBatch = batch.sorted(by: Self.sortSessions(_:_:))
+                        accumulatedSessions.append(contentsOf: sortedBatch)
                         emittedSessionCount += sortedBatch.count
                         yieldedBatchCount += 1
 
@@ -418,6 +527,15 @@ public struct CodexSessionStore: Sendable {
                         )
                     }
 
+                    let persistedSnapshot = CodexSessionSnapshot(
+                        sessions: accumulatedSessions.sorted(by: Self.sortSessions(_:_:)),
+                        availableProviderIDs: availableProviderIDs
+                    )
+                    persistProjectionSnapshotIfPossible(
+                        persistedSnapshot,
+                        codexHome: codexHome.url,
+                        traceID: traceID
+                    )
                     Self.emitPerformance(
                         operation: "snapshot_stream_complete",
                         traceID: traceID,
@@ -456,9 +574,9 @@ public struct CodexSessionStore: Sendable {
     public func loadSnapshot(codexHome: STFolder) throws -> CodexSessionSnapshot {
         let traceID = UUID().uuidString
         let startedAt = CFAbsoluteTimeGetCurrent()
-        let stateIndex = try loadStateIndex(in: codexHome)
-        let sessionIndex = loadSessionIndex(in: codexHome)
-        let scannedFiles = CodexSessionScanner.scanFiles(codexHome: codexHome, includeArchived: true)
+        let stateIndex = try cachedStateIndex(in: codexHome)
+        let sessionIndex = cachedSessionIndex(in: codexHome)
+        let scannedFiles = cachedScannedFiles(in: codexHome)
 
         let sessions = scannedFiles.compactMap { scannedFile in
             makeSessionRecord(
@@ -471,8 +589,9 @@ public struct CodexSessionStore: Sendable {
 
         let snapshot = CodexSessionSnapshot(
             sessions: sessions,
-            availableProviderIDs: loadAvailableProviderIDs(codexHome: codexHome)
+            availableProviderIDs: cachedAvailableProviderIDs(in: codexHome)
         )
+        persistProjectionSnapshotIfPossible(snapshot, codexHome: codexHome.url, traceID: traceID)
         Self.emitPerformance(
             operation: "load_snapshot",
             traceID: traceID,
@@ -491,7 +610,7 @@ public struct CodexSessionStore: Sendable {
     public func loadProjectSkeletonSnapshot(
         codexHome: STFolder
     ) throws -> CodexSessionProjectSkeletonSnapshot {
-        let scannedFiles = CodexSessionScanner.scanFiles(codexHome: codexHome, includeArchived: true)
+        let scannedFiles = cachedScannedFiles(in: codexHome)
         var projectsByKey: [String: ProjectSkeletonAccumulator] = [:]
 
         for scannedFile in scannedFiles {
@@ -532,10 +651,12 @@ public struct CodexSessionStore: Sendable {
             }
             .sorted(by: Self.sortProjectSkeletons(_:_:))
 
-        return .init(
+        let snapshot = CodexSessionProjectSkeletonSnapshot(
             projects: projects,
-            availableProviderIDs: loadAvailableProviderIDs(codexHome: codexHome)
+            availableProviderIDs: cachedAvailableProviderIDs(in: codexHome)
         )
+        persistProjectSkeletonSnapshotIfPossible(snapshot, codexHome: codexHome.url)
+        return snapshot
     }
 
     public func previewRewrite(
@@ -694,6 +815,9 @@ public struct CodexSessionStore: Sendable {
             ]
         )
 
+        invalidateInventoryCache(for: codexHome)
+        invalidateProjectionCacheIfPossible(for: codexHome)
+
         Self.emitRewritePhase(traceID: traceID, phase: "verify", status: "started")
         let verifyStartedAt = CFAbsoluteTimeGetCurrent()
         failures.append(
@@ -785,6 +909,8 @@ public struct CodexSessionStore: Sendable {
             matchingProviderIDs: filteredSources,
             targetProviderID: normalizedTarget
         )
+        invalidateInventoryCache(for: codexHome)
+        invalidateProjectionCacheIfPossible(for: codexHome)
         return .init(
             liveRolloutFilesUpdated: liveRolloutFilesUpdated,
             archivedRolloutFilesUpdated: archivedRolloutFilesUpdated,
@@ -902,7 +1028,19 @@ public struct CodexSessionStore: Sendable {
         var rowCountsByThreadID: [String: Int] = [:]
 
         for databaseFile in databaseFiles {
-            for row in try loadThreadRows(from: databaseFile.url) {
+            let rows: [StateThreadRow]
+            do {
+                rows = try loadThreadRows(from: databaseFile.url)
+            } catch {
+                publishStateDatabaseWarning(
+                    codexHome: codexHome,
+                    databaseURL: databaseFile.url,
+                    error: error
+                )
+                continue
+            }
+
+            for row in rows {
                 rowCountsByThreadID[row.threadID, default: 0] += 1
                 if let existing = latestRowsByThreadID[row.threadID] {
                     if Self.isStateRow(row, newerThan: existing) {
@@ -923,6 +1061,27 @@ public struct CodexSessionStore: Sendable {
         }
 
         return .init(threadsByID: threadsByID)
+    }
+
+    private func publishStateDatabaseWarning(
+        codexHome: STFolder,
+        databaseURL: URL,
+        error: Error
+    ) {
+        let description = (error as NSError).localizedDescription
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let fallback = "Failed to inspect Codex state database."
+        let message = "CodexSessionStore: skipped unreadable state database \(databaseURL.path): \(description.isEmpty ? fallback : description)"
+        NSLog("%@", message)
+        NotificationCenter.default.post(
+            name: Self.warningNotification,
+            object: nil,
+            userInfo: [
+                "codex_home_path": codexHome.url.standardizedFileURL.path,
+                "database_path": databaseURL.path,
+                "message": message,
+            ]
+        )
     }
 
     private func loadSessionIndex(in codexHome: STFolder) -> SessionIndex {
@@ -1048,7 +1207,7 @@ public struct CodexSessionStore: Sendable {
             return .init(liveFileURLs: [], archivedFileURLs: [])
         }
 
-        let matchingFiles = CodexSessionScanner.scanFiles(codexHome: codexHome, includeArchived: true).filter { scannedFile in
+        let matchingFiles = cachedScannedFiles(in: codexHome).filter { scannedFile in
             guard let threadID = CodexSessionScanner.readSessionMeta(from: scannedFile)?.threadID?
                 .trimmingCharacters(in: .whitespacesAndNewlines),
                   !threadID.isEmpty
@@ -1261,7 +1420,7 @@ public struct CodexSessionStore: Sendable {
         guard !matchingThreadIDs.isEmpty else { return [] }
 
         var failures: [String] = []
-        let scannedFiles = CodexSessionScanner.scanFiles(codexHome: codexHome, includeArchived: true)
+        let scannedFiles = cachedScannedFiles(in: codexHome)
         for scannedFile in scannedFiles {
             guard let sessionMeta = CodexSessionScanner.readSessionMeta(from: scannedFile),
                   let threadID = sessionMeta.threadID?.trimmingCharacters(in: .whitespacesAndNewlines),
@@ -1537,6 +1696,170 @@ public struct CodexSessionStore: Sendable {
             return leftDate > rightDate
         }
         return lhs.rolloutPath < rhs.rolloutPath
+    }
+
+    private func cachedScannedFiles(in codexHome: STFolder) -> [CodexSessionScanner.ScannedFile] {
+        let cacheKey = cacheKey(for: codexHome)
+        let now = Date()
+        if enableInventoryCache,
+           let cached = inventoryCache.value(
+            for: cacheKey,
+            now: now,
+            ttl: inventoryCacheTTL,
+            extractor: \.scannedFiles
+           ) {
+            return cached
+        }
+
+        let scannedFiles = CodexSessionScanner.scanFiles(codexHome: codexHome, includeArchived: true)
+        guard enableInventoryCache else { return scannedFiles }
+        inventoryCache.update(for: cacheKey, now: now) { entry in
+            entry.scannedFiles = scannedFiles
+        }
+        return scannedFiles
+    }
+
+    private func cachedAvailableProviderIDs(in codexHome: STFolder) -> [String] {
+        let cacheKey = cacheKey(for: codexHome)
+        let now = Date()
+        if enableInventoryCache,
+           let cached = inventoryCache.value(
+            for: cacheKey,
+            now: now,
+            ttl: inventoryCacheTTL,
+            extractor: \.availableProviderIDs
+           ) {
+            return cached
+        }
+
+        let availableProviderIDs = loadAvailableProviderIDs(codexHome: codexHome)
+        guard enableInventoryCache else { return availableProviderIDs }
+        inventoryCache.update(for: cacheKey, now: now) { entry in
+            entry.availableProviderIDs = availableProviderIDs
+        }
+        return availableProviderIDs
+    }
+
+    private func cachedSessionIndex(in codexHome: STFolder) -> SessionIndex {
+        let cacheKey = cacheKey(for: codexHome)
+        let now = Date()
+        if enableInventoryCache,
+           let cached = inventoryCache.value(
+            for: cacheKey,
+            now: now,
+            ttl: inventoryCacheTTL,
+            extractor: \.sessionIndex
+           ) {
+            return cached
+        }
+
+        let sessionIndex = loadSessionIndex(in: codexHome)
+        guard enableInventoryCache else { return sessionIndex }
+        inventoryCache.update(for: cacheKey, now: now) { entry in
+            entry.sessionIndex = sessionIndex
+        }
+        return sessionIndex
+    }
+
+    private func cachedStateIndex(in codexHome: STFolder) throws -> StateIndex {
+        let cacheKey = cacheKey(for: codexHome)
+        let now = Date()
+        if enableInventoryCache,
+           let cached = inventoryCache.value(
+            for: cacheKey,
+            now: now,
+            ttl: inventoryCacheTTL,
+            extractor: \.stateIndex
+           ) {
+            return cached
+        }
+
+        let stateIndex = try loadStateIndex(in: codexHome)
+        guard enableInventoryCache else { return stateIndex }
+        inventoryCache.update(for: cacheKey, now: now) { entry in
+            entry.stateIndex = stateIndex
+        }
+        return stateIndex
+    }
+
+    private func cacheKey(for codexHome: STFolder) -> String {
+        codexHome.url.standardizedFileURL.path
+    }
+
+    private func invalidateInventoryCache(for codexHome: STFolder) {
+        guard enableInventoryCache else { return }
+        inventoryCache.invalidate(for: cacheKey(for: codexHome))
+    }
+
+    private func invalidateProjectionCacheIfPossible(for codexHome: STFolder) {
+        do {
+            try projectionCache.invalidate(codexHome: codexHome.url)
+        } catch {
+            NotificationCenter.default.post(
+                name: Self.warningNotification,
+                object: nil,
+                userInfo: [
+                    "codex_home_path": codexHome.url.standardizedFileURL.path,
+                    "message": "CodexSessionStore: failed to invalidate projection cache. \(error.localizedDescription)",
+                ]
+            )
+        }
+    }
+
+    private func persistProjectionSnapshotIfPossible(
+        _ snapshot: CodexSessionSnapshot,
+        codexHome: URL,
+        traceID: String
+    ) {
+        do {
+            try projectionCache.saveSnapshot(snapshot, codexHome: codexHome, sourceRunID: traceID)
+        } catch {
+            NotificationCenter.default.post(
+                name: Self.warningNotification,
+                object: nil,
+                userInfo: [
+                    "codex_home_path": codexHome.standardizedFileURL.path,
+                    "message": "CodexSessionStore: failed to persist session projection cache. \(error.localizedDescription)",
+                ]
+            )
+        }
+    }
+
+    private func persistProjectSkeletonSnapshotIfPossible(
+        _ snapshot: CodexSessionProjectSkeletonSnapshot,
+        codexHome: URL
+    ) {
+        do {
+            try projectionCache.saveProjectSkeletonSnapshot(snapshot, codexHome: codexHome, sourceRunID: nil)
+        } catch {
+            NotificationCenter.default.post(
+                name: Self.warningNotification,
+                object: nil,
+                userInfo: [
+                    "codex_home_path": codexHome.standardizedFileURL.path,
+                    "message": "CodexSessionStore: failed to persist project skeleton cache. \(error.localizedDescription)",
+                ]
+            )
+        }
+    }
+
+    private static func environmentFlag(named name: String, defaultValue: Bool) -> Bool {
+        guard let rawValue = ProcessInfo.processInfo.environment[name]?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased(),
+              !rawValue.isEmpty
+        else {
+            return defaultValue
+        }
+
+        switch rawValue {
+        case "0", "false", "no", "off":
+            return false
+        case "1", "true", "yes", "on":
+            return true
+        default:
+            return defaultValue
+        }
     }
 
     private static func mergeSortedSessions(

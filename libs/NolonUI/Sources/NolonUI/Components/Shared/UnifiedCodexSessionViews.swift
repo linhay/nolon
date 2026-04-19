@@ -761,6 +761,11 @@ public struct CodexSessionsSectionCardView<ExpandedRowContent: View>: View {
         }
         .padding(.horizontal, layout.horizontalPadding)
         .padding(.vertical, layout.verticalPadding)
+        .background(rowBackground(isSelected: selectedRowID == row.id))
+        .contentShape(RoundedRectangle(cornerRadius: DesignSystem.Metrics.cornerRadiusS, style: .continuous))
+        .onTapGesture {
+            onSelectRow(row)
+        }
         .contextMenu {
             rowContextMenu(row)
         }

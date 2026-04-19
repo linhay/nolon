@@ -84,6 +84,7 @@ struct NolonCodexSessionGroupCommand: ParsableCommand {
         commandName: "session",
         subcommands: [
             NolonCodexSessionListCommand.self,
+            NolonCodexSessionBenchmarkCommand.self,
             NolonCodexSessionPreviewRewriteCommand.self,
             NolonCodexSessionRewriteCommand.self,
         ]
@@ -248,6 +249,13 @@ struct NolonCodexSessionListCommand: ParsableCommand {
 
     @Option(name: .long, help: "Group sessions by provider or time-project.")
     var groupBy: NolonCodexSessionListGrouping = .provider
+}
+
+struct NolonCodexSessionBenchmarkCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(commandName: "benchmark")
+
+    @Option(name: .long, help: "Provider id, default is codex.")
+    var provider: String = "codex"
 }
 
 struct NolonCodexSessionPreviewRewriteCommand: ParsableCommand {

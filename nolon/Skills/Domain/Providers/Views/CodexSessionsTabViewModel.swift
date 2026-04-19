@@ -41,9 +41,28 @@ protocol CodexSessionsTabPreloadingServicing: Sendable {
     ) throws -> CodexSessionProjectSkeletonSnapshot
 }
 
+protocol CodexSessionsTabCachingServicing: Sendable {
+    nonisolated func loadCachedSnapshot(codexHome: URL) throws -> CodexSessionSnapshot?
+    nonisolated func loadCachedProjectSkeletonSnapshot(codexHome: URL) throws -> CodexSessionProjectSkeletonSnapshot?
+}
+
+protocol CodexSessionsTabCacheStatusServicing: Sendable {
+    nonisolated func cachedProjectionStatus(codexHome: URL) throws -> CodexSessionProjectionStatus?
+}
+
+protocol CodexSessionsTabUsageIndexServicing: Sendable {
+    nonisolated func loadCachedSessionUsage(
+        codexHome: URL,
+        rolloutPath: String
+    ) throws -> CodexSessionCachedUsageLookupResult
+}
+
 extension CodexSessionStore: CodexSessionsTabServicing {}
 extension CodexSessionStore: CodexSessionsTabStreamingServicing {}
 extension CodexSessionStore: CodexSessionsTabPreloadingServicing {}
+extension CodexSessionStore: CodexSessionsTabCachingServicing {}
+extension CodexSessionStore: CodexSessionsTabCacheStatusServicing {}
+extension CodexSessionStore: CodexSessionsTabUsageIndexServicing {}
 
 @MainActor
 final class CodexSessionsTabViewModelStore {
@@ -318,6 +337,7 @@ final class CodexSessionsTabViewModel {
     private let preferencesStore: CodexSessionsPreferencesStore
     private let pageSize: Int
     private let autoRefreshInterval: TimeInterval
+    private let initialCacheFreshnessInterval: TimeInterval
     private let dateProvider: @Sendable () -> Date
     private let searchDebounceNanoseconds: UInt64
     private var didStartInitialLoad = false
@@ -353,6 +373,7 @@ final class CodexSessionsTabViewModel {
         pageSize: Int = 30,
         preferencesStore: CodexSessionsPreferencesStore? = nil,
         autoRefreshInterval: TimeInterval = 60,
+        initialCacheFreshnessInterval: TimeInterval = 300,
         dateProvider: @escaping @Sendable () -> Date = Date.init,
         searchDebounceNanoseconds: UInt64 = 250_000_000
     ) {
@@ -364,6 +385,7 @@ final class CodexSessionsTabViewModel {
         self.groupingMode = resolvedPreferencesStore.groupingMode
         self.sortMode = resolvedPreferencesStore.sortMode
         self.autoRefreshInterval = max(1, autoRefreshInterval)
+        self.initialCacheFreshnessInterval = max(0, initialCacheFreshnessInterval)
         self.dateProvider = dateProvider
         self.searchDebounceNanoseconds = searchDebounceNanoseconds
     }
@@ -584,7 +606,7 @@ final class CodexSessionsTabViewModel {
     func refreshOnAppActivationIfNeeded() async {
         guard didStartInitialLoad else { return }
         guard !isLoading, !isPreparingRewrite, !isApplyingRewrite else { return }
-        await refresh()
+        await refreshIfStale()
     }
 
     private func refreshIfStale() async {
@@ -611,8 +633,64 @@ final class CodexSessionsTabViewModel {
 
         do {
             let codexHome = provider.codexHomeFolder.url
+            var appliedCachedProjection = false
+            var shouldShortCircuitInitialReload = false
             if mode == .initial,
                allRows.isEmpty,
+               let cachingService = service as? any CodexSessionsTabCachingServicing
+            {
+                if let cachedSnapshot = try? cachingService.loadCachedSnapshot(codexHome: codexHome) {
+                    let cachedPresentation = Self.makePresentation(from: cachedSnapshot)
+                    apply(
+                        snapshotPresentation: cachedPresentation,
+                        codexHome: codexHome,
+                        prewarmUsageFromIndex: true
+                    )
+                    showsInitialSkeleton = false
+                    appliedCachedProjection = true
+                    if let statusService = service as? any CodexSessionsTabCacheStatusServicing,
+                       let status = try? statusService.cachedProjectionStatus(codexHome: codexHome)
+                    {
+                        shouldShortCircuitInitialReload = shouldUseCachedSnapshotWithoutReconcile(status: status)
+                    }
+                } else if let cachedSkeleton = try? cachingService.loadCachedProjectSkeletonSnapshot(codexHome: codexHome) {
+                    apply(projectSkeletonSnapshot: cachedSkeleton)
+                    showsInitialSkeleton = false
+                    appliedCachedProjection = true
+                }
+            }
+
+            if mode == .initial, shouldShortCircuitInitialReload {
+                Self.emitPerformance(
+                    operation: "load_complete_cached_snapshot",
+                    traceID: traceID,
+                    providerID: provider.templateId ?? provider.id,
+                    startedAt: startedAt,
+                    extra: [
+                        "grouping_mode": groupingMode.rawValue,
+                        "sort_mode": sortMode.rawValue,
+                        "section_count": sections.count,
+                        "session_count": totalSessionCount,
+                        "visible_session_count": visibleSessionCount,
+                    ]
+                )
+                lastSuccessfulReloadAt = dateProvider()
+                return
+            }
+            let shouldUseInitialStream = mode == .initial && !appliedCachedProjection
+
+            if mode == .initial, appliedCachedProjection {
+                let presentation = try await loadSnapshotPresentation(codexHome: codexHome)
+                apply(
+                    snapshotPresentation: presentation,
+                    codexHome: codexHome,
+                    prewarmUsageFromIndex: true
+                )
+                showsInitialSkeleton = false
+            } else
+            if mode == .initial,
+               allRows.isEmpty,
+               !appliedCachedProjection,
                let preloadingService = service as? any CodexSessionsTabPreloadingServicing
             {
                 let preloadingTask = Task.detached(priority: .userInitiated) {
@@ -622,7 +700,7 @@ final class CodexSessionsTabViewModel {
                     apply(projectSkeletonSnapshot: skeletonSnapshot)
                 }
             }
-            if mode == .initial,
+            if shouldUseInitialStream,
                let streamingService = service as? any CodexSessionsTabStreamingServicing
             {
                 do {
@@ -675,12 +753,20 @@ final class CodexSessionsTabViewModel {
                         extra: ["error": error.localizedDescription]
                     )
                     let presentation = try await loadSnapshotPresentation(codexHome: codexHome)
-                    apply(snapshotPresentation: presentation)
+                    apply(
+                        snapshotPresentation: presentation,
+                        codexHome: codexHome,
+                        prewarmUsageFromIndex: true
+                    )
                     showsInitialSkeleton = false
                 }
-            } else {
+            } else if !(mode == .initial && appliedCachedProjection) {
                 let presentation = try await loadSnapshotPresentation(codexHome: codexHome)
-                apply(snapshotPresentation: presentation)
+                apply(
+                    snapshotPresentation: presentation,
+                    codexHome: codexHome,
+                    prewarmUsageFromIndex: mode == .initial
+                )
                 showsInitialSkeleton = false
             }
             Self.emitPerformance(
@@ -723,6 +809,12 @@ final class CodexSessionsTabViewModel {
                 extra: ["error": error.localizedDescription]
             )
         }
+    }
+
+    private func shouldUseCachedSnapshotWithoutReconcile(status: CodexSessionProjectionStatus) -> Bool {
+        guard status.isDirty == false else { return false }
+        guard let snapshotUpdatedAt = status.snapshotUpdatedAt else { return false }
+        return dateProvider().timeIntervalSince(snapshotUpdatedAt) <= initialCacheFreshnessInterval
     }
 
     private func loadSnapshotPresentation(codexHome: URL) async throws -> SessionPresentation {
@@ -941,13 +1033,17 @@ final class CodexSessionsTabViewModel {
         }
     }
 
-    private func apply(snapshotPresentation presentation: SessionPresentation) {
+    private func apply(
+        snapshotPresentation presentation: SessionPresentation,
+        codexHome: URL? = nil,
+        prewarmUsageFromIndex: Bool = false
+    ) {
+        if prewarmUsageFromIndex, let codexHome {
+            prewarmUsageStateFromIndexIfNeeded(for: presentation.rows, codexHome: codexHome)
+        }
         availableTargetProviderIDs = presentation.availableProviderIDs
         projectSkeletons = []
-        resetRowIndexes()
-        for row in presentation.rows {
-            upsert(row: row)
-        }
+        rebuildRowIndexes(with: presentation.rows)
         let validSessionIDs = Set(rowsByID.keys)
         pruneUsageState(validSessionIDs: validSessionIDs)
         pruneTimelineState(validSessionIDs: validSessionIDs)
@@ -999,6 +1095,42 @@ final class CodexSessionsTabViewModel {
         let validSectionIDs = Set(validSectionStates.map(\.id))
         expandedSectionIDs = expandedSectionIDs.intersection(validSectionIDs)
         rebuildVisibleSections()
+    }
+
+    private func prewarmUsageStateFromIndexIfNeeded(
+        for rows: [SessionRow],
+        codexHome: URL
+    ) {
+        guard sortMode == .usage else { return }
+        guard let usageIndexService = service as? any CodexSessionsTabUsageIndexServicing else { return }
+        guard !rows.isEmpty else { return }
+
+        for row in rows {
+            if case .loaded = usageBySessionID[row.id] {
+                continue
+            }
+
+            let cachedUsageLookup: CodexSessionCachedUsageLookupResult
+            do {
+                cachedUsageLookup = try usageIndexService.loadCachedSessionUsage(
+                    codexHome: codexHome,
+                    rolloutPath: row.rolloutPath
+                )
+            } catch {
+                continue
+            }
+
+            switch cachedUsageLookup {
+            case .miss:
+                continue
+            case .hit(let totals):
+                if let totals {
+                    usageBySessionID[row.id] = .loaded(totals)
+                } else {
+                    usageBySessionID[row.id] = .failed
+                }
+            }
+        }
     }
 
     private func rebuildVisibleSections() {
@@ -1118,6 +1250,27 @@ final class CodexSessionsTabViewModel {
         providerRowIDsBySectionID = [:]
     }
 
+    private func rebuildRowIndexes(with rows: [SessionRow]) {
+        var nextRowsByID: [String: SessionRow] = [:]
+        nextRowsByID.reserveCapacity(rows.count)
+        var nextProjectBuckets: [String: [String]] = [:]
+        nextProjectBuckets.reserveCapacity(rows.count)
+        var nextProviderBuckets: [String: [String]] = [:]
+        nextProviderBuckets.reserveCapacity(rows.count)
+
+        for row in rows {
+            nextRowsByID[row.id] = row
+            nextProjectBuckets[Self.projectSectionID(for: Self.normalizedProjectPath(for: row.cwd)), default: []]
+                .append(row.id)
+            nextProviderBuckets[Self.providerSectionID(for: row.modelProvider), default: []]
+                .append(row.id)
+        }
+
+        rowsByID = nextRowsByID
+        projectRowIDsBySectionID = nextProjectBuckets
+        providerRowIDsBySectionID = nextProviderBuckets
+    }
+
     private func upsert(row: SessionRow) {
         if let existingRow = rowsByID[row.id] {
             remove(rowID: existingRow.id, fromSectionID: Self.projectSectionID(for: Self.normalizedProjectPath(for: existingRow.cwd)), buckets: &projectRowIDsBySectionID)
@@ -1157,12 +1310,6 @@ final class CodexSessionsTabViewModel {
         var rowIDs = buckets[sectionID] ?? []
         rowIDs.removeAll { $0 == rowID }
         rowIDs.append(rowID)
-        rowIDs.sort { lhsID, rhsID in
-            guard let lhs = rowsByID[lhsID], let rhs = rowsByID[rhsID] else {
-                return lhsID.localizedCaseInsensitiveCompare(rhsID) == .orderedAscending
-            }
-            return sortSessionRows(lhs, rhs)
-        }
         buckets[sectionID] = rowIDs
     }
 
@@ -1234,8 +1381,7 @@ final class CodexSessionsTabViewModel {
             }
             return grouped
                 .map { normalizedPath, value in
-                    let sortedSessions = value.sorted(by: sortSessionRows(_:_:))
-                    let providerIDs = Set(sortedSessions.map(\.modelProvider))
+                    let providerIDs = Set(value.map(\.modelProvider))
                     let rewriteSourceProviderID = providerIDs.count == 1 ? providerIDs.first : nil
                     let projectName = Self.projectDisplayName(for: normalizedPath)
                     return makeSectionState(
@@ -1244,7 +1390,7 @@ final class CodexSessionsTabViewModel {
                         titleSecondaryText: normalizedPath == "unknown-project" ? nil : normalizedPath,
                         rewriteSourceLabel: projectName,
                         rewriteSourceProviderID: rewriteSourceProviderID,
-                        sessions: sortedSessions,
+                        sessions: value,
                         providerCountOverride: providerIDs.count,
                         editableThreadIDsOverride: rewriteSourceProviderID == nil ? [] : nil
                     )
@@ -1255,14 +1401,13 @@ final class CodexSessionsTabViewModel {
             let grouped = Dictionary(grouping: rows, by: \.modelProvider)
             return grouped
                 .map { key, value in
-                    let sortedSessions = value.sorted(by: sortSessionRows(_:_:))
                     return makeSectionState(
                         id: "provider:\(key)",
                         title: key,
                         titleSecondaryText: nil,
                         rewriteSourceLabel: key,
                         rewriteSourceProviderID: key,
-                        sessions: sortedSessions
+                        sessions: value
                     )
                 }
                 .sorted(by: sortSections(_:_:))
@@ -1279,8 +1424,27 @@ final class CodexSessionsTabViewModel {
         providerCountOverride: Int? = nil,
         editableThreadIDsOverride: [String]? = nil
     ) -> SessionSectionState {
-        let sortedSessions = sessions.sorted(by: sortSessionRows(_:_:))
+        let sortedSessions = sortedSessions(from: sessions)
         let usageOrdering = aggregateUsageOrdering(for: sortedSessions)
+        var liveCount = 0
+        var archivedCount = 0
+        var editableThreadIDs: [String] = []
+        editableThreadIDs.reserveCapacity(sortedSessions.count)
+
+        for row in sortedSessions {
+            if row.archived {
+                archivedCount += 1
+            } else {
+                liveCount += 1
+            }
+
+            if editableThreadIDsOverride == nil,
+               row.editable,
+               let threadID = row.threadID {
+                editableThreadIDs.append(threadID)
+            }
+        }
+
         return SessionSectionState(
             id: id,
             title: title,
@@ -1289,18 +1453,20 @@ final class CodexSessionsTabViewModel {
             rewriteSourceProviderID: rewriteSourceProviderID,
             sessions: sortedSessions,
             totalSessionCount: sortedSessions.count,
-            liveCount: sortedSessions.filter { !$0.archived }.count,
-            archivedCount: sortedSessions.filter(\.archived).count,
-            editableThreadIDs: editableThreadIDsOverride ?? sortedSessions.compactMap { row in
-                guard row.editable else { return nil }
-                return row.threadID
-            },
+            liveCount: liveCount,
+            archivedCount: archivedCount,
+            editableThreadIDs: editableThreadIDsOverride ?? editableThreadIDs,
             providerCount: providerCountOverride ?? Set(sortedSessions.map(\.modelProvider)).count,
             latestUpdatedAt: sortedSessions.first?.updatedAt,
             usageTotalTokens: usageOrdering.totalTokens,
             usageAvailabilityRank: usageOrdering.availabilityRank,
             isPlaceholder: false
         )
+    }
+
+    private func sortedSessions(from sessions: [SessionRow]) -> [SessionRow] {
+        guard sessions.count > 1 else { return sessions }
+        return sessions.sorted(by: sortSessionRows(_:_:))
     }
 
     nonisolated private static func mergeProjectSectionStates(

@@ -85,6 +85,8 @@ enum NolonCodexCLIExecutor {
             return try await executeStatusDoctor(context: context, outputMode: outputMode)
         case let command as NolonCodexSessionListCommand:
             return try await executeSessionList(command: command, context: context, outputMode: outputMode)
+        case let command as NolonCodexSessionBenchmarkCommand:
+            return try await executeSessionBenchmark(command: command, context: context, outputMode: outputMode)
         case let command as NolonCodexSessionPreviewRewriteCommand:
             return try await executeSessionPreviewRewrite(command: command, context: context, outputMode: outputMode)
         case let command as NolonCodexSessionRewriteCommand:
@@ -240,6 +242,21 @@ enum NolonCodexCLIExecutor {
             groupBy: command.groupBy
         )
         return try renderOutput(command: .sessionList, payload: payload, outputMode: outputMode, textFormatter: formatSessionList)
+    }
+
+    private static func executeSessionBenchmark(
+        command: NolonCodexSessionBenchmarkCommand,
+        context: NolonCLIExecutionContext,
+        outputMode: OutputMode
+    ) async throws -> String {
+        let providerID = try parseCodexProviderID(command.provider)
+        let payload = try await context.codexService().sessionBenchmark(providerID: providerID)
+        return try renderOutput(
+            command: .sessionBenchmark,
+            payload: payload,
+            outputMode: outputMode,
+            textFormatter: formatSessionBenchmark
+        )
     }
 
     private static func executeSessionPreviewRewrite(
@@ -613,7 +630,7 @@ enum NolonCodexCLIExecutor {
             "auth": ["list", "usage", "usage-trend", "status", "refresh", "activate", "login", "delete"],
             "binary": ["list", "current", "install", "use", "available", "switch", "doctor"],
             "status": ["probe", "doctor"],
-            "session": ["list", "preview-rewrite", "rewrite"],
+            "session": ["benchmark", "list", "preview-rewrite", "rewrite"],
             "runtime": ["list", "stop"],
             "provider": ["discover"],
         ]
@@ -1315,6 +1332,27 @@ enum NolonCodexCLIExecutor {
         return lines.joined(separator: "\n")
     }
 
+    private static func formatSessionBenchmark(_ payload: NolonCodexSessionBenchmarkPayload) -> String {
+        var lines = [
+            "provider: \(payload.providerID)",
+            "codex_home: \(payload.codexHomePath)",
+        ]
+
+        for run in payload.runs {
+            lines.append("")
+            lines.append("[\(run.label)] inventory_cache=\(run.inventoryCacheEnabled ? "on" : "off")")
+            lines.append("projects: \(run.projectCount)")
+            lines.append("streamed_sessions: \(run.streamedSessionCount)")
+            lines.append("snapshot_sessions: \(run.snapshotSessionCount)")
+            lines.append("skeleton_ms: \(run.skeletonElapsedMs)")
+            lines.append("stream_ms: \(run.streamElapsedMs)")
+            lines.append("snapshot_ms: \(run.snapshotElapsedMs)")
+            lines.append("total_ms: \(run.totalElapsedMs)")
+        }
+
+        return lines.joined(separator: "\n")
+    }
+
     private static func formatSessionRewritePreview(_ payload: NolonCodexSessionRewritePreviewPayload) -> String {
         [
             "provider: \(payload.providerID)",
@@ -1483,6 +1521,7 @@ private struct NolonCodexCommandPath: RawRepresentable, ExpressibleByStringLiter
     static let statusProbe: Self = "codex.status.probe"
     static let statusDoctor: Self = "codex.status.doctor"
     static let sessionList: Self = "codex.session.list"
+    static let sessionBenchmark: Self = "codex.session.benchmark"
     static let sessionPreviewRewrite: Self = "codex.session.preview-rewrite"
     static let sessionRewrite: Self = "codex.session.rewrite"
     static let runtimeList: Self = "codex.runtime.list"
