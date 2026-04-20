@@ -9716,30 +9716,6 @@
         }
       }
     },
-    "codex.sessions.detail.cached" : {
-      "comment" : "Cached input tokens",
-      "extractionState" : "extracted_with_value",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Cached"
-          }
-        }
-      }
-    },
-    "codex.sessions.detail.context" : {
-      "comment" : "Context section",
-      "extractionState" : "extracted_with_value",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Context"
-          }
-        }
-      }
-    },
     "codex.sessions.detail.copy_command_short" : {
       "comment" : "Copy resume command",
       "extractionState" : "extracted_with_value",
@@ -9764,18 +9740,6 @@
         }
       }
     },
-    "codex.sessions.detail.db_rows" : {
-      "comment" : "Database row count",
-      "extractionState" : "extracted_with_value",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "DB Rows"
-          }
-        }
-      }
-    },
     "codex.sessions.detail.diagnostics" : {
       "comment" : "Diagnostics section",
       "extractionState" : "extracted_with_value",
@@ -9788,110 +9752,20 @@
         }
       }
     },
-    "codex.sessions.detail.group_path" : {
-      "comment" : "Group path",
+    "codex.sessions.detail.share" : {
+      "comment" : "Share codex session",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "new",
-            "value" : "Group Path"
+            "value" : "Share"
           }
-        }
-      }
-    },
-    "codex.sessions.detail.identity" : {
-      "comment" : "Identity section",
-      "extractionState" : "extracted_with_value",
-      "localizations" : {
-        "en" : {
+        },
+        "zh-Hans" : {
           "stringUnit" : {
-            "state" : "new",
-            "value" : "Identity"
-          }
-        }
-      }
-    },
-    "codex.sessions.detail.input" : {
-      "comment" : "Input tokens",
-      "extractionState" : "extracted_with_value",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Input"
-          }
-        }
-      }
-    },
-    "codex.sessions.detail.last_activity" : {
-      "comment" : "Session last activity",
-      "extractionState" : "extracted_with_value",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Last Activity"
-          }
-        }
-      }
-    },
-    "codex.sessions.detail.output" : {
-      "comment" : "Output tokens",
-      "extractionState" : "extracted_with_value",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Output"
-          }
-        }
-      }
-    },
-    "codex.sessions.detail.resume" : {
-      "comment" : "Resume codex session",
-      "extractionState" : "extracted_with_value",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Resume"
-          }
-        }
-      }
-    },
-    "codex.sessions.detail.rollout" : {
-      "comment" : "Rollout path",
-      "extractionState" : "extracted_with_value",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Rollout"
-          }
-        }
-      }
-    },
-    "codex.sessions.detail.session_id" : {
-      "comment" : "Session identifier",
-      "extractionState" : "extracted_with_value",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Session ID"
-          }
-        }
-      }
-    },
-    "codex.sessions.detail.started_at" : {
-      "comment" : "Session start time",
-      "extractionState" : "extracted_with_value",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Started"
+            "state" : "translated",
+            "value" : "分享"
           }
         }
       }
@@ -9908,38 +9782,14 @@
         }
       }
     },
-    "codex.sessions.detail.timeline" : {
-      "comment" : "Timeline section",
-      "extractionState" : "extracted_with_value",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Timeline"
-          }
-        }
-      }
-    },
     "codex.sessions.detail.unavailable" : {
-      "comment" : "Unavailable detail value",
+      "comment" : "Unavailable detail value\nUnavailable diagnostics summary",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "new",
             "value" : "Unavailable"
-          }
-        }
-      }
-    },
-    "codex.sessions.detail.updated_at" : {
-      "comment" : "Updated at summary",
-      "extractionState" : "extracted_with_value",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Updated %@"
           }
         }
       }
@@ -10048,6 +9898,96 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "会话错误"
+          }
+        }
+      }
+    },
+    "codex.sessions.group.action.copy_thread_ids" : {
+      "comment" : "Copy all thread IDs in a session group",
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copy All Thread IDs"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "复制本组所有线程 ID"
+          }
+        }
+      }
+    },
+    "codex.sessions.group.action.menu" : {
+      "comment" : "Group actions menu title",
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Actions"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "操作"
+          }
+        }
+      }
+    },
+    "codex.sessions.group.action.menu.help" : {
+      "comment" : "Group actions menu help text",
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Group actions"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "分组操作"
+          }
+        }
+      }
+    },
+    "codex.sessions.group.action.open_folder" : {
+      "comment" : "Open related folder for a session group",
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open Folder"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "打开关联文件夹"
+          }
+        }
+      }
+    },
+    "codex.sessions.group.action.share" : {
+      "comment" : "Share session group",
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Share Group"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "分享分组"
           }
         }
       }
@@ -10288,24 +10228,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "当前"
-          }
-        }
-      }
-    },
-    "codex.sessions.metric.needs_attention" : {
-      "comment" : "Needs attention group count",
-      "extractionState" : "extracted_with_value",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Needs Attention"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "需关注"
           }
         }
       }
@@ -10574,6 +10496,222 @@
         }
       }
     },
+    "codex.sessions.share.command" : {
+      "comment" : "Session share command label",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Command"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "命令"
+          }
+        }
+      }
+    },
+    "codex.sessions.share.group" : {
+      "comment" : "Session share group label",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Group"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "分组"
+          }
+        }
+      }
+    },
+    "codex.sessions.share.last_activity" : {
+      "comment" : "Session share last activity label",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Last Activity"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最后活动"
+          }
+        }
+      }
+    },
+    "codex.sessions.share.project_group_heading" : {
+      "comment" : "Section share heading for project grouping",
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Project Group"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "项目分组"
+          }
+        }
+      }
+    },
+    "codex.sessions.share.provider_group_heading" : {
+      "comment" : "Section share heading for provider grouping",
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Provider Group"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Provider 分组"
+          }
+        }
+      }
+    },
+    "codex.sessions.share.providers" : {
+      "comment" : "Session share provider count label",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Providers"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Provider 数"
+          }
+        }
+      }
+    },
+    "codex.sessions.share.rollout" : {
+      "comment" : "Session share rollout label",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Rollout"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "记录文件"
+          }
+        }
+      }
+    },
+    "codex.sessions.share.session_heading" : {
+      "comment" : "Session share heading",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Session"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "会话"
+          }
+        }
+      }
+    },
+    "codex.sessions.share.sessions" : {
+      "comment" : "Session share session count label",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Sessions"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "会话数"
+          }
+        }
+      }
+    },
+    "codex.sessions.share.started" : {
+      "comment" : "Session share started time label",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Started"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "开始时间"
+          }
+        }
+      }
+    },
+    "codex.sessions.share.status" : {
+      "comment" : "Session share status label",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Status"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "状态"
+          }
+        }
+      }
+    },
+    "codex.sessions.share.summary" : {
+      "comment" : "Session share summary label",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Summary"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "摘要"
+          }
+        }
+      }
+    },
     "codex.sessions.sorting.recent" : {
       "comment" : "Codex sessions recent sorting title",
       "extractionState" : "extracted_with_value",
@@ -10676,8 +10814,20 @@
         }
       }
     },
+    "codex.sessions.table.provider" : {
+      "comment" : "Session table column header",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Provider"
+          }
+        }
+      }
+    },
     "codex.sessions.table.usage" : {
-      "comment" : "Usage",
+      "comment" : "Session table column header",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "en" : {
@@ -11044,7 +11194,7 @@
     },
     "codex.usage.title" : {
       "comment" : "Codex usage title",
-      "extractionState" : "stale",
+      "extractionState" : "extracted_with_value",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -11095,9 +11245,6 @@
           }
         }
       }
-    },
-    "Collapse" : {
-      "comment" : "Collapse"
     },
     "Command" : {
       "extractionState" : "stale",
@@ -11743,9 +11890,6 @@
           }
         }
       }
-    },
-    "Expand" : {
-      "comment" : "Expand"
     },
     "gemini.import.confirm.import" : {
       "comment" : "Import existing Gemini login",
@@ -14488,7 +14632,7 @@
     },
     "remote.detail.updated_label" : {
       "comment" : "Updated label",
-      "extractionState" : "extracted_with_value",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {

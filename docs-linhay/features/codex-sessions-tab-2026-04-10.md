@@ -84,6 +84,14 @@
     When 渲染内部 session rows
     Then 该 section 使用表头 + 行的表格式布局展示 `Session`、`Status`、`Context`、`Rollout Path` 与 `Actions` 信息，而不是时间线式卡片。
 
+15. Given 用户点击某条会话
+    When 会话进入选中态
+    Then 详情直接在该条会话内部展开，而不是作为列表中的独立第二块卡片插入。
+
+16. Given 某条会话详情已经展开
+    When 用户点击详情右上角关闭按钮
+    Then 当前会话取消选中并收起详情，不影响当前 section 的展开状态。
+
 ## 实现落点
 - `libs/Providers/Sources/Providers/Codex/CodexSessionStore.swift`
   - 负责扫描 sessions / archived_sessions 与 `state_*.sqlite`
@@ -210,6 +218,28 @@
 3. 每个 project 组默认只显示 `5` 条会话；超过后通过 group 级 `展开 / 收起` 控制，不再依赖页面级 `Load More` 作为主交互。
 4. 会话行改为稳定 table 模式，主列固定为：
    - `名称`
+
+## 增量（2026-04-20：单会话 subtitle 轨道纯文本收口）
+- 目标：
+  - 让单会话 row 的次信息收口为一条稳定的纯文本 subtitle rail，不再混用标题内联状态与图标化 metadata。
+  - 避免 row 级 usage 异步回填期间长期显示 `Loading…`，影响浏览稳定性。
+- UI 调整：
+  - `title` 只承载会话标题本身，不再追加 `Live / Archived / Read Only`。
+  - `subtitle` 统一承载：
+    - `状态`
+    - `Read Only`
+    - `Provider`
+    - `Usage`
+    - `Time`
+  - subtitle 不再使用图标，统一使用 ` · ` 分隔。
+- usage 行为：
+  - row 级 usage 为 `placeholder` 时不显示任何 usage 文案。
+  - row 级 usage 为 `failed` 时显示 `Unavailable`。
+  - section/header 级 usage loading 语义保持不变，仍可显示加载态。
+- 验证：
+  - `nolonTests/CodexSessionsCardSnapshotTests.swift` 更新为覆盖：
+    - 单会话 row 的状态与 usage 都位于 subtitle rail
+    - 长标题下 subtitle 仍保持 text-only rail
    - `id`
    - `时间`
    - `provider`
@@ -250,6 +280,147 @@
 
 ### 目标
 1. 为 overview 建立可回归的状态矩阵测试，不再只依赖固定 snapshot 夹具。
+
+## 增量（2026-04-20：Sessions 页静态文字禁用选择）
+
+### 目标
+- 避免用户在浏览大量会话、拖拽滚动或连续点击条目时，误触进入文字选择态。
+- 只收口 `Codex Sessions` 页面内的静态文本，不影响全局其它页面的复制能力。
+
+### 约束
+- 搜索框、输入框等可编辑控件必须继续可输入，不因页面级禁用而失效。
+- 只禁用静态展示文本的选择能力，不改变 `Copy Command`、`Share` 等显式复制动作。
+- 组件内部不得再局部开启 `.textSelection(.enabled)` 来覆盖页面约束。
+
+### BDD 验收
+1. Given 用户进入 `Codex Sessions` 页面
+   When 拖拽或点击会话标题、Thread ID、Project Path、详情 metadata
+   Then 页面不进入文字选择态，也不会出现蓝色选区。
+
+2. Given 用户在 `Codex Sessions` 页面使用搜索框
+   When 输入或编辑关键字
+   Then 搜索框仍可正常获得焦点并编辑文本。
+
+3. Given `Codex Sessions` 页面内部存在共享组件
+   When 这些组件被挂到会话列表或详情中
+   Then 其静态文本也遵守页面禁用选择的统一规则，不再局部重新启用。
+
+### 实现落点
+- `nolon/Skills/Domain/Providers/Views/CodexSessionsTabView.swift`
+  - 页面根视图增加 `.textSelection(.disabled)`。
+- `libs/NolonUI/Sources/NolonUI/Components/Shared/UnifiedCodexSessionViews.swift`
+  - 移除局部静态 metadata 的 `.textSelection(.enabled)`，避免覆盖页面级禁用。
+- `nolon/Skills/Domain/Providers/Views/CodexSessionsDetailPanelView.swift`
+  - 移除详情 metadata row 的局部 `.textSelection(.enabled)`。
+
+### 测试
+- `nolonTests/CodexSessionsCardSnapshotTests.swift`
+  - 新增 AppKit 级断言：`sessions page disables text selection for static labels`
+  - 递归检查宿主 `NSTextField`，确保静态文本节点不存在 `isSelectable == true`。
+
+### 验证
+- `xcodebuild test -project nolon.xcodeproj -scheme nolon-tests -destination 'platform=macOS' -only-testing:nolonTests/CodexSessionsCardSnapshotTests`
+
+## 增量（2026-04-20：组头菜单精简）
+
+### 背景
+- 组头已经收口为 subtitle rail，但一级菜单仍然把所有 `Move Group to ...` provider 目标直接平铺出来。
+- 当 provider 数量变多时，组头菜单长度快速膨胀，用户在会话页浏览大量分组时会明显觉得菜单噪音过高。
+- 用户要求继续精简组头菜单，优先保留高频动作，降低一级菜单负担。
+
+### 目标
+1. 一级菜单只保留少量高频动作，不能再直接平铺所有 provider 迁移目标。
+2. provider 迁移动作改为二级子菜单承载。
+3. 组头低频动作从一级菜单移除，避免菜单长度继续增长。
+
+### 产品约束
+1. 不丢失整组迁移能力，只调整信息架构，不删除核心动作。
+2. 不丢失整组分享与复制线程 ID 能力。
+3. 组头菜单精简后，单个 provider 目标名称仍需可辨识，不能退化成只显示内部 id。
+
+### BDD 验收（组头菜单精简）
+1. Given 某个组存在多个可迁移目标 provider
+   When 用户点击组头菜单
+   Then 一级菜单只显示一个整组迁移入口
+   And 各 provider 目标收纳在该入口的二级子菜单中。
+
+2. Given 某个组支持分享和复制线程 ID
+   When 用户点击组头菜单
+   Then 一级菜单仍保留 `Share Group` 与 `Copy All Thread IDs`。
+
+3. Given 某个组存在低频目录动作
+   When 渲染组头菜单
+   Then 该低频动作不再占据一级菜单位置。
+
+### 实现落点
+- `libs/NolonUIFoundation/Sources/NolonUIFoundation/CodexSessionsModels.swift`
+  - 为 provider action 增加紧凑菜单文案 `menuLabelText`
+- `libs/NolonUI/Sources/NolonUI/Components/Shared/UnifiedCodexSessionViews.swift`
+  - 组头菜单改为“Move ...”二级子菜单 + 一级高频动作
+  - 组头一级菜单移除 `Open Folder`
+- `nolonTests/CodexSessionsSectionDataBuilderTests.swift`
+  - 增加 compact menu label 断言，覆盖 provider 迁移项文案收口
+
+### 验证
+- 已确认 `NolonUIFoundation` 与 `UnifiedCodexSessionViews.swift` 在 `xcodebuild test -project nolon.xcodeproj -scheme nolon-tests -destination 'platform=macOS' -only-testing:nolonTests/CodexSessionsSectionDataBuilderTests` 的编译过程中成功通过对应文件编译阶段。
+- 完整测试命令在当前环境下被 `nolon-tests` 的全量依赖冷编译显著拖慢；本轮未拿到最终 `TEST SUCCEEDED` 结果，需要继续顺序回归。
+- 结果：`19/19` 通过。
+
+## 增量（2026-04-20：Overview 标题栏右侧控件栅格对齐）
+
+### 目标
+- 让 `Project / Provider`、排序、刷新 作为 overview 标题栏右侧的固定 controls cluster 呈现。
+- 避免因为宽度略紧就整体掉到标题下方，破坏“标题左、操作右”的浏览预期。
+
+### 实现
+- `libs/NolonUI/Sources/NolonUI/Components/Shared/UnifiedCodexSessionViews.swift`
+  - `CodexSessionsOverviewCardView.header` 从 `ViewThatFits + HStack/VStack` 改为两列 `Grid`。
+  - 左列承载标题与副标题，右列承载 grouping picker、sorting menu、refresh button。
+  - 标题副文案下沉为第二行，控件 cluster 固定锚定在右上角，不再因最小宽度门槛过早换行。
+
+### 验证
+- `xcodebuild test -project nolon.xcodeproj -scheme nolon-tests -destination 'platform=macOS' -only-testing:nolonTests/CodexSessionsCardSnapshotTests`
+- 结果：`19/19` 通过。
+
+## 增量（2026-04-20：单会话 Row 状态并入标题行）
+
+### 目标
+- 降低单会话 row 的首行高度，避免 `Live / Archived / Read Only` 独立 pill 把 subtitle 撑高。
+- 让状态文案和左侧标题处于同一视觉中心，不再出现 badge 与标题垂直不齐的观感。
+- 明确 subtitle 元数据顺序，减少同一条 row 内的信息抖动。
+
+### 实现
+- `libs/NolonUI/Sources/NolonUI/Components/Shared/UnifiedCodexSessionViews.swift`
+  - `compactRowContent` 新增标题行内联状态文本，把 `Live / Archived / Read Only` 直接并入标题行。
+  - 移除 compact row 中独立 `pill` 状态区。
+  - compact subtitle 轨道改为固定顺序：`Provider -> Usage -> Time`。
+  - 状态文案进一步做轻量语义强化：
+    - `Live` 使用亮色圆点内联文本
+    - `Archived` 使用弱化历史图标
+    - `Read Only` 使用锁图标
+    - 仍保持纯文本流，不回退为独立 badge。
+
+### 验证
+- `nolonTests/CodexSessionsCardSnapshotTests.swift`
+  - 新增 `single session row merges status into title and keeps subtitle compact`
+- `xcodebuild test -project nolon.xcodeproj -scheme nolon-tests -destination 'platform=macOS' -only-testing:nolonTests/CodexSessionsCardSnapshotTests`
+- 结果：`20/20` 通过。
+
+## 增量（2026-04-20：Row 点击即展开，移除独立展开按钮）
+
+### 目标
+- 移除单会话 row 右侧单独的展开按钮，避免菜单按钮和展开按钮并排造成控制区视觉别扭。
+- 把展开/收起动作直接并到整条 row 的点击行为中，降低交互负担。
+
+### 实现
+- `libs/NolonUI/Sources/NolonUI/Components/Shared/UnifiedCodexSessionViews.swift`
+  - compact row 的 `onTapGesture` 从 `onSelectRow` 改为 `onToggleRowExpansion`。
+  - 删除右侧 `chevron` 展开按钮，row 右侧只保留菜单按钮。
+  - 选中态背景继续复用 `selectedRowID`，因此展开态视觉反馈不变。
+
+### 验证
+- `xcodebuild test -project nolon.xcodeproj -scheme nolon-tests -destination 'platform=macOS' -only-testing:nolonTests/CodexSessionsCardSnapshotTests`
+- 结果：`20/20` 通过。
 2. 为 overview 提供 `Compact` 与 `Diagnostic` 两档密度：
    - `Compact`：默认浏览态，压缩说明与指标，优先服务项目会话浏览。
    - `Diagnostic`：在存在运行中状态或需要诊断时，展开更完整的说明与状态信息。
@@ -258,6 +429,23 @@
 ### 非目标
 1. 不在本轮引入新的后台任务实体、取消/重试模型。
 2. 不把当前 `statusMessage/backgroundScanningMessage` 升级成状态中心。
+
+## 增量（2026-04-20：会话条目与详情合一）
+
+### 目标
+1. 会话点击后直接在当前条目内联展开详情，彻底去掉“条目 + 下方独立详情卡”双块结构。
+2. 展开后的详情视觉上继续属于当前选中条目，背景与选中态保持一致。
+3. 详情需要提供明确关闭入口，避免用户只能依赖重新刷新或切换 selection 才能收起。
+
+### 交互约束
+1. row header 仍然承担 selection 入口，点击后只展开当前条目。
+2. 展开详情插入到同一个 row 容器内部，位于 row header 下方，并保留同一层背景与描边。
+3. 关闭行为收敛到 row 右上角已有的展开按钮，展开与收起共用同一个 toggle 入口，不再在详情内部额外放置关闭按钮。
+4. 收起时只清空 `selectedSessionID`，不额外折叠 section，也不重置其它浏览状态。
+
+### 验证
+- `selectedRowExpandsInlineDetailBelowTappedSession.inline-detail-selected-row.png` 必须稳定呈现“同一条目内部展开”的结构。
+- `CodexSessionsCardSnapshotTests` 需要覆盖带关闭按钮的 inline detail 场景。
 
 ## 增量（2026-04-17：会话与会话组支持按用量排序）
 
@@ -474,7 +662,7 @@
 
 8. Given 某个 project 组已被用户展开
    When 后台刷新完成或 `用量` 异步回填
-   Then 该组展开状态保持不变，且不会因刷新回退到默认 `5` 条。
+   Then 该组展开状态保持不变，且不会因刷新回退到默认 `3` 条。
 
 9. Given 用户仍需做 provider rewrite
    When 打开某条会话的 `菜单`
@@ -504,7 +692,7 @@
 - `nolonTests/CodexSessionsTabViewModelTests.swift`
   - project grouping 默认值
   - project 组内倒序
-  - 每组 `5` 条 + 展开/收起
+  - 每组 `3` 条 + 展开/收起
   - tab 切换缓存与后台刷新
   - usage 异步回填不打断展开状态
 - `nolonTests/CodexSessionsSectionDataBuilderTests.swift`
@@ -545,7 +733,7 @@
 
 ### 目标
 1. 在 `Sessions` 页增加显式搜索输入，支持按主信息即时过滤会话。
-2. 搜索激活时返回完整匹配结果，不受 section 折叠态 `prefix(5)` 预览截断影响。
+2. 搜索激活时返回完整匹配结果，不受 section 折叠态 `prefix(3)` 预览截断影响。
 3. 在 compact row 中显示 row 级 usage，让列表首屏直接可见用量。
 4. 窄宽下保护两行 row 可读性，usage 降级为只显示 total。
 
@@ -564,7 +752,7 @@
    - `cwd`
    - `provider`
 3. 搜索插入点保持在 `allRows -> rebuildSectionStates()` 之间，不在 UI 层做二次过滤补丁。
-4. 搜索态不能污染原始 `expandedSectionIDs`，但必须绕过默认 `5` 条预览限制。
+4. 搜索态不能污染原始 `expandedSectionIDs`，但必须绕过默认 `3` 条预览限制。
 5. compact row 的 usage 在窄宽基线下只显示 total，不显示 `in/out` 次级文案。
 6. provider 搜索既要命中 raw `modelProvider`，也要命中用户看到的 provider 友好名。
 7. 会话组排序必须按“组内最新会话时间”倒序，而不是按组名、provider 名或路径字典序。
@@ -578,8 +766,8 @@
    When 用户在搜索框输入 project 路径片段
    Then 页面按 `cwd` 过滤，并保留对应 section 的完整匹配 rows。
 
-3. Given `Sessions` 页处于 project 分组且某个 section 默认只显示前 `5` 条
-   When 用户输入能命中该 section 第 `6` 条之后 session 的搜索词
+3. Given `Sessions` 页处于 project 分组且某个 section 默认只显示前 `3` 条
+   When 用户输入能命中该 section 第 `4` 条之后 session 的搜索词
    Then 搜索态仍显示该匹配 session，而不是被折叠预览截断。
 
 4. Given 用户搜索 `openai`、`gemini` 或 `Claude`
@@ -611,7 +799,7 @@
   - 新增 `searchQuery`
   - 在 `rebuildSectionStates()` 前过滤 `allRows`
   - 为 provider 搜索补充友好名归一化
-  - 在搜索态绕过默认 `5` 条预览限制
+  - 在搜索态绕过默认 `3` 条预览限制
 - `nolon/Skills/Domain/Providers/Views/CodexSessionsTabView.swift`
   - 在 overview card 下方接入 `SearchField`
   - 把搜索框与 ViewModel 绑定
@@ -791,7 +979,7 @@
    Then section 框架顺序保持稳定，直到 stream 完成前都不因最新会话变化而重排。
 
 3. Given 用户已经选中一个仍存在的 session
-   When 后续 delta batch 到达，或 section 因折叠只显示前 5 条
+   When 后续 delta batch 到达，或 section 因折叠只显示前 3 条
    Then `selectedSessionID` 保持不变，不自动回退到第一条。
 
 4. Given 用户在搜索框内快速连续输入
@@ -862,7 +1050,7 @@
    When 渲染该组
    Then 组头显示 `Unavailable`。
 
-4. Given 某个 section 处于折叠态，且只有前 5 条 row 当前可见
+4. Given 某个 section 处于折叠态，且只有前 3 条 row 当前可见
    When 渲染该组 header usage
    Then 组头 usage 仍按该组全部 session 聚合
    And 不能只统计当前可见 rows。
@@ -907,3 +1095,123 @@
   - 新增“App 激活后按需刷新”入口，复用现有 `refresh()` 逻辑
 - `nolonTests/CodexSessionsTabViewModelTests.swift`
   - 覆盖已加载后 active refresh 与未加载前不刷新
+
+## 增量（2026-04-20：概览指标显示总用量）
+
+### 背景
+- 当前 `Codex Sessions` 已经支持 row usage、组头 usage、按 usage 排序，但顶部 overview card 的 `Total / Groups` 仍只显示数量。
+- 用户在大量会话场景下，需要在进入页面后不滚动列表就能先看到“总量大概消耗了多少”以及“当前分组总量大概消耗了多少”。
+- 现有 `recent` 模式下，usage 会在后台渐进回填；如果 overview 继续依赖 section 的静态排序字段，usage 文案会停在初始占位，不会随回填更新。
+
+### 目标
+1. overview card 的核心指标继续以“数量”为主值，同时在次级文案展示对应 usage。
+2. 紧凑态覆盖 `Total / Groups`；诊断态额外覆盖 `Rewritable`。
+3. 不新增第二套 overview 卡片或独立 usage 卡，继续复用现有 metric 区域。
+
+### 产品约束
+1. overview usage 必须由 ViewModel 基于当前 bucket 内全部 session 的 `usageBySessionID` 动态聚合，不能直接复用 section 的静态 `usageTotalTokens` 排序缓存。
+2. 指标主值仍然是数量；usage 只能作为次级文案，避免把 overview 读成第二套统计面板。
+3. usage 展示语义与 row / section 保持一致：
+   - 至少一条成功时显示已解析总量
+   - 没有成功值但仍有待加载项时显示 `Loading…`
+   - 没有成功值且存在失败时显示 `Unavailable`
+4. `Groups` 指标展示的是“当前全部分组覆盖的总 usage”，不改成“每组平均用量”或其它衍生指标。
+
+### BDD 验收（overview 指标用量）
+1. Given 页面已有会话，且部分 usage 已成功回填
+   When 渲染 overview card
+   Then `Total / Groups` 的 count 下方显示对应 usage 次级文案。
+
+2. Given overview 当前处于诊断态
+   When 渲染指标区
+   Then `Rewritable` 也显示自己的 usage 次级文案。
+
+3. Given 页面排序模式为 `recent`
+   And 首屏 section 顺序不会因为 usage 回填而重建
+   When usage 在后台渐进回填完成
+   Then overview usage 仍会从 `Loading…` 更新为已解析总量
+   And section / row 顺序继续保持 recent 规则不变。
+
+4. Given 当前 bucket 中没有成功 usage，且至少一条 usage 失败
+   When 渲染 overview 指标
+   Then 对应 metric 的 usage 次级文案显示 `Unavailable`。
+
+### 实现落点
+- `libs/NolonUIFoundation/Sources/NolonUIFoundation/CodexSessionsModels.swift`
+  - `CodexSessionsMetricData` 新增 `detailText`
+- `nolon/Skills/Domain/Providers/Views/CodexSessionsOverviewDataBuilder.swift`
+  - overview context 新增各 metric 对应 usage
+  - builder 输出 metric 次级 usage 文案
+- `nolon/Skills/Domain/Providers/Views/CodexSessionsTabViewModel.swift`
+  - 基于 `usageBySessionID` 动态聚合 overview usage bucket
+- `nolon/Skills/Domain/Providers/Views/CodexSessionsTabView.swift`
+  - 把 overview usage 接线到 overview builder context
+- `libs/NolonUI/Sources/NolonUI/Components/Shared/UnifiedCodexSessionViews.swift`
+  - 在 overview metric 中渲染次级 usage 文案
+- `nolonTests/CodexSessionsOverviewDataBuilderTests.swift`
+  - 覆盖 metric usage 文案构建与本地化兼容断言
+- `nolonTests/CodexSessionsTabViewModelTests.swift`
+  - 覆盖不同 metric bucket 的动态 usage 聚合
+- `nolonTests/CodexSessionsCardSnapshotTests.swift`
+  - 覆盖 overview card usage 次级文案的视觉回归
+
+## 增量（2026-04-20：组头改为标题 + subtitle 轨道）
+
+### 背景
+- 当前 project group header 仍保留多层堆叠结构，usage、badge、路径和状态分散在多行，信息密度高但浏览成本也高。
+- 用户已经明确要求 group header 与单会话 row 采用同一套表达方式：主标题独立在上方，次信息统一并入 subtitle rail，用 ` · ` 分隔。
+- 组级菜单与单会话菜单视觉也需要统一，不能再显示“操作”文字按钮。
+
+### 目标
+1. group header 改为双层结构：
+   - 第一行只显示标题
+   - 第二行用纯文本 subtitle rail 承载 usage、badge、状态、路径
+2. 组头移除左侧 icon，不再额外渲染独立 usage 行、badge 行或 path 行。
+3. 组头右侧菜单与单会话一致，只显示点点点。
+4. 菜单新增：
+   - 复制本组所有线程 ID
+   - 打开关联文件夹
+5. 组头标题字号与单会话标题字号同步抬高，提升大列表浏览可读性。
+
+### 产品约束
+1. subtitle rail 必须为纯文本语义，不再混入图标或胶囊。
+2. 复制本组线程 ID 必须基于完整 section state，不能只复制当前折叠态可见的前 3 条。
+3. “打开关联文件夹”只在 section 确实绑定到一个有效目录时展示，不能提供无效入口。
+4. 组头菜单保留已有整组分享与 rewrite 能力，不因为视觉重构丢失原有动作。
+
+### BDD 验收（组头 subtitle rail）
+1. Given 会话页存在 project group
+   When 渲染 group header
+   Then 标题独立位于第一行
+   And 其它次信息统一收口到第二行 subtitle rail
+   And 各字段之间使用 ` · ` 分隔。
+
+2. Given 某个 group 具备 usage、badge、路径与只读状态
+   When 渲染组头
+   Then 这些信息都显示在 subtitle rail 中
+   And 不再显示左侧 icon、独立 usage 行或独立 badge 行。
+
+3. Given 用户点击组头右侧菜单
+   When 组存在完整线程 ID 与有效目录
+   Then 菜单同时提供 `复制本组所有线程 ID` 与 `打开关联文件夹`。
+
+4. Given 某个 group 的路径不是有效目录
+   When 渲染菜单
+   Then 不显示 `打开关联文件夹` 菜单项。
+
+### 实现落点
+- `libs/NolonUI/Sources/NolonUI/Components/Shared/UnifiedCodexSessionViews.swift`
+  - 重构 section header 为标题 + subtitle rail
+  - 移除左侧 icon 与旧的多行次信息布局
+  - 菜单按钮统一为 `EllipsisMenuButton`
+  - 标题字号提升
+- `nolon/Skills/Domain/Providers/Views/CodexSessionsTabView.swift`
+  - 接线组级复制线程 ID 与打开目录动作
+- `nolon/Skills/Domain/Providers/Views/CodexSessionsTabViewModel.swift`
+  - 提供完整 section 的线程 ID
+  - 仅在有效目录存在时返回 folder path
+- `nolon/Localizable.xcstrings`
+  - 增加组级菜单文案键
+
+### 验证
+- `xcodebuild test -project nolon.xcodeproj -scheme nolon-tests -destination 'platform=macOS' -only-testing:nolonTests/CodexSessionsCardSnapshotTests`

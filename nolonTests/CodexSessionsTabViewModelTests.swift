@@ -1,12 +1,25 @@
 import XCTest
 import ProviderCatalog
 import CodexProvider
+import NolonUIFoundation
 import NolonResourceKit
 import STFilePath
 @testable import nolon
 
 @MainActor
 final class CodexSessionsTabViewModelTests: XCTestCase {
+    private let collapsedVisibleCount = CodexSessionsTabViewModel.defaultVisibleSessionCountPerSection
+
+    override func setUp() {
+        super.setUp()
+        resetSharedPreferences()
+    }
+
+    override func tearDown() {
+        resetSharedPreferences()
+        super.tearDown()
+    }
+
     func testBDD_GivenProjectSessions_WhenLoading_ThenProjectGroupingIsDefaultAndRowsSortNewestFirst() async throws {
         let provider = makeCodexProvider()
         let snapshot = CodexSessionSnapshot(
@@ -54,7 +67,7 @@ final class CodexSessionsTabViewModelTests: XCTestCase {
         XCTAssertEqual(projectAlphaSessionIDs, ["sessions/a-2.jsonl", "sessions/a-1.jsonl"])
     }
 
-    func testBDD_GivenProjectSectionWithMoreThanFiveRows_WhenTogglingExpansion_ThenVisibleRowsSwitchBetweenFiveAndAll() async throws {
+    func testBDD_GivenProjectSectionWithMoreThanDefaultPreviewRows_WhenTogglingExpansion_ThenVisibleRowsSwitchBetweenPreviewAndAll() async throws {
         let provider = makeCodexProvider()
         let snapshot = CodexSessionSnapshot(
             sessions: Array(0..<8).map { index in
@@ -77,8 +90,8 @@ final class CodexSessionsTabViewModelTests: XCTestCase {
         await viewModel.load()
 
         let sectionID = try XCTUnwrap(viewModel.sections.first?.id)
-        XCTAssertEqual(viewModel.sections.first?.visibleSessionCount, 5)
-        XCTAssertEqual(viewModel.sections.first?.remainingSessionCount, 3)
+        XCTAssertEqual(viewModel.sections.first?.visibleSessionCount, collapsedVisibleCount)
+        XCTAssertEqual(viewModel.sections.first?.remainingSessionCount, 5)
         XCTAssertFalse(viewModel.sections.first?.isExpanded ?? true)
 
         viewModel.toggleSectionExpansion(sectionID)
@@ -88,11 +101,11 @@ final class CodexSessionsTabViewModelTests: XCTestCase {
 
         viewModel.toggleSectionExpansion(sectionID)
 
-        XCTAssertEqual(viewModel.sections.first?.visibleSessionCount, 5)
+        XCTAssertEqual(viewModel.sections.first?.visibleSessionCount, collapsedVisibleCount)
         XCTAssertFalse(viewModel.sections.first?.isExpanded ?? true)
     }
 
-    func testBDD_GivenMixedLiveAndArchivedSessions_WhenSectionIsCollapsed_ThenOnlyTopFiveLiveSessionsAreVisible() async throws {
+    func testBDD_GivenMixedLiveAndArchivedSessions_WhenSectionIsCollapsed_ThenOnlyTopPreviewLiveSessionsAreVisible() async throws {
         let provider = makeCodexProvider()
         let liveSessions = Array(0..<6).map { index in
             makeSession(
@@ -128,10 +141,10 @@ final class CodexSessionsTabViewModelTests: XCTestCase {
         await viewModel.load()
 
         let section = try XCTUnwrap(viewModel.sections.first)
-        XCTAssertEqual(section.visibleSessionCount, 5)
-        XCTAssertEqual(section.sessions.map(\.id), Array(liveSessions.prefix(5).map(\.id)))
+        XCTAssertEqual(section.visibleSessionCount, collapsedVisibleCount)
+        XCTAssertEqual(section.sessions.map(\.id), Array(liveSessions.prefix(collapsedVisibleCount).map(\.id)))
         XCTAssertTrue(section.sessions.allSatisfy { !$0.archived })
-        XCTAssertEqual(section.remainingSessionCount, 5)
+        XCTAssertEqual(section.remainingSessionCount, 7)
         XCTAssertEqual(viewModel.selectedSessionID, liveSessions.first?.id)
 
         viewModel.toggleSectionExpansion(section.id)
@@ -169,7 +182,7 @@ final class CodexSessionsTabViewModelTests: XCTestCase {
         await viewModel.load()
         XCTAssertEqual(viewModel.sections.count, 1)
         let section = viewModel.sections[0]
-        XCTAssertEqual(section.visibleSessionCount, 5)
+        XCTAssertEqual(section.visibleSessionCount, collapsedVisibleCount)
 
         await viewModel.requestRewrite(for: section, targetProviderID: "anthropic")
 
@@ -284,6 +297,15 @@ final class CodexSessionsTabViewModelTests: XCTestCase {
 
     func testBDD_GivenRecentSortMode_WhenUsageBackfillCompletes_ThenSectionAndRowOrderStayRecent() async throws {
         let provider = makeCodexProvider()
+        let suiteName = "CodexSessionsTabViewModelTests.recent-sort.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defaults.removePersistentDomain(forName: suiteName)
+        let preferencesStore = CodexSessionsPreferencesStore(
+            providerID: provider.id,
+            userDefaults: defaults
+        )
+        preferencesStore.groupingMode = .project
+        preferencesStore.sortMode = .recent
         let snapshot = CodexSessionSnapshot(
             sessions: [
                 makeSession(
@@ -327,7 +349,8 @@ final class CodexSessionsTabViewModelTests: XCTestCase {
 
         let viewModel = CodexSessionsTabViewModel(
             provider: provider,
-            service: MockCodexSessionsService(state: state)
+            service: MockCodexSessionsService(state: state),
+            preferencesStore: preferencesStore
         )
 
         await viewModel.load()
@@ -353,6 +376,84 @@ final class CodexSessionsTabViewModelTests: XCTestCase {
             viewModel.sections.first?.sessions.map(\.id),
             ["sessions/alpha-newest.jsonl", "sessions/alpha-older-heavy.jsonl"]
         )
+    }
+
+    func testBDD_GivenMixedSectionKinds_WhenUsageBackfillCompletes_ThenOverviewUsageAggregatesByMetricBucket() async throws {
+        let provider = makeCodexProvider()
+        let snapshot = CodexSessionSnapshot(
+            sessions: [
+                makeSession(
+                    id: "sessions/alpha-1.jsonl",
+                    threadID: "thread-alpha-1",
+                    title: "Alpha 1",
+                    modelProvider: "openai",
+                    cwd: "/tmp/project-alpha",
+                    updatedAt: 4_000
+                ),
+                makeSession(
+                    id: "sessions/alpha-2.jsonl",
+                    threadID: "thread-alpha-2",
+                    title: "Alpha 2",
+                    modelProvider: "openai",
+                    cwd: "/tmp/project-alpha",
+                    updatedAt: 3_900
+                ),
+                makeSession(
+                    id: "sessions/beta-1.jsonl",
+                    threadID: "thread-beta-1",
+                    title: "Beta 1",
+                    modelProvider: "anthropic",
+                    cwd: "/tmp/project-beta",
+                    updatedAt: 3_800
+                ),
+                makeSession(
+                    id: "sessions/beta-2.jsonl",
+                    threadID: "thread-beta-2",
+                    title: "Beta 2",
+                    modelProvider: "openai",
+                    cwd: "/tmp/project-beta",
+                    updatedAt: 3_700
+                ),
+            ],
+            availableProviderIDs: ["openai", "anthropic"]
+        )
+        let state = MockCodexSessionsServiceState(snapshots: [snapshot])
+        state.usageResults["sessions/alpha-1.jsonl"] = .success(
+            .init(inputTokens: 2_400, cachedInputTokens: 0, outputTokens: 600)
+        )
+        state.usageResults["sessions/alpha-2.jsonl"] = .success(
+            .init(inputTokens: 1_200, cachedInputTokens: 0, outputTokens: 800)
+        )
+        state.usageResults["sessions/beta-1.jsonl"] = .success(
+            .init(inputTokens: 1_600, cachedInputTokens: 0, outputTokens: 400)
+        )
+        state.usageResults["sessions/beta-2.jsonl"] = .success(
+            .init(inputTokens: 800, cachedInputTokens: 0, outputTokens: 200)
+        )
+        state.usageDelayNanoseconds = 15_000_000
+
+        let viewModel = CodexSessionsTabViewModel(
+            provider: provider,
+            service: MockCodexSessionsService(state: state)
+        )
+
+        await viewModel.load()
+
+        try await waitUntil {
+            if case .loaded = viewModel.usageState(for: "sessions/alpha-1.jsonl"),
+               case .loaded = viewModel.usageState(for: "sessions/alpha-2.jsonl"),
+               case .loaded = viewModel.usageState(for: "sessions/beta-1.jsonl"),
+               case .loaded = viewModel.usageState(for: "sessions/beta-2.jsonl") {
+                return true
+            }
+            return false
+        }
+
+        XCTAssertEqual(viewModel.groupCount, 2)
+        XCTAssertEqual(viewModel.rewritableGroupCount, 1)
+        XCTAssertEqual(viewModel.totalUsage, .value(primaryText: "8.0K", secondaryText: nil))
+        XCTAssertEqual(viewModel.groupUsage, .value(primaryText: "8.0K", secondaryText: nil))
+        XCTAssertEqual(viewModel.rewritableGroupUsage, .value(primaryText: "5.0K", secondaryText: nil))
     }
 
     func testBDD_GivenSelectedSession_WhenTimelineLoads_ThenTimelineStateResolvesWithoutResettingSelection() async throws {
@@ -756,7 +857,7 @@ final class CodexSessionsTabViewModelTests: XCTestCase {
         )
 
         await viewModel.load()
-        XCTAssertEqual(viewModel.sections.first?.visibleSessionCount, 5)
+        XCTAssertEqual(viewModel.sections.first?.visibleSessionCount, collapsedVisibleCount)
         XCTAssertFalse(viewModel.sections.first?.sessions.contains(where: { $0.id == "sessions/6.jsonl" }) ?? true)
 
         viewModel.searchQuery = "needle"
@@ -833,7 +934,7 @@ final class CodexSessionsTabViewModelTests: XCTestCase {
         await viewModel.load()
         viewModel.searchQuery = "needle"
 
-        XCTAssertEqual(viewModel.sections.first?.visibleSessionCount, 5)
+        XCTAssertEqual(viewModel.sections.first?.visibleSessionCount, collapsedVisibleCount)
         XCTAssertFalse(viewModel.sections.first?.sessions.contains(where: { $0.id == "sessions/6.jsonl" }) ?? true)
 
         try await waitUntil(timeout: 1.0, pollNanoseconds: 20_000_000) {
@@ -1681,6 +1782,77 @@ final class CodexSessionsTabViewModelTests: XCTestCase {
         XCTAssertEqual(state.loadSnapshotCallCount, 1)
     }
 
+    func testBDD_GivenLoadedSessionsPageAndCachedSnapshot_WhenViewAppearsAfterStaleInterval_ThenCachedRowsAppearBeforeRefreshCompletes() async throws {
+        let provider = makeCodexProvider()
+        let clock = MutableDateProvider(now: Date(timeIntervalSince1970: 1_000))
+        let initialSnapshot = CodexSessionSnapshot(
+            sessions: [
+                makeSession(
+                    id: "sessions/a.jsonl",
+                    threadID: "thread-a",
+                    title: "Alpha",
+                    modelProvider: "openai",
+                    cwd: "/tmp/project-alpha",
+                    updatedAt: 1_000
+                )
+            ],
+            availableProviderIDs: ["openai"]
+        )
+        let cachedSnapshot = CodexSessionSnapshot(
+            sessions: [
+                makeSession(
+                    id: "sessions/cached.jsonl",
+                    threadID: "thread-cached",
+                    title: "Cached Beta",
+                    modelProvider: "openai",
+                    cwd: "/tmp/project-alpha",
+                    updatedAt: 1_500
+                )
+            ],
+            availableProviderIDs: ["openai"]
+        )
+        let refreshedSnapshot = CodexSessionSnapshot(
+            sessions: [
+                makeSession(
+                    id: "sessions/fresh.jsonl",
+                    threadID: "thread-fresh",
+                    title: "Fresh Gamma",
+                    modelProvider: "openai",
+                    cwd: "/tmp/project-alpha",
+                    updatedAt: 2_000
+                )
+            ],
+            availableProviderIDs: ["openai"]
+        )
+        let state = MockCodexSessionsServiceState(snapshots: [initialSnapshot])
+        let viewModel = CodexSessionsTabViewModel(
+            provider: provider,
+            service: MockCodexSessionsService(state: state),
+            autoRefreshInterval: 30,
+            dateProvider: { clock.now }
+        )
+
+        await viewModel.handleViewAppearance()
+        XCTAssertEqual(viewModel.sections.first?.sessions.first?.title, "Alpha")
+
+        state.cachedSnapshot = cachedSnapshot
+        state.snapshots = [refreshedSnapshot]
+        state.snapshotDelayNanoseconds = 120_000_000
+        clock.now = Date(timeIntervalSince1970: 1_031)
+
+        let appearanceTask = Task { await viewModel.handleViewAppearance() }
+
+        try? await Task.sleep(nanoseconds: 20_000_000)
+        XCTAssertEqual(viewModel.sections.first?.sessions.first?.title, "Cached Beta")
+        XCTAssertEqual(state.loadCachedSnapshotCallCount, 3)
+        XCTAssertTrue(viewModel.isLoading)
+
+        _ = await appearanceTask.value
+
+        XCTAssertEqual(viewModel.sections.first?.sessions.first?.title, "Fresh Gamma")
+        XCTAssertEqual(state.loadSnapshotCallCount, 1)
+    }
+
     func testBDD_GivenFreshLoadedSessionsPage_WhenForegroundRefreshTickRuns_ThenRefreshIsSkipped() async throws {
         let provider = makeCodexProvider()
         let clock = MutableDateProvider(now: Date(timeIntervalSince1970: 1_000))
@@ -1727,6 +1899,73 @@ final class CodexSessionsTabViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.sections.first?.sessions.first?.title, "Alpha")
         XCTAssertEqual(state.snapshotStreamCallCount, 1)
         XCTAssertEqual(state.loadSnapshotCallCount, 0)
+    }
+
+    func testBDD_GivenLoadedSessionsPageAndCachedSnapshot_WhenRefreshing_ThenCachedRowsAppearBeforeSnapshotReloadCompletes() async throws {
+        let provider = makeCodexProvider()
+        let initialSnapshot = CodexSessionSnapshot(
+            sessions: [
+                makeSession(
+                    id: "sessions/a.jsonl",
+                    threadID: "thread-a",
+                    title: "Alpha",
+                    modelProvider: "openai",
+                    cwd: "/tmp/project-alpha",
+                    updatedAt: 1_000
+                )
+            ],
+            availableProviderIDs: ["openai"]
+        )
+        let cachedSnapshot = CodexSessionSnapshot(
+            sessions: [
+                makeSession(
+                    id: "sessions/cached.jsonl",
+                    threadID: "thread-cached",
+                    title: "Cached Beta",
+                    modelProvider: "openai",
+                    cwd: "/tmp/project-alpha",
+                    updatedAt: 1_500
+                )
+            ],
+            availableProviderIDs: ["openai"]
+        )
+        let refreshedSnapshot = CodexSessionSnapshot(
+            sessions: [
+                makeSession(
+                    id: "sessions/fresh.jsonl",
+                    threadID: "thread-fresh",
+                    title: "Fresh Gamma",
+                    modelProvider: "openai",
+                    cwd: "/tmp/project-alpha",
+                    updatedAt: 2_000
+                )
+            ],
+            availableProviderIDs: ["openai"]
+        )
+        let state = MockCodexSessionsServiceState(snapshots: [initialSnapshot])
+        let viewModel = CodexSessionsTabViewModel(
+            provider: provider,
+            service: MockCodexSessionsService(state: state)
+        )
+
+        await viewModel.load()
+        XCTAssertEqual(viewModel.sections.first?.sessions.first?.title, "Alpha")
+
+        state.cachedSnapshot = cachedSnapshot
+        state.snapshots = [refreshedSnapshot]
+        state.snapshotDelayNanoseconds = 120_000_000
+
+        let refreshTask = Task { await viewModel.refresh() }
+
+        try? await Task.sleep(nanoseconds: 20_000_000)
+        XCTAssertEqual(viewModel.sections.first?.sessions.first?.title, "Cached Beta")
+        XCTAssertEqual(state.loadCachedSnapshotCallCount, 2)
+        XCTAssertTrue(viewModel.isLoading)
+
+        _ = await refreshTask.value
+
+        XCTAssertEqual(viewModel.sections.first?.sessions.first?.title, "Fresh Gamma")
+        XCTAssertEqual(state.loadSnapshotCallCount, 1)
     }
 
     func testBDD_GivenSessionsNeverLoaded_WhenAppBecomesActive_ThenRefreshIsSkipped() async throws {
@@ -1927,7 +2166,7 @@ final class CodexSessionsTabViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.selectedSessionID, "sessions/retry.jsonl")
     }
 
-    func testBDD_GivenThreadIDAndWorkingDirectory_WhenBuildingResumeCommand_ThenCommandIsShellSafe() {
+    func testBDD_GivenThreadIDAndWorkingDirectory_WhenBuildingResumeCommand_ThenCommandOmitsWorkingDirectory() {
         let session = CodexSessionsTabViewModel.SessionRow(
             id: "sessions/refactor.jsonl",
             threadID: "thread-123",
@@ -1944,17 +2183,66 @@ final class CodexSessionsTabViewModelTests: XCTestCase {
 
         let command = CodexSessionsResumeCommandBuilder.commandString(for: session)
 
-        XCTAssertEqual(command, "cd '/tmp/project alpha' && codex resume --last thread-123")
+        XCTAssertEqual(command, "codex resume --last thread-123")
+    }
+
+    func testBDD_GivenCollapsedProjectSection_WhenBuildingSectionShareData_ThenShareIncludesHiddenSessions() async throws {
+        let provider = makeCodexProvider()
+        let snapshot = CodexSessionSnapshot(
+            sessions: Array(0..<7).map { index in
+                makeSession(
+                    id: "sessions/\(index).jsonl",
+                    threadID: "thread-\(index)",
+                    title: "Session \(index)",
+                    modelProvider: "openai",
+                    cwd: "/tmp/project-alpha",
+                    updatedAt: 1_500 - TimeInterval(index)
+                )
+            },
+            availableProviderIDs: ["openai"]
+        )
+        let viewModel = CodexSessionsTabViewModel(
+            provider: provider,
+            service: MockCodexSessionsService(state: .init(snapshots: [snapshot]))
+        )
+
+        await viewModel.load()
+
+        let sectionID = try XCTUnwrap(viewModel.sections.first?.id)
+        XCTAssertEqual(viewModel.sections.first?.visibleSessionCount, collapsedVisibleCount)
+
+        let shareData = try XCTUnwrap(viewModel.sectionShareData(for: sectionID))
+        let sessionsLabel = NSLocalizedString(
+            "codex.sessions.share.sessions",
+            value: "Sessions",
+            comment: "Session share session count label"
+        )
+
+        XCTAssertEqual(shareData.title, "project-alpha")
+        XCTAssertTrue(shareData.item.contains("\(sessionsLabel): 7"))
+        XCTAssertTrue(shareData.item.contains("Session 6"))
+        XCTAssertTrue(shareData.item.contains("thread-6"))
     }
 
     private func makeCodexProvider() -> Provider {
+        makeCodexProvider(id: "codex")
+    }
+
+    private func makeCodexProvider(id: String) -> Provider {
         Provider(
+            id: id,
             name: "Codex",
             defaultSkillsPath: "/tmp/codex/skills",
             workflowPath: "/tmp/codex/prompts",
             installMethod: .symlink,
             templateId: "codex"
         )
+    }
+
+    private func resetSharedPreferences() {
+        let defaults = UserDefaults.standard
+        defaults.removeObject(forKey: "codex.sessions.codex.grouping_mode")
+        defaults.removeObject(forKey: "codex.sessions.codex.sort_mode")
     }
 
     private func makeSession(

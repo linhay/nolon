@@ -8,7 +8,9 @@ enum CodexSessionsOverviewDataBuilder {
         let totalSessionCount: Int
         let groupCount: Int
         let rewritableGroupCount: Int
-        let needsAttentionGroupCount: Int
+        let totalUsage: CodexSessionsUsageDisplayData?
+        let groupUsage: CodexSessionsUsageDisplayData?
+        let rewritableGroupUsage: CodexSessionsUsageDisplayData?
         let statusMessage: String?
         let diagnosticMessage: String?
         let isLoading: Bool
@@ -137,12 +139,14 @@ enum CodexSessionsOverviewDataBuilder {
             .init(
                 id: "sessions",
                 title: NSLocalizedString("codex.sessions.metric.total", value: "Total", comment: "Total sessions"),
-                value: "\(context.totalSessionCount)"
+                value: "\(context.totalSessionCount)",
+                detailText: metricDetailText(from: context.totalUsage)
             ),
             .init(
                 id: "groups",
                 title: NSLocalizedString("codex.sessions.metric.groups", value: "Groups", comment: "Group count"),
-                value: "\(context.groupCount)"
+                value: "\(context.groupCount)",
+                detailText: metricDetailText(from: context.groupUsage)
             ),
         ]
 
@@ -155,23 +159,29 @@ enum CodexSessionsOverviewDataBuilder {
                         value: "Rewritable",
                         comment: "Rewritable group count"
                     ),
-                    value: "\(context.rewritableGroupCount)"
+                    value: "\(context.rewritableGroupCount)",
+                    detailText: metricDetailText(from: context.rewritableGroupUsage)
                 )
             )
         }
 
-        metrics.append(
-            .init(
-                id: "attention",
-                title: NSLocalizedString(
-                    "codex.sessions.metric.needs_attention",
-                    value: "Needs Attention",
-                    comment: "Needs attention group count"
-                ),
-                value: "\(context.needsAttentionGroupCount)"
-            )
-        )
-
         return metrics
+    }
+
+    nonisolated private static func metricDetailText(
+        from usage: CodexSessionsUsageDisplayData?
+    ) -> String? {
+        guard let usage else { return nil }
+        let usageLabel = NSLocalizedString(
+            "codex.usage.title",
+            value: "Usage",
+            comment: "Codex usage title"
+        )
+        switch usage {
+        case .placeholder(let text), .failed(let text):
+            return "\(usageLabel) \(text)"
+        case .value(let primaryText, _):
+            return "\(usageLabel) \(primaryText)"
+        }
     }
 }

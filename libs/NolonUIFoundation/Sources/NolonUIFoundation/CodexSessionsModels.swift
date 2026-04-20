@@ -10,11 +10,13 @@ public struct CodexSessionsMetricData: Identifiable, Equatable, Sendable {
     public let id: String
     public let title: String
     public let value: String
+    public let detailText: String?
 
-    public init(id: String, title: String, value: String) {
+    public init(id: String, title: String, value: String, detailText: String? = nil) {
         self.id = id
         self.title = title
         self.value = value
+        self.detailText = detailText
     }
 }
 
@@ -48,6 +50,11 @@ public struct CodexSessionsActionItemData: Identifiable, Equatable, Sendable {
         self.primaryText = primaryText ?? targetProviderID
         self.secondaryText = secondaryText
     }
+
+    public var menuLabelText: String {
+        guard let secondaryText, !secondaryText.isEmpty else { return primaryText }
+        return "\(primaryText) (\(secondaryText))"
+    }
 }
 
 public struct CodexSessionsMetadataItemData: Identifiable, Equatable, Sendable {
@@ -71,6 +78,16 @@ public struct CodexSessionsMetadataItemData: Identifiable, Equatable, Sendable {
         self.icon = icon
         self.text = text
         self.style = style
+    }
+}
+
+public struct CodexSessionsShareData: Equatable, Sendable {
+    public let title: String
+    public let item: String
+
+    public init(title: String, item: String) {
+        self.title = title
+        self.item = item
     }
 }
 
@@ -227,6 +244,7 @@ public struct CodexSessionsSectionData: Identifiable, Equatable, Sendable {
     public let id: String
     public let title: String
     public let usage: CodexSessionsUsageDisplayData?
+    public let shareData: CodexSessionsShareData?
     public let titleSecondaryText: String?
     public let subtitle: String?
     public let presentationKind: CodexSessionsSectionPresentationKind
@@ -241,6 +259,7 @@ public struct CodexSessionsSectionData: Identifiable, Equatable, Sendable {
         id: String,
         title: String,
         usage: CodexSessionsUsageDisplayData? = nil,
+        shareData: CodexSessionsShareData? = nil,
         titleSecondaryText: String? = nil,
         subtitle: String?,
         presentationKind: CodexSessionsSectionPresentationKind = .rewritableGroup,
@@ -254,6 +273,7 @@ public struct CodexSessionsSectionData: Identifiable, Equatable, Sendable {
         self.id = id
         self.title = title
         self.usage = usage
+        self.shareData = shareData
         self.titleSecondaryText = titleSecondaryText
         self.subtitle = subtitle
         self.presentationKind = presentationKind

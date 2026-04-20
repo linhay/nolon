@@ -63,6 +63,18 @@ final class NolonAccountsViewModel {}
 - **优化策略**：性能或行为优化优先增加可观测日志，基于日志定位瓶颈后再实施优化。
 - **日志最小标准**：关键路径日志至少包含 traceId（或请求标识）、耗时、关键输入摘要、结果状态（成功/失败）；失败场景需记录错误码或错误类型。
 
+## 项目级 Skills
+- 项目级约束与经验沉淀统一放在 `.agent/skills/`。
+- 涉及 `Codex Sessions` 模块（会话列表、分组、搜索、用量、详情、缓存、扫描、CLI 对齐）时，先读取 `.agent/skills/codex-sessions-workstream.md`，再决定是否进入实现。
+- 涉及稳定个人/团队偏好时，优先复用 `.agent/skills/preferences.md`，不要把同类规则重复散落到临时文档。
+
+## Codex Sessions 共识
+- `Codex Sessions` 的主目标是“大规模会话下稳定浏览”，不是实时全量刷新。
+- 进入该模块时，先区分本次任务属于产品语义、性能/缓存、交互布局、还是诊断链路；涉及语义、缓存策略、信息架构调整时，先补 `docs-linhay/features/`、`docs-linhay/dev/` 或 `docs-linhay/plans/`，再改代码。
+- 缓存策略默认遵循“先展示可用缓存，再后台 reconcile，再按 stale 条件刷新”，避免每次进入页面或 App 激活都全量重扫。
+- 大列表场景下，排序与分组必须保证视觉稳定，禁止为了追求实时性导致 section/row 持续跳动、难以滚动。
+- UI 细节调整不得绕开业务闭环：任何会影响分组、排序、详情、分享、用量口径、缓存命中的改动，都要先确认 Provider 层与 ViewModel 层边界。
+
 ## 执行检查清单
 1. 新增或重构 UI 组件时，是否同步创建/维护 1 个对应 ViewModel。
 2. ViewModel 是否使用 `@Observable`。
@@ -75,6 +87,7 @@ final class NolonAccountsViewModel {}
 9. 遇到不确定问题时，是否先查询可用 skills，并在必要时完成搜索验证后再输出结论。
 10. 优化任务是否先通过日志或指标定位，再进行针对性优化。
 11. 关键路径日志是否满足最小标准（标识、耗时、输入摘要、结果状态、错误信息）。
+12. 涉及 `Codex Sessions` 时，是否先对齐 `.agent/skills/codex-sessions-workstream.md` 与相关 `docs-linhay` 文档，再进入实现。
 
 ## 常用命令
 ```bash

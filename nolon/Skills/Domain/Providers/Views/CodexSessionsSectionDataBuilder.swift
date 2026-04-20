@@ -17,7 +17,8 @@ enum CodexSessionsSectionDataBuilder {
         _ section: CodexSessionsTabViewModel.SessionSection,
         groupingMode: CodexSessionsTabViewModel.SessionGroupingMode,
         targetProviders: (String) -> [String],
-        usageState: (String) -> CodexSessionsTabViewModel.SessionUsageState
+        usageState: (String) -> CodexSessionsTabViewModel.SessionUsageState,
+        shareData: CodexSessionsShareData? = nil
     ) -> CodexSessionsSectionData {
         let presentationKind = sectionPresentationKind(for: section)
         let usageStatesBySessionID = Dictionary(
@@ -50,6 +51,7 @@ enum CodexSessionsSectionDataBuilder {
             id: section.id,
             title: section.title,
             usage: buildSectionUsageData(section, usageStatesBySessionID: usageStatesBySessionID),
+            shareData: shareData,
             titleSecondaryText: section.titleSecondaryText,
             subtitle: makeSectionSubtitle(section, groupingMode: groupingMode, presentationKind: presentationKind),
             presentationKind: presentationKind,

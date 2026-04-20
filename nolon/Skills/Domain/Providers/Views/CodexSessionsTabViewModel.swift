@@ -102,7 +102,7 @@ final class CodexSessionsTabViewModelStore {
 final class CodexSessionsTabViewModel {
     nonisolated static let performanceNotification = Notification.Name("CodexSessionsTabViewModel.performance")
     nonisolated private static let logger = Logger(subsystem: "com.nolon", category: "CodexSessionsTabViewModel")
-    nonisolated static let defaultVisibleSessionCountPerSection = 5
+    nonisolated static let defaultVisibleSessionCountPerSection = 3
     nonisolated private static let usageSortingParallelism = 6
     nonisolated private static let slowStoreOperationThresholdMS = 1_500
 
@@ -442,14 +442,23 @@ final class CodexSessionsTabViewModel {
         }.count
     }
 
-    var needsAttentionGroupCount: Int {
-        allSectionStates.filter {
-            let kind = sectionPresentationKind(
-                hasEditableSessions: $0.hasEditableSessions,
-                providerCount: $0.providerCount
-            )
-            return kind != .rewritableGroup
-        }.count
+    var totalUsage: CodexSessionsUsageDisplayData? {
+        aggregateOverviewUsage(for: allSectionStates)
+    }
+
+    var groupUsage: CodexSessionsUsageDisplayData? {
+        aggregateOverviewUsage(for: allSectionStates)
+    }
+
+    var rewritableGroupUsage: CodexSessionsUsageDisplayData? {
+        aggregateOverviewUsage(
+            for: allSectionStates.filter {
+                sectionPresentationKind(
+                    hasEditableSessions: $0.hasEditableSessions,
+                    providerCount: $0.providerCount
+                ) == .rewritableGroup
+            }
+        )
     }
 
     var canLoadMore: Bool {
@@ -459,6 +468,62 @@ final class CodexSessionsTabViewModel {
     var selectedSession: SessionRow? {
         guard let selectedSessionID else { return nil }
         return rowsByID[selectedSessionID]
+    }
+
+    private func aggregateOverviewUsage(
+        for sections: [SessionSectionState]
+    ) -> CodexSessionsUsageDisplayData? {
+        guard !sections.isEmpty else { return nil }
+
+        var totalTokens = 0
+        var hasLoadedUsage = false
+        var hasPlaceholderUsage = false
+        var hasFailedUsage = false
+
+        for section in sections {
+            if section.sessions.isEmpty, section.totalSessionCount > 0 {
+                hasPlaceholderUsage = true
+                continue
+            }
+
+            for session in section.sessions {
+                switch usageBySessionID[session.id] ?? .placeholder {
+                case .loaded(let usage):
+                    hasLoadedUsage = true
+                    totalTokens += max(0, usage.inputTokens + usage.outputTokens)
+                case .placeholder:
+                    hasPlaceholderUsage = true
+                case .failed:
+                    hasFailedUsage = true
+                }
+            }
+        }
+
+        if hasLoadedUsage {
+            return .value(primaryText: TokenCountFormatters.compact(totalTokens), secondaryText: nil)
+        }
+
+        if hasPlaceholderUsage {
+            return .placeholder(
+                text: NSLocalizedString(
+                    "codex.sessions.usage.loading",
+                    value: "Loading…",
+                    comment: "Usage loading placeholder"
+                )
+            )
+        }
+
+        if hasFailedUsage {
+            return .failed(
+                text: NSLocalizedString(
+                    "codex.sessions.usage.unavailable",
+                    value: "Unavailable",
+                    comment: "Usage unavailable label"
+                )
+            )
+        }
+
+        return nil
     }
 
     var selectedSection: SessionSection? {
@@ -490,6 +555,58 @@ final class CodexSessionsTabViewModel {
             isExpanded: isExpanded,
             isPlaceholder: sectionState.isPlaceholder
         )
+    }
+
+    func sectionShareData(for sectionID: String) -> CodexSessionsShareData? {
+        guard let sectionState = allSectionStates.first(where: { $0.id == sectionID }) else {
+            return nil
+        }
+
+        let shareSection = SessionSection(
+            id: sectionState.id,
+            title: sectionState.title,
+            titleSecondaryText: sectionState.titleSecondaryText,
+            rewriteSourceLabel: sectionState.rewriteSourceLabel,
+            rewriteSourceProviderID: sectionState.rewriteSourceProviderID,
+            usageSessionIDs: sectionState.sessions.map(\.id),
+            sessions: sectionState.sessions,
+            totalSessionCount: sectionState.totalSessionCount,
+            editableThreadIDs: sectionState.editableThreadIDs,
+            liveCount: sectionState.liveCount,
+            archivedCount: sectionState.archivedCount,
+            providerCount: sectionState.providerCount,
+            isExpanded: true,
+            isPlaceholder: sectionState.isPlaceholder
+        )
+
+        return CodexSessionsShareContentBuilder.makeSectionShareData(
+            section: shareSection,
+            groupingMode: groupingMode,
+            usageState: { [weak self] sessionID in
+                self?.usageState(for: sessionID) ?? .failed
+            }
+        )
+    }
+
+    func threadIDsForSection(_ sectionID: String) -> [String] {
+        guard let sectionState = allSectionStates.first(where: { $0.id == sectionID }) else {
+            return []
+        }
+        return sectionState.sessions.compactMap(\.threadID)
+    }
+
+    func sectionFolderPath(for sectionID: String) -> String? {
+        guard let sectionState = allSectionStates.first(where: { $0.id == sectionID }) else {
+            return nil
+        }
+        guard let path = sectionState.titleSecondaryText?.trimmingCharacters(in: .whitespacesAndNewlines), !path.isEmpty else {
+            return nil
+        }
+        var isDirectory: ObjCBool = false
+        guard FileManager.default.fileExists(atPath: path, isDirectory: &isDirectory), isDirectory.boolValue else {
+            return nil
+        }
+        return path
     }
 
     var confirmationAlertData: ConfirmationAlertData {
@@ -591,6 +708,7 @@ final class CodexSessionsTabViewModel {
     func handleViewAppearance() async {
         let didLoad = await loadIfNeeded()
         guard !didLoad else { return }
+        applyCachedPresentationIfAvailable(forceUsagePrewarm: true)
         await refreshIfStale()
     }
 
@@ -635,28 +753,15 @@ final class CodexSessionsTabViewModel {
             let codexHome = provider.codexHomeFolder.url
             var appliedCachedProjection = false
             var shouldShortCircuitInitialReload = false
-            if mode == .initial,
-               allRows.isEmpty,
-               let cachingService = service as? any CodexSessionsTabCachingServicing
-            {
-                if let cachedSnapshot = try? cachingService.loadCachedSnapshot(codexHome: codexHome) {
-                    let cachedPresentation = Self.makePresentation(from: cachedSnapshot)
-                    apply(
-                        snapshotPresentation: cachedPresentation,
-                        codexHome: codexHome,
-                        prewarmUsageFromIndex: true
-                    )
-                    showsInitialSkeleton = false
-                    appliedCachedProjection = true
-                    if let statusService = service as? any CodexSessionsTabCacheStatusServicing,
-                       let status = try? statusService.cachedProjectionStatus(codexHome: codexHome)
-                    {
-                        shouldShortCircuitInitialReload = shouldUseCachedSnapshotWithoutReconcile(status: status)
-                    }
-                } else if let cachedSkeleton = try? cachingService.loadCachedProjectSkeletonSnapshot(codexHome: codexHome) {
-                    apply(projectSkeletonSnapshot: cachedSkeleton)
-                    showsInitialSkeleton = false
-                    appliedCachedProjection = true
+            if let cachedApplication = loadCachedPresentationIfAvailable(
+                codexHome: codexHome,
+                forceUsagePrewarm: mode == .initial || sortMode == .usage
+            ) {
+                showsInitialSkeleton = false
+                appliedCachedProjection = true
+                if cachedApplication.source == .snapshot,
+                   let status = cachedApplication.status {
+                    shouldShortCircuitInitialReload = shouldUseCachedSnapshotWithoutReconcile(status: status)
                 }
             }
 
@@ -817,6 +922,58 @@ final class CodexSessionsTabViewModel {
         return dateProvider().timeIntervalSince(snapshotUpdatedAt) <= initialCacheFreshnessInterval
     }
 
+    private enum CachedPresentationSource {
+        case snapshot
+        case skeleton
+    }
+
+    private struct CachedPresentationApplication {
+        let source: CachedPresentationSource
+        let status: CodexSessionProjectionStatus?
+    }
+
+    @discardableResult
+    private func applyCachedPresentationIfAvailable(
+        forceUsagePrewarm: Bool
+    ) -> Bool {
+        loadCachedPresentationIfAvailable(
+            codexHome: provider.codexHomeFolder.url,
+            forceUsagePrewarm: forceUsagePrewarm
+        ) != nil
+    }
+
+    private func loadCachedPresentationIfAvailable(
+        codexHome: URL,
+        forceUsagePrewarm: Bool
+    ) -> CachedPresentationApplication? {
+        guard let cachingService = service as? any CodexSessionsTabCachingServicing else {
+            return nil
+        }
+
+        if let cachedSnapshot = try? cachingService.loadCachedSnapshot(codexHome: codexHome) {
+            let cachedPresentation = Self.makePresentation(from: cachedSnapshot)
+            apply(
+                snapshotPresentation: cachedPresentation,
+                codexHome: codexHome,
+                prewarmUsageFromIndex: forceUsagePrewarm
+            )
+            let status: CodexSessionProjectionStatus?
+            if let statusService = service as? any CodexSessionsTabCacheStatusServicing {
+                status = try? statusService.cachedProjectionStatus(codexHome: codexHome)
+            } else {
+                status = nil
+            }
+            return .init(source: .snapshot, status: status)
+        }
+
+        if let cachedSkeleton = try? cachingService.loadCachedProjectSkeletonSnapshot(codexHome: codexHome) {
+            apply(projectSkeletonSnapshot: cachedSkeleton)
+            return .init(source: .skeleton, status: nil)
+        }
+
+        return nil
+    }
+
     private func loadSnapshotPresentation(codexHome: URL) async throws -> SessionPresentation {
         let service = self.service
         return try await Task.detached(priority: .userInitiated) {
@@ -852,6 +1009,10 @@ final class CodexSessionsTabViewModel {
             return
         }
         updateSelectedSessionID(sessionID)
+    }
+
+    func deselectSession() {
+        updateSelectedSessionID(nil)
     }
 
     func loadNextPage() {

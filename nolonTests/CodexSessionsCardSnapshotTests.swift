@@ -46,6 +46,32 @@ struct CodexSessionsCardSnapshotTests {
         #expect(failure == nil || failure?.contains("Record mode is on") == true)
     }
 
+    @Test("overview card keeps grouping picker on one line at compact widths")
+    func overviewCardKeepsGroupingPickerOnOneLineAtCompactWidths() {
+        let overview = makeOverviewCard(displayMode: .compact)
+
+        let host = makeHost(
+            VStack(alignment: .leading, spacing: 18) {
+                overview
+            }
+            .padding(20)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .background(NolonUI.DesignSystem.Colors.Background.canvas),
+            size: CGSize(width: 660, height: 260)
+        )
+
+        let failure = withSnapshotTesting(record: .all) {
+            verifySnapshot(
+                of: host,
+                as: .image(size: CGSize(width: 660, height: 260)),
+                named: "overview-grouping-picker-single-line",
+                snapshotDirectory: Self.snapshotDirectory
+            )
+        }
+
+        #expect(failure == nil || failure?.contains("Record mode is on") == true)
+    }
+
     @Test("project first overview keeps section rows in a compact session list")
     func projectFirstOverviewKeepsCompactSessionList() {
         let overview = makeOverviewCard(displayMode: .compact)
@@ -70,6 +96,37 @@ struct CodexSessionsCardSnapshotTests {
                 of: host,
                 as: .image(size: Self.regularSnapshotSize),
                 named: "project-first-overview-list",
+                snapshotDirectory: Self.snapshotDirectory
+            )
+        }
+
+        #expect(failure == nil || failure?.contains("Record mode is on") == true)
+    }
+
+    @Test("sessions search field aligns with overview card trailing edge")
+    func sessionsSearchFieldAlignsWithOverviewCardTrailingEdge() {
+        let host = makeHost(
+            VStack(alignment: .leading, spacing: 18) {
+                makeOverviewCard(displayMode: .compact)
+                SearchField(
+                    config: .init(
+                        placeholder: "Search",
+                        text: .constant("thread-refactor")
+                    )
+                )
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .padding(24)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .background(NolonUI.DesignSystem.Colors.Background.canvas),
+            size: CGSize(width: 980, height: 300)
+        )
+
+        let failure = withSnapshotTesting(record: .all) {
+            verifySnapshot(
+                of: host,
+                as: .image(size: CGSize(width: 980, height: 300)),
+                named: "sessions-search-aligned-with-overview",
                 snapshotDirectory: Self.snapshotDirectory
             )
         }
@@ -306,19 +363,209 @@ struct CodexSessionsCardSnapshotTests {
         #expect(failure == nil || failure?.contains("Record mode is on") == true)
     }
 
-    @Test("detail panel surfaces quick resume command and path actions")
-    func detailPanelSurfacesQuickResumeCommandAndPathActions() {
+    @Test("single session section drops group chrome and reads like a single row")
+    func singleSessionSectionDropsGroupChrome() {
+        let section = NolonUI.CodexSessionsSectionCardView(
+            data: .init(
+                id: "project-solo",
+                title: "project-solo",
+                usage: .value(primaryText: "3.0K", secondaryText: "in 2.4K · out 600"),
+                titleSecondaryText: "/tmp/project-solo",
+                subtitle: nil,
+                presentationKind: .rewritableGroup,
+                badges: [
+                    .init(id: "live", text: "Live 1"),
+                ],
+                actions: [],
+                actionMenuTitle: nil,
+                isExpanded: false,
+                expansionTitle: nil,
+                rows: [
+                    .init(
+                        id: "solo-row",
+                        title: "Refactor session detail layout",
+                        nameMetadataItems: [],
+                        idText: "thread-solo",
+                        timeText: "2026-04-20 00:40",
+                        providerText: "OpenAI (openai)",
+                        usage: .value(primaryText: "3.0K", secondaryText: "in 2.4K · out 600"),
+                        isArchived: false,
+                        isEditable: true,
+                        summary: "A single-item project should read like one row instead of a full section group.",
+                        rolloutPath: "sessions/2026/04/20/solo.jsonl",
+                        showInFinderTitle: "Show in Finder",
+                        copyPathTitle: "Copy Path",
+                        stateRowCount: 2,
+                        actions: [],
+                        readOnlyText: nil
+                    ),
+                ]
+            ),
+            onTapSectionAction: { _ in },
+            onTapRowAction: { _, _ in },
+            onRevealInFinder: { _ in }
+        )
+
+        let host = makeHost(
+            VStack(alignment: .leading, spacing: 18) {
+                section
+            }
+            .padding(24)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .background(NolonUI.DesignSystem.Colors.Background.canvas),
+            size: CGSize(width: 980, height: 240)
+        )
+
+        let failure = withSnapshotTesting(record: .all) {
+            verifySnapshot(
+                of: host,
+                as: .image(size: CGSize(width: 980, height: 240)),
+                named: "single-session-section-no-group-chrome",
+                snapshotDirectory: Self.snapshotDirectory
+            )
+        }
+
+        #expect(failure == nil || failure?.contains("Record mode is on") == true)
+    }
+
+    @Test("single session row keeps status and usage in a flat subtitle rail")
+    func singleSessionRowKeepsStatusAndUsageInSubtitleRail() {
+        let section = NolonUI.CodexSessionsSectionCardView(
+            data: .init(
+                id: "single-session-row",
+                title: "project-alpha",
+                usage: .value(primaryText: "7.8K", secondaryText: "in 5.5K · out 2.3K"),
+                shareData: nil,
+                titleSecondaryText: "/tmp/project-alpha",
+                subtitle: nil,
+                presentationKind: .singleSessionOnly,
+                badges: [],
+                actions: [],
+                actionMenuTitle: nil,
+                isExpanded: false,
+                expansionTitle: nil,
+                rows: [
+                    .init(
+                        id: "row-status-inline",
+                        title: "Polish inline detail spacing and reduce row chrome in the session browser",
+                        nameMetadataItems: [],
+                        idText: "thread-status-inline",
+                        timeText: "2026-04-20 13:40",
+                        providerText: "OpenAI (openai)",
+                        usage: .value(primaryText: "7.8K", secondaryText: "in 5.5K · out 2.3K"),
+                        isArchived: false,
+                        isEditable: false,
+                        summary: "Status, read-only state, provider, usage and time should all live in one subtitle rail.",
+                        rolloutPath: "sessions/2026/04/20/inline-status.jsonl",
+                        showInFinderTitle: "Show in Finder",
+                        copyPathTitle: "Copy Path",
+                        stateRowCount: 4,
+                        actions: [],
+                        readOnlyText: "Read Only",
+                        menuMetadataItems: []
+                    )
+                ]
+            ),
+            onTapSectionAction: { _ in },
+            onTapRowAction: { _, _ in },
+            onRevealInFinder: { _ in }
+        )
+
+        let host = makeHost(
+            VStack(alignment: .leading, spacing: 18) {
+                section
+            }
+            .padding(24)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .background(NolonUI.DesignSystem.Colors.Background.canvas),
+            size: CGSize(width: 980, height: 260)
+        )
+
+        let failure = withSnapshotTesting(record: .all) {
+            verifySnapshot(
+                of: host,
+                as: .image(size: CGSize(width: 980, height: 260)),
+                named: "single-session-subtitle-rail",
+                snapshotDirectory: Self.snapshotDirectory
+            )
+        }
+
+        #expect(failure == nil || failure?.contains("Record mode is on") == true)
+    }
+
+    @Test("single session row keeps a text only subtitle rail while title expands freely")
+    func singleSessionRowKeepsTextOnlySubtitleRailWhileTitleExpandsFreely() {
+        let section = NolonUI.CodexSessionsSectionCardView(
+            data: .init(
+                id: "project-long-title",
+                title: "project-long-title",
+                usage: .value(primaryText: "12.0K", secondaryText: "in 9.0K · out 3.0K"),
+                titleSecondaryText: "/tmp/project-long-title",
+                subtitle: nil,
+                presentationKind: .rewritableGroup,
+                badges: [
+                    .init(id: "live", text: "Live 1"),
+                ],
+                actions: [],
+                actionMenuTitle: nil,
+                isExpanded: false,
+                expansionTitle: nil,
+                rows: [
+                    .init(
+                        id: "long-title-row",
+                        title: "Refactor the Codex sessions browsing experience so token usage moves into the subtitle rail and the primary title can fully expand without getting clipped by inline controls",
+                        nameMetadataItems: [],
+                        idText: "thread-long-title",
+                        timeText: "2026-04-20 02:40",
+                        providerText: "OpenAI (openai)",
+                        usage: .value(primaryText: "12.0K", secondaryText: "in 9.0K · out 3.0K"),
+                        isArchived: false,
+                        isEditable: true,
+                        summary: "The row should emphasize the title first, then keep metadata and usage together in a text-only subtitle rail.",
+                        rolloutPath: "sessions/2026/04/20/long-title.jsonl",
+                        showInFinderTitle: "Show in Finder",
+                        copyPathTitle: "Copy Path",
+                        stateRowCount: 3,
+                        actions: [],
+                        readOnlyText: nil
+                    ),
+                ]
+            ),
+            onTapSectionAction: { _ in },
+            onTapRowAction: { _, _ in },
+            onRevealInFinder: { _ in }
+        )
+
+        let host = makeHost(
+            VStack(alignment: .leading, spacing: 18) {
+                section
+            }
+            .padding(24)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .background(NolonUI.DesignSystem.Colors.Background.canvas),
+            size: CGSize(width: 820, height: 280)
+        )
+
+        let failure = withSnapshotTesting(record: .all) {
+            verifySnapshot(
+                of: host,
+                as: .image(size: CGSize(width: 820, height: 280)),
+                named: "single-session-long-title-subtitle-rail",
+                snapshotDirectory: Self.snapshotDirectory
+            )
+        }
+
+        #expect(failure == nil || failure?.contains("Record mode is on") == true)
+    }
+
+    @Test("detail panel keeps the action area anchored at the bottom")
+    func detailPanelSurfacesCopyCommandAndPathActions() {
         let detail = CodexSessionsDetailPanelView(
             data: makeDetailData(),
-            onResume: {},
-            onCopySessionID: {},
             onCopyThreadID: {},
-            onCopyStartedAt: {},
-            onCopyLastActivity: {},
             onCopyCommand: {},
             onRevealInFinder: {},
-            onCopyProjectPath: {},
-            onCopyRolloutPath: {}
+            onCopyProjectPath: {}
         )
 
         let host = makeHost(
@@ -348,19 +595,12 @@ struct CodexSessionsCardSnapshotTests {
         let detail = CodexSessionsDetailPanelView(
             data: makeDetailData(
                 startedAtText: "Loading…",
-                startedAtCopyValue: nil,
-                lastActivityText: "Loading…",
-                lastActivityCopyValue: nil
+                lastActivityText: "Loading…"
             ),
-            onResume: {},
-            onCopySessionID: {},
             onCopyThreadID: {},
-            onCopyStartedAt: nil,
-            onCopyLastActivity: nil,
             onCopyCommand: {},
             onRevealInFinder: {},
-            onCopyProjectPath: {},
-            onCopyRolloutPath: {}
+            onCopyProjectPath: {}
         )
 
         let host = makeHost(
@@ -392,9 +632,7 @@ struct CodexSessionsCardSnapshotTests {
                 threadIDText: "Unavailable",
                 threadIDCopyValue: nil,
                 startedAtText: "Unknown",
-                startedAtCopyValue: nil,
                 lastActivityText: "Unknown",
-                lastActivityCopyValue: nil,
                 usage: .init(
                     totalText: "Unavailable",
                     inputText: nil,
@@ -403,15 +641,10 @@ struct CodexSessionsCardSnapshotTests {
                     isPlaceholder: true
                 )
             ),
-            onResume: {},
-            onCopySessionID: {},
             onCopyThreadID: nil,
-            onCopyStartedAt: nil,
-            onCopyLastActivity: nil,
             onCopyCommand: {},
             onRevealInFinder: {},
-            onCopyProjectPath: {},
-            onCopyRolloutPath: {}
+            onCopyProjectPath: {}
         )
 
         let host = makeHost(
@@ -429,6 +662,38 @@ struct CodexSessionsCardSnapshotTests {
                 of: host,
                 as: .image(size: CGSize(width: 980, height: 360)),
                 named: "detail-panel-failed-timeline",
+                snapshotDirectory: Self.snapshotDirectory
+            )
+        }
+
+        #expect(failure == nil || failure?.contains("Record mode is on") == true)
+    }
+
+    @Test("detail panel keeps fused metadata rail under the summary header")
+    func detailPanelKeepsFusedMetadataRailUnderSummaryHeader() {
+        let detail = CodexSessionsDetailPanelView(
+            data: makeDetailData(),
+            onCopyThreadID: {},
+            onCopyCommand: {},
+            onRevealInFinder: {},
+            onCopyProjectPath: {}
+        )
+
+        let host = makeHost(
+            VStack(alignment: .leading, spacing: 18) {
+                detail
+            }
+            .padding(24)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .background(NolonUI.DesignSystem.Colors.Background.canvas),
+            size: CGSize(width: 980, height: 320)
+        )
+
+        let failure = withSnapshotTesting(record: .all) {
+            verifySnapshot(
+                of: host,
+                as: .image(size: CGSize(width: 980, height: 320)),
+                named: "detail-panel-metadata-rail",
                 snapshotDirectory: Self.snapshotDirectory
             )
         }
@@ -481,19 +746,15 @@ struct CodexSessionsCardSnapshotTests {
             onToggleCollapse: { _ in },
             selectedRowID: "row-1",
             onSelectRow: { _ in },
+            onToggleRowExpansion: { _ in },
             expandedRowID: "row-1",
             expandedRowContent: { _ in
                 CodexSessionsDetailPanelView(
                     data: makeDetailData(),
-                    onResume: {},
-                    onCopySessionID: {},
                     onCopyThreadID: {},
-                    onCopyStartedAt: {},
-                    onCopyLastActivity: {},
                     onCopyCommand: {},
                     onRevealInFinder: {},
-                    onCopyProjectPath: {},
-                    onCopyRolloutPath: {}
+                    onCopyProjectPath: {}
                 )
             }
         )
@@ -544,6 +805,41 @@ struct CodexSessionsCardSnapshotTests {
         }
 
         #expect(failure == nil || failure?.contains("Record mode is on") == true)
+    }
+
+    @Test("sessions page disables text selection for static labels")
+    func sessionsPageDisablesTextSelectionForStaticLabels() {
+        let host = makeHost(
+            VStack(alignment: .leading, spacing: 18) {
+                makeOverviewCard(displayMode: .compact)
+                makeSectionData(
+                    isExpanded: true,
+                    usage: .value(primaryText: "3.0K", secondaryText: "in 2.4K · out 600"),
+                    sectionUsage: .value(primaryText: "6.4K", secondaryText: "in 4.8K · out 1.6K"),
+                    selectedRowID: "row-1"
+                )
+                CodexSessionsDetailPanelView(
+                    data: makeDetailData(),
+                    onCopyThreadID: {},
+                    onCopyCommand: {},
+                    onRevealInFinder: {},
+                    onCopyProjectPath: {}
+                )
+            }
+            .padding(24)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .background(NolonUI.DesignSystem.Colors.Background.canvas)
+            .textSelection(.disabled),
+            size: CGSize(width: 980, height: 900)
+        )
+
+        let textFields = allTextFields(in: host)
+        #expect(textFields.contains { $0.isEditable == false })
+        let selectableStaticFields = textFields.filter { field in
+            field.isEditable == false && field.isSelectable
+        }
+
+        #expect(selectableStaticFields.isEmpty)
     }
 
     private func makeSectionData(
@@ -636,15 +932,13 @@ struct CodexSessionsCardSnapshotTests {
                 paginationMessage: nil,
                 metrics: displayMode == .compact
                     ? [
-                        .init(id: "sessions", title: "Total", value: "18"),
-                        .init(id: "groups", title: "Groups", value: "4"),
-                        .init(id: "attention", title: "Needs Attention", value: "1"),
+                        .init(id: "sessions", title: "Total", value: "18", detailText: "Usage 18.6K"),
+                        .init(id: "groups", title: "Groups", value: "4", detailText: "Usage 18.6K"),
                     ]
                     : [
-                        .init(id: "sessions", title: "Total", value: "18"),
-                        .init(id: "groups", title: "Groups", value: "4"),
-                        .init(id: "rewritable", title: "Rewritable", value: "3"),
-                        .init(id: "attention", title: "Needs Attention", value: "1"),
+                        .init(id: "sessions", title: "Total", value: "18", detailText: "Usage 18.6K"),
+                        .init(id: "groups", title: "Groups", value: "4", detailText: "Usage 18.6K"),
+                        .init(id: "rewritable", title: "Rewritable", value: "3", detailText: "Usage 15.0K"),
                     ],
                 isRefreshDisabled: false
             ),
@@ -658,9 +952,7 @@ struct CodexSessionsCardSnapshotTests {
         threadIDText: String = "thread-refactor",
         threadIDCopyValue: String? = "thread-refactor",
         startedAtText: String = "2026-04-15 19:58",
-        startedAtCopyValue: String? = "2026-04-15 19:58",
         lastActivityText: String = "2026-04-15 20:30",
-        lastActivityCopyValue: String? = "2026-04-15 20:30",
         usage: CodexSessionsDetailUsageData? = .init(
             totalText: "3.0K",
             inputText: "2.4K",
@@ -669,21 +961,31 @@ struct CodexSessionsCardSnapshotTests {
             isPlaceholder: false
         )
     ) -> CodexSessionsDetailPanelData {
-        .init(
+        let rowData = CodexSessionsRowData(
+            id: "row-detail",
             title: "Refactor session list layout",
-            sessionIDText: "sessions/2026/04/15/refactor.jsonl",
-            sessionIDCopyValue: "sessions/2026/04/15/refactor.jsonl",
+            idText: "thread-refactor",
+            timeText: "2026-04-15 20:30",
+            providerText: "OpenAI (openai)",
+            usage: .value(primaryText: "3.0K", secondaryText: "in 2.4K · out 600"),
+            isArchived: false,
+            isEditable: true,
+            summary: "Move dense row metadata into an inline panel so browsing stays stable in large session lists.",
+            rolloutPath: "sessions/2026/04/15/refactor.jsonl",
+            showInFinderTitle: "Show in Finder",
+            copyPathTitle: "Copy Path",
+            stateRowCount: 8,
+            actions: [],
+            readOnlyText: nil
+        )
+        let provisionalData = CodexSessionsDetailPanelData(
             threadIDText: threadIDText,
             threadIDCopyValue: threadIDCopyValue,
             providerText: "OpenAI (openai)",
-            updatedAtText: "2026-04-15 20:30",
             startedAtText: startedAtText,
-            startedAtCopyValue: startedAtCopyValue,
             lastActivityText: lastActivityText,
-            lastActivityCopyValue: lastActivityCopyValue,
             projectPath: "/tmp/project-alpha",
             groupTitle: "project-alpha",
-            groupSecondaryText: "/tmp/project-alpha",
             summary: "Move dense row metadata into an inline panel so browsing stays stable in large session lists.",
             usage: usage,
             rolloutPath: "sessions/2026/04/15/refactor.jsonl",
@@ -694,24 +996,27 @@ struct CodexSessionsCardSnapshotTests {
                 .init(id: "originator", icon: "person.crop.circle", text: "Originator: codex"),
             ],
             statusTexts: ["Live"],
-            resumeCommand: "cd /tmp/project-alpha && codex resume --last thread-refactor",
-            rowData: .init(
-                id: "row-detail",
-                title: "Refactor session list layout",
-                idText: "thread-refactor",
-                timeText: "2026-04-15 20:30",
-                providerText: "OpenAI (openai)",
-                usage: .value(primaryText: "3.0K", secondaryText: "in 2.4K · out 600"),
-                isArchived: false,
-                isEditable: true,
-                summary: "Move dense row metadata into an inline panel so browsing stays stable in large session lists.",
-                rolloutPath: "sessions/2026/04/15/refactor.jsonl",
-                showInFinderTitle: "Show in Finder",
-                copyPathTitle: "Copy Path",
-                stateRowCount: 8,
-                actions: [],
-                readOnlyText: nil
-            )
+            resumeCommand: "codex resume --last thread-refactor",
+            shareData: nil,
+            rowData: rowData
+        )
+        return .init(
+            threadIDText: provisionalData.threadIDText,
+            threadIDCopyValue: provisionalData.threadIDCopyValue,
+            providerText: provisionalData.providerText,
+            startedAtText: provisionalData.startedAtText,
+            lastActivityText: provisionalData.lastActivityText,
+            projectPath: provisionalData.projectPath,
+            groupTitle: provisionalData.groupTitle,
+            summary: provisionalData.summary,
+            usage: provisionalData.usage,
+            rolloutPath: provisionalData.rolloutPath,
+            stateRowCount: provisionalData.stateRowCount,
+            metadataItems: provisionalData.metadataItems,
+            statusTexts: provisionalData.statusTexts,
+            resumeCommand: provisionalData.resumeCommand,
+            shareData: CodexSessionsShareContentBuilder.makeSessionShareData(from: provisionalData),
+            rowData: provisionalData.rowData
         )
     }
 
@@ -720,5 +1025,16 @@ struct CodexSessionsCardSnapshotTests {
         host.frame = NSRect(origin: .zero, size: size)
         host.layoutSubtreeIfNeeded()
         return host
+    }
+
+    private func allTextFields(in root: NSView) -> [NSTextField] {
+        var results: [NSTextField] = []
+        if let textField = root as? NSTextField {
+            results.append(textField)
+        }
+        for child in root.subviews {
+            results.append(contentsOf: allTextFields(in: child))
+        }
+        return results
     }
 }

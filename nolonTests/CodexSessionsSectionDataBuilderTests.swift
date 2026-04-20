@@ -215,6 +215,31 @@ final class CodexSessionsSectionDataBuilderTests: XCTestCase {
         )
     }
 
+    func testBDD_GivenProviderRewriteActions_WhenBuildingSectionData_ThenUsesCompactMenuLabels() throws {
+        let section = makeSection(
+            title: "project-alpha",
+            titleSecondaryText: "/tmp/project-alpha",
+            rewriteSourceProviderID: "openai",
+            providerCount: 1,
+            totalSessionCount: 2,
+            visibleCount: 2,
+            isExpanded: true
+        )
+
+        let data = CodexSessionsSectionDataBuilder.buildSectionData(
+            section,
+            groupingMode: .project,
+            targetProviders: { _ in ["anthropic", "custom-relay"] },
+            usageState: { _ in .failed }
+        )
+
+        XCTAssertEqual(data.actionMenuTitle, "Move Project Sessions")
+        XCTAssertEqual(
+            data.actions.map(\.menuLabelText),
+            ["Anthropic (anthropic)", "custom-relay"]
+        )
+    }
+
     func testBDD_GivenCollapsedSectionWithHiddenSessionUsage_WhenBuildingSectionData_ThenGroupUsageIncludesHiddenSessions() throws {
         let section = makeSection(
             title: "project-alpha",

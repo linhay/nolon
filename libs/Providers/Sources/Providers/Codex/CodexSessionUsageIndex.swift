@@ -16,6 +16,7 @@ enum CodexSessionUsageLoadSource: Equatable, Sendable {
 struct CodexSessionUsageLoadResult: Equatable, Sendable {
     let sessionID: String?
     let totals: CodexSessionTokenTotals?
+    let timeline: CodexSessionTimeline?
     let source: CodexSessionUsageLoadSource
 }
 
@@ -30,7 +31,21 @@ struct CodexSessionUsageIndexEntry: Equatable, Sendable {
     let parsedBytes: Int64
     let lastModel: String?
     let totals: CodexSessionTokenTotals?
+    let startedAtUnixMs: Int64?
+    let lastActivityAtUnixMs: Int64?
     let updatedAtUnixMs: Int64
+
+    var timeline: CodexSessionTimeline? {
+        guard startedAtUnixMs != nil || lastActivityAtUnixMs != nil else { return nil }
+        return .init(
+            startedAt: startedAtUnixMs.map { Self.date(from: $0) },
+            lastActivityAt: lastActivityAtUnixMs.map { Self.date(from: $0) }
+        )
+    }
+
+    private static func date(from unixMilliseconds: Int64) -> Date {
+        Date(timeIntervalSince1970: TimeInterval(unixMilliseconds) / 1_000)
+    }
 }
 
 private struct CodexSessionUsageFileFingerprint: Equatable, Sendable {
@@ -44,6 +59,7 @@ private struct CodexSessionUsageParseResult: Sendable {
     let sessionID: String?
     let lastModel: String?
     let totals: CodexSessionTokenTotals?
+    let timeline: CodexSessionTimeline?
     let parsedBytes: Int64
 }
 
@@ -76,7 +92,7 @@ final class CodexSessionUsageIndex: @unchecked Sendable {
         let resolvedRolloutURL = Self.resolveRolloutURL(codexHome: codexHome, rolloutPath: rolloutPath)
         guard fileManager.fileExists(atPath: resolvedRolloutURL.path) else {
             try deleteEntry(codexHomePath: codexHome.path, rolloutPath: rolloutPath)
-            return .init(sessionID: nil, totals: nil, source: .fileMissing)
+            return .init(sessionID: nil, totals: nil, timeline: nil, source: .fileMissing)
         }
 
         let fingerprint = try Self.fileFingerprint(
@@ -90,6 +106,7 @@ final class CodexSessionUsageIndex: @unchecked Sendable {
             return .init(
                 sessionID: cachedEntry.sessionID,
                 totals: cachedEntry.totals,
+                timeline: cachedEntry.timeline,
                 source: .cacheHit
             )
         }
@@ -105,6 +122,7 @@ final class CodexSessionUsageIndex: @unchecked Sendable {
                     fromOffset: cachedEntry.parsedBytes,
                     currentModel: cachedEntry.lastModel,
                     currentTotals: cachedEntry.totals,
+                    currentTimeline: cachedEntry.timeline,
                     sessionID: cachedEntry.sessionID
                 )
                 source = .deltaAppend
@@ -114,6 +132,7 @@ final class CodexSessionUsageIndex: @unchecked Sendable {
                     fromOffset: 0,
                     currentModel: nil,
                     currentTotals: nil,
+                    currentTimeline: nil,
                     sessionID: nil
                 )
                 source = .fullRebuild
@@ -124,10 +143,13 @@ final class CodexSessionUsageIndex: @unchecked Sendable {
                 fromOffset: 0,
                 currentModel: nil,
                 currentTotals: nil,
+                currentTimeline: nil,
                 sessionID: nil
             )
             source = .fullRebuild
         }
+
+        let effectiveTimeline = parseResult.timeline ?? Self.fallbackTimeline(from: fingerprint)
 
         try upsert(
             .init(
@@ -141,6 +163,8 @@ final class CodexSessionUsageIndex: @unchecked Sendable {
                 parsedBytes: parseResult.parsedBytes,
                 lastModel: parseResult.lastModel,
                 totals: parseResult.totals,
+                startedAtUnixMs: Self.unixMilliseconds(effectiveTimeline?.startedAt),
+                lastActivityAtUnixMs: Self.unixMilliseconds(effectiveTimeline?.lastActivityAt),
                 updatedAtUnixMs: Self.currentUnixMs()
             )
         )
@@ -148,6 +172,7 @@ final class CodexSessionUsageIndex: @unchecked Sendable {
         return .init(
             sessionID: parseResult.sessionID,
             totals: parseResult.totals,
+            timeline: effectiveTimeline,
             source: source
         )
     }
@@ -171,6 +196,8 @@ final class CodexSessionUsageIndex: @unchecked Sendable {
                 input_tokens,
                 cached_input_tokens,
                 output_tokens,
+                started_at_unix_ms,
+                last_activity_at_unix_ms,
                 updated_at_unix_ms
             FROM usage_entries
             WHERE codex_home_path = ? AND rollout_path = ?;
@@ -209,8 +236,10 @@ final class CodexSessionUsageIndex: @unchecked Sendable {
                 input_tokens,
                 cached_input_tokens,
                 output_tokens,
+                started_at_unix_ms,
+                last_activity_at_unix_ms,
                 updated_at_unix_ms
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(codex_home_path, rollout_path) DO UPDATE SET
                 absolute_rollout_path = excluded.absolute_rollout_path,
                 session_id = excluded.session_id,
@@ -222,6 +251,8 @@ final class CodexSessionUsageIndex: @unchecked Sendable {
                 input_tokens = excluded.input_tokens,
                 cached_input_tokens = excluded.cached_input_tokens,
                 output_tokens = excluded.output_tokens,
+                started_at_unix_ms = excluded.started_at_unix_ms,
+                last_activity_at_unix_ms = excluded.last_activity_at_unix_ms,
                 updated_at_unix_ms = excluded.updated_at_unix_ms;
             """
 
@@ -243,7 +274,9 @@ final class CodexSessionUsageIndex: @unchecked Sendable {
             Self.bindOptionalInt64(entry.totals.map { Int64($0.inputTokens) }, to: statement, at: 10)
             Self.bindOptionalInt64(entry.totals.map { Int64($0.cachedInputTokens) }, to: statement, at: 11)
             Self.bindOptionalInt64(entry.totals.map { Int64($0.outputTokens) }, to: statement, at: 12)
-            sqlite3_bind_int64(statement, 13, entry.updatedAtUnixMs)
+            Self.bindOptionalInt64(entry.startedAtUnixMs, to: statement, at: 13)
+            Self.bindOptionalInt64(entry.lastActivityAtUnixMs, to: statement, at: 14)
+            sqlite3_bind_int64(statement, 15, entry.updatedAtUnixMs)
 
             guard sqlite3_step(statement) == SQLITE_DONE else {
                 throw Self.sqliteError(db: db, code: 4, fallback: "Failed to write usage entry.")
@@ -309,6 +342,8 @@ final class CodexSessionUsageIndex: @unchecked Sendable {
                 input_tokens INTEGER,
                 cached_input_tokens INTEGER,
                 output_tokens INTEGER,
+                started_at_unix_ms INTEGER,
+                last_activity_at_unix_ms INTEGER,
                 updated_at_unix_ms INTEGER NOT NULL,
                 PRIMARY KEY (codex_home_path, rollout_path)
             );
@@ -318,6 +353,18 @@ final class CodexSessionUsageIndex: @unchecked Sendable {
             nil,
             nil,
             nil
+        )
+        try ensureColumnIfNeeded(
+            db: db,
+            table: "usage_entries",
+            column: "started_at_unix_ms",
+            definition: "INTEGER"
+        )
+        try ensureColumnIfNeeded(
+            db: db,
+            table: "usage_entries",
+            column: "last_activity_at_unix_ms",
+            definition: "INTEGER"
         )
 
         return try body(db)
@@ -349,7 +396,9 @@ final class CodexSessionUsageIndex: @unchecked Sendable {
             parsedBytes: sqliteInt64(statement, column: 7) ?? 0,
             lastModel: sqliteText(statement, column: 8),
             totals: totals,
-            updatedAtUnixMs: sqliteInt64(statement, column: 12) ?? 0
+            startedAtUnixMs: sqliteInt64(statement, column: 12),
+            lastActivityAtUnixMs: sqliteInt64(statement, column: 13),
+            updatedAtUnixMs: sqliteInt64(statement, column: 14) ?? 0
         )
     }
 
@@ -404,26 +453,18 @@ final class CodexSessionUsageIndex: @unchecked Sendable {
         fromOffset: Int64,
         currentModel: String?,
         currentTotals: CodexSessionTokenTotals?,
+        currentTimeline: CodexSessionTimeline?,
         sessionID: String?
     ) throws -> CodexSessionUsageParseResult {
-        let handle = try FileHandle(forReadingFrom: url)
-        defer {
-            try? handle.close()
-        }
-
-        if fromOffset > 0 {
-            try handle.seek(toOffset: UInt64(fromOffset))
-        }
-        let data = try handle.readToEnd() ?? Data()
-
         var nextSessionID = sessionID
         var nextModel = currentModel
         var nextTotals = currentTotals
+        var startedAt = currentTimeline?.startedAt
+        var lastActivityAt = currentTimeline?.lastActivityAt
 
-        for rawLine in data.split(separator: 0x0A) {
-            guard !rawLine.isEmpty else { continue }
+        let parsedBytes = try CodexRolloutLineReader.readLines(at: url, fromOffset: fromOffset) { lineData in
             let reduction = CodexSessionEventParser.reduceUsageLine(
-                data: Data(rawLine),
+                data: lineData,
                 currentModel: nextModel,
                 previousTotals: nextTotals
             )
@@ -436,14 +477,84 @@ final class CodexSessionUsageIndex: @unchecked Sendable {
             if let updatedTotals = reduction?.updatedTotals {
                 nextTotals = updatedTotals
             }
+            if let parsedLine = try? CodexGeneratedFilesParser.parseRolloutLine(data: lineData),
+               let timestamp = Self.parseISO8601(parsedLine.timestamp) {
+                if startedAt == nil {
+                    startedAt = timestamp
+                }
+                lastActivityAt = timestamp
+            }
         }
 
         return .init(
             sessionID: nextSessionID,
             lastModel: nextModel,
             totals: nextTotals,
-            parsedBytes: fromOffset + Int64(data.count)
+            timeline: (startedAt != nil || lastActivityAt != nil)
+                ? .init(startedAt: startedAt, lastActivityAt: lastActivityAt)
+                : nil,
+            parsedBytes: parsedBytes
         )
+    }
+
+    private func ensureColumnIfNeeded(
+        db: OpaquePointer?,
+        table: String,
+        column: String,
+        definition: String
+    ) throws {
+        let pragmaSQL = "PRAGMA table_info(\(table));"
+        var statement: OpaquePointer?
+        guard sqlite3_prepare_v2(db, pragmaSQL, -1, &statement, nil) == SQLITE_OK else {
+            throw Self.sqliteError(db: db, code: 7, fallback: "Failed to inspect usage index schema.")
+        }
+        defer { sqlite3_finalize(statement) }
+
+        while sqlite3_step(statement) == SQLITE_ROW {
+            if let name = sqlite3_column_text(statement, 1).map({ String(cString: $0) }),
+               name == column {
+                return
+            }
+        }
+
+        let alterSQL = "ALTER TABLE \(table) ADD COLUMN \(column) \(definition);"
+        guard sqlite3_exec(db, alterSQL, nil, nil, nil) == SQLITE_OK else {
+            throw Self.sqliteError(db: db, code: 8, fallback: "Failed to migrate usage index schema.")
+        }
+    }
+
+    private static func fallbackTimeline(
+        from fingerprint: CodexSessionUsageFileFingerprint
+    ) -> CodexSessionTimeline? {
+        guard fingerprint.modifiedAtUnixMs > 0 else { return nil }
+        return .init(
+            startedAt: nil,
+            lastActivityAt: date(fromUnixMilliseconds: fingerprint.modifiedAtUnixMs)
+        )
+    }
+
+    private static func unixMilliseconds(_ date: Date?) -> Int64? {
+        guard let date else { return nil }
+        return Int64((date.timeIntervalSince1970 * 1_000.0).rounded())
+    }
+
+    private static func date(fromUnixMilliseconds unixMilliseconds: Int64) -> Date {
+        Date(timeIntervalSince1970: TimeInterval(unixMilliseconds) / 1_000)
+    }
+
+    private static func parseISO8601(_ raw: String?) -> Date? {
+        guard let raw = raw?.trimmingCharacters(in: .whitespacesAndNewlines), !raw.isEmpty else {
+            return nil
+        }
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        if let date = formatter.date(from: raw) {
+            return date
+        }
+
+        let fallbackFormatter = ISO8601DateFormatter()
+        fallbackFormatter.formatOptions = [.withInternetDateTime]
+        return fallbackFormatter.date(from: raw)
     }
 
     private static func currentUnixMs() -> Int64 {

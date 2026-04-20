@@ -1344,6 +1344,57 @@ struct CodexSessionStoreTests {
         #expect(timeline.lastActivityAt == expectedLastActivityAt)
     }
 
+    @Test("Given rollout usage was indexed and file is unchanged, when loading session timeline, then store reuses cached timeline metadata")
+    func loadSessionTimelineReturnsCacheHitWhenIndexedMetadataIsFresh() throws {
+        let root = try makeTempRoot("codex-session-timeline-cache-hit")
+        defer { try? root.delete() }
+
+        let codexHome = root.folder("provider")
+        _ = codexHome.createIfNotExists()
+        _ = try writeUsageRollout(
+            codexHome: codexHome,
+            rolloutPath: "sessions/timeline-cache.jsonl",
+            usageLines: [
+                #"{"timestamp":"2026-04-10T10:00:05Z","type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":10,"cached_input_tokens":0,"output_tokens":2,"total_tokens":12}}}}"#,
+                #"{"timestamp":"2026-04-10T10:02:30Z","type":"response_item","payload":{"type":"message","role":"assistant","content":[{"type":"output_text","text":"done"}]}}"#,
+            ]
+        )
+        let cacheRoot = root.folder("cache-root")
+        _ = cacheRoot.createIfNotExists()
+        let store = CodexSessionStore(
+            defaultProviderID: "openai",
+            usageIndexRootDirectory: cacheRoot.url
+        )
+
+        let usage = try store.loadSessionUsageRecord(
+            codexHome: codexHome.url,
+            rolloutPath: "sessions/timeline-cache.jsonl"
+        )
+        let entry = try #require(
+            try store.loadUsageIndexEntry(
+                codexHome: codexHome.url,
+                rolloutPath: "sessions/timeline-cache.jsonl"
+            )
+        )
+        let timeline = try store.loadSessionTimelineRecord(
+            codexHome: codexHome.url,
+            rolloutPath: "sessions/timeline-cache.jsonl"
+        )
+
+        #expect(usage.source == .fullRebuild)
+        #expect(entry.startedAtUnixMs != nil)
+        #expect(entry.lastActivityAtUnixMs != nil)
+        #expect(timeline.source == .cacheHit)
+        #expect(
+            timeline.timeline?.startedAt
+                == entry.startedAtUnixMs.map { Date(timeIntervalSince1970: TimeInterval($0) / 1_000) }
+        )
+        #expect(
+            timeline.timeline?.lastActivityAt
+                == entry.lastActivityAtUnixMs.map { Date(timeIntervalSince1970: TimeInterval($0) / 1_000) }
+        )
+    }
+
     @Test("Given rollout has no parseable timestamps, when loading session timeline, then store leaves startedAt empty and falls back lastActivityAt to file metadata")
     func loadSessionTimelineFallsBackToFileMetadataWhenTimestampsAreMissing() throws {
         let root = try makeTempRoot("codex-session-timeline-fallback")

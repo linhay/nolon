@@ -11,7 +11,9 @@ final class CodexSessionsOverviewDataBuilderTests: XCTestCase {
                 totalSessionCount: 18,
                 groupCount: 4,
                 rewritableGroupCount: 3,
-                needsAttentionGroupCount: 1,
+                totalUsage: .value(primaryText: "18.6K", secondaryText: nil),
+                groupUsage: .value(primaryText: "18.6K", secondaryText: nil),
+                rewritableGroupUsage: .value(primaryText: "15.0K", secondaryText: nil),
                 statusMessage: nil,
                 diagnosticMessage: nil,
                 isLoading: false,
@@ -24,7 +26,8 @@ final class CodexSessionsOverviewDataBuilderTests: XCTestCase {
         XCTAssertEqual(data.displayMode, .compact)
         XCTAssertEqual(data.selectedGroupingID, "project")
         XCTAssertEqual(data.subtitle, "Browse sessions by project.")
-        XCTAssertEqual(data.metrics.map(\.id), ["sessions", "groups", "attention"])
+        XCTAssertEqual(data.metrics.map(\.id), ["sessions", "groups"])
+        XCTAssertEqual(data.metrics.map(\.detailText), [usageDetail("18.6K"), usageDetail("18.6K")])
         XCTAssertFalse(data.isRefreshDisabled)
         XCTAssertNil(data.backgroundScanningMessage)
     }
@@ -37,7 +40,9 @@ final class CodexSessionsOverviewDataBuilderTests: XCTestCase {
                 totalSessionCount: 18,
                 groupCount: 4,
                 rewritableGroupCount: 3,
-                needsAttentionGroupCount: 1,
+                totalUsage: .value(primaryText: "18.6K", secondaryText: nil),
+                groupUsage: .value(primaryText: "18.6K", secondaryText: nil),
+                rewritableGroupUsage: .value(primaryText: "15.0K", secondaryText: nil),
                 statusMessage: nil,
                 diagnosticMessage: nil,
                 isLoading: false,
@@ -50,7 +55,8 @@ final class CodexSessionsOverviewDataBuilderTests: XCTestCase {
         XCTAssertEqual(data.displayMode, .compact)
         XCTAssertEqual(data.selectedGroupingID, "provider")
         XCTAssertEqual(data.subtitle, "Audit sessions by provider.")
-        XCTAssertEqual(data.metrics.map(\.id), ["sessions", "groups", "attention"])
+        XCTAssertEqual(data.metrics.map(\.id), ["sessions", "groups"])
+        XCTAssertEqual(data.metrics.map(\.detailText), [usageDetail("18.6K"), usageDetail("18.6K")])
         XCTAssertFalse(data.isRefreshDisabled)
     }
 
@@ -62,7 +68,9 @@ final class CodexSessionsOverviewDataBuilderTests: XCTestCase {
                 totalSessionCount: 18,
                 groupCount: 4,
                 rewritableGroupCount: 3,
-                needsAttentionGroupCount: 1,
+                totalUsage: .value(primaryText: "18.6K", secondaryText: nil),
+                groupUsage: .value(primaryText: "18.6K", secondaryText: nil),
+                rewritableGroupUsage: .value(primaryText: "15.0K", secondaryText: nil),
                 statusMessage: nil,
                 diagnosticMessage: nil,
                 isLoading: true,
@@ -77,7 +85,11 @@ final class CodexSessionsOverviewDataBuilderTests: XCTestCase {
             data.subtitle,
             "Browse sessions by project first. Rewrite and diagnostics stay available from group and row menus."
         )
-        XCTAssertEqual(data.metrics.map(\.id), ["sessions", "groups", "rewritable", "attention"])
+        XCTAssertEqual(data.metrics.map(\.id), ["sessions", "groups", "rewritable"])
+        XCTAssertEqual(
+            data.metrics.map(\.detailText),
+            [usageDetail("18.6K"), usageDetail("18.6K"), usageDetail("15.0K")]
+        )
         XCTAssertEqual(
             data.backgroundScanningMessage,
             NSLocalizedString(
@@ -97,7 +109,9 @@ final class CodexSessionsOverviewDataBuilderTests: XCTestCase {
                 totalSessionCount: 18,
                 groupCount: 4,
                 rewritableGroupCount: 3,
-                needsAttentionGroupCount: 1,
+                totalUsage: .value(primaryText: "18.6K", secondaryText: nil),
+                groupUsage: .value(primaryText: "18.6K", secondaryText: nil),
+                rewritableGroupUsage: .value(primaryText: "15.0K", secondaryText: nil),
                 statusMessage: "Preparing rewrite preview…",
                 diagnosticMessage: nil,
                 isLoading: false,
@@ -121,7 +135,9 @@ final class CodexSessionsOverviewDataBuilderTests: XCTestCase {
                 totalSessionCount: 18,
                 groupCount: 4,
                 rewritableGroupCount: 3,
-                needsAttentionGroupCount: 1,
+                totalUsage: .value(primaryText: "18.6K", secondaryText: nil),
+                groupUsage: .value(primaryText: "18.6K", secondaryText: nil),
+                rewritableGroupUsage: .value(primaryText: "15.0K", secondaryText: nil),
                 statusMessage: "Moved 3 sessions to Anthropic (anthropic).",
                 diagnosticMessage: nil,
                 isLoading: true,
@@ -142,7 +158,11 @@ final class CodexSessionsOverviewDataBuilderTests: XCTestCase {
             )
         )
         XCTAssertTrue(data.isRefreshDisabled)
-        XCTAssertEqual(data.metrics.map(\.id), ["sessions", "groups", "rewritable", "attention"])
+        XCTAssertEqual(data.metrics.map(\.id), ["sessions", "groups", "rewritable"])
+        XCTAssertEqual(
+            data.metrics.map(\.detailText),
+            [usageDetail("18.6K"), usageDetail("18.6K"), usageDetail("15.0K")]
+        )
     }
 
     func testBDD_GivenDiagnosticMessage_WhenBuildingOverview_ThenRoutesItToDiagnosticFooterEntry() {
@@ -153,7 +173,9 @@ final class CodexSessionsOverviewDataBuilderTests: XCTestCase {
                 totalSessionCount: 18,
                 groupCount: 4,
                 rewritableGroupCount: 3,
-                needsAttentionGroupCount: 1,
+                totalUsage: .placeholder(text: "Loading…"),
+                groupUsage: .placeholder(text: "Loading…"),
+                rewritableGroupUsage: .placeholder(text: "Loading…"),
                 statusMessage: nil,
                 diagnosticMessage: "Config warning: falling back to default provider.",
                 isLoading: false,
@@ -165,5 +187,18 @@ final class CodexSessionsOverviewDataBuilderTests: XCTestCase {
 
         XCTAssertNil(data.statusMessage)
         XCTAssertEqual(data.paginationMessage, "Config warning: falling back to default provider.")
+        XCTAssertEqual(
+            data.metrics.map(\.detailText),
+            [usageDetail("Loading…"), usageDetail("Loading…")]
+        )
+    }
+
+    private func usageDetail(_ value: String) -> String {
+        let usageTitle = NSLocalizedString(
+            "codex.usage.title",
+            value: "Usage",
+            comment: "Codex usage title"
+        )
+        return "\(usageTitle) \(value)"
     }
 }

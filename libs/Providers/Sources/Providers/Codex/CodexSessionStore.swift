@@ -143,6 +143,11 @@ public struct CodexSessionProjectionStatus: Sendable, Equatable {
     }
 }
 
+struct CodexSessionTimelineLoadResult: Equatable, Sendable {
+    let timeline: CodexSessionTimeline?
+    let source: CodexSessionUsageLoadSource
+}
+
 public struct CodexSessionProviderRewriteRequest: Sendable, Equatable {
     public let threadIDs: [String]
     public let targetProviderID: String
@@ -402,34 +407,7 @@ public struct CodexSessionStore: Sendable {
         codexHome: URL,
         rolloutPath: String
     ) throws -> CodexSessionTimeline? {
-        let rolloutFileURL = Self.resolveRolloutFileURL(codexHome: codexHome, rolloutPath: rolloutPath)
-        guard FileManager.default.fileExists(atPath: rolloutFileURL.path) else {
-            return nil
-        }
-
-        let data = try Data(contentsOf: rolloutFileURL)
-        var startedAt: Date?
-        var lastActivityAt: Date?
-
-        for rawLine in data.split(separator: 0x0A, omittingEmptySubsequences: true) {
-            let lineData = Data(rawLine)
-            guard let parsedLine = try? CodexGeneratedFilesParser.parseRolloutLine(data: lineData) else {
-                continue
-            }
-            guard let timestamp = Self.parseISO8601(parsedLine.timestamp) else {
-                continue
-            }
-            if startedAt == nil {
-                startedAt = timestamp
-            }
-            lastActivityAt = timestamp
-        }
-
-        if startedAt == nil, lastActivityAt == nil {
-            lastActivityAt = Self.fileModificationDate(path: rolloutFileURL.path)
-        }
-
-        return .init(startedAt: startedAt, lastActivityAt: lastActivityAt)
+        try loadSessionTimelineRecord(codexHome: codexHome, rolloutPath: rolloutPath).timeline
     }
 
     func loadSessionUsageRecord(
@@ -437,6 +415,17 @@ public struct CodexSessionStore: Sendable {
         rolloutPath: String
     ) throws -> CodexSessionUsageLoadResult {
         try usageIndex.load(codexHome: codexHome, rolloutPath: rolloutPath)
+    }
+
+    func loadSessionTimelineRecord(
+        codexHome: URL,
+        rolloutPath: String
+    ) throws -> CodexSessionTimelineLoadResult {
+        let result = try loadSessionUsageRecord(codexHome: codexHome, rolloutPath: rolloutPath)
+        return .init(
+            timeline: result.timeline,
+            source: result.source
+        )
     }
 
     func loadUsageIndexEntry(

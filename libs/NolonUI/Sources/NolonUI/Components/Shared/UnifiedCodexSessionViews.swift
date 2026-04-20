@@ -44,72 +44,53 @@ public struct CodexSessionsOverviewCardView: View {
     }
 
     private var header: some View {
-        ViewThatFits(in: .horizontal) {
-            HStack(alignment: .center, spacing: 12) {
-                headerLead
-                Spacer(minLength: 12)
-                headerControls
-            }
-            .padding(.horizontal, horizontalPadding)
-            .padding(.vertical, headerVerticalPadding)
-            .frame(minWidth: 620, alignment: .leading)
+        Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 6) {
+            GridRow(alignment: .top) {
+                titleText
+                    .gridCellUnsizedAxes(.vertical)
+                    .frame(maxWidth: .infinity, alignment: .leading)
 
-            VStack(alignment: .leading, spacing: 12) {
-                headerLead
                 headerControls
+                    .gridCellAnchor(.topTrailing)
             }
-            .padding(.horizontal, horizontalPadding)
-            .padding(.vertical, headerVerticalPadding)
+            GridRow {
+                subtitleText
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .gridCellColumns(2)
+            }
         }
+        .padding(.horizontal, horizontalPadding)
+        .padding(.vertical, headerVerticalPadding)
     }
 
-    private var headerLead: some View {
-        ViewThatFits(in: .horizontal) {
-            HStack(alignment: .firstTextBaseline, spacing: 10) {
-                Text(data.title)
-                    .font(.headline.weight(.semibold))
-                    .foregroundStyle(DesignSystem.Colors.Text.primary)
-                    .lineLimit(1)
+    private var titleText: some View {
+        Text(data.title)
+            .font(.headline.weight(.semibold))
+            .foregroundStyle(DesignSystem.Colors.Text.primary)
+            .lineLimit(1)
+            .truncationMode(.tail)
+            .layoutPriority(0)
+    }
 
-                Text(data.subtitle)
-                    .font(.caption)
-                    .foregroundStyle(DesignSystem.Colors.Text.secondary)
-                    .lineLimit(1)
-                    .help(data.subtitle)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-
-            VStack(alignment: .leading, spacing: 4) {
-                Text(data.title)
-                    .font(.headline.weight(.semibold))
-                    .foregroundStyle(DesignSystem.Colors.Text.primary)
-                    .lineLimit(1)
-
-                Text(data.subtitle)
-                    .font(.caption)
-                    .foregroundStyle(DesignSystem.Colors.Text.secondary)
-                    .lineLimit(2)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .help(data.subtitle)
-            }
-        }
+    private var subtitleText: some View {
+        Text(data.subtitle)
+            .font(.caption)
+            .foregroundStyle(DesignSystem.Colors.Text.secondary)
+            .lineLimit(2)
+            .fixedSize(horizontal: false, vertical: true)
+            .help(data.subtitle)
     }
 
     private var headerControls: some View {
-        ViewThatFits(in: .horizontal) {
-            HStack(alignment: .center, spacing: 8) {
-                groupingPicker
-                sortingMenu
-                headerRefreshButton
-            }
-            .frame(minWidth: 228, alignment: .trailing)
-
-            VStack(alignment: .leading, spacing: 8) {
+        Grid(alignment: .trailing, horizontalSpacing: 8, verticalSpacing: 8) {
+            GridRow(alignment: .center) {
                 groupingPicker
                 sortingMenu
                 headerRefreshButton
             }
         }
+        .gridCellUnsizedAxes([.horizontal, .vertical])
+        .layoutPriority(1)
     }
 
     @ViewBuilder
@@ -119,7 +100,6 @@ public struct CodexSessionsOverviewCardView: View {
            !data.groupingOptions.isEmpty
         {
             Picker(
-                groupingTitle,
                 selection: Binding(
                     get: { selectedGroupingID },
                     set: { onSelectGroupingID?($0) }
@@ -128,8 +108,11 @@ public struct CodexSessionsOverviewCardView: View {
                 ForEach(data.groupingOptions) { option in
                     Text(option.title).tag(option.id)
                 }
+            } label: {
+                EmptyView()
             }
             .pickerStyle(.segmented)
+            .labelsHidden()
             .controlSize(.small)
             .frame(minWidth: 180, idealWidth: 216, maxWidth: 240)
             .accessibilityLabel(groupingTitle)
@@ -244,6 +227,14 @@ public struct CodexSessionsOverviewCardView: View {
                 .monospacedDigit()
                 .foregroundStyle(DesignSystem.Colors.Text.primary)
                 .lineLimit(1)
+
+            if let detailText = metric.detailText, !detailText.isEmpty {
+                Text(detailText)
+                    .font(.caption2)
+                    .monospacedDigit()
+                    .foregroundStyle(DesignSystem.Colors.Text.secondary)
+                    .lineLimit(1)
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, horizontalPadding)
@@ -334,8 +325,6 @@ public struct CodexSessionsOverviewCardView: View {
         switch metricID {
         case "rewritable":
             return DesignSystem.Colors.Status.success
-        case "attention":
-            return DesignSystem.Colors.Status.warning
         case "groups":
             return DesignSystem.Colors.Status.info
         default:
@@ -369,61 +358,76 @@ public struct CodexSessionsOverviewCardView: View {
 public struct CodexSessionsSectionCardView<ExpandedRowContent: View>: View {
     public let data: CodexSessionsSectionData
     public let onTapSectionAction: (String) -> Void
+    public let onCopySectionThreadIDs: (() -> Void)?
+    public let onRevealSectionFolder: (() -> Void)?
     public let onTapRowAction: (CodexSessionsRowData, String) -> Void
     public let onRevealInFinder: (CodexSessionsRowData) -> Void
     public let onToggleCollapse: (String) -> Void
     public let selectedRowID: String?
     public let onSelectRow: (CodexSessionsRowData) -> Void
+    public let onToggleRowExpansion: (CodexSessionsRowData) -> Void
     public let expandedRowID: String?
     public let expandedRowContent: (CodexSessionsRowData) -> ExpandedRowContent
 
     public init(
         data: CodexSessionsSectionData,
         onTapSectionAction: @escaping (String) -> Void,
+        onCopySectionThreadIDs: (() -> Void)? = nil,
+        onRevealSectionFolder: (() -> Void)? = nil,
         onTapRowAction: @escaping (CodexSessionsRowData, String) -> Void,
         onRevealInFinder: @escaping (CodexSessionsRowData) -> Void,
         onToggleCollapse: @escaping (String) -> Void = { _ in },
         selectedRowID: String? = nil,
         onSelectRow: @escaping (CodexSessionsRowData) -> Void = { _ in },
+        onToggleRowExpansion: @escaping (CodexSessionsRowData) -> Void = { _ in },
         expandedRowID: String? = nil,
         @ViewBuilder expandedRowContent: @escaping (CodexSessionsRowData) -> ExpandedRowContent
     ) {
         self.data = data
         self.onTapSectionAction = onTapSectionAction
+        self.onCopySectionThreadIDs = onCopySectionThreadIDs
+        self.onRevealSectionFolder = onRevealSectionFolder
         self.onTapRowAction = onTapRowAction
         self.onRevealInFinder = onRevealInFinder
         self.onToggleCollapse = onToggleCollapse
         self.selectedRowID = selectedRowID
         self.onSelectRow = onSelectRow
+        self.onToggleRowExpansion = onToggleRowExpansion
         self.expandedRowID = expandedRowID
         self.expandedRowContent = expandedRowContent
     }
 
     public var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            sectionHeader
-
-            if let headerStatusCaption, !headerStatusCaption.isEmpty {
-                sectionStatusCaption(headerStatusCaption)
-            }
-
-            if !data.rows.isEmpty {
+        Group {
+            if prefersUnifiedSingleRowPresentation {
                 adaptiveRowsContainer
+            } else {
+                VStack(alignment: .leading, spacing: 10) {
+                    sectionHeader
+
+                    if !data.rows.isEmpty {
+                        adaptiveRowsContainer
+                    }
+                }
+                .padding(16)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .dsCard(
+                    background: DesignSystem.Colors.Background.elevated.opacity(0.94),
+                    cornerRadius: DesignSystem.Metrics.cornerRadiusL,
+                    borderColor: sectionBorderColor,
+                    shadow: .subtle
+                )
             }
         }
-        .padding(16)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .dsCard(
-            background: DesignSystem.Colors.Background.elevated.opacity(0.94),
-            cornerRadius: DesignSystem.Metrics.cornerRadiusL,
-            borderColor: sectionBorderColor,
-            shadow: .subtle
-        )
         .animation(.snappy(duration: 0.2), value: data.isExpanded)
     }
 
+    private var prefersUnifiedSingleRowPresentation: Bool {
+        data.rows.count == 1
+    }
+
     private var sectionHeader: some View {
-        VStack(alignment: .leading, spacing: 7) {
+        VStack(alignment: .leading, spacing: 0) {
             ViewThatFits(in: .horizontal) {
                 HStack(alignment: .top, spacing: 12) {
                     sectionHeaderLead
@@ -436,10 +440,6 @@ public struct CodexSessionsSectionCardView<ExpandedRowContent: View>: View {
                     sectionHeaderLead
                     sectionHeaderActions
                 }
-            }
-
-            if showsSectionSecondaryLine {
-                sectionSecondaryLine
             }
         }
     }
@@ -460,31 +460,23 @@ public struct CodexSessionsSectionCardView<ExpandedRowContent: View>: View {
     }
 
     private var sectionHeaderLeadContent: some View {
-        HStack(alignment: .center, spacing: 10) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .fill(sectionAccentColor.opacity(0.12))
-                    .frame(width: 30, height: 30)
+        VStack(alignment: .leading, spacing: 6) {
+            Text(data.title)
+                .font(.title3.weight(.semibold))
+                .foregroundStyle(DesignSystem.Colors.Text.primary)
+                .lineLimit(1)
+                .fixedSize(horizontal: false, vertical: true)
 
-                Image(systemName: sectionSymbolName)
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(sectionAccentColor)
-            }
-
-            VStack(alignment: .leading, spacing: 6) {
-                if let usage = data.usage {
-                    sectionHeaderUsage(usage)
-                }
-
-                HStack(alignment: .center, spacing: 8) {
-                    Text(data.title)
-                        .font(.headline.weight(.semibold))
-                        .foregroundStyle(DesignSystem.Colors.Text.primary)
-                        .lineLimit(1)
-
-                    if !data.badges.isEmpty {
-                        headerBadgeRow
-                    }
+            if let subtitleRailText = sectionSubtitleRailText {
+                if let sectionHeaderHelpText, !sectionHeaderHelpText.isEmpty {
+                    subtitleRailText
+                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .help(sectionHeaderHelpText)
+                } else {
+                    subtitleRailText
+                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
         }
@@ -502,19 +494,67 @@ public struct CodexSessionsSectionCardView<ExpandedRowContent: View>: View {
                 .accessibilityLabel(expansionTitle)
             }
 
-            if let actionMenuTitle = data.actionMenuTitle, !data.actions.isEmpty {
-                Menu {
-                    ForEach(data.actions) { action in
-                        Button(action.title) {
-                            onTapSectionAction(action.targetProviderID)
+            if hasSectionMenu {
+                EllipsisMenuButton {
+                    if !data.actions.isEmpty {
+                        Menu {
+                            ForEach(data.actions) { action in
+                                Button(action.menuLabelText) {
+                                    onTapSectionAction(action.targetProviderID)
+                                }
+                            }
+                        } label: {
+                            Label(
+                                data.actionMenuTitle ?? NSLocalizedString(
+                                    "codex.sessions.action.move",
+                                    value: "Move",
+                                    comment: "Move action label"
+                                ),
+                                systemImage: "arrow.right.circle"
+                            )
                         }
                     }
-                } label: {
-                    Label(sectionActionMenuShortTitle(for: actionMenuTitle), systemImage: "arrow.right.circle")
+
+                    if !data.actions.isEmpty, hasSectionUtilityActions || data.shareData != nil {
+                        Divider()
+                    }
+
+                    if let onCopySectionThreadIDs {
+                        Button {
+                            onCopySectionThreadIDs()
+                        } label: {
+                            Label(
+                                NSLocalizedString(
+                                    "codex.sessions.group.action.copy_thread_ids",
+                                    value: "Copy All Thread IDs",
+                                    comment: "Copy all thread IDs in a session group"
+                                ),
+                                systemImage: "doc.on.doc"
+                            )
+                        }
+                    }
+
+                    if hasSectionUtilityActions, data.shareData != nil {
+                        Divider()
+                    }
+
+                    if let shareData = data.shareData {
+                        ShareLink(
+                            item: shareData.item,
+                            subject: Text(shareData.title)
+                        ) {
+                            Label(
+                                NSLocalizedString(
+                                    "codex.sessions.group.action.share",
+                                    value: "Share Group",
+                                    comment: "Share session group"
+                                ),
+                                systemImage: "square.and.arrow.up"
+                            )
+                        }
+                    }
                 }
-                .menuStyle(.button)
-                .controlSize(.small)
-                .help(actionMenuTitle)
+                .help(sectionMenuHelpText)
             }
         }
     }
@@ -522,136 +562,6 @@ public struct CodexSessionsSectionCardView<ExpandedRowContent: View>: View {
     private var isExpandable: Bool {
         guard let expansionTitle = data.expansionTitle else { return false }
         return !expansionTitle.isEmpty
-    }
-
-    private var headerBadgeRow: some View {
-        HStack(spacing: 6) {
-            ForEach(data.badges) { badge in
-                sectionHeaderBadge(text: badge.text)
-            }
-        }
-    }
-
-    @ViewBuilder
-    private func sectionHeaderUsage(_ usage: CodexSessionsUsageDisplayData) -> some View {
-        ViewThatFits(in: .horizontal) {
-            HStack(alignment: .center, spacing: 8) {
-                Text(
-                    NSLocalizedString(
-                        "codex.sessions.table.usage",
-                        value: "Usage",
-                        comment: "Session table column header"
-                    )
-                )
-                .font(.caption2.weight(.semibold))
-                .foregroundStyle(DesignSystem.Colors.Text.tertiary)
-
-                sectionHeaderUsageValue(usage, showsSecondaryText: true)
-            }
-
-            HStack(alignment: .center, spacing: 8) {
-                Text(
-                    NSLocalizedString(
-                        "codex.sessions.table.usage",
-                        value: "Usage",
-                        comment: "Session table column header"
-                    )
-                )
-                .font(.caption2.weight(.semibold))
-                .foregroundStyle(DesignSystem.Colors.Text.tertiary)
-
-                sectionHeaderUsageValue(usage, showsSecondaryText: false)
-            }
-        }
-    }
-
-    @ViewBuilder
-    private func sectionHeaderUsageValue(
-        _ usage: CodexSessionsUsageDisplayData,
-        showsSecondaryText: Bool
-    ) -> some View {
-        switch usage {
-        case .placeholder(let text):
-            Text(text)
-                .font(.caption)
-                .foregroundStyle(DesignSystem.Colors.Text.tertiary)
-        case .failed(let text):
-            Text(text)
-                .font(.caption.weight(.medium))
-                .foregroundStyle(DesignSystem.Colors.Status.warning)
-        case .value(let primaryText, let secondaryText):
-            HStack(alignment: .firstTextBaseline, spacing: 6) {
-                Text(primaryText)
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(DesignSystem.Colors.Text.primary)
-                    .monospacedDigit()
-
-                if showsSecondaryText, let secondaryText, !secondaryText.isEmpty {
-                    Text(secondaryText)
-                        .font(.caption2.monospaced())
-                        .foregroundStyle(DesignSystem.Colors.Text.tertiary)
-                        .lineLimit(1)
-                }
-            }
-        }
-    }
-
-    @ViewBuilder
-    private var sectionSecondaryLine: some View {
-        ViewThatFits(in: .horizontal) {
-            HStack(alignment: .center, spacing: 6) {
-                if let titleSecondaryText = data.titleSecondaryText, !titleSecondaryText.isEmpty {
-                    sectionPathLine(titleSecondaryText)
-                }
-
-                if let secondaryStatusSummary, !secondaryStatusSummary.isEmpty {
-                    if let titleSecondaryText = data.titleSecondaryText, !titleSecondaryText.isEmpty {
-                        Text("·")
-                            .foregroundStyle(DesignSystem.Colors.Text.quaternary)
-                    }
-                    Text(secondaryStatusSummary)
-                        .font(.caption)
-                        .foregroundStyle(DesignSystem.Colors.Text.tertiary)
-                        .lineLimit(1)
-                        .help(data.subtitle ?? secondaryStatusSummary)
-                }
-            }
-
-            if let titleSecondaryText = data.titleSecondaryText, !titleSecondaryText.isEmpty {
-                sectionPathLine(titleSecondaryText)
-            } else if let secondaryStatusSummary, !secondaryStatusSummary.isEmpty {
-                Text(secondaryStatusSummary)
-                    .font(.caption)
-                    .foregroundStyle(DesignSystem.Colors.Text.tertiary)
-                    .lineLimit(1)
-                    .help(data.subtitle ?? secondaryStatusSummary)
-            }
-        }
-    }
-
-    private func sectionStatusCaption(_ subtitle: String) -> some View {
-        Text(subtitle)
-            .font(.caption)
-            .foregroundStyle(DesignSystem.Colors.Text.tertiary)
-            .lineLimit(2)
-            .fixedSize(horizontal: false, vertical: true)
-    }
-
-    private func sectionPathLine(_ titleSecondaryText: String) -> some View {
-        HStack(alignment: .center, spacing: 6) {
-            Image(systemName: "folder")
-                .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(DesignSystem.Colors.Text.quaternary)
-
-            Text(titleSecondaryText)
-                .font(.caption.monospaced())
-                .foregroundStyle(DesignSystem.Colors.Text.tertiary)
-                .lineLimit(1)
-                .truncationMode(.middle)
-                .textSelection(.enabled)
-                .help(titleSecondaryText)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var adaptiveRowsContainer: some View {
@@ -683,9 +593,6 @@ public struct CodexSessionsSectionCardView<ExpandedRowContent: View>: View {
         VStack(alignment: .leading, spacing: 0) {
             ForEach(Array(data.rows.enumerated()), id: \.element.id) { index, row in
                 compactRowView(row)
-                if expandedRowID == row.id {
-                    expandedRowView(row)
-                }
                 if index < data.rows.count - 1 {
                     Divider()
                         .overlay(DesignSystem.Colors.Component.border.opacity(0.15))
@@ -772,34 +679,46 @@ public struct CodexSessionsSectionCardView<ExpandedRowContent: View>: View {
     }
 
     private func compactRowView(_ row: CodexSessionsRowData) -> some View {
-        ViewThatFits(in: .horizontal) {
-            compactRowContent(
-                row,
-                usage: compactUsageDisplayData(row.usage, showsSecondaryText: true)
-            )
-            .frame(minWidth: 700, alignment: .leading)
+        VStack(alignment: .leading, spacing: 0) {
+            ViewThatFits(in: .horizontal) {
+                compactRowContent(
+                    row,
+                    usage: compactUsageDisplayData(row.usage, showsSecondaryText: true)
+                )
+                .frame(minWidth: 700, alignment: .leading)
 
-            compactRowContent(
-                row,
-                usage: compactUsageDisplayData(row.usage, showsSecondaryText: false)
-            )
+                compactRowContent(
+                    row,
+                    usage: compactUsageDisplayData(row.usage, showsSecondaryText: false)
+                )
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 11)
+            .contentShape(RoundedRectangle(cornerRadius: DesignSystem.Metrics.cornerRadiusS, style: .continuous))
+            .onTapGesture {
+                onToggleRowExpansion(row)
+            }
+            .contextMenu {
+                rowContextMenu(row)
+            }
+
+            if expandedRowID == row.id {
+                Rectangle()
+                    .fill(DesignSystem.Colors.Component.border.opacity(0.12))
+                    .frame(height: 1)
+                    .padding(.horizontal, 14)
+
+                expandedRowView(row)
+                    .padding(.horizontal, 14)
+                    .padding(.top, 10)
+                    .padding(.bottom, 12)
+            }
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 11)
         .background(rowBackground(isSelected: selectedRowID == row.id))
-        .contentShape(RoundedRectangle(cornerRadius: DesignSystem.Metrics.cornerRadiusS, style: .continuous))
-        .onTapGesture {
-            onSelectRow(row)
-        }
-        .contextMenu {
-            rowContextMenu(row)
-        }
     }
 
     private func expandedRowView(_ row: CodexSessionsRowData) -> some View {
         expandedRowContent(row)
-            .padding(.horizontal, 12)
-            .padding(.bottom, 12)
             .transition(.opacity.combined(with: .move(edge: .top)))
     }
 
@@ -807,64 +726,135 @@ public struct CodexSessionsSectionCardView<ExpandedRowContent: View>: View {
         _ row: CodexSessionsRowData,
         usage: CodexSessionsUsageDisplayData
     ) -> some View {
-        HStack(alignment: .center, spacing: 12) {
+        HStack(alignment: .top, spacing: 12) {
             VStack(alignment: .leading, spacing: 7) {
-                HStack(alignment: .center, spacing: 8) {
-                    Text(row.title)
-                        .font(.subheadline.weight(.medium))
-                        .foregroundStyle(DesignSystem.Colors.Text.primary)
-                        .lineLimit(1)
+                compactTitleLine(row)
+                    .fixedSize(horizontal: false, vertical: true)
 
-                    FlowLayout(spacing: 6) {
-                        compactStatusPills(row)
-                    }
-                }
-
-                HStack(alignment: .center, spacing: 8) {
-                    Label(row.timeText, systemImage: "clock")
-                        .labelStyle(.titleAndIcon)
-                        .lineLimit(1)
-
-                    if showsProviderColumn {
-                        Text("·")
-                            .foregroundStyle(DesignSystem.Colors.Text.quaternary)
-                        Text(row.providerText)
-                            .lineLimit(1)
-                    }
-                }
-                .font(.caption)
-                .foregroundStyle(DesignSystem.Colors.Text.secondary)
+                compactRowSubtitle(row, usage: usage)
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
 
-            Spacer(minLength: 8)
-
-            compactUsageItem(usage)
-                .frame(minWidth: 68, alignment: .leading)
-
-            HStack(spacing: 10) {
-                Image(systemName: selectedRowID == row.id ? "chevron.down" : "chevron.right")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(DesignSystem.Colors.Text.quaternary)
-
-                rowMenuButton(row)
-            }
+            rowMenuButton(row)
+                .padding(.top, 2)
         }
     }
 
-    @ViewBuilder
-    private func compactStatusPills(_ row: CodexSessionsRowData) -> some View {
-        if row.isArchived {
-            pill(
-                text: NSLocalizedString(
-                    "codex.sessions.badge.archived",
-                    value: "Archived",
-                    comment: "Archived badge"
-                ),
-                tint: DesignSystem.Colors.Text.secondary
+    private func compactTitleLine(_ row: CodexSessionsRowData) -> some View {
+        compactTitleText(row)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+
+    private func compactTitleText(_ row: CodexSessionsRowData) -> Text {
+        Text(row.title)
+            .font(.body.weight(.medium))
+            .foregroundColor(DesignSystem.Colors.Text.primary)
+    }
+
+    private func compactRowSubtitle(
+        _ row: CodexSessionsRowData,
+        usage: CodexSessionsUsageDisplayData
+    ) -> some View {
+        compactRowSubtitleText(row, usage: usage)
+            .lineLimit(2)
+            .fixedSize(horizontal: false, vertical: true)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func compactRowSubtitleText(
+        _ row: CodexSessionsRowData,
+        usage: CodexSessionsUsageDisplayData
+    ) -> Text {
+        var items = [compactStatusSubtitleText(for: row)]
+
+        if !row.isEditable, let readOnlyText = row.readOnlyText, !readOnlyText.isEmpty {
+            items.append(
+                Text(readOnlyText)
+                    .font(.caption.weight(.semibold))
+                    .foregroundColor(DesignSystem.Colors.Status.warning)
             )
         }
-        if !row.isEditable, let readOnlyText = row.readOnlyText, !readOnlyText.isEmpty {
-            pill(text: readOnlyText, tint: DesignSystem.Colors.Status.warning)
+
+        if showsProviderColumn, !row.providerText.isEmpty {
+            items.append(
+                Text(row.providerText)
+                    .font(.caption)
+                    .foregroundColor(DesignSystem.Colors.Text.secondary)
+            )
+        }
+
+        items.append(contentsOf: compactUsageSubtitleTexts(usage))
+        items.append(
+            Text(row.timeText)
+                .font(.caption.monospaced())
+                .foregroundColor(DesignSystem.Colors.Text.secondary)
+        )
+
+        return compactJoinedSubtitleText(items)
+    }
+
+    private func compactStatusSubtitleText(for row: CodexSessionsRowData) -> Text {
+        let label = row.isArchived
+            ? NSLocalizedString(
+                "codex.sessions.badge.archived",
+                value: "Archived",
+                comment: "Archived badge"
+            )
+            : NSLocalizedString(
+                "codex.sessions.badge.live",
+                value: "Live",
+                comment: "Live badge"
+            )
+        let tint = row.isArchived ? DesignSystem.Colors.Text.secondary : DesignSystem.Colors.Status.success
+
+        return Text(label)
+            .font(.caption.weight(.semibold))
+            .foregroundColor(tint)
+    }
+
+    private func compactUsageSubtitleTexts(_ usage: CodexSessionsUsageDisplayData) -> [Text] {
+        switch usage {
+        case .placeholder:
+            return []
+        case .failed(let text):
+            return [
+                Text(text)
+                    .font(.caption.weight(.semibold))
+                    .foregroundColor(DesignSystem.Colors.Status.warning),
+            ]
+        case .value(let primaryText, let secondaryText):
+            var items = [
+                Text(primaryText)
+                    .font(.caption.weight(.semibold))
+                    .foregroundColor(DesignSystem.Colors.Text.secondary),
+            ]
+
+            if let secondaryText, !secondaryText.isEmpty {
+                let secondaryItems = secondaryText
+                    .split(separator: "·")
+                    .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                    .filter { !$0.isEmpty }
+                    .map {
+                        Text($0)
+                            .font(.caption2.monospaced())
+                            .foregroundColor(DesignSystem.Colors.Text.tertiary)
+                    }
+                items.append(contentsOf: secondaryItems)
+            }
+
+            return items
+        }
+    }
+
+    private func compactJoinedSubtitleText(_ items: [Text]) -> Text {
+        guard let first = items.first else { return Text("") }
+
+        let separator = Text(" · ")
+            .font(.caption)
+            .foregroundColor(DesignSystem.Colors.Text.tertiary)
+
+        return items.dropFirst().reduce(first) { partialResult, item in
+            partialResult + separator + item
         }
     }
 
@@ -875,9 +865,9 @@ public struct CodexSessionsSectionCardView<ExpandedRowContent: View>: View {
     ) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(row.title)
-                .font(.subheadline.weight(.medium))
+                .font(.body.weight(.medium))
                 .foregroundStyle(DesignSystem.Colors.Text.primary)
-                .lineLimit(2)
+                .fixedSize(horizontal: false, vertical: true)
             if !row.nameMetadataItems.isEmpty {
                 FlowLayout(spacing: metadataSpacing) {
                     ForEach(row.nameMetadataItems) { item in
@@ -900,7 +890,6 @@ public struct CodexSessionsSectionCardView<ExpandedRowContent: View>: View {
                 .font(.caption.monospaced())
                 .foregroundStyle(DesignSystem.Colors.Text.secondary)
                 .lineLimit(2)
-                .textSelection(.enabled)
             if let idSecondaryText = row.idSecondaryText, !idSecondaryText.isEmpty {
                 Text(idSecondaryText)
                     .font(.caption2.monospaced())
@@ -943,23 +932,12 @@ public struct CodexSessionsSectionCardView<ExpandedRowContent: View>: View {
                 .font(monospaced ? .caption.monospaced() : .caption)
                 .foregroundStyle(DesignSystem.Colors.Text.secondary)
                 .lineLimit(2)
-                .textSelection(.enabled)
             if let secondaryText, !secondaryText.isEmpty {
                 Text(secondaryText)
                     .font(monospaced ? .caption2.monospaced() : .caption2)
                     .foregroundStyle(DesignSystem.Colors.Text.tertiary)
                     .lineLimit(1)
             }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    private func compactUsageItem(_ usage: CodexSessionsUsageDisplayData) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(NSLocalizedString("codex.sessions.table.usage", value: "Usage", comment: "Session table column header"))
-                .font(.caption2.weight(.semibold))
-                .foregroundStyle(DesignSystem.Colors.Text.tertiary)
-            usageView(usage)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -990,7 +968,6 @@ public struct CodexSessionsSectionCardView<ExpandedRowContent: View>: View {
                     )
             )
     }
-
     private func rowMenuButton(_ row: CodexSessionsRowData) -> some View {
         EllipsisMenuButton {
             rowContextMenu(row)
@@ -1105,16 +1082,6 @@ public struct CodexSessionsSectionCardView<ExpandedRowContent: View>: View {
             .background(tint.opacity(0.10), in: Capsule())
     }
 
-    private func sectionHeaderBadge(text: String) -> some View {
-        Text(text)
-            .font(.caption2.weight(.semibold))
-            .foregroundStyle(DesignSystem.Colors.Text.secondary)
-            .padding(.horizontal, 7)
-            .padding(.vertical, 3)
-            .background(DesignSystem.Colors.Text.secondary.opacity(0.08), in: Capsule())
-            .lineLimit(1)
-    }
-
     private var showsProviderColumn: Bool {
         guard data.titleSecondaryText == nil, !data.rows.isEmpty else { return true }
         let providerTexts = Set(data.rows.map(\.providerText))
@@ -1171,17 +1138,6 @@ public struct CodexSessionsSectionCardView<ExpandedRowContent: View>: View {
             )
     }
 
-    private var sectionAccentColor: Color {
-        switch data.presentationKind {
-        case .rewritableGroup:
-            return DesignSystem.Colors.primary
-        case .singleSessionOnly:
-            return DesignSystem.Colors.Text.secondary
-        case .readOnly:
-            return DesignSystem.Colors.Status.warning
-        }
-    }
-
     private var sectionBorderColor: Color {
         switch data.presentationKind {
         case .rewritableGroup:
@@ -1191,27 +1147,6 @@ public struct CodexSessionsSectionCardView<ExpandedRowContent: View>: View {
         case .readOnly:
             return DesignSystem.Colors.Status.warning.opacity(0.22)
         }
-    }
-
-    private var sectionSymbolName: String {
-        switch data.presentationKind {
-        case .rewritableGroup:
-            return "arrow.left.arrow.right.circle.fill"
-        case .singleSessionOnly:
-            return "square.stack.3d.down.forward"
-        case .readOnly:
-            return "lock.fill"
-        }
-    }
-
-    private var showsSectionSecondaryLine: Bool {
-        if let titleSecondaryText = data.titleSecondaryText, !titleSecondaryText.isEmpty {
-            return true
-        }
-        if let secondaryStatusSummary, !secondaryStatusSummary.isEmpty {
-            return true
-        }
-        return false
     }
 
     private var secondaryStatusSummary: String? {
@@ -1233,22 +1168,124 @@ public struct CodexSessionsSectionCardView<ExpandedRowContent: View>: View {
         }
     }
 
-    private var headerStatusCaption: String? {
-        guard data.presentationKind != .rewritableGroup else { return nil }
-        guard let subtitle = data.subtitle, !subtitle.isEmpty else { return nil }
-        return subtitle
+    private var hasSectionMenu: Bool {
+        !data.actions.isEmpty || hasSectionUtilityActions || data.shareData != nil
     }
 
-    private func sectionActionMenuShortTitle(for actionMenuTitle: String) -> String {
-        if actionMenuTitle.localizedCaseInsensitiveContains("move") {
-            return NSLocalizedString(
-                "codex.sessions.group.action.move_short",
-                value: "Move",
-                comment: "Short section move action title"
+    private var sectionMenuHelpText: String {
+        if let actionMenuTitle = data.actionMenuTitle,
+           !actionMenuTitle.isEmpty,
+           !hasSectionUtilityActions,
+           data.shareData == nil {
+            return actionMenuTitle
+        }
+        return NSLocalizedString(
+            "codex.sessions.group.action.menu.help",
+            value: "Group actions",
+            comment: "Group actions menu help text"
+        )
+    }
+
+    private var hasSectionUtilityActions: Bool {
+        onCopySectionThreadIDs != nil
+    }
+
+    private var sectionSubtitleRailText: Text? {
+        let items = sectionSubtitleItems()
+        guard !items.isEmpty else { return nil }
+        return joinedSectionSubtitleText(items)
+    }
+
+    private var sectionHeaderHelpText: String? {
+        if let subtitle = data.subtitle, !subtitle.isEmpty {
+            return subtitle
+        }
+        return nil
+    }
+
+    private func sectionSubtitleItems() -> [Text] {
+        var items: [Text] = []
+
+        if let usage = data.usage {
+            items.append(contentsOf: sectionUsageSubtitleTexts(usage))
+        }
+
+        items.append(
+            contentsOf: data.badges.map {
+                Text($0.text)
+                    .font(.caption)
+                    .foregroundColor(DesignSystem.Colors.Text.secondary)
+            }
+        )
+
+        if let secondaryStatusSummary, !secondaryStatusSummary.isEmpty {
+            items.append(
+                Text(secondaryStatusSummary)
+                    .font(.caption.weight(.semibold))
+                    .foregroundColor(DesignSystem.Colors.Text.tertiary)
             )
         }
 
-        return actionMenuTitle
+        if let titleSecondaryText = data.titleSecondaryText, !titleSecondaryText.isEmpty {
+            items.append(
+                Text(titleSecondaryText)
+                    .font(.caption.monospaced())
+                    .foregroundColor(DesignSystem.Colors.Text.tertiary)
+            )
+        }
+
+        return items
+    }
+
+    private func sectionUsageSubtitleTexts(_ usage: CodexSessionsUsageDisplayData) -> [Text] {
+        switch usage {
+        case .placeholder(let text):
+            return [
+                Text(text)
+                    .font(.caption)
+                    .foregroundColor(DesignSystem.Colors.Text.tertiary),
+            ]
+        case .failed(let text):
+            return [
+                Text(text)
+                    .font(.caption.weight(.semibold))
+                    .foregroundColor(DesignSystem.Colors.Status.warning),
+            ]
+        case .value(let primaryText, let secondaryText):
+            var items = [
+                Text(primaryText)
+                    .font(.caption.weight(.semibold))
+                    .foregroundColor(DesignSystem.Colors.Text.secondary),
+            ]
+
+            if let secondaryText, !secondaryText.isEmpty {
+                items.append(
+                    contentsOf: secondaryText
+                        .split(separator: "·")
+                        .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                        .filter { !$0.isEmpty }
+                        .map {
+                            Text($0)
+                                .font(.caption2.monospaced())
+                                .foregroundColor(DesignSystem.Colors.Text.tertiary)
+                        }
+                )
+            }
+
+            return items
+        }
+    }
+
+    private func joinedSectionSubtitleText(_ items: [Text]) -> Text {
+        guard let first = items.first else { return Text("") }
+
+        let separator = Text(" · ")
+            .font(.caption)
+            .foregroundColor(DesignSystem.Colors.Text.tertiary)
+
+        return items.dropFirst().reduce(first) { partialResult, item in
+            partialResult + separator + item
+        }
     }
 
     private struct TableLayout {
