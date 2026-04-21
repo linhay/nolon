@@ -129,6 +129,12 @@ if [ ! -d "$SPARKLE_DIR" ]; then
     curl -L -s "https://github.com/sparkle-project/Sparkle/releases/download/${SPARKLE_VERSION}/Sparkle-${SPARKLE_VERSION}.tar.xz" | tar -xJ -C "$SPARKLE_DIR"
 fi
 
+echo -e "${YELLOW}🔍 Validating Sparkle key against SUPublicEDKey...${NC}"
+SPARKLE_BIN_DIR="$SPARKLE_BIN" \
+SPARKLE_KEYCHAIN_ACCOUNT="${SPARKLE_KEYCHAIN_ACCOUNT:-ed25519}" \
+SPARKLE_PRIVATE_KEY="${SPARKLE_PRIVATE_KEY:-}" \
+./scripts/validate-sparkle-key.sh
+
 # Sign DMGs
 echo -e "${YELLOW}✍️  Signing updates with Sparkle...${NC}"
 sign_update_with_available_key() {
