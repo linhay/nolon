@@ -2231,5 +2231,56 @@
                        xml:lang="en" />
         </item>
 
+    
+        <item>
+            <title>2.1.17</title>
+            <pubDate>Wed, 22 Apr 2026 23:46:12 +0800</pubDate>
+            <sparkle:version>202604222334</sparkle:version>
+            <sparkle:shortVersionString>2.1.17</sparkle:shortVersionString>
+            <link>https://github.com/linhay/nolon/releases/download/v2.1.17/nolon-arm64.dmg</link>
+            <description><![CDATA[<div style="white-space: pre-wrap; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;">## nolon 2.1.17
+
+### Changes
+- feat: improve codex usage caching and refresh diagnostics
+- refactor: merge token trend refresh detail into headline
+- fix: correct sparkle signatures for v2.1.16
+
+### Downloads
+
+| Platform | Architecture | Download |
+|----------|--------------|----------|
+| macOS | Apple Silicon (M1/M2/M3) | `nolon-arm64.dmg` |
+| macOS | Intel | `nolon-x86_64.dmg` |
+
+### Installation
+1. Download the appropriate DMG for your Mac
+   - **Apple Silicon** (M1, M2, M3 chips): `nolon-arm64.dmg`
+   - **Intel** (older Macs): `nolon-x86_64.dmg`
+2. Open the DMG and drag nolon to Applications
+3. Launch nolon from Applications
+
+### System Requirements
+- macOS 14.0 or later
+
+---
+*Built on 2026-04-22*</div>]]></description>
+            <enclosure url="https://github.com/linhay/nolon/releases/download/v2.1.17/nolon-arm64.dmg"
+                       sparkle:version="202604222334"
+                       sparkle:shortVersionString="2.1.17"
+                       sparkle:edSignature="DajHVgtzQ0VD7oQ8D/l57fAs9CD0OCLzOKRoeLWJYqhHvEZ9/WC4/B9YM+fWCFDdPJX8pZkRStB12mSI1m6tCw=="
+                       length="20749528"
+                       type="application/x-apple-diskimage"
+                       sparkle:os="macos"
+                       xml:lang="en" />
+            <enclosure url="https://github.com/linhay/nolon/releases/download/v2.1.17/nolon-x86_64.dmg"
+                       sparkle:version="202604222334"
+                       sparkle:shortVersionString="2.1.17"
+                       sparkle:edSignature="5rkEJttEMpr1nXlTPFaSiPolGID2xgva81JkVp+sxF6+2BPIapu3eroj0s1ycSO/IFXpD6V7W/7aHuHGaE1pBA=="
+                       length="21561508"
+                       type="application/x-apple-diskimage"
+                       sparkle:os="macos"
+                       xml:lang="en" />
+        </item>
+
     </channel>
 </rss>
