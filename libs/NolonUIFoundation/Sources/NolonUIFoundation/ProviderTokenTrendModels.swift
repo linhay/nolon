@@ -60,8 +60,36 @@ public struct ProviderTokenTrendSnapshotData: Sendable {
     }
 }
 
+public struct ProviderTokenTrendRefreshStatusData: Hashable, Sendable {
+    public let title: String
+    public let detail: String?
+    public let progressLabel: String?
+    public let fractionCompleted: Double?
+
+    public var headlineText: String {
+        let normalizedDetail = detail?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard !normalizedDetail.isEmpty else {
+            return title
+        }
+        return "\(title)：\(normalizedDetail)"
+    }
+
+    public init(
+        title: String,
+        detail: String? = nil,
+        progressLabel: String? = nil,
+        fractionCompleted: Double? = nil
+    ) {
+        self.title = title
+        self.detail = detail
+        self.progressLabel = progressLabel
+        self.fractionCompleted = fractionCompleted
+    }
+}
+
 public struct ProviderTokenTrendSectionData: Sendable {
     public let snapshot: ProviderTokenTrendSnapshotData?
+    public let refreshStatus: ProviderTokenTrendRefreshStatusData?
     public let drilldown: ProviderTokenTrendDrilldownData?
     public let selectedDayKey: String?
     public let isLoading: Bool
@@ -71,6 +99,7 @@ public struct ProviderTokenTrendSectionData: Sendable {
 
     public init(
         snapshot: ProviderTokenTrendSnapshotData?,
+        refreshStatus: ProviderTokenTrendRefreshStatusData? = nil,
         drilldown: ProviderTokenTrendDrilldownData? = nil,
         selectedDayKey: String? = nil,
         isLoading: Bool,
@@ -79,6 +108,7 @@ public struct ProviderTokenTrendSectionData: Sendable {
         availableRanges: [ProviderTokenTrendRangeOption]
     ) {
         self.snapshot = snapshot
+        self.refreshStatus = refreshStatus
         self.drilldown = drilldown
         self.selectedDayKey = selectedDayKey
         self.isLoading = isLoading
@@ -129,6 +159,7 @@ public struct ProviderTokenTrendDrilldownData: Sendable {
     public let actualBucketCount: Int
     public let fullBucketCount: Int
     public let rangeDescription: String
+    public let usageSummaryText: String?
     public let bucketSummary: String?
     public let presentationNote: String?
     public let points: [ProviderIntradayUsagePointData]
@@ -143,6 +174,7 @@ public struct ProviderTokenTrendDrilldownData: Sendable {
         actualBucketCount: Int,
         fullBucketCount: Int,
         rangeDescription: String,
+        usageSummaryText: String?,
         bucketSummary: String?,
         presentationNote: String?,
         points: [ProviderIntradayUsagePointData],
@@ -156,6 +188,7 @@ public struct ProviderTokenTrendDrilldownData: Sendable {
         self.actualBucketCount = actualBucketCount
         self.fullBucketCount = fullBucketCount
         self.rangeDescription = rangeDescription
+        self.usageSummaryText = usageSummaryText
         self.bucketSummary = bucketSummary
         self.presentationNote = presentationNote
         self.points = points

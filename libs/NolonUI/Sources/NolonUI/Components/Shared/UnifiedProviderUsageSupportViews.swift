@@ -235,7 +235,49 @@ public struct ProviderTokenTrendSectionView: View {
                     .foregroundStyle(DesignSystem.Colors.Text.tertiary)
                 }
             }
+
+            if let refreshStatus = data.refreshStatus {
+                refreshStatusBanner(refreshStatus)
+            }
         }
+    }
+
+    private func refreshStatusBanner(_ status: ProviderTokenTrendRefreshStatusData) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .top, spacing: 8) {
+                Image(systemName: "arrow.triangle.2.circlepath")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(DesignSystem.Colors.primary)
+                    .padding(.top, 2)
+
+                Text(status.headlineText)
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(DesignSystem.Colors.Text.primary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .layoutPriority(1)
+
+                Spacer()
+
+                if let progressLabel = status.progressLabel, !progressLabel.isEmpty {
+                    Text(progressLabel)
+                        .font(.system(size: 11, weight: .semibold))
+                        .monospacedDigit()
+                        .foregroundStyle(DesignSystem.Colors.Text.secondary)
+                }
+            }
+
+            if let fractionCompleted = status.fractionCompleted {
+                ProgressView(value: min(max(fractionCompleted, 0), 1), total: 1)
+                    .controlSize(.small)
+                    .tint(DesignSystem.Colors.primary)
+            } else {
+                ProgressView()
+                    .controlSize(.small)
+                    .tint(DesignSystem.Colors.primary)
+            }
+        }
+        .padding(12)
+        .background(DesignSystem.Colors.Background.elevated.opacity(0.24), in: RoundedRectangle(cornerRadius: 12))
     }
 
     private func summary(snapshot: ProviderTokenTrendSnapshotData) -> some View {
@@ -512,6 +554,11 @@ public struct ProviderTokenTrendSectionView: View {
                     Text("\(drilldown.dayKey) · \(drilldown.rangeDescription)")
                         .font(.caption)
                         .foregroundStyle(DesignSystem.Colors.Text.secondary)
+                    if let usageSummaryText = drilldown.usageSummaryText, !usageSummaryText.isEmpty {
+                        Text(usageSummaryText)
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundStyle(DesignSystem.Colors.Text.secondary)
+                    }
                     if let freshnessText = drilldown.freshnessText, !freshnessText.isEmpty {
                         Text(freshnessText)
                             .font(.system(size: 10, weight: .medium))
