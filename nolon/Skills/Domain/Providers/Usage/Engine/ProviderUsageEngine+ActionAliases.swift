@@ -14,6 +14,8 @@ typealias UsageEngineCodexImportConnectionTestAction = @Sendable (CodexAuthManag
 typealias UsageEngineCodexImportOpenPanelAction = @MainActor @Sendable () -> [URL]
 typealias UsageEngineCodexExportSavePanelAction = @MainActor @Sendable (UTType, String) -> URL?
 typealias UsageEngineCodexImportExportArchiveAction = @MainActor @Sendable ([CodexAuthManager.CodexImportValidationResult], URL) async throws -> Int
+typealias UsageEngineCodexCachedTokenTrendFetchAction = @Sendable (Int?) -> ProviderTokenTrendSnapshot?
+typealias UsageEngineCodexTokenTrendFetchAction = @Sendable (Int?) async throws -> ProviderTokenTrendSnapshot?
 typealias UsageEngineClaudeTokenTrendFetchAction = @Sendable (Int?) async throws -> ProviderTokenTrendSnapshot?
 typealias UsageEngineGeminiTokenTrendFetchAction = @Sendable (UsageProvider, Int?) async throws -> ProviderTokenTrendSnapshot?
 typealias UsageEngineProviderIntradayFetchAction = @Sendable (UsageProvider, String, ProviderIntradayBucket) async throws -> ProviderIntradayUsageSnapshot?
@@ -34,6 +36,8 @@ extension ProviderUsageEngine {
         let codexImportOpenPanel: CodexImportOpenPanelAction
         let codexExportSavePanel: CodexExportSavePanelAction
         let codexImportExportArchive: CodexImportExportArchiveAction
+        let codexCachedTokenTrendFetch: CodexCachedTokenTrendFetchAction
+        let codexTokenTrendFetch: CodexTokenTrendFetchAction
         let claudeTokenTrendFetch: ClaudeTokenTrendFetchAction
         let geminiTokenTrendFetch: GeminiTokenTrendFetchAction
         let providerIntradayFetch: ProviderIntradayFetchAction
@@ -50,6 +54,8 @@ extension ProviderUsageEngine {
     typealias CodexImportOpenPanelAction = UsageEngineCodexImportOpenPanelAction
     typealias CodexExportSavePanelAction = UsageEngineCodexExportSavePanelAction
     typealias CodexImportExportArchiveAction = UsageEngineCodexImportExportArchiveAction
+    typealias CodexCachedTokenTrendFetchAction = UsageEngineCodexCachedTokenTrendFetchAction
+    typealias CodexTokenTrendFetchAction = UsageEngineCodexTokenTrendFetchAction
     typealias ClaudeTokenTrendFetchAction = UsageEngineClaudeTokenTrendFetchAction
     typealias GeminiTokenTrendFetchAction = UsageEngineGeminiTokenTrendFetchAction
     typealias ProviderIntradayFetchAction = UsageEngineProviderIntradayFetchAction

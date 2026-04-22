@@ -24,7 +24,7 @@ final class ProviderUsageEngine: CopyToastPresenting {
     static let codexOfficialAPIBaseURL = "https://api.openai.com/v1"
     static let codexDefaultModelProvider = "nolon"
     let usageMonitor: ProviderUsageMonitorService
-    let codexTokenTrendService = CodexTokenTrendService()
+    let codexTokenTrendService: CodexTokenTrendService
     let codexModelPreferenceService: CodexModelPreferenceService
     let settingsStore = UsageMonitorSettingsStore.shared
     let codexAuthManager: CodexAuthManager
@@ -44,6 +44,8 @@ final class ProviderUsageEngine: CopyToastPresenting {
     var codexImportOpenPanelAction: CodexImportOpenPanelAction { actions.codexImportOpenPanel }
     var codexExportSavePanelAction: CodexExportSavePanelAction { actions.codexExportSavePanel }
     var codexImportExportArchiveAction: CodexImportExportArchiveAction { actions.codexImportExportArchive }
+    var codexCachedTokenTrendFetchAction: CodexCachedTokenTrendFetchAction { actions.codexCachedTokenTrendFetch }
+    var codexTokenTrendFetchAction: CodexTokenTrendFetchAction { actions.codexTokenTrendFetch }
     var claudeTokenTrendFetchAction: ClaudeTokenTrendFetchAction { actions.claudeTokenTrendFetch }
     var geminiTokenTrendFetchAction: GeminiTokenTrendFetchAction { actions.geminiTokenTrendFetch }
     var providerIntradayFetchAction: ProviderIntradayFetchAction { actions.providerIntradayFetch }
@@ -75,6 +77,7 @@ final class ProviderUsageEngine: CopyToastPresenting {
     var activeCodexAccountId: UUID?
     var tokenTrendRange: TokenTrendRange = .days30
     var tokenTrendSnapshot: ProviderTokenTrendSnapshot?
+    var tokenTrendRefreshStatus: ProviderTokenTrendRefreshStatusData?
     var tokenTrendErrorMessage: String?
     var isLoadingTokenTrend = false
     var tokenTrendCapability: ProviderUsageCurveCapability = .dailyOnly
@@ -83,6 +86,10 @@ final class ProviderUsageEngine: CopyToastPresenting {
     var intradaySnapshot: ProviderIntradayUsageSnapshot?
     var intradayErrorMessage: String?
     var isLoadingIntraday = false
+    @ObservationIgnored private var hasUserAdjustedIntradaySelection = false
+    @ObservationIgnored private var codexTokenTrendPerformanceObserver: NSObjectProtocol?
+    @ObservationIgnored private var activeTokenTrendRefreshTraceID: String?
+    @ObservationIgnored private var latestIntradayRefreshRequestID: UUID?
     var shouldShowTokenTrendLoadingSkeleton: Bool {
         guard usageProvider == .codex || usageProvider == .claude || usageProvider == .gemini || usageProvider == .antigravity else { return false }
         guard tokenTrendSnapshot == nil else { return false }
@@ -229,6 +236,8 @@ final class ProviderUsageEngine: CopyToastPresenting {
         codexImportOpenPanelAction: CodexImportOpenPanelAction? = nil,
         codexExportSavePanelAction: CodexExportSavePanelAction? = nil,
         codexImportExportArchiveAction: CodexImportExportArchiveAction? = nil,
+        codexCachedTokenTrendFetchAction: CodexCachedTokenTrendFetchAction? = nil,
+        codexTokenTrendFetchAction: CodexTokenTrendFetchAction? = nil,
         claudeTokenTrendFetchAction: ClaudeTokenTrendFetchAction? = nil,
         geminiTokenTrendFetchAction: GeminiTokenTrendFetchAction? = nil,
         providerIntradayFetchAction: ProviderIntradayFetchAction? = nil,
@@ -241,6 +250,8 @@ final class ProviderUsageEngine: CopyToastPresenting {
         self.usageMonitor = usageMonitor ?? ProviderUsageMonitorService(tokenAccountStore: tokenStore)
         self.codexAuthManager = codexAuthManager
         self.provider = provider
+        let resolvedCodexTokenTrendService = CodexTokenTrendService()
+        self.codexTokenTrendService = resolvedCodexTokenTrendService
         self.codexModelPreferenceService = codexModelPreferenceService
         self.usageProvider = ProviderUsageEngine.mapToUsageProvider(provider)
         self.tokenTrendCapability = Self.tokenTrendCapability(for: self.usageProvider)
@@ -298,6 +309,18 @@ final class ProviderUsageEngine: CopyToastPresenting {
         let resolvedCodexImportExportArchiveAction = codexImportExportArchiveAction ?? { [codexAuthManager] results, destinationURL in
             try await codexAuthManager.exportValidatedAuthFilesArchive(results: results, destinationURL: destinationURL)
         }
+        let resolvedCodexCachedTokenTrendFetchAction = codexCachedTokenTrendFetchAction ?? { trailingDays in
+            resolvedCodexTokenTrendService.fetchCachedGlobalSnapshot(
+                trailingDays: trailingDays,
+                environment: ProcessInfo.processInfo.environment
+            )
+        }
+        let resolvedCodexTokenTrendFetchAction = codexTokenTrendFetchAction ?? { trailingDays in
+            try await resolvedCodexTokenTrendService.fetchRefreshedGlobalSnapshot(
+                trailingDays: trailingDays,
+                environment: ProcessInfo.processInfo.environment
+            )
+        }
         let resolvedClaudeTokenTrendFetchAction = claudeTokenTrendFetchAction ?? { trailingDays in
             try await ProviderUsageRegistry.fetchTokenTrendSnapshot(
                 for: .claude,
@@ -346,6 +369,8 @@ final class ProviderUsageEngine: CopyToastPresenting {
             codexImportOpenPanel: resolvedCodexImportOpenPanelAction,
             codexExportSavePanel: resolvedCodexExportSavePanelAction,
             codexImportExportArchive: resolvedCodexImportExportArchiveAction,
+            codexCachedTokenTrendFetch: resolvedCodexCachedTokenTrendFetchAction,
+            codexTokenTrendFetch: resolvedCodexTokenTrendFetchAction,
             claudeTokenTrendFetch: resolvedClaudeTokenTrendFetchAction,
             geminiTokenTrendFetch: resolvedGeminiTokenTrendFetchAction,
             providerIntradayFetch: resolvedProviderIntradayFetchAction
@@ -353,6 +378,7 @@ final class ProviderUsageEngine: CopyToastPresenting {
         self.updateSupportedModes()
         self.configureCodexAuthReloadPipeline()
         self.configureCodexSQLiteObservationIfNeeded()
+        self.configureCodexTokenTrendDiagnosticsIfNeeded()
         let watcher = UsageMonitorFileWatcher { [weak self] change in
             Task { await self?.handleUsageFileChange(change) }
         }
@@ -363,12 +389,509 @@ final class ProviderUsageEngine: CopyToastPresenting {
         copyToastTask?.cancel()
         codexAuthReloadSignalCancellable?.cancel()
         codexSQLiteObservationCancellable?.cancel()
+        if let codexTokenTrendPerformanceObserver {
+            NotificationCenter.default.removeObserver(codexTokenTrendPerformanceObserver)
+        }
         codexReloadTask?.cancel()
         codexHeaderRefreshTask?.cancel()
         let watcher = usageWatcher
         Task { @MainActor in
             watcher?.stop()
         }
+    }
+
+    private func configureCodexTokenTrendDiagnosticsIfNeeded() {
+        guard usageProvider == .codex else { return }
+        guard codexTokenTrendPerformanceObserver == nil else { return }
+
+        codexTokenTrendPerformanceObserver = NotificationCenter.default.addObserver(
+            forName: CodexSessionStore.performanceNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] notification in
+            MainActor.assumeIsolated { [weak self] in
+                self?.handleCodexTokenTrendPerformanceNotification(notification)
+            }
+        }
+    }
+
+    private func handleCodexTokenTrendPerformanceNotification(_ notification: Notification) {
+        guard isLoadingTokenTrend else { return }
+        guard let userInfo = notification.userInfo, matchesCodexStoreNotification(userInfo) else {
+            return
+        }
+        guard let operation = userInfo["operation"] as? String,
+              operation == "refresh_projected_usage_day_keys"
+        else {
+            return
+        }
+
+        let traceID = (userInfo["trace_id"] as? String)?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        if let activeTokenTrendRefreshTraceID,
+           let traceID,
+           activeTokenTrendRefreshTraceID != traceID
+        {
+            return
+        }
+        if activeTokenTrendRefreshTraceID == nil,
+           let traceID,
+           !traceID.isEmpty
+        {
+            activeTokenTrendRefreshTraceID = traceID
+        }
+
+        tokenTrendRefreshStatus = Self.makeTokenTrendRefreshStatusData(from: userInfo)
+    }
+
+    private func matchesCodexStoreNotification(_ userInfo: [AnyHashable: Any]) -> Bool {
+        guard let path = userInfo["codex_home_path"] as? String else { return false }
+        let normalizedPath = URL(fileURLWithPath: path).standardizedFileURL.path
+        return normalizedPath == Self.resolveCodexHomePath(environment: ProcessInfo.processInfo.environment)
+    }
+
+    static func makeTokenTrendRefreshStatusData(
+        from userInfo: [AnyHashable: Any]
+    ) -> ProviderTokenTrendRefreshStatusData? {
+        let phase = ((userInfo["phase"] as? String) ?? "completed")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        let detailPhase = ((userInfo["detail_phase"] as? String) ?? "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        let scannedFileCount = integerValue(userInfo["scanned_file_count"])
+        let cachedEntryCount = integerValue(userInfo["cached_entry_count"])
+        let dirtyRolloutCount = integerValue(userInfo["dirty_rollout_count"])
+        let processedRolloutCount = integerValue(userInfo["processed_rollout_count"])
+        let refreshedLiveRolloutCount = integerValue(userInfo["refreshed_live_rollout_count"])
+        let refreshedArchivedRolloutCount = integerValue(userInfo["refreshed_archived_rollout_count"])
+        let skippedRolloutCount = integerValue(userInfo["skipped_rollout_count"])
+        let removedRolloutCount = integerValue(userInfo["removed_rollout_count"])
+        let affectedDayKeyCount = integerValue(userInfo["affected_day_key_count"])
+        let currentRolloutPath = displayRolloutPath(userInfo["current_rollout_path"] as? String)
+        let currentDatabaseName = displayDatabaseName(
+            databaseName: userInfo["current_database_name"] as? String,
+            databasePath: userInfo["current_database_path"] as? String
+        )
+        let refreshReasonDescription = localizedRefreshReason(
+            rawValue: userInfo["current_refresh_reason"] as? String
+        )
+
+        switch phase {
+        case "started":
+            switch detailPhase {
+            case "scan_inventory":
+                return ProviderTokenTrendRefreshStatusData(
+                    title: NSLocalizedString(
+                        "usage.token_trend.refresh.scan_inventory.title",
+                        value: "正在扫描会话文件",
+                        comment: "Codex token trend refresh scan inventory title"
+                    ),
+                    detail: NSLocalizedString(
+                        "usage.token_trend.refresh.scan_inventory.detail",
+                        value: "正在遍历 sessions 与 archived_sessions，准备核对本地 rollout 清单。",
+                        comment: "Codex token trend refresh scan inventory detail"
+                    ),
+                    progressLabel: nil,
+                    fractionCompleted: nil
+                )
+
+            case "read_usage_index":
+                let detail = String(
+                    format: NSLocalizedString(
+                        "usage.token_trend.refresh.read_usage_index.detail",
+                        value: "正在读取 %@，准备比对 %d 个会话文件与本地 minute 索引。",
+                        comment: "Codex token trend refresh read usage index detail"
+                    ),
+                    currentDatabaseName,
+                    scannedFileCount
+                )
+                return ProviderTokenTrendRefreshStatusData(
+                    title: NSLocalizedString(
+                        "usage.token_trend.refresh.read_usage_index.title",
+                        value: "正在读取用量索引数据库",
+                        comment: "Codex token trend refresh read usage index title"
+                    ),
+                    detail: detail,
+                    progressLabel: nil,
+                    fractionCompleted: nil
+                )
+
+            case "reconcile_rollouts":
+                let detail = String(
+                    format: NSLocalizedString(
+                        "usage.token_trend.refresh.reconcile_rollouts.detail",
+                        value: "已扫描 %d 个会话文件，命中 %d 条缓存记录，发现 %d 个待回填会话。",
+                        comment: "Codex token trend refresh reconcile rollouts detail"
+                    ),
+                    scannedFileCount,
+                    cachedEntryCount,
+                    dirtyRolloutCount
+                )
+                return ProviderTokenTrendRefreshStatusData(
+                    title: NSLocalizedString(
+                        "usage.token_trend.refresh.reconcile_rollouts.title",
+                        value: "正在比对待刷新文件",
+                        comment: "Codex token trend refresh reconcile rollouts title"
+                    ),
+                    detail: detail,
+                    progressLabel: progressLabel(processed: 0, total: dirtyRolloutCount),
+                    fractionCompleted: dirtyRolloutCount > 0 ? 0 : 1
+                )
+
+            default:
+                break
+            }
+            let detail = String(
+                format: NSLocalizedString(
+                    "usage.token_trend.refresh.started.detail",
+                    value: "已扫描 %d 个会话文件，命中 %d 条缓存记录，发现 %d 个待回填会话。",
+                    comment: "Codex token trend refresh started detail"
+                ),
+                scannedFileCount,
+                cachedEntryCount,
+                dirtyRolloutCount
+            )
+            return ProviderTokenTrendRefreshStatusData(
+                title: NSLocalizedString(
+                    "usage.token_trend.refresh.started.title",
+                    value: "正在扫描会话用量",
+                    comment: "Codex token trend refresh started title"
+                ),
+                detail: detail,
+                progressLabel: progressLabel(processed: 0, total: dirtyRolloutCount),
+                fractionCompleted: dirtyRolloutCount > 0 ? 0 : 1
+            )
+
+        case "progress", "completed":
+            let safeProcessedRolloutCount = phase == "completed"
+                ? max(dirtyRolloutCount, processedRolloutCount)
+                : processedRolloutCount
+
+            switch detailPhase {
+            case "read_previous_minutes":
+                let detail = String(
+                    format: NSLocalizedString(
+                        "usage.token_trend.refresh.read_previous_minutes.detail",
+                        value: "正在从 %@ 读取 %@ 的旧分钟桶，准备计算受影响日期。",
+                        comment: "Codex token trend refresh read previous minutes detail"
+                    ),
+                    currentDatabaseName,
+                    currentRolloutPath
+                )
+                return ProviderTokenTrendRefreshStatusData(
+                    title: NSLocalizedString(
+                        "usage.token_trend.refresh.read_previous_minutes.title",
+                        value: "正在读取旧分钟索引",
+                        comment: "Codex token trend refresh read previous minutes title"
+                    ),
+                    detail: detail,
+                    progressLabel: progressLabel(
+                        processed: safeProcessedRolloutCount,
+                        total: dirtyRolloutCount
+                    ),
+                    fractionCompleted: progressFraction(
+                        processed: safeProcessedRolloutCount,
+                        total: dirtyRolloutCount
+                    )
+                )
+
+            case "analyze_rollout":
+                let detail: String
+                if let refreshReasonDescription {
+                    detail = String(
+                        format: NSLocalizedString(
+                            "usage.token_trend.refresh.analyze_rollout.detail_with_reason",
+                            value: "正在解析 %@，原因：%@。",
+                            comment: "Codex token trend refresh analyze rollout detail with reason"
+                        ),
+                        currentRolloutPath,
+                        refreshReasonDescription
+                    )
+                } else {
+                    detail = String(
+                        format: NSLocalizedString(
+                            "usage.token_trend.refresh.analyze_rollout.detail",
+                            value: "正在解析 %@，并重算它的派生 minute 用量。",
+                            comment: "Codex token trend refresh analyze rollout detail"
+                        ),
+                        currentRolloutPath
+                    )
+                }
+                return ProviderTokenTrendRefreshStatusData(
+                    title: NSLocalizedString(
+                        "usage.token_trend.refresh.analyze_rollout.title",
+                        value: "正在分析会话文件",
+                        comment: "Codex token trend refresh analyze rollout title"
+                    ),
+                    detail: detail,
+                    progressLabel: progressLabel(
+                        processed: safeProcessedRolloutCount,
+                        total: dirtyRolloutCount
+                    ),
+                    fractionCompleted: progressFraction(
+                        processed: safeProcessedRolloutCount,
+                        total: dirtyRolloutCount
+                    )
+                )
+
+            case "read_updated_minutes":
+                let detail = String(
+                    format: NSLocalizedString(
+                        "usage.token_trend.refresh.read_updated_minutes.detail",
+                        value: "正在从 %@ 回读 %@ 的最新分钟桶，准备更新受影响日期。",
+                        comment: "Codex token trend refresh read updated minutes detail"
+                    ),
+                    currentDatabaseName,
+                    currentRolloutPath
+                )
+                return ProviderTokenTrendRefreshStatusData(
+                    title: NSLocalizedString(
+                        "usage.token_trend.refresh.read_updated_minutes.title",
+                        value: "正在回读刷新结果",
+                        comment: "Codex token trend refresh read updated minutes title"
+                    ),
+                    detail: detail,
+                    progressLabel: progressLabel(
+                        processed: safeProcessedRolloutCount,
+                        total: dirtyRolloutCount
+                    ),
+                    fractionCompleted: progressFraction(
+                        processed: safeProcessedRolloutCount,
+                        total: dirtyRolloutCount
+                    )
+                )
+
+            case "purge_stale_entries":
+                let detail = String(
+                    format: NSLocalizedString(
+                        "usage.token_trend.refresh.purge_stale_entries.detail",
+                        value: "正在从 %@ 清理已删除 rollout 的旧 minute 索引。",
+                        comment: "Codex token trend refresh purge stale entries detail"
+                    ),
+                    currentDatabaseName
+                )
+                return ProviderTokenTrendRefreshStatusData(
+                    title: NSLocalizedString(
+                        "usage.token_trend.refresh.purge_stale_entries.title",
+                        value: "正在清理旧索引记录",
+                        comment: "Codex token trend refresh purge stale entries title"
+                    ),
+                    detail: detail,
+                    progressLabel: progressLabel(
+                        processed: safeProcessedRolloutCount,
+                        total: dirtyRolloutCount
+                    ),
+                    fractionCompleted: progressFraction(
+                        processed: safeProcessedRolloutCount,
+                        total: dirtyRolloutCount
+                    )
+                )
+
+            default:
+                break
+            }
+
+            var detailParts: [String] = [
+                String(
+                    format: NSLocalizedString(
+                        "usage.token_trend.refresh.progress.refreshed",
+                        value: "已刷新 live %d 个、archived %d 个",
+                        comment: "Codex token trend refresh progress refreshed detail"
+                    ),
+                    refreshedLiveRolloutCount,
+                    refreshedArchivedRolloutCount
+                )
+            ]
+            if skippedRolloutCount > 0 {
+                detailParts.append(
+                    String(
+                        format: NSLocalizedString(
+                            "usage.token_trend.refresh.progress.skipped",
+                            value: "跳过 %d 个",
+                            comment: "Codex token trend refresh skipped rollouts detail"
+                        ),
+                        skippedRolloutCount
+                    )
+                )
+            }
+            if removedRolloutCount > 0 {
+                detailParts.append(
+                    String(
+                        format: NSLocalizedString(
+                            "usage.token_trend.refresh.progress.removed",
+                            value: "待移除 %d 个旧 rollout",
+                            comment: "Codex token trend refresh removed rollouts detail"
+                        ),
+                        removedRolloutCount
+                    )
+                )
+            }
+            if affectedDayKeyCount > 0 {
+                detailParts.append(
+                    String(
+                        format: NSLocalizedString(
+                            "usage.token_trend.refresh.progress.affected_days",
+                            value: "当前影响 %d 天",
+                            comment: "Codex token trend refresh affected days detail"
+                        ),
+                        affectedDayKeyCount
+                    )
+                )
+            }
+            if detailPhase == "rollout_completed", !currentRolloutPath.isEmpty {
+                detailParts.append(
+                    String(
+                        format: NSLocalizedString(
+                            "usage.token_trend.refresh.progress.latest_rollout",
+                            value: "刚完成 %@",
+                            comment: "Codex token trend refresh latest rollout detail"
+                        ),
+                        currentRolloutPath
+                    )
+                )
+            }
+            return ProviderTokenTrendRefreshStatusData(
+                title: NSLocalizedString(
+                    "usage.token_trend.refresh.progress.title",
+                    value: "正在回填派生用量",
+                    comment: "Codex token trend refresh progress title"
+                ),
+                detail: detailParts.joined(separator: "，") + "。",
+                progressLabel: progressLabel(
+                    processed: safeProcessedRolloutCount,
+                    total: dirtyRolloutCount
+                ),
+                fractionCompleted: progressFraction(
+                    processed: safeProcessedRolloutCount,
+                    total: dirtyRolloutCount
+                )
+            )
+
+        default:
+            return nil
+        }
+    }
+
+    private static func progressLabel(processed: Int, total: Int) -> String {
+        guard total > 0 else {
+            return NSLocalizedString(
+                "usage.token_trend.refresh.progress.none",
+                value: "无需回填",
+                comment: "Codex token trend refresh no work needed"
+            )
+        }
+        return "\(min(max(processed, 0), total)) / \(total)"
+    }
+
+    private static func progressFraction(processed: Int, total: Int) -> Double {
+        guard total > 0 else { return 1 }
+        let boundedProcessed = min(max(processed, 0), total)
+        return Double(boundedProcessed) / Double(total)
+    }
+
+    private static func integerValue(_ value: Any?) -> Int {
+        if let intValue = value as? Int {
+            return intValue
+        }
+        if let number = value as? NSNumber {
+            return number.intValue
+        }
+        return 0
+    }
+
+    private static func displayRolloutPath(_ value: String?) -> String {
+        let normalizedValue = (value ?? "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalizedValue.isEmpty else {
+            return NSLocalizedString(
+                "usage.token_trend.refresh.rollout.unknown",
+                value: "当前 rollout",
+                comment: "Codex token trend refresh unknown rollout label"
+            )
+        }
+
+        let components = normalizedValue.split(separator: "/")
+        guard components.count > 3 else { return normalizedValue }
+        return components.suffix(3).joined(separator: "/")
+    }
+
+    private static func displayDatabaseName(
+        databaseName: String?,
+        databasePath: String?
+    ) -> String {
+        let normalizedName = (databaseName ?? "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        if !normalizedName.isEmpty {
+            return normalizedName
+        }
+
+        let normalizedPath = (databasePath ?? "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        if !normalizedPath.isEmpty {
+            return (normalizedPath as NSString).lastPathComponent
+        }
+
+        return NSLocalizedString(
+            "usage.token_trend.refresh.database.unknown",
+            value: "usage-index-v1.sqlite",
+            comment: "Codex token trend refresh unknown database name"
+        )
+    }
+
+    private static func localizedRefreshReason(rawValue: String?) -> String? {
+        let normalizedValue = (rawValue ?? "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        guard !normalizedValue.isEmpty else { return nil }
+
+        switch normalizedValue {
+        case "new_rollout":
+            return NSLocalizedString(
+                "usage.token_trend.refresh.reason.new_rollout",
+                value: "发现新 rollout",
+                comment: "Codex token trend refresh reason new rollout"
+            )
+        case "live_fingerprint_changed":
+            return NSLocalizedString(
+                "usage.token_trend.refresh.reason.live_fingerprint_changed",
+                value: "live rollout 指纹变化",
+                comment: "Codex token trend refresh reason live fingerprint changed"
+            )
+        case "archived_hash_missing":
+            return NSLocalizedString(
+                "usage.token_trend.refresh.reason.archived_hash_missing",
+                value: "archived rollout 缺少内容哈希",
+                comment: "Codex token trend refresh reason archived hash missing"
+            )
+        case "archived_state_changed":
+            return NSLocalizedString(
+                "usage.token_trend.refresh.reason.archived_state_changed",
+                value: "archived 状态发生变化",
+                comment: "Codex token trend refresh reason archived state changed"
+            )
+        case "fingerprint_unavailable":
+            return NSLocalizedString(
+                "usage.token_trend.refresh.reason.fingerprint_unavailable",
+                value: "无法读取文件指纹",
+                comment: "Codex token trend refresh reason fingerprint unavailable"
+            )
+        default:
+            return normalizedValue.replacingOccurrences(of: "_", with: " ")
+        }
+    }
+
+    private static func resolveCodexHomePath(environment: [String: String]) -> String {
+        if let override = environment["CODEX_HOME"]?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !override.isEmpty
+        {
+            return URL(fileURLWithPath: override, isDirectory: true).standardizedFileURL.path
+        }
+
+        return URL(fileURLWithPath: NSHomeDirectory(), isDirectory: true)
+            .appendingPathComponent(".codex", isDirectory: true)
+            .standardizedFileURL
+            .path
     }
 
     enum TokenTrendRange: String, CaseIterable, Identifiable {
@@ -502,6 +1025,16 @@ final class ProviderUsageEngine: CopyToastPresenting {
             return false
         }
         guard !didStartUsageInitialLoad else { return false }
+        if usageProvider == .codex {
+            tokenTrendSnapshot = codexCachedTokenTrendFetchAction(tokenTrendRange.trailingDays)
+            let shouldRefreshIntraday = reconcileIntradayDrilldownSelection(
+                with: tokenTrendSnapshot,
+                allowAutomaticSelection: true
+            )
+            if shouldRefreshIntraday {
+                refreshIntradayNow()
+            }
+        }
         didStartUsageInitialLoad = true
         await loadUsage()
         return true
@@ -811,12 +1344,14 @@ final class ProviderUsageEngine: CopyToastPresenting {
         guard tokenTrendCapability == .dailyWithIntradayDrilldown else { return }
         guard selectedTokenTrendDayKey != dayKey else { return }
 
+        hasUserAdjustedIntradaySelection = true
         selectedTokenTrendDayKey = dayKey
         intradayErrorMessage = nil
 
         guard let dayKey else {
             intradaySnapshot = nil
             isLoadingIntraday = false
+            latestIntradayRefreshRequestID = nil
             return
         }
 
@@ -845,6 +1380,12 @@ final class ProviderUsageEngine: CopyToastPresenting {
         }
     }
 
+    func refreshIntradayPanelNow() {
+        Task { [weak self] in
+            await self?.refreshIntradayPanel()
+        }
+    }
+
     func refreshTokenTrendForTesting() async {
         await refreshTokenTrend()
     }
@@ -853,21 +1394,46 @@ final class ProviderUsageEngine: CopyToastPresenting {
         await refreshIntraday()
     }
 
+    func refreshIntradayPanelForTesting() async {
+        await refreshIntradayPanel()
+    }
+
     func refreshTokenTrend() async {
         guard let usageProvider else { return }
         guard usageProvider == .codex || usageProvider == .claude || usageProvider == .gemini || usageProvider == .antigravity else { return }
 
+        let existingSnapshot = tokenTrendSnapshot
+        if usageProvider == .codex {
+            activeTokenTrendRefreshTraceID = nil
+            tokenTrendRefreshStatus = ProviderTokenTrendRefreshStatusData(
+                title: NSLocalizedString(
+                    "usage.token_trend.refresh.preparing.title",
+                    value: "正在准备刷新本地用量",
+                    comment: "Codex token trend refresh preparing title"
+                ),
+                detail: NSLocalizedString(
+                    "usage.token_trend.refresh.preparing.detail",
+                    value: "正在读取缓存并核对会话派生用量，请稍候。",
+                    comment: "Codex token trend refresh preparing detail"
+                ),
+                progressLabel: nil,
+                fractionCompleted: nil
+            )
+        } else {
+            tokenTrendRefreshStatus = nil
+        }
         isLoadingTokenTrend = true
         tokenTrendErrorMessage = nil
-        defer { isLoadingTokenTrend = false }
+        defer {
+            isLoadingTokenTrend = false
+            tokenTrendRefreshStatus = nil
+            activeTokenTrendRefreshTraceID = nil
+        }
         do {
             let snapshot: ProviderTokenTrendSnapshot?
             switch usageProvider {
             case .codex:
-                snapshot = try await codexTokenTrendService.fetchGlobalSnapshot(
-                    trailingDays: tokenTrendRange.trailingDays,
-                    environment: ProcessInfo.processInfo.environment
-                )
+                snapshot = try await codexTokenTrendFetchAction(tokenTrendRange.trailingDays)
             case .claude:
                 snapshot = try await claudeTokenTrendFetchAction(
                     tokenTrendRange.trailingDays
@@ -881,8 +1447,15 @@ final class ProviderUsageEngine: CopyToastPresenting {
                 snapshot = nil
             }
             tokenTrendSnapshot = snapshot
+            let shouldRefreshIntraday = reconcileIntradayDrilldownSelection(
+                with: snapshot,
+                allowAutomaticSelection: true
+            )
+            if shouldRefreshIntraday {
+                await refreshIntraday()
+            }
         } catch {
-            tokenTrendSnapshot = nil
+            tokenTrendSnapshot = existingSnapshot
             tokenTrendErrorMessage = error.localizedDescription
         }
     }
@@ -893,23 +1466,131 @@ final class ProviderUsageEngine: CopyToastPresenting {
         guard let dayKey = selectedTokenTrendDayKey else {
             intradaySnapshot = nil
             intradayErrorMessage = nil
+            latestIntradayRefreshRequestID = nil
             return
         }
 
+        let requestedBucket = intradayBucket
+        let requestID = UUID()
+        latestIntradayRefreshRequestID = requestID
         isLoadingIntraday = true
         intradayErrorMessage = nil
-        defer { isLoadingIntraday = false }
+        defer {
+            if latestIntradayRefreshRequestID == requestID {
+                isLoadingIntraday = false
+                latestIntradayRefreshRequestID = nil
+            }
+        }
 
         do {
-            intradaySnapshot = try await providerIntradayFetchAction(
+            let snapshot = try await providerIntradayFetchAction(
                 usageProvider,
                 dayKey,
-                intradayBucket
+                requestedBucket
             )
+            guard latestIntradayRefreshRequestID == requestID,
+                  selectedTokenTrendDayKey == dayKey,
+                  intradayBucket == requestedBucket
+            else {
+                return
+            }
+            intradaySnapshot = snapshot
         } catch {
+            guard latestIntradayRefreshRequestID == requestID else { return }
             intradaySnapshot = nil
             intradayErrorMessage = error.localizedDescription
         }
+    }
+
+    private func refreshIntradayPanel() async {
+        guard tokenTrendCapability == .dailyWithIntradayDrilldown,
+              selectedTokenTrendDayKey != nil
+        else {
+            await refreshIntraday()
+            return
+        }
+
+        await refreshTokenTrend()
+    }
+
+    @discardableResult
+    private func reconcileIntradayDrilldownSelection(
+        with snapshot: ProviderTokenTrendSnapshot?,
+        allowAutomaticSelection: Bool
+    ) -> Bool {
+        guard tokenTrendCapability == .dailyWithIntradayDrilldown else {
+            selectedTokenTrendDayKey = nil
+            intradaySnapshot = nil
+            intradayErrorMessage = nil
+            latestIntradayRefreshRequestID = nil
+            return false
+        }
+
+        let availableDayKeys = snapshot?.points.map(\.date) ?? []
+        guard !availableDayKeys.isEmpty else {
+            selectedTokenTrendDayKey = nil
+            intradaySnapshot = nil
+            intradayErrorMessage = nil
+            latestIntradayRefreshRequestID = nil
+            return false
+        }
+
+        if let selectedTokenTrendDayKey,
+           availableDayKeys.contains(selectedTokenTrendDayKey) {
+            return true
+        }
+
+        guard let fallbackDayKey = Self.preferredIntradayDayKey(from: availableDayKeys) else {
+            selectedTokenTrendDayKey = nil
+            intradaySnapshot = nil
+            intradayErrorMessage = nil
+            latestIntradayRefreshRequestID = nil
+            return false
+        }
+
+        if selectedTokenTrendDayKey != nil {
+            selectedTokenTrendDayKey = fallbackDayKey
+            if intradaySnapshot?.dayKey != fallbackDayKey {
+                intradaySnapshot = nil
+            }
+            intradayErrorMessage = nil
+            return true
+        }
+
+        guard allowAutomaticSelection, !hasUserAdjustedIntradaySelection else {
+            return false
+        }
+
+        selectedTokenTrendDayKey = fallbackDayKey
+        if intradaySnapshot?.dayKey != fallbackDayKey {
+            intradaySnapshot = nil
+        }
+        intradayErrorMessage = nil
+        return true
+    }
+
+    private static func preferredIntradayDayKey(from availableDayKeys: [String]) -> String? {
+        guard !availableDayKeys.isEmpty else { return nil }
+        let todayKey = Self.dayKey(for: Date(), timezone: .current)
+        if availableDayKeys.contains(todayKey) {
+            return todayKey
+        }
+        return availableDayKeys.max()
+    }
+
+    private static func dayKey(for date: Date, timezone: TimeZone) -> String {
+        let formatter = DateFormatter()
+        formatter.calendar = calendar(timezone: timezone)
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = timezone
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter.string(from: date)
+    }
+
+    private static func calendar(timezone: TimeZone) -> Calendar {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = timezone
+        return calendar
     }
 
     func updateUsageFileWatcher() async {

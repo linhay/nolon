@@ -700,6 +700,7 @@ extension ProviderUsageView {
     private var tokenTrendSection: some View {
         ProviderTokenTrendSection(
             snapshot: tokenTrendViewModel.tokenTrendSnapshot,
+            refreshStatus: tokenTrendViewModel.tokenTrendRefreshStatus,
             capability: tokenTrendViewModel.tokenTrendCapability,
             selectedDayKey: tokenTrendViewModel.selectedDayKey,
             intradayBucket: tokenTrendViewModel.intradayBucket,
@@ -713,7 +714,7 @@ extension ProviderUsageView {
             onSelectDay: { tokenTrendViewModel.selectDay($0) },
             onIntradayBucketChange: { tokenTrendViewModel.setIntradayBucket($0) },
             onRefresh: { tokenTrendViewModel.refreshNow() },
-            onRefreshIntraday: { tokenTrendViewModel.refreshIntradayNow() },
+            onRefreshIntraday: { tokenTrendViewModel.refreshIntradayPanelNow() },
             debugPageMarkerItems: tokenTrendDebugPageMarkerItems
         )
     }

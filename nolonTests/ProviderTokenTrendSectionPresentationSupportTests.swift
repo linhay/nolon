@@ -58,6 +58,7 @@ struct ProviderTokenTrendSectionPresentationSupportTests {
         #expect(drilldown.rangeDescription == "30min")
         #expect(drilldown.actualBucketCount == 2)
         #expect(drilldown.fullBucketCount == 48)
+        #expect(drilldown.usageSummaryText == "总量 210 · 输入 140 · 输出 50 · 缓存 20")
         #expect(drilldown.bucketSummary == "2/48 可见时间桶")
         #expect(drilldown.presentationNote == "仅展示有用量时段；Today 不显示未来时间。")
         #expect(drilldown.points.map(\.label) == ["09:30", "10:30"])

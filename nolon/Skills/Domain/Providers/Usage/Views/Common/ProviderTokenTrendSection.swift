@@ -5,6 +5,7 @@ import NolonUIFoundation
 
 struct ProviderTokenTrendSection: View, DebugPageLocatable {
     let snapshot: ProviderTokenTrendSnapshot?
+    let refreshStatus: ProviderTokenTrendRefreshStatusData?
     let capability: ProviderUsageCurveCapability
     let selectedDayKey: String?
     let intradayBucket: ProviderIntradayBucket
@@ -23,6 +24,7 @@ struct ProviderTokenTrendSection: View, DebugPageLocatable {
 
     init(
         snapshot: ProviderTokenTrendSnapshot?,
+        refreshStatus: ProviderTokenTrendRefreshStatusData?,
         capability: ProviderUsageCurveCapability,
         selectedDayKey: String?,
         intradayBucket: ProviderIntradayBucket,
@@ -40,6 +42,7 @@ struct ProviderTokenTrendSection: View, DebugPageLocatable {
         debugPageMarkerItems: [PageMarkerItem] = []
     ) {
         self.snapshot = snapshot
+        self.refreshStatus = refreshStatus
         self.capability = capability
         self.selectedDayKey = selectedDayKey
         self.intradayBucket = intradayBucket
@@ -96,6 +99,7 @@ struct ProviderTokenTrendSection: View, DebugPageLocatable {
                     sourceLabel: snapshot.sourceLabel
                 )
             },
+            refreshStatus: refreshStatus,
             drilldown: drilldownData,
             selectedDayKey: selectedDayKey,
             isLoading: isLoading,
@@ -152,6 +156,22 @@ enum ProviderTokenTrendSectionPresentationSupport {
             bucket: bucket,
             timezone: timezone
         )
+        let usageSummaryText = snapshot.map { snapshot in
+            let totals = snapshot.points.reduce(
+                into: (total: 0, input: 0, output: 0, cache: 0)
+            ) { partialResult, point in
+                partialResult.total += point.totalTokens
+                partialResult.input += point.inputTokens
+                partialResult.output += point.outputTokens
+                partialResult.cache += point.cacheReadTokens
+            }
+            return [
+                "总量 \(TokenCountFormatters.compact(totals.total))",
+                "输入 \(TokenCountFormatters.compact(totals.input))",
+                "输出 \(TokenCountFormatters.compact(totals.output))",
+                "缓存 \(TokenCountFormatters.compact(totals.cache))",
+            ].joined(separator: " · ")
+        }
         let bucketSummary = snapshot != nil && fullBucketCount > 0
             ? "\(visibleBucketCount)/\(fullBucketCount) 可见时间桶"
             : nil
@@ -170,6 +190,7 @@ enum ProviderTokenTrendSectionPresentationSupport {
             actualBucketCount: visibleBucketCount,
             fullBucketCount: fullBucketCount,
             rangeDescription: bucket.title,
+            usageSummaryText: usageSummaryText,
             bucketSummary: bucketSummary,
             presentationNote: presentationNote,
             points: points,

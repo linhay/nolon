@@ -3,6 +3,7 @@ import Foundation
 import ProviderCatalog
 import ProviderUsage
 import CodexBarProviderCatalog
+import NolonUIFoundation
 @testable import nolon
 
 @MainActor
@@ -240,6 +241,7 @@ private final class MockAccountsEngine: ProviderUsageAccountsEngineProtocol {
 private final class MockMetricsEngine: ProviderUsageMetricsEngineProtocol {
     var tokenTrendRange: UsageEngineTokenTrendRange = .days30
     var tokenTrendSnapshot: ProviderTokenTrendSnapshot?
+    var tokenTrendRefreshStatus: ProviderTokenTrendRefreshStatusData?
     var tokenTrendErrorMessage: String?
     var isLoadingTokenTrend = false
     var tokenTrendCapability: ProviderUsageCurveCapability = .dailyWithIntradayDrilldown
@@ -271,4 +273,5 @@ private final class MockMetricsEngine: ProviderUsageMetricsEngineProtocol {
     func selectTokenTrendDay(_ dayKey: String?) { selectedTokenTrendDayKey = dayKey }
     func setIntradayBucket(_ bucket: ProviderIntradayBucket) { intradayBucket = bucket }
     func refreshIntradayNow() {}
+    func refreshIntradayPanelNow() {}
 }

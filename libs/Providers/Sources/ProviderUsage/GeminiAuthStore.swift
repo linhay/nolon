@@ -1,5 +1,6 @@
 import Foundation
 import CodexBarProviderCatalog
+import ProvidersShared
 
 public enum GeminiAuthStoreError: LocalizedError, Sendable, Equatable {
     case unsupportedProvider(UsageProvider)
@@ -56,8 +57,10 @@ public actor GeminiAuthStore {
         if let rootDirectory {
             self.rootDirectory = rootDirectory
         } else {
-            let appSupport = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
-                ?? URL(fileURLWithPath: NSHomeDirectory(), isDirectory: true)
+            let appSupport = NolonHomeEnvironment.resolveApplicationSupportFolder(
+                environment: ProcessInfo.processInfo.environment,
+                fileManager: fileManager
+            )
             self.rootDirectory = appSupport
                 .appendingPathComponent("Nolon", isDirectory: true)
                 .appendingPathComponent("gemini-auth", isDirectory: true)

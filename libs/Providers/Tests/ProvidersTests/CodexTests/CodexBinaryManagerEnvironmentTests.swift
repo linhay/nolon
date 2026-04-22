@@ -40,4 +40,21 @@ struct CodexBinaryManagerEnvironmentTests {
         let expected = STFolder(explicitRoot).folder("codex")
         #expect(root == expected)
     }
+
+    @Test("Given custom homeURL under xctest, when manager is initialized, then codex root stays inside that home")
+    func customHomeURLWinsOverDefaultXCTestIsolation() async {
+        let customHome = STFolder("/tmp")
+            .folder("nolon-home-custom-\(UUID().uuidString)")
+            .url
+            .standardizedFileURL
+
+        let manager = CodexBinaryManager(
+            homeURL: customHome,
+            environment: ["XCTestConfigurationFilePath": "/tmp/session-123.xctestconfiguration"]
+        )
+
+        let root = await manager.rootFolder
+        let expected = STFolder(customHome).folder(".nolon").folder("codex")
+        #expect(root == expected)
+    }
 }

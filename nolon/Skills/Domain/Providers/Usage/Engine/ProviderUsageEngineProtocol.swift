@@ -1,6 +1,7 @@
 import Foundation
 import ProviderUsage
 import CodexBarProviderCatalog
+import NolonUIFoundation
 
 @MainActor
 protocol ProviderUsageAccountsEngineProtocol: AnyObject {
@@ -38,6 +39,7 @@ protocol ProviderUsageAccountsEngineProtocol: AnyObject {
 protocol ProviderUsageMetricsEngineProtocol: AnyObject {
     var tokenTrendRange: UsageEngineTokenTrendRange { get set }
     var tokenTrendSnapshot: ProviderTokenTrendSnapshot? { get set }
+    var tokenTrendRefreshStatus: ProviderTokenTrendRefreshStatusData? { get set }
     var tokenTrendErrorMessage: String? { get set }
     var isLoadingTokenTrend: Bool { get set }
     var tokenTrendCapability: ProviderUsageCurveCapability { get set }
@@ -55,6 +57,7 @@ protocol ProviderUsageMetricsEngineProtocol: AnyObject {
     func selectTokenTrendDay(_ dayKey: String?)
     func setIntradayBucket(_ bucket: ProviderIntradayBucket)
     func refreshIntradayNow()
+    func refreshIntradayPanelNow()
 }
 
 @MainActor

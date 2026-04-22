@@ -1,13 +1,18 @@
 import Foundation
 import CodexBarProviderCatalog
+import ProvidersShared
 import STFilePath
 import SKProcessRunner
 
 public enum ProviderUsagePaths {
     public static func defaultTokenAccountsFileURL(
-        baseDirectory: URL? = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+        baseDirectory: URL? = NolonHomeEnvironment.resolveApplicationSupportFolder(
+            environment: ProcessInfo.processInfo.environment
+        )
     ) -> URL {
-        let base = baseDirectory ?? STFolder(NSHomeDirectory()).url
+        let base = baseDirectory ?? NolonHomeEnvironment.resolveApplicationSupportFolder(
+            environment: ProcessInfo.processInfo.environment
+        )
         return base
             .appendingPathComponent("Nolon", isDirectory: true)
             .appendingPathComponent("token-accounts.json")

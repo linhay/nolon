@@ -456,6 +456,315 @@ final class CodexSessionsTabViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.rewritableGroupUsage, .value(primaryText: "5.0K", secondaryText: nil))
     }
 
+    func testBDD_GivenDuplicateRolloutsShareOneThreadID_WhenUsageBackfillCompletes_ThenOverviewUsageCountsLogicalSessionOnce() async throws {
+        let provider = makeCodexProvider()
+        let snapshot = CodexSessionSnapshot(
+            sessions: [
+                makeSession(
+                    id: "sessions/thread-a-live.jsonl",
+                    threadID: "thread-a",
+                    title: "Thread A Live",
+                    modelProvider: "openai",
+                    cwd: "/tmp/project-alpha",
+                    updatedAt: 4_000
+                ),
+                makeSession(
+                    id: "archived_sessions/thread-a-copy.jsonl",
+                    threadID: "thread-a",
+                    title: "Thread A Copy",
+                    modelProvider: "openai",
+                    cwd: "/tmp/project-alpha",
+                    updatedAt: 3_900
+                ),
+                makeSession(
+                    id: "sessions/thread-b.jsonl",
+                    threadID: "thread-b",
+                    title: "Thread B",
+                    modelProvider: "openai",
+                    cwd: "/tmp/project-beta",
+                    updatedAt: 3_800
+                ),
+            ],
+            availableProviderIDs: ["openai"]
+        )
+        let state = MockCodexSessionsServiceState(snapshots: [snapshot])
+        state.usageResults["thread-a"] = .success(
+            .init(inputTokens: 2_400, cachedInputTokens: 0, outputTokens: 600)
+        )
+        state.usageResults["thread-b"] = .success(
+            .init(inputTokens: 800, cachedInputTokens: 0, outputTokens: 200)
+        )
+        state.usageDelayNanoseconds = 15_000_000
+
+        let viewModel = CodexSessionsTabViewModel(
+            provider: provider,
+            service: MockCodexSessionsService(state: state)
+        )
+
+        await viewModel.load()
+
+        try await waitUntil {
+            if case let .loaded(first) = viewModel.usageState(for: "sessions/thread-a-live.jsonl"),
+               case let .loaded(second) = viewModel.usageState(for: "archived_sessions/thread-a-copy.jsonl"),
+               case .loaded = viewModel.usageState(for: "sessions/thread-b.jsonl") {
+                return first == second
+            }
+            return false
+        }
+
+        XCTAssertEqual(viewModel.totalUsage, .value(primaryText: "4.0K", secondaryText: nil))
+        XCTAssertEqual(viewModel.groupUsage, .value(primaryText: "4.0K", secondaryText: nil))
+    }
+
+    func testBDD_GivenLogicalUsageAlreadyLoaded_WhenDuplicateRowArrivesLater_ThenNewRowInheritsResolvedUsage() async throws {
+        let provider = makeCodexProvider()
+        let initialSnapshot = CodexSessionSnapshot(
+            sessions: [
+                makeSession(
+                    id: "sessions/thread-a-live.jsonl",
+                    threadID: "thread-a",
+                    title: "Thread A Live",
+                    modelProvider: "openai",
+                    cwd: "/tmp/project-alpha",
+                    updatedAt: 4_000
+                ),
+            ],
+            availableProviderIDs: ["openai"]
+        )
+        let updatedSnapshot = CodexSessionSnapshot(
+            sessions: [
+                makeSession(
+                    id: "sessions/thread-a-live.jsonl",
+                    threadID: "thread-a",
+                    title: "Thread A Live",
+                    modelProvider: "openai",
+                    cwd: "/tmp/project-alpha",
+                    updatedAt: 4_000
+                ),
+                makeSession(
+                    id: "archived_sessions/thread-a-copy.jsonl",
+                    threadID: "thread-a",
+                    title: "Thread A Copy",
+                    modelProvider: "openai",
+                    cwd: "/tmp/project-alpha",
+                    updatedAt: 3_900
+                ),
+            ],
+            availableProviderIDs: ["openai"]
+        )
+
+        let state = MockCodexSessionsServiceState(snapshots: [initialSnapshot, updatedSnapshot])
+        state.streamSnapshots = [initialSnapshot, updatedSnapshot]
+        state.usageResults["thread-a"] = .success(
+            .init(inputTokens: 2_400, cachedInputTokens: 0, outputTokens: 600)
+        )
+        state.usageDelayNanoseconds = 15_000_000
+
+        let viewModel = CodexSessionsTabViewModel(
+            provider: provider,
+            service: MockCodexSessionsService(state: state)
+        )
+
+        await viewModel.load()
+
+        try await waitUntil {
+            if case let .loaded(liveUsage) = viewModel.usageState(for: "sessions/thread-a-live.jsonl"),
+               case let .loaded(duplicateUsage) = viewModel.usageState(for: "archived_sessions/thread-a-copy.jsonl") {
+                return liveUsage == duplicateUsage
+            }
+            return false
+        }
+
+        XCTAssertEqual(
+            viewModel.usageState(for: "archived_sessions/thread-a-copy.jsonl"),
+            .loaded(.init(inputTokens: 2_400, cachedInputTokens: 0, outputTokens: 600))
+        )
+    }
+
+    func testBDD_GivenRecentSortWithHiddenSessions_WhenUsageBackfillRuns_ThenOverviewWaitsForAllLogicalSessionsAndIncludesHiddenRows() async throws {
+        let provider = makeCodexProvider()
+        let snapshot = CodexSessionSnapshot(
+            sessions: [
+                makeSession(
+                    id: "sessions/visible-1.jsonl",
+                    threadID: "thread-visible-1",
+                    title: "Visible 1",
+                    modelProvider: "openai",
+                    cwd: "/tmp/project-alpha",
+                    updatedAt: 4_000
+                ),
+                makeSession(
+                    id: "sessions/visible-2.jsonl",
+                    threadID: "thread-visible-2",
+                    title: "Visible 2",
+                    modelProvider: "openai",
+                    cwd: "/tmp/project-alpha",
+                    updatedAt: 3_900
+                ),
+                makeSession(
+                    id: "sessions/visible-3.jsonl",
+                    threadID: "thread-visible-3",
+                    title: "Visible 3",
+                    modelProvider: "openai",
+                    cwd: "/tmp/project-alpha",
+                    updatedAt: 3_800
+                ),
+                makeSession(
+                    id: "sessions/hidden.jsonl",
+                    threadID: "thread-hidden",
+                    title: "Hidden Session",
+                    modelProvider: "openai",
+                    cwd: "/tmp/project-alpha",
+                    updatedAt: 3_700
+                ),
+            ],
+            availableProviderIDs: ["openai"]
+        )
+        let state = MockCodexSessionsServiceState(snapshots: [snapshot])
+        state.usageResults["thread-visible-1"] = .success(
+            .init(inputTokens: 1_600, cachedInputTokens: 0, outputTokens: 400)
+        )
+        state.usageResults["thread-visible-2"] = .success(
+            .init(inputTokens: 1_600, cachedInputTokens: 0, outputTokens: 400)
+        )
+        state.usageResults["thread-visible-3"] = .success(
+            .init(inputTokens: 1_600, cachedInputTokens: 0, outputTokens: 400)
+        )
+        state.usageResults["thread-hidden"] = .success(
+            .init(inputTokens: 3_200, cachedInputTokens: 0, outputTokens: 800)
+        )
+        state.usageDelayNanoseconds = 15_000_000
+
+        let viewModel = CodexSessionsTabViewModel(
+            provider: provider,
+            service: MockCodexSessionsService(state: state)
+        )
+
+        await viewModel.load()
+
+        XCTAssertEqual(
+            viewModel.groupUsage,
+            .placeholder(text: "Loading…")
+        )
+
+        try await waitUntil {
+            if case .loaded = viewModel.usageState(for: "sessions/hidden.jsonl"),
+               viewModel.groupUsage == .value(primaryText: "10.0K", secondaryText: nil),
+               viewModel.totalUsage == .value(primaryText: "10.0K", secondaryText: nil) {
+                return true
+            }
+            return false
+        }
+    }
+
+    func testBDD_GivenProjectedOverviewUsageDiffersFromRowUsage_WhenProjectedRefreshCompletes_ThenTopLevelMetricsPreferProjectedTotals() async throws {
+        let provider = makeCodexProvider()
+        let snapshot = CodexSessionSnapshot(
+            sessions: [
+                makeSession(
+                    id: "sessions/projected-a.jsonl",
+                    threadID: "thread-projected-a",
+                    title: "Projected A",
+                    modelProvider: "openai",
+                    cwd: "/tmp/project-alpha",
+                    updatedAt: 4_000
+                ),
+                makeSession(
+                    id: "sessions/projected-b.jsonl",
+                    threadID: "thread-projected-b",
+                    title: "Projected B",
+                    modelProvider: "openai",
+                    cwd: "/tmp/project-alpha",
+                    updatedAt: 3_000
+                ),
+            ],
+            availableProviderIDs: ["openai"]
+        )
+        let state = MockCodexSessionsServiceState(snapshots: [snapshot])
+        state.usageResults["thread-projected-a"] = .success(
+            .init(inputTokens: 4_000, cachedInputTokens: 0, outputTokens: 1_000)
+        )
+        state.usageResults["thread-projected-b"] = .success(
+            .init(inputTokens: 4_000, cachedInputTokens: 0, outputTokens: 1_000)
+        )
+        state.projectedUsageResult = .success(
+            .init(
+                entries: [
+                    .init(
+                        minuteStartUnixMs: 1_710_000_000_000,
+                        inputTokens: 2_400,
+                        cachedInputTokens: 0,
+                        outputTokens: 600
+                    ),
+                ],
+                updatedAt: Date(timeIntervalSince1970: 1_710_000_060),
+                sourceLabel: "global local usage"
+            )
+        )
+        state.usageDelayNanoseconds = 15_000_000
+
+        let viewModel = CodexSessionsTabViewModel(
+            provider: provider,
+            service: MockCodexSessionsService(state: state)
+        )
+
+        await viewModel.load()
+
+        try await waitUntil {
+            if case .loaded = viewModel.usageState(for: "sessions/projected-a.jsonl"),
+               case .loaded = viewModel.usageState(for: "sessions/projected-b.jsonl") {
+                return viewModel.totalUsage == .value(primaryText: "3.0K", secondaryText: nil) &&
+                    viewModel.groupUsage == .value(primaryText: "3.0K", secondaryText: nil)
+            }
+            return false
+        }
+    }
+
+    func testBDD_GivenProjectedOverviewUsageSummaryIsAvailable_WhenProjectedRefreshCompletes_ThenViewModelUsesSummaryWithoutLoadingProjectedEntries() async throws {
+        let provider = makeCodexProvider()
+        let snapshot = CodexSessionSnapshot(
+            sessions: [
+                makeSession(
+                    id: "sessions/projected-summary.jsonl",
+                    threadID: "thread-projected-summary",
+                    title: "Projected Summary",
+                    modelProvider: "openai",
+                    cwd: "/tmp/project-alpha",
+                    updatedAt: 4_000
+                ),
+            ],
+            availableProviderIDs: ["openai"]
+        )
+        let state = MockCodexSessionsServiceState(snapshots: [snapshot])
+        state.projectedUsageSummaryResult = .success(
+            .init(
+                totalTokens: 12_345,
+                updatedAt: Date(timeIntervalSince1970: 1_710_000_060),
+                sourceLabel: "global local usage"
+            )
+        )
+        state.projectedUsageResult = .failure(
+            NSError(
+                domain: "CodexSessionsTabViewModelTests",
+                code: 99,
+                userInfo: [NSLocalizedDescriptionKey: "full projection should not be loaded"]
+            )
+        )
+
+        let viewModel = CodexSessionsTabViewModel(
+            provider: provider,
+            service: MockCodexSessionsService(state: state)
+        )
+
+        await viewModel.load()
+
+        try await waitUntil {
+            viewModel.totalUsage == .value(primaryText: "12.3K", secondaryText: nil)
+        }
+        XCTAssertEqual(state.loadProjectedUsageSummaryCallCount, 1)
+        XCTAssertEqual(state.loadProjectedUsageCallCount, 0)
+    }
+
     func testBDD_GivenSelectedSession_WhenTimelineLoads_ThenTimelineStateResolvesWithoutResettingSelection() async throws {
         let provider = makeCodexProvider()
         let snapshot = CodexSessionSnapshot(
@@ -2307,6 +2616,8 @@ private final class MockCodexSessionsServiceState: @unchecked Sendable {
     var cachedSkeletonSnapshot: CodexSessionProjectSkeletonSnapshot?
     var cachedProjectionStatus: CodexSessionProjectionStatus?
     var cachedUsageIndexResults: [String: CodexSessionCachedUsageLookupResult] = [:]
+    var projectedUsageResult: Result<CodexSessionProjectedUsage, Error>?
+    var projectedUsageSummaryResult: Result<CodexSessionProjectedUsageSummary?, Error>?
     let previewResult: Result<CodexSessionRewritePreview, Error>
     let rewriteResult: Result<CodexSessionRewriteResult, Error>
     var previewRequests: [CodexSessionProviderRewriteRequest] = []
@@ -2328,6 +2639,8 @@ private final class MockCodexSessionsServiceState: @unchecked Sendable {
     var loadCachedProjectSkeletonCallCount = 0
     var loadCachedProjectionStatusCallCount = 0
     var loadCachedSessionUsageCallCount = 0
+    var loadProjectedUsageCallCount = 0
+    var loadProjectedUsageSummaryCallCount = 0
     var timelineRequests: [String] = []
 
     init(
@@ -2357,7 +2670,7 @@ private final class MockCodexSessionsServiceState: @unchecked Sendable {
     }
 }
 
-private struct MockCodexSessionsService: CodexSessionsTabServicing, CodexSessionsTabStreamingServicing, CodexSessionsTabPreloadingServicing, CodexSessionsTabCachingServicing, CodexSessionsTabCacheStatusServicing, CodexSessionsTabUsageIndexServicing {
+private struct MockCodexSessionsService: CodexSessionsTabServicing, CodexSessionsTabStreamingServicing, CodexSessionsTabPreloadingServicing, CodexSessionsTabCachingServicing, CodexSessionsTabCacheStatusServicing, CodexSessionsTabUsageIndexServicing, CodexSessionsTabProjectedUsageServicing {
     let state: MockCodexSessionsServiceState
 
     func loadSnapshot(codexHome: URL) throws -> CodexSessionSnapshot {
@@ -2382,6 +2695,24 @@ private struct MockCodexSessionsService: CodexSessionsTabServicing, CodexSession
         _ = codexHome
         if state.usageDelayNanoseconds > 0 {
             Thread.sleep(forTimeInterval: Double(state.usageDelayNanoseconds) / 1_000_000_000)
+        }
+        if let result = state.usageResults[rolloutPath] {
+            return try result.get()
+        }
+        return nil
+    }
+
+    func loadLogicalSessionUsage(
+        codexHome: URL,
+        threadID: String?,
+        rolloutPath: String
+    ) throws -> CodexSessionTokenTotals? {
+        _ = codexHome
+        if state.usageDelayNanoseconds > 0 {
+            Thread.sleep(forTimeInterval: Double(state.usageDelayNanoseconds) / 1_000_000_000)
+        }
+        if let threadID, let result = state.usageResults[threadID] {
+            return try result.get()
         }
         if let result = state.usageResults[rolloutPath] {
             return try result.get()
@@ -2455,6 +2786,36 @@ private struct MockCodexSessionsService: CodexSessionsTabServicing, CodexSession
         _ = codexHome
         state.loadCachedSessionUsageCallCount += 1
         return state.cachedUsageIndexResults[rolloutPath] ?? .miss
+    }
+
+    func loadProjectedUsageMinutes(codexHome: URL) throws -> CodexSessionProjectedUsage {
+        _ = codexHome
+        state.loadProjectedUsageCallCount += 1
+        if let projectedUsageResult = state.projectedUsageResult {
+            return try projectedUsageResult.get()
+        }
+        return .init(entries: [], updatedAt: Date(timeIntervalSince1970: 0), sourceLabel: "global local usage")
+    }
+
+    func loadProjectedUsageSummary(codexHome: URL) throws -> CodexSessionProjectedUsageSummary? {
+        _ = codexHome
+        state.loadProjectedUsageSummaryCallCount += 1
+        if let projectedUsageSummaryResult = state.projectedUsageSummaryResult {
+            return try projectedUsageSummaryResult.get()
+        }
+        if let projectedUsageResult = state.projectedUsageResult {
+            let projectedUsage = try projectedUsageResult.get()
+            let totalTokens = projectedUsage.entries.reduce(into: 0) { partialResult, entry in
+                partialResult += max(0, entry.inputTokens + entry.outputTokens)
+            }
+            guard totalTokens > 0 else { return nil }
+            return .init(
+                totalTokens: totalTokens,
+                updatedAt: projectedUsage.updatedAt,
+                sourceLabel: projectedUsage.sourceLabel
+            )
+        }
+        return nil
     }
 
     func snapshotStream(

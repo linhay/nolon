@@ -22,11 +22,58 @@ public struct CodexQuarterHourUsageDay: Sendable, Equatable {
 }
 
 public struct CodexQuarterHourUsageFetcher: Sendable {
-    public init() {}
+    public typealias QuarterHourDayLoader = @Sendable (
+        _ codexHome: URL,
+        _ rangeStart: Date?,
+        _ rangeEnd: Date?,
+        _ timezone: TimeZone
+    ) throws -> CodexQuarterHourUsageDay?
+
+    private let loadQuarterHourDay: QuarterHourDayLoader
+    private let loadCachedQuarterHourDay: QuarterHourDayLoader
+
+    public init(
+        loadQuarterHourDay: QuarterHourDayLoader? = nil,
+        loadCachedQuarterHourDay: QuarterHourDayLoader? = nil
+    ) {
+        self.loadQuarterHourDay = loadQuarterHourDay ?? { codexHome, rangeStart, rangeEnd, timezone in
+            let snapshot = try CodexSessionStore().loadProjectedQuarterHours(
+                codexHome: codexHome,
+                rangeStart: rangeStart,
+                rangeEnd: rangeEnd,
+                timezone: timezone
+            )
+            return snapshot.map {
+                CodexQuarterHourUsageDay(
+                    dayKey: "",
+                    quarterHours: $0.buckets,
+                    updatedAt: $0.updatedAt,
+                    sourceLabel: $0.sourceLabel
+                )
+            }
+        }
+        self.loadCachedQuarterHourDay = loadCachedQuarterHourDay ?? { codexHome, rangeStart, rangeEnd, timezone in
+            let snapshot = try CodexSessionStore().loadCachedProjectedQuarterHours(
+                codexHome: codexHome,
+                rangeStart: rangeStart,
+                rangeEnd: rangeEnd,
+                timezone: timezone
+            )
+            return snapshot.map {
+                CodexQuarterHourUsageDay(
+                    dayKey: "",
+                    quarterHours: $0.buckets,
+                    updatedAt: $0.updatedAt,
+                    sourceLabel: $0.sourceLabel
+                )
+            }
+        }
+    }
 
     public func loadQuarterHourDay(
         provider: UsageProvider,
         dayKey: String,
+        timezone: TimeZone = .current,
         forceRefresh: Bool = false,
         environment: [String: String] = ProcessInfo.processInfo.environment
     ) async throws -> CodexQuarterHourUsageDay? {
@@ -34,48 +81,46 @@ public struct CodexQuarterHourUsageFetcher: Sendable {
             throw CostUsageError.unsupportedProvider(provider)
         }
 
-        guard let range = Self.makeDayRange(dayKey: dayKey) else {
+        guard let range = Self.makeDayRange(dayKey: dayKey, timezone: timezone) else {
             return nil
         }
 
-        var options = CostUsageScanner.Options()
         let codexHome = CostUsageFetcher.codexHomeFolder(environment: environment)
-        options.codexSessionsRoot = codexHome.folder("sessions")
-        options.cacheRoot = codexHome.folder("cache")
+        let loadedDay: CodexQuarterHourUsageDay?
         if forceRefresh {
-            options.refreshMinIntervalSeconds = 0
-            options.forceRescan = true
+            loadedDay = try loadQuarterHourDay(codexHome.url, range.start, range.end, timezone)
+        } else {
+            let cachedDay = try loadCachedQuarterHourDay(codexHome.url, range.start, range.end, timezone)
+            if let cachedDay {
+                loadedDay = cachedDay
+            } else {
+                loadedDay = try loadQuarterHourDay(codexHome.url, range.start, range.end, timezone)
+            }
         }
-
-        let now = Date()
-        _ = CostUsageScanner.loadDailyReport(
-            provider: .codex,
-            since: range.start,
-            until: range.end,
-            now: now,
-            options: options
-        )
-
-        let cache = CostUsageCacheIO.load(provider: .codex, cacheRoot: options.cacheRoot)
-        let updatedAt = Date(timeIntervalSince1970: TimeInterval(cache.lastScanUnixMs) / 1000)
-        let quarterHours = cache.quarterHours[dayKey] ?? [:]
+        let quarterHours = loadedDay?.quarterHours ?? [:]
 
         return CodexQuarterHourUsageDay(
             dayKey: dayKey,
             quarterHours: quarterHours,
-            updatedAt: updatedAt,
-            sourceLabel: "global local usage"
+            updatedAt: loadedDay?.updatedAt ?? Date(),
+            sourceLabel: loadedDay?.sourceLabel ?? "global local usage"
         )
     }
 
-    private static func makeDayRange(dayKey: String) -> (start: Date, end: Date)? {
+    private static func makeDayRange(dayKey: String, timezone: TimeZone) -> (start: Date, end: Date)? {
         let formatter = DateFormatter()
-        formatter.calendar = Calendar.current
+        formatter.calendar = Self.calendar(timezone: timezone)
         formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.timeZone = TimeZone.current
+        formatter.timeZone = timezone
         formatter.dateFormat = "yyyy-MM-dd"
         guard let start = formatter.date(from: dayKey) else { return nil }
         guard let end = formatter.calendar.date(byAdding: .day, value: 1, to: start) else { return nil }
         return (start, end)
+    }
+
+    private static func calendar(timezone: TimeZone) -> Calendar {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = timezone
+        return calendar
     }
 }

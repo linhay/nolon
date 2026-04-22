@@ -9,18 +9,61 @@ public struct CodexTokenTrendService: Sendable {
         _ forceRefresh: Bool,
         _ environment: [String: String]
     ) async throws -> CostUsageTokenSnapshot
+    typealias RefreshAffectedDayKeysLoader = @Sendable (
+        _ codexHome: URL,
+        _ timezone: TimeZone
+    ) throws -> [String]
+    typealias CachedProjectedUsageLoader = @Sendable (
+        _ codexHome: URL,
+        _ rangeStart: Date?,
+        _ rangeEnd: Date?
+    ) throws -> CodexSessionProjectedUsage?
 
     private let loadSnapshot: SnapshotLoader
+    private let cacheStore: CodexTokenTrendSnapshotCache
+    private let refreshAffectedDayKeys: RefreshAffectedDayKeysLoader
+    private let loadCachedProjectedUsage: CachedProjectedUsageLoader
+    private let now: @Sendable () -> Date
 
-    public init(loadSnapshot: @escaping SnapshotLoader = { provider, trailingDays, forceRefresh, environment in
-        try await CostUsageFetcher().loadTokenSnapshot(
-            provider: provider,
-            trailingDays: trailingDays,
-            forceRefresh: forceRefresh,
-            environment: environment
+    public init(loadSnapshot: @escaping SnapshotLoader = { provider, _, _, environment in
+            guard provider == .codex else {
+                throw CostUsageError.unsupportedProvider(provider)
+            }
+            return try Self.loadSessionBackedSnapshot(environment: environment)
+        }) {
+        self.init(
+            loadSnapshot: loadSnapshot,
+            cacheStore: .init(),
+            refreshAffectedDayKeys: { codexHome, timezone in
+                try CodexSessionStore().refreshChangedProjectedUsageDayKeys(
+                    codexHome: codexHome,
+                    timezone: timezone
+                )
+            },
+            loadCachedProjectedUsage: { codexHome, rangeStart, rangeEnd in
+                let projected = try CodexSessionStore().loadCachedProjectedUsageMinutes(
+                    codexHome: codexHome,
+                    rangeStart: rangeStart,
+                    rangeEnd: rangeEnd
+                )
+                return projected.entries.isEmpty ? nil : projected
+            },
+            now: Date.init
         )
-    }) {
+    }
+
+    init(
+        loadSnapshot: @escaping SnapshotLoader,
+        cacheStore: CodexTokenTrendSnapshotCache,
+        refreshAffectedDayKeys: @escaping RefreshAffectedDayKeysLoader = { _, _ in [] },
+        loadCachedProjectedUsage: @escaping CachedProjectedUsageLoader,
+        now: @escaping @Sendable () -> Date
+    ) {
         self.loadSnapshot = loadSnapshot
+        self.cacheStore = cacheStore
+        self.refreshAffectedDayKeys = refreshAffectedDayKeys
+        self.loadCachedProjectedUsage = loadCachedProjectedUsage
+        self.now = now
     }
 
     public func fetchGlobalSnapshot(
@@ -33,6 +76,81 @@ public struct CodexTokenTrendService: Sendable {
         // Always load the full history, then slice points locally for the selected chart range.
         // Summary cards (especially ALL) must be computed from the complete dataset.
         let snapshot = try await loadSnapshot(.codex, nil, false, globalEnvironment)
+        let fullSnapshot = makeProviderSnapshot(from: snapshot, trailingDays: nil)
+        let codexHome = Self.resolveCodexHomeURL(environment: globalEnvironment)
+        try? cacheStore.save(fullSnapshot, codexHome: codexHome)
+        return Self.slice(snapshot: fullSnapshot, trailingDays: trailingDays)
+    }
+
+    public func fetchCachedGlobalSnapshot(
+        trailingDays: Int? = 30,
+        environment: [String: String] = ProcessInfo.processInfo.environment
+    ) -> ProviderTokenTrendSnapshot? {
+        var globalEnvironment = environment
+        globalEnvironment.removeValue(forKey: "CODEX_HOME")
+
+        let codexHome = Self.resolveCodexHomeURL(environment: globalEnvironment)
+        let now = now()
+        guard let cachedSnapshot = cachedBaseSnapshot(
+            codexHome: codexHome,
+            timezone: .current,
+            now: now
+        ) else {
+            return nil
+        }
+        return Self.slice(snapshot: cachedSnapshot, trailingDays: trailingDays)
+    }
+
+    public func fetchRefreshedGlobalSnapshot(
+        trailingDays: Int? = 30,
+        environment: [String: String] = ProcessInfo.processInfo.environment
+    ) async throws -> ProviderTokenTrendSnapshot {
+        var globalEnvironment = environment
+        globalEnvironment.removeValue(forKey: "CODEX_HOME")
+
+        let codexHome = Self.resolveCodexHomeURL(environment: globalEnvironment)
+        let now = now()
+        guard let cachedSnapshot = cachedBaseSnapshot(
+            codexHome: codexHome,
+            timezone: .current,
+            now: now
+        ) else {
+            return try await fetchGlobalSnapshot(
+                trailingDays: trailingDays,
+                environment: globalEnvironment
+            )
+        }
+
+        let refreshedSnapshot = try await refreshCachedSnapshot(
+            cachedSnapshot,
+            codexHome: codexHome,
+            timezone: .current,
+            now: now
+        )
+        try? cacheStore.save(refreshedSnapshot, codexHome: codexHome)
+        return Self.slice(snapshot: refreshedSnapshot, trailingDays: trailingDays)
+    }
+
+    private func cachedBaseSnapshot(
+        codexHome: URL,
+        timezone: TimeZone,
+        now: Date
+    ) -> ProviderTokenTrendSnapshot? {
+        guard let cachedSnapshot = try? cacheStore.load(codexHome: codexHome) else {
+            return nil
+        }
+        return reconcileCachedSnapshot(
+            cachedSnapshot,
+            codexHome: codexHome,
+            timezone: timezone,
+            now: now
+        )
+    }
+
+    private func makeProviderSnapshot(
+        from snapshot: CostUsageTokenSnapshot,
+        trailingDays: Int?
+    ) -> ProviderTokenTrendSnapshot {
         let allPoints = snapshot.daily
             .map { entry in
                 let input = max(0, entry.inputTokens ?? 0)
@@ -61,9 +179,9 @@ public struct CodexTokenTrendService: Sendable {
             sessionTokens: snapshot.sessionTokens,
             now: snapshot.updatedAt
         )
-        let last7 = sumTrailing(points: allPoints, days: 7)
-        let last30 = sumTrailing(points: allPoints, days: 30)
-        let all = sumAll(points: allPoints)
+        let last7 = Self.sumTrailing(points: allPoints, days: 7)
+        let last30 = Self.sumTrailing(points: allPoints, days: 30)
+        let all = Self.sumAll(points: allPoints)
 
         return ProviderTokenTrendSnapshot(
             points: points,
@@ -76,14 +194,128 @@ public struct CodexTokenTrendService: Sendable {
         )
     }
 
-    private func sumTrailing(points: [CodexTokenTrendPoint], days: Int) -> Int? {
+    private static func slice(
+        snapshot: ProviderTokenTrendSnapshot,
+        trailingDays: Int?
+    ) -> ProviderTokenTrendSnapshot {
+        let points: [ProviderTokenTrendPoint]
+        if let trailingDays, trailingDays > 0, snapshot.points.count > trailingDays {
+            points = Array(snapshot.points.suffix(trailingDays))
+        } else {
+            points = snapshot.points
+        }
+
+        return ProviderTokenTrendSnapshot(
+            points: points,
+            todayTokens: snapshot.todayTokens,
+            last7DaysTokens: snapshot.last7DaysTokens,
+            last30DaysTokens: snapshot.last30DaysTokens,
+            allDaysTokens: snapshot.allDaysTokens,
+            updatedAt: snapshot.updatedAt,
+            sourceLabel: snapshot.sourceLabel
+        )
+    }
+
+    private func reconcileCachedSnapshot(
+        _ snapshot: ProviderTokenTrendSnapshot,
+        codexHome: URL,
+        timezone: TimeZone,
+        now: Date
+    ) -> ProviderTokenTrendSnapshot {
+        guard let todayRange = Self.dayRange(for: now, timezone: timezone),
+              let projected = try? loadCachedProjectedUsage(codexHome, todayRange.start, todayRange.end),
+              let todayPoint = Self.makePoint(
+                from: projected,
+                dayKey: Self.dayKey(from: now, timezone: timezone)
+              )
+        else {
+            return snapshot
+        }
+
+        var points = snapshot.points.filter { $0.date != todayPoint.date }
+        points.append(todayPoint)
+        points.sort { $0.date < $1.date }
+
+        return Self.makeProviderSnapshot(
+            from: points,
+            updatedAt: max(snapshot.updatedAt, projected.updatedAt),
+            sourceLabel: snapshot.sourceLabel,
+            todayKey: todayPoint.date
+        )
+    }
+
+    private func refreshCachedSnapshot(
+        _ snapshot: ProviderTokenTrendSnapshot,
+        codexHome: URL,
+        timezone: TimeZone,
+        now: Date
+    ) async throws -> ProviderTokenTrendSnapshot {
+        let affectedDayKeys = try refreshAffectedDayKeys(codexHome, timezone)
+        guard !affectedDayKeys.isEmpty else {
+            return snapshot
+        }
+
+        var mergedPointsByDay = Dictionary(uniqueKeysWithValues: snapshot.points.map { ($0.date, $0) })
+        var updatedAt = snapshot.updatedAt
+
+        for dayKey in affectedDayKeys {
+            guard let dayRange = Self.dayRange(forDayKey: dayKey, timezone: timezone) else {
+                mergedPointsByDay.removeValue(forKey: dayKey)
+                continue
+            }
+
+            let projected = try loadCachedProjectedUsage(codexHome, dayRange.start, dayRange.end)
+            if let projected {
+                updatedAt = max(updatedAt, projected.updatedAt)
+            }
+
+            if let projected,
+               let point = Self.makePoint(from: projected, dayKey: dayKey) {
+                mergedPointsByDay[dayKey] = point
+            } else {
+                mergedPointsByDay.removeValue(forKey: dayKey)
+            }
+        }
+
+        return Self.makeProviderSnapshot(
+            from: Array(mergedPointsByDay.values),
+            updatedAt: updatedAt,
+            sourceLabel: snapshot.sourceLabel,
+            todayKey: Self.dayKey(from: now, timezone: timezone)
+        )
+    }
+
+    private static func makeProviderSnapshot(
+        from points: [ProviderTokenTrendPoint],
+        updatedAt: Date,
+        sourceLabel: String,
+        todayKey: String
+    ) -> ProviderTokenTrendSnapshot {
+        let sortedPoints = points.sorted { $0.date < $1.date }
+        let today = sortedPoints.first(where: { $0.date == todayKey })?.totalTokens ?? 0
+        let last7 = sumTrailing(points: sortedPoints, days: 7)
+        let last30 = sumTrailing(points: sortedPoints, days: 30)
+        let all = sumAll(points: sortedPoints)
+
+        return ProviderTokenTrendSnapshot(
+            points: sortedPoints,
+            todayTokens: today,
+            last7DaysTokens: last7,
+            last30DaysTokens: last30,
+            allDaysTokens: all,
+            updatedAt: updatedAt,
+            sourceLabel: sourceLabel
+        )
+    }
+
+    private static func sumTrailing(points: [CodexTokenTrendPoint], days: Int) -> Int? {
         guard days > 0, !points.isEmpty else { return nil }
         let values = points.suffix(days).map(\.totalTokens)
         guard !values.isEmpty else { return nil }
         return values.reduce(0, +)
     }
 
-    private func sumAll(points: [CodexTokenTrendPoint]) -> Int? {
+    private static func sumAll(points: [CodexTokenTrendPoint]) -> Int? {
         guard !points.isEmpty else { return nil }
         return points.map(\.totalTokens).reduce(0, +)
     }
@@ -108,5 +340,194 @@ public struct CodexTokenTrendService: Sendable {
         formatter.timeZone = TimeZone.current
         formatter.dateFormat = "yyyy-MM-dd"
         return formatter.string(from: date)
+    }
+
+    public static func loadSessionBackedSnapshot(
+        environment: [String: String]
+    ) throws -> CostUsageTokenSnapshot {
+        try loadSessionBackedSnapshot(
+            environment: environment,
+            timezone: TimeZone.current,
+            now: Date(),
+            loadProjectedUsage: { codexHome in
+                try CodexSessionStore().loadProjectedUsageMinutes(codexHome: codexHome)
+            }
+        )
+    }
+
+    static func loadSessionBackedSnapshot(
+        environment: [String: String],
+        timezone: TimeZone,
+        now: Date,
+        loadProjectedUsage: (URL) throws -> CodexSessionProjectedUsage
+    ) throws -> CostUsageTokenSnapshot {
+        let codexHome = resolveCodexHomeURL(environment: environment)
+        let projected = try loadProjectedUsage(codexHome)
+        return makeTokenSnapshot(from: projected, timezone: timezone, now: now)
+    }
+
+    static func makePoint(
+        from projected: CodexSessionProjectedUsage,
+        dayKey: String
+    ) -> ProviderTokenTrendPoint? {
+        guard !projected.entries.isEmpty else { return nil }
+
+        let totals = projected.entries.reduce(
+            into: (input: 0, output: 0, cached: 0)
+        ) { partialResult, entry in
+            partialResult.input += entry.inputTokens
+            partialResult.output += entry.outputTokens
+            partialResult.cached += entry.cachedInputTokens
+        }
+
+        let totalTokens = totals.input + totals.output
+        guard totalTokens > 0 || totals.cached > 0 else {
+            return nil
+        }
+
+        return .init(
+            date: dayKey,
+            totalTokens: totalTokens,
+            inputTokens: totals.input,
+            outputTokens: totals.output,
+            cacheReadTokens: totals.cached
+        )
+    }
+
+    static func makePointsByDay(
+        from projected: CodexSessionProjectedUsage,
+        timezone: TimeZone
+    ) -> [String: ProviderTokenTrendPoint] {
+        guard !projected.entries.isEmpty else { return [:] }
+
+        var dayBuckets: [String: [CodexSessionProjectedMinuteEntry]] = [:]
+        for entry in projected.entries {
+            let dayKey = Self.dayKey(from: entry.minuteStartAt, timezone: timezone)
+            dayBuckets[dayKey, default: []].append(entry)
+        }
+
+        return dayBuckets.reduce(into: [:]) { partialResult, item in
+            let projectedDay = CodexSessionProjectedUsage(
+                entries: item.value,
+                updatedAt: projected.updatedAt,
+                sourceLabel: projected.sourceLabel
+            )
+            if let point = makePoint(from: projectedDay, dayKey: item.key) {
+                partialResult[item.key] = point
+            }
+        }
+    }
+
+    static func makeTokenSnapshot(
+        from projected: CodexSessionProjectedUsage,
+        timezone: TimeZone,
+        now: Date
+    ) -> CostUsageTokenSnapshot {
+        struct DayTotals {
+            var input = 0
+            var cached = 0
+            var output = 0
+
+            var total: Int { input + output }
+        }
+
+        var dayTotals: [String: DayTotals] = [:]
+        for entry in projected.entries {
+            let dayKey = Self.dayKey(from: entry.minuteStartAt, timezone: timezone)
+            var totals = dayTotals[dayKey] ?? DayTotals()
+            totals.input += entry.inputTokens
+            totals.cached += entry.cachedInputTokens
+            totals.output += entry.outputTokens
+            dayTotals[dayKey] = totals
+        }
+
+        let daily = dayTotals.keys.sorted().map { dayKey in
+            let totals = dayTotals[dayKey] ?? DayTotals()
+            return CostUsageDailyReport.Entry(
+                date: dayKey,
+                inputTokens: totals.input,
+                outputTokens: totals.output,
+                cacheReadTokens: totals.cached,
+                totalTokens: totals.total,
+                costUSD: nil,
+                modelsUsed: nil,
+                modelBreakdowns: nil
+            )
+        }
+
+        let todayKey = Self.dayKey(from: now, timezone: timezone)
+        let today = dayTotals[todayKey]
+        let aggregate = dayTotals.values.reduce(into: DayTotals()) { partialResult, item in
+            partialResult.input += item.input
+            partialResult.cached += item.cached
+            partialResult.output += item.output
+        }
+
+        return CostUsageTokenSnapshot(
+            sessionTokens: today?.total,
+            sessionCostUSD: nil,
+            todayInputTokens: today?.input,
+            todayOutputTokens: today?.output,
+            todayCachedInputTokens: today?.cached,
+            rangeDays: nil,
+            rangeTokens: daily.isEmpty ? nil : aggregate.total,
+            rangeCostUSD: nil,
+            rangeInputTokens: daily.isEmpty ? nil : aggregate.input,
+            rangeOutputTokens: daily.isEmpty ? nil : aggregate.output,
+            rangeCachedInputTokens: daily.isEmpty ? nil : aggregate.cached,
+            daily: daily,
+            updatedAt: projected.updatedAt,
+            source: .scopedSessions
+        )
+    }
+
+    static func dayKey(from date: Date, timezone: TimeZone) -> String {
+        let formatter = DateFormatter()
+        formatter.calendar = calendar(timezone: timezone)
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = timezone
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter.string(from: date)
+    }
+
+    static func dayRange(for date: Date, timezone: TimeZone) -> (start: Date, end: Date)? {
+        let calendar = calendar(timezone: timezone)
+        let components = calendar.dateComponents([.year, .month, .day], from: date)
+        guard let start = calendar.date(from: components),
+              let end = calendar.date(byAdding: .day, value: 1, to: start) else {
+            return nil
+        }
+        return (start, end)
+    }
+
+    static func dayRange(forDayKey dayKey: String, timezone: TimeZone) -> (start: Date, end: Date)? {
+        let formatter = DateFormatter()
+        formatter.calendar = calendar(timezone: timezone)
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = timezone
+        formatter.dateFormat = "yyyy-MM-dd"
+        guard let start = formatter.date(from: dayKey) else {
+            return nil
+        }
+        guard let end = calendar(timezone: timezone).date(byAdding: .day, value: 1, to: start) else {
+            return nil
+        }
+        return (start, end)
+    }
+
+    static func calendar(timezone: TimeZone) -> Calendar {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = timezone
+        return calendar
+    }
+
+    static func resolveCodexHomeURL(environment: [String: String]) -> URL {
+        if let override = environment["CODEX_HOME"]?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !override.isEmpty
+        {
+            return URL(fileURLWithPath: override, isDirectory: true)
+        }
+        return URL(fileURLWithPath: NSHomeDirectory(), isDirectory: true)
+            .appendingPathComponent(".codex", isDirectory: true)
     }
 }

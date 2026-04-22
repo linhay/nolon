@@ -9,9 +9,10 @@ struct CodexIntradayUsageServiceTests {
     func fetchGlobalSnapshot_aggregatesQuarterHours() async throws {
         let timezone = try #require(TimeZone(secondsFromGMT: 0))
         let service = CodexIntradayUsageService(
-            loadQuarterHours: { provider, dayKey, _, environment in
+            loadQuarterHours: { provider, dayKey, requestedTimezone, _, environment in
                 #expect(provider == .codex)
                 #expect(dayKey == "2026-04-14")
+                #expect(requestedTimezone == timezone)
                 #expect(environment["CODEX_HOME"] == nil)
                 return CostUsageQuarterHourDay(
                     dayKey: dayKey,
@@ -62,8 +63,9 @@ struct CodexIntradayUsageServiceTests {
             ))
         )
         let service = CodexIntradayUsageService(
-            loadQuarterHours: { _, dayKey, _, _ in
-                CostUsageQuarterHourDay(
+            loadQuarterHours: { _, dayKey, requestedTimezone, _, _ in
+                #expect(requestedTimezone == timezone)
+                return CostUsageQuarterHourDay(
                     dayKey: dayKey,
                     quarterHours: [
                         "09:00": [8, 0, 4],

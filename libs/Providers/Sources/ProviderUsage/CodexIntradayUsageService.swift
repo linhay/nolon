@@ -25,6 +25,7 @@ public struct CodexIntradayUsageService: Sendable {
     public typealias QuarterHoursLoader = @Sendable (
         _ provider: UsageProvider,
         _ dayKey: String,
+        _ timezone: TimeZone,
         _ forceRefresh: Bool,
         _ environment: [String: String]
     ) async throws -> CostUsageQuarterHourDay?
@@ -33,10 +34,11 @@ public struct CodexIntradayUsageService: Sendable {
     private let now: @Sendable () -> Date
 
     public init(
-        loadQuarterHours: @escaping QuarterHoursLoader = { provider, dayKey, forceRefresh, environment in
+        loadQuarterHours: @escaping QuarterHoursLoader = { provider, dayKey, timezone, forceRefresh, environment in
             let fetched = try await CodexQuarterHourUsageFetcher().loadQuarterHourDay(
                 provider: provider,
                 dayKey: dayKey,
+                timezone: timezone,
                 forceRefresh: forceRefresh,
                 environment: environment
             )
@@ -69,7 +71,7 @@ public struct CodexIntradayUsageService: Sendable {
         var globalEnvironment = environment
         globalEnvironment.removeValue(forKey: "CODEX_HOME")
 
-        let quarterHourDay = try await loadQuarterHours(.codex, dayKey, false, globalEnvironment)
+        let quarterHourDay = try await loadQuarterHours(.codex, dayKey, timezone, false, globalEnvironment)
         return Self.buildSnapshot(
             from: quarterHourDay,
             dayKey: dayKey,

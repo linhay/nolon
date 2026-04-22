@@ -80,6 +80,8 @@ docs-linhay/screenshots
 /projects/leaderboard-template/
 design-proposals/
 .claude/settings.local.json
+.codex/
+/script/
 
 # Codex autoresearch artifacts
 autoresearch-lessons.md

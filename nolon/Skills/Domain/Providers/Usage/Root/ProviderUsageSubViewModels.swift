@@ -830,6 +830,7 @@ final class ProviderTokenTrendViewModel {
     private var engine: any ProviderUsageMetricsEngineProtocol { state.metricsEngine }
     var tokenTrendRange: UsageEngineTokenTrendRange { engine.tokenTrendRange }
     var tokenTrendSnapshot: ProviderTokenTrendSnapshot? { engine.tokenTrendSnapshot }
+    var tokenTrendRefreshStatus: ProviderTokenTrendRefreshStatusData? { engine.tokenTrendRefreshStatus }
     var tokenTrendErrorMessage: String? { engine.tokenTrendErrorMessage }
     var isLoadingTokenTrend: Bool { engine.isLoadingTokenTrend }
     var tokenTrendCapability: ProviderUsageCurveCapability { engine.tokenTrendCapability }
@@ -866,6 +867,10 @@ final class ProviderTokenTrendViewModel {
 
     func refreshIntradayNow() {
         engine.refreshIntradayNow()
+    }
+
+    func refreshIntradayPanelNow() {
+        engine.refreshIntradayPanelNow()
     }
 }
 

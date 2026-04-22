@@ -1,6 +1,7 @@
 import Foundation
 import Testing
 @testable import ProviderUsage
+import ProvidersShared
 import STFilePath
 
 @Suite("ProviderUsage TokenAccounts")
@@ -10,6 +11,19 @@ struct ProviderUsageTokenAccountsTests {
         let base = STFolder("/tmp").folder("provider-usage-base")
         let fileURL = ProviderUsagePaths.defaultTokenAccountsFileURL(baseDirectory: base.url)
         #expect(fileURL.path == "/tmp/provider-usage-base/Nolon/token-accounts.json")
+    }
+
+    @Test("ProviderUsage default token accounts path uses isolated app support during XCTest")
+    func defaultTokenAccountsFilePathIsIsolatedUnderXCTest() {
+        let appSupport = NolonHomeEnvironment.resolveApplicationSupportFolder(
+            environment: ProcessInfo.processInfo.environment
+        )
+        let fileURL = ProviderUsagePaths.defaultTokenAccountsFileURL()
+
+        #expect(fileURL.standardizedFileURL.path == appSupport
+            .appendingPathComponent("Nolon", isDirectory: true)
+            .appendingPathComponent("token-accounts.json", isDirectory: false)
+            .standardizedFileURL.path)
     }
 
     @Test("FileTokenAccountStore supports STFile")

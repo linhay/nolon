@@ -13,6 +13,11 @@ protocol CodexSessionsTabServicing: Sendable {
         codexHome: URL,
         rolloutPath: String
     ) throws -> CodexSessionTokenTotals?
+    nonisolated func loadLogicalSessionUsage(
+        codexHome: URL,
+        threadID: String?,
+        rolloutPath: String
+    ) throws -> CodexSessionTokenTotals?
     nonisolated func loadSessionTimeline(
         codexHome: URL,
         rolloutPath: String
@@ -57,12 +62,34 @@ protocol CodexSessionsTabUsageIndexServicing: Sendable {
     ) throws -> CodexSessionCachedUsageLookupResult
 }
 
+protocol CodexSessionsTabProjectedUsageServicing: Sendable {
+    nonisolated func loadProjectedUsageMinutes(
+        codexHome: URL
+    ) throws -> CodexSessionProjectedUsage
+    nonisolated func loadProjectedUsageSummary(
+        codexHome: URL
+    ) throws -> CodexSessionProjectedUsageSummary?
+}
+
 extension CodexSessionStore: CodexSessionsTabServicing {}
 extension CodexSessionStore: CodexSessionsTabStreamingServicing {}
 extension CodexSessionStore: CodexSessionsTabPreloadingServicing {}
 extension CodexSessionStore: CodexSessionsTabCachingServicing {}
 extension CodexSessionStore: CodexSessionsTabCacheStatusServicing {}
 extension CodexSessionStore: CodexSessionsTabUsageIndexServicing {}
+extension CodexSessionStore: CodexSessionsTabProjectedUsageServicing {
+    nonisolated func loadProjectedUsageMinutes(
+        codexHome: URL
+    ) throws -> CodexSessionProjectedUsage {
+        try loadProjectedUsageMinutes(codexHome: codexHome, rangeStart: nil, rangeEnd: nil)
+    }
+
+    nonisolated func loadProjectedUsageSummary(
+        codexHome: URL
+    ) throws -> CodexSessionProjectedUsageSummary? {
+        try loadProjectedUsageSummary(codexHome: codexHome, rangeStart: nil, rangeEnd: nil)
+    }
+}
 
 @MainActor
 final class CodexSessionsTabViewModelStore {
@@ -347,11 +374,14 @@ final class CodexSessionsTabViewModel {
     private var projectSkeletons: [CodexSessionProjectSkeleton] = []
     private var projectRowIDsBySectionID: [String: [String]] = [:]
     private var providerRowIDsBySectionID: [String: [String]] = [:]
+    private var sessionIDsByUsageLogicalKey: [String: [String]] = [:]
     private var expandedSectionIDs: Set<String> = []
     private var usageBySessionID: [String: SessionUsageState] = [:]
     private var usageTasks: [String: Task<Void, Never>] = [:]
     private var queuedUsageSessionIDs: [String] = []
     private var queuedUsageSessionIDSet: Set<String> = []
+    private var projectedOverviewUsage: CodexSessionsUsageDisplayData?
+    private var projectedOverviewUsageTask: Task<Void, Never>?
     private var timelineBySessionID: [String: SessionTimelineState] = [:]
     private var timelineTasks: [String: Task<Void, Never>] = [:]
     private var timelineRequestIDsBySessionID: [String: UUID] = [:]
@@ -443,11 +473,17 @@ final class CodexSessionsTabViewModel {
     }
 
     var totalUsage: CodexSessionsUsageDisplayData? {
-        aggregateOverviewUsage(for: allSectionStates)
+        if let projectedOverviewUsage {
+            return projectedOverviewUsage
+        }
+        return aggregateOverviewUsage(for: allSectionStates)
     }
 
     var groupUsage: CodexSessionsUsageDisplayData? {
-        aggregateOverviewUsage(for: allSectionStates)
+        if let projectedOverviewUsage {
+            return projectedOverviewUsage
+        }
+        return aggregateOverviewUsage(for: allSectionStates)
     }
 
     var rewritableGroupUsage: CodexSessionsUsageDisplayData? {
@@ -479,6 +515,7 @@ final class CodexSessionsTabViewModel {
         var hasLoadedUsage = false
         var hasPlaceholderUsage = false
         var hasFailedUsage = false
+        var seenLogicalKeys: Set<String> = []
 
         for section in sections {
             if section.sessions.isEmpty, section.totalSessionCount > 0 {
@@ -487,6 +524,10 @@ final class CodexSessionsTabViewModel {
             }
 
             for session in section.sessions {
+                let logicalKey = logicalUsageKey(for: session)
+                guard seenLogicalKeys.insert(logicalKey).inserted else {
+                    continue
+                }
                 switch usageBySessionID[session.id] ?? .placeholder {
                 case .loaded(let usage):
                     hasLoadedUsage = true
@@ -499,10 +540,6 @@ final class CodexSessionsTabViewModel {
             }
         }
 
-        if hasLoadedUsage {
-            return .value(primaryText: TokenCountFormatters.compact(totalTokens), secondaryText: nil)
-        }
-
         if hasPlaceholderUsage {
             return .placeholder(
                 text: NSLocalizedString(
@@ -511,6 +548,10 @@ final class CodexSessionsTabViewModel {
                     comment: "Usage loading placeholder"
                 )
             )
+        }
+
+        if hasLoadedUsage {
+            return .value(primaryText: TokenCountFormatters.compact(totalTokens), secondaryText: nil)
         }
 
         if hasFailedUsage {
@@ -524,6 +565,41 @@ final class CodexSessionsTabViewModel {
         }
 
         return nil
+    }
+
+    private func refreshProjectedOverviewUsage(codexHome: URL) {
+        guard let projectedUsageService = service as? any CodexSessionsTabProjectedUsageServicing else {
+            return
+        }
+        guard projectedOverviewUsageTask == nil else { return }
+
+        projectedOverviewUsageTask = Task { [weak self] in
+            guard let self else { return }
+            defer { self.projectedOverviewUsageTask = nil }
+
+            do {
+                let projectedSummary = try await Task.detached(priority: .utility) {
+                    try projectedUsageService.loadProjectedUsageSummary(codexHome: codexHome)
+                }.value
+                guard !Task.isCancelled else { return }
+                self.projectedOverviewUsage = Self.makeProjectedOverviewUsageDisplay(from: projectedSummary)
+            } catch is CancellationError {
+                return
+            } catch {
+                guard !Task.isCancelled else { return }
+                self.projectedOverviewUsage = nil
+            }
+        }
+    }
+
+    nonisolated private static func makeProjectedOverviewUsageDisplay(
+        from summary: CodexSessionProjectedUsageSummary?
+    ) -> CodexSessionsUsageDisplayData? {
+        guard let summary, summary.totalTokens > 0 else { return nil }
+        return .value(
+            primaryText: TokenCountFormatters.compact(summary.totalTokens),
+            secondaryText: nil
+        )
     }
 
     var selectedSection: SessionSection? {
@@ -545,7 +621,7 @@ final class CodexSessionsTabViewModel {
             titleSecondaryText: sectionState.titleSecondaryText,
             rewriteSourceLabel: sectionState.rewriteSourceLabel,
             rewriteSourceProviderID: sectionState.rewriteSourceProviderID,
-            usageSessionIDs: sectionState.sessions.map(\.id),
+            usageSessionIDs: representativeUsageSessionIDs(for: sectionState.sessions),
             sessions: visibleSessions(for: sectionState, isExpanded: isExpanded),
             totalSessionCount: sectionState.totalSessionCount,
             editableThreadIDs: sectionState.editableThreadIDs,
@@ -568,7 +644,7 @@ final class CodexSessionsTabViewModel {
             titleSecondaryText: sectionState.titleSecondaryText,
             rewriteSourceLabel: sectionState.rewriteSourceLabel,
             rewriteSourceProviderID: sectionState.rewriteSourceProviderID,
-            usageSessionIDs: sectionState.sessions.map(\.id),
+            usageSessionIDs: representativeUsageSessionIDs(for: sectionState.sessions),
             sessions: sectionState.sessions,
             totalSessionCount: sectionState.totalSessionCount,
             editableThreadIDs: sectionState.editableThreadIDs,
@@ -836,7 +912,10 @@ final class CodexSessionsTabViewModel {
                         } else {
                             removedSessionIDs = []
                         }
-                        apply(deltaPresentation: Self.makeDeltaPresentation(from: snapshot, removedSessionIDs: removedSessionIDs))
+                        apply(
+                            deltaPresentation: Self.makeDeltaPresentation(from: snapshot, removedSessionIDs: removedSessionIDs),
+                            codexHome: codexHome
+                        )
                         if !snapshot.sessions.isEmpty || snapshot.isComplete {
                             showsInitialSkeleton = false
                         }
@@ -900,6 +979,7 @@ final class CodexSessionsTabViewModel {
             cancelUsageTasks()
             cancelTimelineTasks()
             usageBySessionID = [:]
+            projectedOverviewUsage = nil
             timelineBySessionID = [:]
             searchDebounceTask?.cancel()
             appliedSearchQuery = ""
@@ -1199,6 +1279,9 @@ final class CodexSessionsTabViewModel {
         codexHome: URL? = nil,
         prewarmUsageFromIndex: Bool = false
     ) {
+        if let codexHome {
+            refreshProjectedOverviewUsage(codexHome: codexHome)
+        }
         if prewarmUsageFromIndex, let codexHome {
             prewarmUsageStateFromIndexIfNeeded(for: presentation.rows, codexHome: codexHome)
         }
@@ -1222,7 +1305,10 @@ final class CodexSessionsTabViewModel {
         rebuildSectionStates()
     }
 
-    private func apply(deltaPresentation: SessionDeltaPresentation) {
+    private func apply(deltaPresentation: SessionDeltaPresentation, codexHome: URL? = nil) {
+        if let codexHome {
+            refreshProjectedOverviewUsage(codexHome: codexHome)
+        }
         availableTargetProviderIDs = deltaPresentation.availableProviderIDs
         for sessionID in deltaPresentation.removedSessionIDs {
             removeSession(id: sessionID)
@@ -1262,11 +1348,13 @@ final class CodexSessionsTabViewModel {
         for rows: [SessionRow],
         codexHome: URL
     ) {
-        guard sortMode == .usage else { return }
         guard let usageIndexService = service as? any CodexSessionsTabUsageIndexServicing else { return }
         guard !rows.isEmpty else { return }
 
         for row in rows {
+            guard sessionIDsSharingLogicalUsage(with: row.id).count <= 1 else {
+                continue
+            }
             if case .loaded = usageBySessionID[row.id] {
                 continue
             }
@@ -1285,11 +1373,12 @@ final class CodexSessionsTabViewModel {
             case .miss:
                 continue
             case .hit(let totals):
-                if let totals {
-                    usageBySessionID[row.id] = .loaded(totals)
+                let nextState: SessionUsageState = if let totals {
+                    .loaded(totals)
                 } else {
-                    usageBySessionID[row.id] = .failed
+                    .failed
                 }
+                applyUsageState(nextState, toLogicalUsageGroupContaining: row.id)
             }
         }
     }
@@ -1313,7 +1402,7 @@ final class CodexSessionsTabViewModel {
                     titleSecondaryText: section.titleSecondaryText,
                     rewriteSourceLabel: section.rewriteSourceLabel,
                     rewriteSourceProviderID: section.rewriteSourceProviderID,
-                    usageSessionIDs: section.sessions.map(\.id),
+                    usageSessionIDs: representativeUsageSessionIDs(for: section.sessions),
                     sessions: visibleSessions,
                     totalSessionCount: section.totalSessionCount,
                     editableThreadIDs: section.editableThreadIDs,
@@ -1409,6 +1498,7 @@ final class CodexSessionsTabViewModel {
         rowsByID = [:]
         projectRowIDsBySectionID = [:]
         providerRowIDsBySectionID = [:]
+        sessionIDsByUsageLogicalKey = [:]
     }
 
     private func rebuildRowIndexes(with rows: [SessionRow]) {
@@ -1418,6 +1508,8 @@ final class CodexSessionsTabViewModel {
         nextProjectBuckets.reserveCapacity(rows.count)
         var nextProviderBuckets: [String: [String]] = [:]
         nextProviderBuckets.reserveCapacity(rows.count)
+        var nextUsageBuckets: [String: [String]] = [:]
+        nextUsageBuckets.reserveCapacity(rows.count)
 
         for row in rows {
             nextRowsByID[row.id] = row
@@ -1425,28 +1517,34 @@ final class CodexSessionsTabViewModel {
                 .append(row.id)
             nextProviderBuckets[Self.providerSectionID(for: row.modelProvider), default: []]
                 .append(row.id)
+            nextUsageBuckets[logicalUsageKey(for: row), default: []]
+                .append(row.id)
         }
 
         rowsByID = nextRowsByID
         projectRowIDsBySectionID = nextProjectBuckets
         providerRowIDsBySectionID = nextProviderBuckets
+        sessionIDsByUsageLogicalKey = nextUsageBuckets
     }
 
     private func upsert(row: SessionRow) {
         if let existingRow = rowsByID[row.id] {
             remove(rowID: existingRow.id, fromSectionID: Self.projectSectionID(for: Self.normalizedProjectPath(for: existingRow.cwd)), buckets: &projectRowIDsBySectionID)
             remove(rowID: existingRow.id, fromSectionID: Self.providerSectionID(for: existingRow.modelProvider), buckets: &providerRowIDsBySectionID)
+            remove(rowID: existingRow.id, fromSectionID: logicalUsageKey(for: existingRow), buckets: &sessionIDsByUsageLogicalKey)
         }
 
         rowsByID[row.id] = row
         insert(rowID: row.id, intoSectionID: Self.projectSectionID(for: Self.normalizedProjectPath(for: row.cwd)), buckets: &projectRowIDsBySectionID)
         insert(rowID: row.id, intoSectionID: Self.providerSectionID(for: row.modelProvider), buckets: &providerRowIDsBySectionID)
+        insert(rowID: row.id, intoSectionID: logicalUsageKey(for: row), buckets: &sessionIDsByUsageLogicalKey)
     }
 
     private func removeSession(id: String) {
         guard let existingRow = rowsByID.removeValue(forKey: id) else { return }
         remove(rowID: existingRow.id, fromSectionID: Self.projectSectionID(for: Self.normalizedProjectPath(for: existingRow.cwd)), buckets: &projectRowIDsBySectionID)
         remove(rowID: existingRow.id, fromSectionID: Self.providerSectionID(for: existingRow.modelProvider), buckets: &providerRowIDsBySectionID)
+        remove(rowID: existingRow.id, fromSectionID: logicalUsageKey(for: existingRow), buckets: &sessionIDsByUsageLogicalKey)
     }
 
     private func remove(
@@ -1695,8 +1793,13 @@ final class CodexSessionsTabViewModel {
         var totalTokens = 0
         var hasLoadedUsage = false
         var hasPendingUsage = false
+        var seenLogicalKeys: Set<String> = []
 
         for session in sessions {
+            let logicalKey = logicalUsageKey(for: session)
+            guard seenLogicalKeys.insert(logicalKey).inserted else {
+                continue
+            }
             let ordering = usageOrderingValue(for: session.id)
             totalTokens += ordering.totalTokens
             if ordering.availabilityRank == 2 {
@@ -1728,6 +1831,57 @@ final class CodexSessionsTabViewModel {
             return (0, 1)
         case .failed:
             return (0, 0)
+        }
+    }
+
+    private func logicalUsageKey(for row: SessionRow) -> String {
+        let normalizedThreadID = normalizeLogicalUsageThreadID(row.threadID)
+        if let normalizedThreadID {
+            return "thread:\(normalizedThreadID)"
+        }
+        return "rollout:\(row.rolloutPath)"
+    }
+
+    private func normalizeLogicalUsageThreadID(_ threadID: String?) -> String? {
+        guard let threadID else { return nil }
+        let trimmed = threadID.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.isEmpty == false else { return nil }
+        return trimmed
+    }
+
+    private func logicalUsageKey(forSessionID sessionID: String) -> String? {
+        guard let row = rowsByID[sessionID] else { return nil }
+        return logicalUsageKey(for: row)
+    }
+
+    private func sessionIDsSharingLogicalUsage(with sessionID: String) -> [String] {
+        guard let logicalKey = logicalUsageKey(forSessionID: sessionID) else {
+            return [sessionID]
+        }
+        return sessionIDsByUsageLogicalKey[logicalKey] ?? [sessionID]
+    }
+
+    private func representativeUsageSessionIDs(for sessions: [SessionRow]) -> [String] {
+        var seenLogicalKeys: Set<String> = []
+        var representatives: [String] = []
+        representatives.reserveCapacity(sessions.count)
+
+        for session in sessions {
+            let logicalKey = logicalUsageKey(for: session)
+            if seenLogicalKeys.insert(logicalKey).inserted {
+                representatives.append(session.id)
+            }
+        }
+
+        return representatives
+    }
+
+    private func applyUsageState(
+        _ state: SessionUsageState,
+        toLogicalUsageGroupContaining sessionID: String
+    ) {
+        for memberID in sessionIDsSharingLogicalUsage(with: sessionID) {
+            usageBySessionID[memberID] = state
         }
     }
 
@@ -1897,12 +2051,7 @@ final class CodexSessionsTabViewModel {
     }
 
     private func primeVisibleSessionUsages() {
-        let sourceRows: [SessionRow]
-        if sortMode == .usage {
-            sourceRows = allSectionStates.flatMap(\.sessions)
-        } else {
-            sourceRows = sections.flatMap(\.sessions)
-        }
+        let sourceRows = allSectionStates.flatMap(\.sessions)
         primeSessionUsages(for: sourceRows)
     }
 
@@ -1934,6 +2083,8 @@ final class CodexSessionsTabViewModel {
         queuedUsageSessionIDSet.removeAll()
         usageSortRebuildTask?.cancel()
         usageSortRebuildTask = nil
+        projectedOverviewUsageTask?.cancel()
+        projectedOverviewUsageTask = nil
     }
 
     private func cancelTimelineTasks() {
@@ -1947,16 +2098,47 @@ final class CodexSessionsTabViewModel {
     private func primeSessionUsages(for rows: [SessionRow]) {
         guard !rows.isEmpty else { return }
 
+        var queuedLogicalKeys = Set(
+            queuedUsageSessionIDs.compactMap(logicalUsageKey(forSessionID:))
+        )
+        let inFlightLogicalKeys = Set(
+            usageTasks.keys.compactMap(logicalUsageKey(forSessionID:))
+        )
+        var primedLogicalKeys: Set<String> = []
+
         for row in rows {
-            guard usageBySessionID[row.id] == nil else { continue }
-            guard usageTasks[row.id] == nil else { continue }
-            guard queuedUsageSessionIDSet.contains(row.id) == false else { continue }
-            usageBySessionID[row.id] = .placeholder
+            let logicalKey = logicalUsageKey(for: row)
+            guard primedLogicalKeys.insert(logicalKey).inserted else {
+                continue
+            }
+            let memberIDs = sessionIDsByUsageLogicalKey[logicalKey] ?? [row.id]
+
+            if let resolvedState = resolvedUsageState(for: memberIDs) {
+                for memberID in memberIDs where usageBySessionID[memberID] == nil || usageBySessionID[memberID] == .placeholder {
+                    usageBySessionID[memberID] = resolvedState
+                }
+                continue
+            }
+            if queuedLogicalKeys.contains(logicalKey) || inFlightLogicalKeys.contains(logicalKey) {
+                continue
+            }
+
+            for memberID in memberIDs where usageBySessionID[memberID] == nil {
+                usageBySessionID[memberID] = .placeholder
+            }
+
             queuedUsageSessionIDs.append(row.id)
             queuedUsageSessionIDSet.insert(row.id)
+            queuedLogicalKeys.insert(logicalKey)
         }
 
         drainUsageQueueIfNeeded()
+    }
+
+    private func resolvedUsageState(for memberIDs: [String]) -> SessionUsageState? {
+        memberIDs
+            .compactMap { usageBySessionID[$0] }
+            .first { $0 != .placeholder }
     }
 
     private func drainUsageQueueIfNeeded() {
@@ -1978,7 +2160,11 @@ final class CodexSessionsTabViewModel {
                 do {
                     let rolloutPath = row.rolloutPath
                     let usage = try await Task.detached(priority: .utility) {
-                        try service.loadSessionUsage(codexHome: codexHome, rolloutPath: rolloutPath)
+                        try service.loadLogicalSessionUsage(
+                            codexHome: codexHome,
+                            threadID: row.threadID,
+                            rolloutPath: rolloutPath
+                        )
                     }.value
                     if let usage {
                         nextState = .loaded(usage)
@@ -1992,7 +2178,7 @@ final class CodexSessionsTabViewModel {
                 await MainActor.run {
                     guard let self else { return }
                     self.usageTasks[sessionID] = nil
-                    self.usageBySessionID[sessionID] = nextState
+                    self.applyUsageState(nextState, toLogicalUsageGroupContaining: sessionID)
                     if self.sortMode == .usage {
                         self.scheduleUsageSortRebuild()
                     }

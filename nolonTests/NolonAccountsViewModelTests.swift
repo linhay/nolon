@@ -834,7 +834,8 @@ final class NolonAccountsViewModelTests: XCTestCase {
             codexAuthManager: service,
             codexActivateAction: { account, _ in
                 sink.value = account.id
-            }
+            },
+            providerTokenTrendFetchAction: { _ in nil }
         )
 
         await viewModel.activateCodexAccount(id: account.id, for: provider)

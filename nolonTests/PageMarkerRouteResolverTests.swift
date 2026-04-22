@@ -190,6 +190,7 @@ final class PageMarkerRouteResolverTests: XCTestCase {
         )
         let section = ProviderTokenTrendSection(
             snapshot: nil,
+            refreshStatus: nil,
             capability: .dailyWithIntradayDrilldown,
             selectedDayKey: nil,
             intradayBucket: .minute30,

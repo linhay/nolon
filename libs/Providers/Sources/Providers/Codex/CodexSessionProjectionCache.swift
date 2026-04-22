@@ -1,4 +1,5 @@
 import Foundation
+import ProvidersShared
 import SQLite3
 
 final class CodexSessionProjectionCache: @unchecked Sendable {
@@ -147,8 +148,10 @@ final class CodexSessionProjectionCache: @unchecked Sendable {
         if let rootDirectory {
             root = rootDirectory
         } else {
-            let appSupport = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
-                ?? URL(fileURLWithPath: NSHomeDirectory(), isDirectory: true)
+            let appSupport = NolonHomeEnvironment.resolveApplicationSupportFolder(
+                environment: ProcessInfo.processInfo.environment,
+                fileManager: fileManager
+            )
             root = appSupport
                 .appendingPathComponent("Nolon", isDirectory: true)
                 .appendingPathComponent("codex-sessions", isDirectory: true)

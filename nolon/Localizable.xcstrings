@@ -17331,6 +17331,402 @@
         }
       }
     },
+    "usage.token_trend.refresh.preparing.detail" : {
+      "comment" : "Codex token trend refresh preparing detail",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "正在读取缓存并核对会话派生用量，请稍候。"
+          }
+        }
+      }
+    },
+    "usage.token_trend.refresh.preparing.title" : {
+      "comment" : "Codex token trend refresh preparing title",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "正在准备刷新本地用量"
+          }
+        }
+      }
+    },
+    "usage.token_trend.refresh.progress.affected_days" : {
+      "comment" : "Codex token trend refresh affected days detail",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "当前影响 %d 天"
+          }
+        }
+      }
+    },
+    "usage.token_trend.refresh.progress.none" : {
+      "comment" : "Codex token trend refresh no work needed",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "无需回填"
+          }
+        }
+      }
+    },
+    "usage.token_trend.refresh.progress.refreshed" : {
+      "comment" : "Codex token trend refresh progress refreshed detail",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "已刷新 live %d 个、archived %d 个"
+          }
+        }
+      }
+    },
+    "usage.token_trend.refresh.progress.removed" : {
+      "comment" : "Codex token trend refresh removed rollouts detail",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "待移除 %d 个旧 rollout"
+          }
+        }
+      }
+    },
+    "usage.token_trend.refresh.progress.skipped" : {
+      "comment" : "Codex token trend refresh skipped rollouts detail",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "跳过 %d 个"
+          }
+        }
+      }
+    },
+    "usage.token_trend.refresh.progress.title" : {
+      "comment" : "Codex token trend refresh progress title",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "正在回填派生用量"
+          }
+        }
+      }
+    },
+    "usage.token_trend.refresh.started.detail" : {
+      "comment" : "Codex token trend refresh started detail",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "已扫描 %d 个会话文件，命中 %d 条缓存记录，发现 %d 个待回填会话。"
+          }
+        }
+      }
+    },
+    "usage.token_trend.refresh.started.title" : {
+      "comment" : "Codex token trend refresh started title",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "正在扫描会话用量"
+          }
+        }
+      }
+    },
+    "usage.token_trend.refresh.scan_inventory.detail" : {
+      "comment" : "Codex token trend refresh scan inventory detail",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "正在遍历 sessions 与 archived_sessions，准备核对本地 rollout 清单。"
+          }
+        }
+      }
+    },
+    "usage.token_trend.refresh.scan_inventory.title" : {
+      "comment" : "Codex token trend refresh scan inventory title",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "正在扫描会话文件"
+          }
+        }
+      }
+    },
+    "usage.token_trend.refresh.read_usage_index.detail" : {
+      "comment" : "Codex token trend refresh read usage index detail",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "正在读取 %@，准备比对 %d 个会话文件与本地 minute 索引。"
+          }
+        }
+      }
+    },
+    "usage.token_trend.refresh.read_usage_index.title" : {
+      "comment" : "Codex token trend refresh read usage index title",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "正在读取用量索引数据库"
+          }
+        }
+      }
+    },
+    "usage.token_trend.refresh.reconcile_rollouts.detail" : {
+      "comment" : "Codex token trend refresh reconcile rollouts detail",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "已扫描 %d 个会话文件，命中 %d 条缓存记录，发现 %d 个待回填会话。"
+          }
+        }
+      }
+    },
+    "usage.token_trend.refresh.reconcile_rollouts.title" : {
+      "comment" : "Codex token trend refresh reconcile rollouts title",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "正在比对待刷新文件"
+          }
+        }
+      }
+    },
+    "usage.token_trend.refresh.read_previous_minutes.detail" : {
+      "comment" : "Codex token trend refresh read previous minutes detail",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "正在从 %@ 读取 %@ 的旧分钟桶，准备计算受影响日期。"
+          }
+        }
+      }
+    },
+    "usage.token_trend.refresh.read_previous_minutes.title" : {
+      "comment" : "Codex token trend refresh read previous minutes title",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "正在读取旧分钟索引"
+          }
+        }
+      }
+    },
+    "usage.token_trend.refresh.analyze_rollout.detail" : {
+      "comment" : "Codex token trend refresh analyze rollout detail",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "正在解析 %@，并重算它的派生 minute 用量。"
+          }
+        }
+      }
+    },
+    "usage.token_trend.refresh.analyze_rollout.detail_with_reason" : {
+      "comment" : "Codex token trend refresh analyze rollout detail with reason",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "正在解析 %@，原因：%@。"
+          }
+        }
+      }
+    },
+    "usage.token_trend.refresh.analyze_rollout.title" : {
+      "comment" : "Codex token trend refresh analyze rollout title",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "正在分析会话文件"
+          }
+        }
+      }
+    },
+    "usage.token_trend.refresh.read_updated_minutes.detail" : {
+      "comment" : "Codex token trend refresh read updated minutes detail",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "正在从 %@ 回读 %@ 的最新分钟桶，准备更新受影响日期。"
+          }
+        }
+      }
+    },
+    "usage.token_trend.refresh.read_updated_minutes.title" : {
+      "comment" : "Codex token trend refresh read updated minutes title",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "正在回读刷新结果"
+          }
+        }
+      }
+    },
+    "usage.token_trend.refresh.purge_stale_entries.detail" : {
+      "comment" : "Codex token trend refresh purge stale entries detail",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "正在从 %@ 清理已删除 rollout 的旧 minute 索引。"
+          }
+        }
+      }
+    },
+    "usage.token_trend.refresh.purge_stale_entries.title" : {
+      "comment" : "Codex token trend refresh purge stale entries title",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "正在清理旧索引记录"
+          }
+        }
+      }
+    },
+    "usage.token_trend.refresh.progress.latest_rollout" : {
+      "comment" : "Codex token trend refresh latest rollout detail",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "刚完成 %@"
+          }
+        }
+      }
+    },
+    "usage.token_trend.refresh.rollout.unknown" : {
+      "comment" : "Codex token trend refresh unknown rollout label",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "当前 rollout"
+          }
+        }
+      }
+    },
+    "usage.token_trend.refresh.database.unknown" : {
+      "comment" : "Codex token trend refresh unknown database name",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "usage-index-v1.sqlite"
+          }
+        }
+      }
+    },
+    "usage.token_trend.refresh.reason.new_rollout" : {
+      "comment" : "Codex token trend refresh reason new rollout",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "发现新 rollout"
+          }
+        }
+      }
+    },
+    "usage.token_trend.refresh.reason.live_fingerprint_changed" : {
+      "comment" : "Codex token trend refresh reason live fingerprint changed",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "live rollout 指纹变化"
+          }
+        }
+      }
+    },
+    "usage.token_trend.refresh.reason.archived_hash_missing" : {
+      "comment" : "Codex token trend refresh reason archived hash missing",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "archived rollout 缺少内容哈希"
+          }
+        }
+      }
+    },
+    "usage.token_trend.refresh.reason.archived_state_changed" : {
+      "comment" : "Codex token trend refresh reason archived state changed",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "archived 状态发生变化"
+          }
+        }
+      }
+    },
+    "usage.token_trend.refresh.reason.fingerprint_unavailable" : {
+      "comment" : "Codex token trend refresh reason fingerprint unavailable",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "无法读取文件指纹"
+          }
+        }
+      }
+    },
     "usage.token_trend.title" : {
       "comment" : "Token trend section title",
       "extractionState" : "extracted_with_value",

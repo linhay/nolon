@@ -263,6 +263,31 @@ public struct CodexSessionStore: Sendable {
         var sessionIndex: SessionIndex? = nil
     }
 
+    private enum ScannedFilesPolicy: Sendable {
+        case cached
+        case fresh
+    }
+
+    private enum ProjectedUsageRefreshReason: String, Sendable {
+        case newRollout = "new_rollout"
+        case liveFingerprintChanged = "live_fingerprint_changed"
+        case archivedHashMissing = "archived_hash_missing"
+        case archivedStateChanged = "archived_state_changed"
+        case fingerprintUnavailable = "fingerprint_unavailable"
+    }
+
+    private enum ProjectedUsageRefreshDetailPhase: String, Sendable {
+        case scanInventory = "scan_inventory"
+        case readUsageIndex = "read_usage_index"
+        case reconcileRollouts = "reconcile_rollouts"
+        case readPreviousMinutes = "read_previous_minutes"
+        case analyzeRollout = "analyze_rollout"
+        case readUpdatedMinutes = "read_updated_minutes"
+        case rolloutCompleted = "rollout_completed"
+        case purgeStaleEntries = "purge_stale_entries"
+        case finished = "finished"
+    }
+
     private final class RolloutRewriteAccumulator: @unchecked Sendable {
         private let lock = NSLock()
         private var updatedFiles = 0
@@ -393,6 +418,44 @@ public struct CodexSessionStore: Sendable {
         try loadSessionUsageRecord(codexHome: codexHome, rolloutPath: rolloutPath).totals
     }
 
+    public func loadLogicalSessionUsage(
+        codexHome: URL,
+        threadID: String?,
+        rolloutPath: String
+    ) throws -> CodexSessionTokenTotals? {
+        let normalizedThreadID = threadID?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .nilIfEmpty
+        guard let normalizedThreadID else {
+            return try loadSessionUsage(codexHome: codexHome, rolloutPath: rolloutPath)
+        }
+
+        let scannedFiles = cachedScannedFiles(in: STFolder(codexHome))
+        let matchingRolloutPaths = Set(
+            scannedFiles.compactMap { scannedFile -> String? in
+                let scannedThreadID = scannedFile.sessionMeta?.threadID?
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                    .nilIfEmpty
+                guard scannedThreadID == normalizedThreadID else { return nil }
+                return scannedFile.relativePath
+            }
+        )
+
+        guard !matchingRolloutPaths.isEmpty else {
+            return try loadSessionUsage(codexHome: codexHome, rolloutPath: rolloutPath)
+        }
+
+        for matchingRolloutPath in matchingRolloutPaths {
+            _ = try loadSessionUsageRecord(codexHome: codexHome, rolloutPath: matchingRolloutPath)
+        }
+
+        return try usageIndex.loadLogicalSessionUsage(
+            codexHomePath: codexHome.path,
+            sessionID: normalizedThreadID,
+            rolloutPaths: matchingRolloutPaths
+        )
+    }
+
     public func loadCachedSessionUsage(
         codexHome: URL,
         rolloutPath: String
@@ -410,11 +473,427 @@ public struct CodexSessionStore: Sendable {
         try loadSessionTimelineRecord(codexHome: codexHome, rolloutPath: rolloutPath).timeline
     }
 
-    func loadSessionUsageRecord(
+    func loadSessionUsageMinuteEntries(
         codexHome: URL,
         rolloutPath: String
+    ) throws -> [CodexSessionUsageMinuteEntry] {
+        _ = try loadSessionUsageRecord(codexHome: codexHome, rolloutPath: rolloutPath)
+        return try usageIndex.loadMinuteEntries(
+            codexHomePath: codexHome.path,
+            rolloutPath: rolloutPath
+        )
+    }
+
+    private func prepareProjectedUsageIndex(
+        codexHome: URL
+    ) throws -> Set<String> {
+        let scannedFiles = cachedScannedFiles(in: STFolder(codexHome))
+        let rolloutPaths = Set(scannedFiles.map(\.relativePath))
+
+        for scannedFile in scannedFiles {
+            _ = try loadSessionUsageRecord(
+                codexHome: codexHome,
+                rolloutPath: scannedFile.relativePath,
+                isArchived: scannedFile.archived
+            )
+        }
+
+        try usageIndex.purgeEntries(
+            codexHomePath: codexHome.path,
+            keepingRolloutPaths: rolloutPaths
+        )
+        return rolloutPaths
+    }
+
+    public func loadProjectedUsageMinutes(
+        codexHome: URL,
+        rangeStart: Date? = nil,
+        rangeEnd: Date? = nil
+    ) throws -> CodexSessionProjectedUsage {
+        _ = try prepareProjectedUsageIndex(codexHome: codexHome)
+        return try usageIndex.loadProjectedUsage(
+            codexHomePath: codexHome.path,
+            rangeStartUnixMs: rangeStart.map(Self.unixMilliseconds),
+            rangeEndUnixMs: rangeEnd.map(Self.unixMilliseconds)
+        )
+    }
+
+    public func loadProjectedUsageSummary(
+        codexHome: URL,
+        rangeStart: Date? = nil,
+        rangeEnd: Date? = nil
+    ) throws -> CodexSessionProjectedUsageSummary? {
+        _ = try prepareProjectedUsageIndex(codexHome: codexHome)
+        return try usageIndex.loadProjectedUsageSummary(
+            codexHomePath: codexHome.path,
+            rangeStartUnixMs: rangeStart.map(Self.unixMilliseconds),
+            rangeEndUnixMs: rangeEnd.map(Self.unixMilliseconds)
+        )
+    }
+
+    func loadProjectedQuarterHours(
+        codexHome: URL,
+        rangeStart: Date? = nil,
+        rangeEnd: Date? = nil,
+        timezone: TimeZone
+    ) throws -> CodexSessionProjectedBucketSnapshot? {
+        _ = try prepareProjectedUsageIndex(codexHome: codexHome)
+        return try usageIndex.loadProjectedQuarterHours(
+            codexHomePath: codexHome.path,
+            rangeStartUnixMs: rangeStart.map(Self.unixMilliseconds),
+            rangeEndUnixMs: rangeEnd.map(Self.unixMilliseconds),
+            timezone: timezone
+        )
+    }
+
+    public func refreshChangedProjectedUsageDayKeys(
+        codexHome: URL,
+        timezone: TimeZone
+    ) throws -> [String] {
+        let traceID = UUID().uuidString
+        let startedAt = CFAbsoluteTimeGetCurrent()
+        let codexHomeFolder = STFolder(codexHome)
+        let usageIndexDatabasePath = usageIndex.databasePath
+        let usageIndexDatabaseName = (usageIndexDatabasePath as NSString).lastPathComponent
+
+        Self.emitPerformance(
+            operation: "refresh_projected_usage_day_keys",
+            traceID: traceID,
+            startedAt: startedAt,
+            extra: [
+                "cached_entry_count": 0,
+                "codex_home_path": codexHome.path,
+                "current_database_name": usageIndexDatabaseName,
+                "current_database_path": usageIndexDatabasePath,
+                "detail_phase": ProjectedUsageRefreshDetailPhase.scanInventory.rawValue,
+                "dirty_rollout_count": 0,
+                "phase": "started",
+                "processed_rollout_count": 0,
+                "removed_rollout_count": 0,
+                "scanned_file_count": 0,
+                "skipped_rollout_count": 0,
+                "timezone_identifier": timezone.identifier,
+            ]
+        )
+
+        let scannedFiles = scannedFiles(in: codexHomeFolder, policy: .fresh)
+        let rolloutPaths = Set(scannedFiles.map(\.relativePath))
+
+        Self.emitPerformance(
+            operation: "refresh_projected_usage_day_keys",
+            traceID: traceID,
+            startedAt: startedAt,
+            extra: [
+                "cached_entry_count": 0,
+                "codex_home_path": codexHome.path,
+                "current_database_name": usageIndexDatabaseName,
+                "current_database_path": usageIndexDatabasePath,
+                "detail_phase": ProjectedUsageRefreshDetailPhase.readUsageIndex.rawValue,
+                "dirty_rollout_count": 0,
+                "phase": "started",
+                "processed_rollout_count": 0,
+                "removed_rollout_count": 0,
+                "scanned_file_count": scannedFiles.count,
+                "skipped_rollout_count": scannedFiles.count,
+                "timezone_identifier": timezone.identifier,
+            ]
+        )
+
+        let entries = try loadUsageIndexEntries(codexHome: codexHome)
+        let entriesByPath = Dictionary(uniqueKeysWithValues: entries.map { ($0.rolloutPath, $0) })
+        var affectedDayKeys: Set<String> = []
+        var removedRolloutCount = 0
+        var refreshedLiveRolloutCount = 0
+        var refreshedArchivedRolloutCount = 0
+        var newRolloutCount = 0
+        var liveFingerprintChangedCount = 0
+        var archivedHashMissingCount = 0
+        var archivedStateChangedCount = 0
+        var fingerprintUnavailableCount = 0
+        let dirtyScannedFiles: [(file: CodexSessionScanner.ScannedFile, reason: ProjectedUsageRefreshReason)] = scannedFiles.compactMap { scannedFile in
+            let cachedEntry = entriesByPath[scannedFile.relativePath]
+            guard let refreshReason = Self.projectedUsageRefreshReason(
+                file: scannedFile,
+                entry: cachedEntry
+            ) else {
+                return nil
+            }
+            return (scannedFile, refreshReason)
+        }
+        let dirtyRolloutCount = dirtyScannedFiles.count
+
+        for entry in entries where !rolloutPaths.contains(entry.rolloutPath) {
+            let previousMinuteEntries = try usageIndex.loadMinuteEntries(
+                codexHomePath: codexHome.path,
+                rolloutPath: entry.rolloutPath
+            )
+            affectedDayKeys.formUnion(
+                Self.dayKeys(from: previousMinuteEntries, timezone: timezone)
+            )
+            removedRolloutCount += 1
+        }
+
+        Self.emitPerformance(
+            operation: "refresh_projected_usage_day_keys",
+            traceID: traceID,
+            startedAt: startedAt,
+            extra: [
+                "cached_entry_count": entries.count,
+                "codex_home_path": codexHome.path,
+                "current_database_name": usageIndexDatabaseName,
+                "current_database_path": usageIndexDatabasePath,
+                "detail_phase": ProjectedUsageRefreshDetailPhase.reconcileRollouts.rawValue,
+                "dirty_rollout_count": dirtyRolloutCount,
+                "phase": "started",
+                "processed_rollout_count": 0,
+                "removed_rollout_count": removedRolloutCount,
+                "scanned_file_count": scannedFiles.count,
+                "skipped_rollout_count": scannedFiles.count - dirtyRolloutCount,
+                "timezone_identifier": timezone.identifier,
+            ]
+        )
+
+        for (index, dirtyScannedFile) in dirtyScannedFiles.enumerated() {
+            let scannedFile = dirtyScannedFile.file
+            let refreshReason = dirtyScannedFile.reason
+            switch refreshReason {
+            case .newRollout:
+                newRolloutCount += 1
+            case .liveFingerprintChanged:
+                liveFingerprintChangedCount += 1
+            case .archivedHashMissing:
+                archivedHashMissingCount += 1
+            case .archivedStateChanged:
+                archivedStateChangedCount += 1
+            case .fingerprintUnavailable:
+                fingerprintUnavailableCount += 1
+            }
+
+            Self.emitPerformance(
+                operation: "refresh_projected_usage_day_keys",
+                traceID: traceID,
+                startedAt: startedAt,
+                extra: [
+                    "cached_entry_count": entries.count,
+                    "codex_home_path": codexHome.path,
+                    "current_database_name": usageIndexDatabaseName,
+                    "current_database_path": usageIndexDatabasePath,
+                    "current_refresh_reason": refreshReason.rawValue,
+                    "current_rollout_path": scannedFile.relativePath,
+                    "detail_phase": ProjectedUsageRefreshDetailPhase.readPreviousMinutes.rawValue,
+                    "dirty_rollout_count": dirtyRolloutCount,
+                    "phase": "progress",
+                    "processed_rollout_count": index,
+                    "refreshed_archived_rollout_count": refreshedArchivedRolloutCount,
+                    "refreshed_live_rollout_count": refreshedLiveRolloutCount,
+                    "removed_rollout_count": removedRolloutCount,
+                    "scanned_file_count": scannedFiles.count,
+                    "skipped_rollout_count": scannedFiles.count - dirtyRolloutCount,
+                    "timezone_identifier": timezone.identifier,
+                ]
+            )
+            let previousMinuteEntries = try usageIndex.loadMinuteEntries(
+                codexHomePath: codexHome.path,
+                rolloutPath: scannedFile.relativePath
+            )
+
+            Self.emitPerformance(
+                operation: "refresh_projected_usage_day_keys",
+                traceID: traceID,
+                startedAt: startedAt,
+                extra: [
+                    "cached_entry_count": entries.count,
+                    "codex_home_path": codexHome.path,
+                    "current_database_name": usageIndexDatabaseName,
+                    "current_database_path": usageIndexDatabasePath,
+                    "current_refresh_reason": refreshReason.rawValue,
+                    "current_rollout_path": scannedFile.relativePath,
+                    "detail_phase": ProjectedUsageRefreshDetailPhase.analyzeRollout.rawValue,
+                    "dirty_rollout_count": dirtyRolloutCount,
+                    "phase": "progress",
+                    "processed_rollout_count": index,
+                    "refreshed_archived_rollout_count": refreshedArchivedRolloutCount,
+                    "refreshed_live_rollout_count": refreshedLiveRolloutCount,
+                    "removed_rollout_count": removedRolloutCount,
+                    "scanned_file_count": scannedFiles.count,
+                    "skipped_rollout_count": scannedFiles.count - dirtyRolloutCount,
+                    "timezone_identifier": timezone.identifier,
+                ]
+            )
+            _ = try loadSessionUsageRecord(
+                codexHome: codexHome,
+                rolloutPath: scannedFile.relativePath,
+                isArchived: scannedFile.archived
+            )
+
+            Self.emitPerformance(
+                operation: "refresh_projected_usage_day_keys",
+                traceID: traceID,
+                startedAt: startedAt,
+                extra: [
+                    "cached_entry_count": entries.count,
+                    "codex_home_path": codexHome.path,
+                    "current_database_name": usageIndexDatabaseName,
+                    "current_database_path": usageIndexDatabasePath,
+                    "current_refresh_reason": refreshReason.rawValue,
+                    "current_rollout_path": scannedFile.relativePath,
+                    "detail_phase": ProjectedUsageRefreshDetailPhase.readUpdatedMinutes.rawValue,
+                    "dirty_rollout_count": dirtyRolloutCount,
+                    "phase": "progress",
+                    "processed_rollout_count": index,
+                    "refreshed_archived_rollout_count": refreshedArchivedRolloutCount,
+                    "refreshed_live_rollout_count": refreshedLiveRolloutCount,
+                    "removed_rollout_count": removedRolloutCount,
+                    "scanned_file_count": scannedFiles.count,
+                    "skipped_rollout_count": scannedFiles.count - dirtyRolloutCount,
+                    "timezone_identifier": timezone.identifier,
+                ]
+            )
+            let currentMinuteEntries = try usageIndex.loadMinuteEntries(
+                codexHomePath: codexHome.path,
+                rolloutPath: scannedFile.relativePath
+            )
+            affectedDayKeys.formUnion(
+                Self.dayKeys(
+                    from: previousMinuteEntries + currentMinuteEntries,
+                    timezone: timezone
+                )
+            )
+            if scannedFile.archived {
+                refreshedArchivedRolloutCount += 1
+            } else {
+                refreshedLiveRolloutCount += 1
+            }
+
+            Self.emitPerformance(
+                operation: "refresh_projected_usage_day_keys",
+                traceID: traceID,
+                startedAt: startedAt,
+                extra: [
+                    "cached_entry_count": entries.count,
+                    "codex_home_path": codexHome.path,
+                    "current_database_name": usageIndexDatabaseName,
+                    "current_database_path": usageIndexDatabasePath,
+                    "current_refresh_reason": refreshReason.rawValue,
+                    "current_rollout_path": scannedFile.relativePath,
+                    "detail_phase": ProjectedUsageRefreshDetailPhase.rolloutCompleted.rawValue,
+                    "dirty_rollout_count": dirtyRolloutCount,
+                    "phase": "progress",
+                    "processed_rollout_count": index + 1,
+                    "refreshed_archived_rollout_count": refreshedArchivedRolloutCount,
+                    "refreshed_live_rollout_count": refreshedLiveRolloutCount,
+                    "removed_rollout_count": removedRolloutCount,
+                    "scanned_file_count": scannedFiles.count,
+                    "skipped_rollout_count": scannedFiles.count - dirtyRolloutCount,
+                    "timezone_identifier": timezone.identifier,
+                ]
+            )
+        }
+
+        Self.emitPerformance(
+            operation: "refresh_projected_usage_day_keys",
+            traceID: traceID,
+            startedAt: startedAt,
+            extra: [
+                "cached_entry_count": entries.count,
+                "codex_home_path": codexHome.path,
+                "current_database_name": usageIndexDatabaseName,
+                "current_database_path": usageIndexDatabasePath,
+                "detail_phase": ProjectedUsageRefreshDetailPhase.purgeStaleEntries.rawValue,
+                "dirty_rollout_count": dirtyRolloutCount,
+                "phase": "completed",
+                "processed_rollout_count": dirtyRolloutCount,
+                "refreshed_archived_rollout_count": refreshedArchivedRolloutCount,
+                "refreshed_live_rollout_count": refreshedLiveRolloutCount,
+                "removed_rollout_count": removedRolloutCount,
+                "scanned_file_count": scannedFiles.count,
+                "skipped_rollout_count": scannedFiles.count - dirtyRolloutCount,
+                "timezone_identifier": timezone.identifier,
+            ]
+        )
+        try usageIndex.purgeEntries(
+            codexHomePath: codexHome.path,
+            keepingRolloutPaths: rolloutPaths
+        )
+        let sortedAffectedDayKeys = affectedDayKeys.sorted()
+        Self.emitPerformance(
+            operation: "refresh_projected_usage_day_keys",
+            traceID: traceID,
+            startedAt: startedAt,
+            extra: [
+                "affected_day_key_count": sortedAffectedDayKeys.count,
+                "archived_hash_missing_count": archivedHashMissingCount,
+                "archived_state_changed_count": archivedStateChangedCount,
+                "cached_entry_count": entries.count,
+                "codex_home_path": codexHome.path,
+                "current_database_name": usageIndexDatabaseName,
+                "current_database_path": usageIndexDatabasePath,
+                "detail_phase": ProjectedUsageRefreshDetailPhase.finished.rawValue,
+                "dirty_rollout_count": dirtyRolloutCount,
+                "fingerprint_unavailable_count": fingerprintUnavailableCount,
+                "live_fingerprint_changed_count": liveFingerprintChangedCount,
+                "new_rollout_count": newRolloutCount,
+                "phase": "completed",
+                "processed_rollout_count": dirtyRolloutCount,
+                "refreshed_archived_rollout_count": refreshedArchivedRolloutCount,
+                "refreshed_live_rollout_count": refreshedLiveRolloutCount,
+                "removed_rollout_count": removedRolloutCount,
+                "scanned_file_count": scannedFiles.count,
+                "skipped_rollout_count": scannedFiles.count - dirtyRolloutCount,
+                "timezone_identifier": timezone.identifier,
+            ]
+        )
+        return sortedAffectedDayKeys
+    }
+
+    public func loadCachedProjectedUsageMinutes(
+        codexHome: URL,
+        rangeStart: Date? = nil,
+        rangeEnd: Date? = nil
+    ) throws -> CodexSessionProjectedUsage {
+        try usageIndex.loadProjectedUsage(
+            codexHomePath: codexHome.path,
+            rangeStartUnixMs: rangeStart.map(Self.unixMilliseconds),
+            rangeEndUnixMs: rangeEnd.map(Self.unixMilliseconds)
+        )
+    }
+
+    public func loadCachedProjectedUsageSummary(
+        codexHome: URL,
+        rangeStart: Date? = nil,
+        rangeEnd: Date? = nil
+    ) throws -> CodexSessionProjectedUsageSummary? {
+        try usageIndex.loadProjectedUsageSummary(
+            codexHomePath: codexHome.path,
+            rangeStartUnixMs: rangeStart.map(Self.unixMilliseconds),
+            rangeEndUnixMs: rangeEnd.map(Self.unixMilliseconds)
+        )
+    }
+
+    func loadCachedProjectedQuarterHours(
+        codexHome: URL,
+        rangeStart: Date? = nil,
+        rangeEnd: Date? = nil,
+        timezone: TimeZone
+    ) throws -> CodexSessionProjectedBucketSnapshot? {
+        try usageIndex.loadProjectedQuarterHours(
+            codexHomePath: codexHome.path,
+            rangeStartUnixMs: rangeStart.map(Self.unixMilliseconds),
+            rangeEndUnixMs: rangeEnd.map(Self.unixMilliseconds),
+            timezone: timezone
+        )
+    }
+
+    func loadSessionUsageRecord(
+        codexHome: URL,
+        rolloutPath: String,
+        isArchived: Bool? = nil
     ) throws -> CodexSessionUsageLoadResult {
-        try usageIndex.load(codexHome: codexHome, rolloutPath: rolloutPath)
+        try usageIndex.load(
+            codexHome: codexHome,
+            rolloutPath: rolloutPath,
+            isArchived: isArchived ?? Self.isArchivedRolloutPath(rolloutPath)
+        )
     }
 
     func loadSessionTimelineRecord(
@@ -433,6 +912,12 @@ public struct CodexSessionStore: Sendable {
         rolloutPath: String
     ) throws -> CodexSessionUsageIndexEntry? {
         try usageIndex.loadEntry(codexHomePath: codexHome.path, rolloutPath: rolloutPath)
+    }
+
+    func loadUsageIndexEntries(
+        codexHome: URL
+    ) throws -> [CodexSessionUsageIndexEntry] {
+        try usageIndex.loadEntries(codexHomePath: codexHome.path)
     }
 
     public func snapshotStream(
@@ -1611,6 +2096,75 @@ public struct CodexSessionStore: Sendable {
             ?? makeISO8601Formatter(fractionalSeconds: true).date(from: raw)
     }
 
+    private static func dayKeys(
+        from minuteEntries: [CodexSessionUsageMinuteEntry],
+        timezone: TimeZone
+    ) -> Set<String> {
+        Set(
+            minuteEntries.map {
+                dayKey(from: $0.minuteStartAt, timezone: timezone)
+            }
+        )
+    }
+
+    private static func dayKey(from date: Date, timezone: TimeZone) -> String {
+        let formatter = DateFormatter()
+        formatter.calendar = calendar(timezone: timezone)
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = timezone
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter.string(from: date)
+    }
+
+    private static func calendar(timezone: TimeZone) -> Calendar {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = timezone
+        return calendar
+    }
+
+    private static func projectedUsageRefreshReason(
+        file: CodexSessionScanner.ScannedFile,
+        entry: CodexSessionUsageIndexEntry?
+    ) -> ProjectedUsageRefreshReason? {
+        guard let entry else {
+            return .newRollout
+        }
+        guard let currentFingerprint = rolloutFingerprint(url: file.file.url) else {
+            return .fingerprintUnavailable
+        }
+        guard file.archived == entry.isArchived else {
+            return .archivedStateChanged
+        }
+
+        if file.archived {
+            return entry.contentHash == nil ? .archivedHashMissing : nil
+        }
+
+        let fingerprintChanged = entry.absoluteRolloutPath != currentFingerprint.absolutePath
+            || entry.fileID != currentFingerprint.fileID
+            || entry.modifiedAtUnixMs != currentFingerprint.modifiedAtUnixMs
+            || entry.sizeBytes != currentFingerprint.sizeBytes
+        return fingerprintChanged ? .liveFingerprintChanged : nil
+    }
+
+    private static func rolloutFingerprint(
+        url: URL
+    ) -> (absolutePath: String, fileID: Int64?, modifiedAtUnixMs: Int64, sizeBytes: Int64)? {
+        guard let attributes = try? FileManager.default.attributesOfItem(atPath: url.path) else {
+            return nil
+        }
+
+        let modifiedAt = (attributes[.modificationDate] as? Date) ?? .distantPast
+        let sizeBytes = (attributes[.size] as? NSNumber)?.int64Value ?? 0
+        let fileID = (attributes[.systemFileNumber] as? NSNumber)?.int64Value
+        return (
+            absolutePath: url.path,
+            fileID: fileID,
+            modifiedAtUnixMs: Int64((modifiedAt.timeIntervalSince1970 * 1_000).rounded()),
+            sizeBytes: sizeBytes
+        )
+    }
+
     private static func fileModificationDate(path: String) -> Date? {
         do {
             return try URL(fileURLWithPath: path)
@@ -1626,6 +2180,10 @@ public struct CodexSessionStore: Sendable {
             return URL(fileURLWithPath: rolloutPath)
         }
         return STFolder(codexHome).file(rolloutPath).url
+    }
+
+    private static func unixMilliseconds(_ date: Date) -> Int64 {
+        Int64((date.timeIntervalSince1970 * 1_000.0).rounded())
     }
 
     private static func elapsedMilliseconds(since startedAt: CFAbsoluteTime) -> Int {
@@ -1688,6 +2246,17 @@ public struct CodexSessionStore: Sendable {
     }
 
     private func cachedScannedFiles(in codexHome: STFolder) -> [CodexSessionScanner.ScannedFile] {
+        scannedFiles(in: codexHome, policy: .cached)
+    }
+
+    private func scannedFiles(
+        in codexHome: STFolder,
+        policy: ScannedFilesPolicy
+    ) -> [CodexSessionScanner.ScannedFile] {
+        guard policy == .cached else {
+            return CodexSessionScanner.scanFiles(codexHome: codexHome, includeArchived: true)
+        }
+
         let cacheKey = cacheKey(for: codexHome)
         let now = Date()
         if enableInventoryCache,
@@ -1938,6 +2507,12 @@ public struct CodexSessionStore: Sendable {
             ? [.withInternetDateTime, .withFractionalSeconds]
             : [.withInternetDateTime]
         return formatter
+    }
+}
+
+private extension CodexSessionStore {
+    static func isArchivedRolloutPath(_ rolloutPath: String) -> Bool {
+        rolloutPath.hasPrefix("archived_sessions/")
     }
 }
 

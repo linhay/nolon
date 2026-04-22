@@ -5,7 +5,9 @@ import ProviderUsage
 import STFilePath
 import ProviderCatalog
 import CodexBarProviderCatalog
+import CodexProvider
 import NolonResourceKit
+import NolonUIFoundation
 @testable import nolon
 
 @MainActor
@@ -279,6 +281,835 @@ final class ProviderUsageEngineManualRefreshTests: XCTestCase {
 
         await gate.open()
         _ = await loadTask.value
+    }
+
+    func testBDD_GivenPotentiallyTruncatedCachedCodexTokenTrend_WhenInitialUsageLoadIfNeededStarts_ThenDoesNotPublishCachedTrendBeforeLiveRefresh() async throws {
+        let provider = Provider(
+            name: "Codex",
+            defaultSkillsPath: "/tmp/codex-skills",
+            workflowPath: "/tmp/codex-prompts",
+            installMethod: .symlink,
+            templateId: "codex"
+        )
+        let refreshedSnapshot = ProviderTokenTrendSnapshot(
+            points: [
+                ProviderTokenTrendPoint(
+                    date: "2026-04-20",
+                    totalTokens: 80,
+                    inputTokens: 50,
+                    outputTokens: 30,
+                    cacheReadTokens: 10
+                ),
+                ProviderTokenTrendPoint(
+                    date: "2026-04-21",
+                    totalTokens: 120,
+                    inputTokens: 70,
+                    outputTokens: 50,
+                    cacheReadTokens: 20
+                )
+            ],
+            todayTokens: 120,
+            last7DaysTokens: 200,
+            last30DaysTokens: 200,
+            allDaysTokens: 200,
+            updatedAt: Date(timeIntervalSince1970: 1_745_276_400),
+            sourceLabel: "global local usage"
+        )
+
+        let gate = AsyncGate()
+        let viewModel = ProviderUsageEngine(
+            provider: provider,
+            codexCachedTokenTrendFetchAction: { _ in nil },
+            codexTokenTrendFetchAction: { _ in
+                await gate.wait()
+                return refreshedSnapshot
+            },
+            providerIntradayFetchAction: { _, _, _ in nil }
+        )
+
+        let loadTask = Task { await viewModel.loadUsageIfNeeded() }
+
+        try await waitUntil { viewModel.isLoadingTokenTrend }
+        XCTAssertNil(viewModel.tokenTrendSnapshot)
+
+        await gate.open()
+        _ = await loadTask.value
+
+        try await waitUntil {
+            viewModel.tokenTrendSnapshot?.points == refreshedSnapshot.points
+        }
+        XCTAssertEqual(viewModel.tokenTrendSnapshot, refreshedSnapshot)
+        XCTAssertFalse(viewModel.shouldShowTokenTrendLoadingSkeleton)
+    }
+
+    func testBDD_GivenStableCachedCodexTokenTrend_WhenInitialUsageLoadIfNeededStarts_ThenCachedTrendAppearsBeforeLiveRefreshFinishes() async throws {
+        let provider = Provider(
+            name: "Codex",
+            defaultSkillsPath: "/tmp/codex-skills",
+            workflowPath: "/tmp/codex-prompts",
+            installMethod: .symlink,
+            templateId: "codex"
+        )
+        let cachedSnapshot = ProviderTokenTrendSnapshot(
+            points: [
+                ProviderTokenTrendPoint(
+                    date: "2026-04-19",
+                    totalTokens: 40,
+                    inputTokens: 25,
+                    outputTokens: 15,
+                    cacheReadTokens: 6
+                ),
+                ProviderTokenTrendPoint(
+                    date: "2026-04-20",
+                    totalTokens: 80,
+                    inputTokens: 50,
+                    outputTokens: 30,
+                    cacheReadTokens: 10
+                ),
+            ],
+            todayTokens: 80,
+            last7DaysTokens: 120,
+            last30DaysTokens: 120,
+            allDaysTokens: 120,
+            updatedAt: Date(timeIntervalSince1970: 1_745_190_000),
+            sourceLabel: "global local usage"
+        )
+        let refreshedSnapshot = ProviderTokenTrendSnapshot(
+            points: [
+                ProviderTokenTrendPoint(
+                    date: "2026-04-19",
+                    totalTokens: 40,
+                    inputTokens: 25,
+                    outputTokens: 15,
+                    cacheReadTokens: 6
+                ),
+                ProviderTokenTrendPoint(
+                    date: "2026-04-20",
+                    totalTokens: 80,
+                    inputTokens: 50,
+                    outputTokens: 30,
+                    cacheReadTokens: 10
+                ),
+                ProviderTokenTrendPoint(
+                    date: "2026-04-21",
+                    totalTokens: 120,
+                    inputTokens: 70,
+                    outputTokens: 50,
+                    cacheReadTokens: 20
+                )
+            ],
+            todayTokens: 120,
+            last7DaysTokens: 240,
+            last30DaysTokens: 240,
+            allDaysTokens: 240,
+            updatedAt: Date(timeIntervalSince1970: 1_745_276_400),
+            sourceLabel: "global local usage"
+        )
+
+        let gate = AsyncGate()
+        let viewModel = ProviderUsageEngine(
+            provider: provider,
+            codexCachedTokenTrendFetchAction: { _ in cachedSnapshot },
+            codexTokenTrendFetchAction: { _ in
+                await gate.wait()
+                return refreshedSnapshot
+            },
+            providerIntradayFetchAction: { _, _, _ in nil }
+        )
+
+        let loadTask = Task { await viewModel.loadUsageIfNeeded() }
+
+        try await waitUntil {
+            viewModel.tokenTrendSnapshot == cachedSnapshot
+        }
+        XCTAssertEqual(viewModel.tokenTrendSnapshot, cachedSnapshot)
+        XCTAssertTrue(viewModel.isLoadingTokenTrend)
+        XCTAssertFalse(viewModel.shouldShowTokenTrendLoadingSkeleton)
+
+        await gate.open()
+        _ = await loadTask.value
+
+        try await waitUntil {
+            viewModel.tokenTrendSnapshot?.points == refreshedSnapshot.points
+        }
+        XCTAssertEqual(viewModel.tokenTrendSnapshot, refreshedSnapshot)
+    }
+
+    func testBDD_GivenCachedCodexTokenTrend_WhenLiveRefreshFails_ThenCachedTrendRemainsVisible() async throws {
+        let provider = Provider(
+            name: "Codex",
+            defaultSkillsPath: "/tmp/codex-skills",
+            workflowPath: "/tmp/codex-prompts",
+            installMethod: .symlink,
+            templateId: "codex"
+        )
+        let cachedSnapshot = ProviderTokenTrendSnapshot(
+            points: [
+                ProviderTokenTrendPoint(
+                    date: "2026-04-19",
+                    totalTokens: 40,
+                    inputTokens: 25,
+                    outputTokens: 15,
+                    cacheReadTokens: 6
+                )
+            ],
+            todayTokens: 40,
+            last7DaysTokens: 40,
+            last30DaysTokens: 40,
+            allDaysTokens: 40,
+            updatedAt: Date(timeIntervalSince1970: 1_745_190_000),
+            sourceLabel: "global local usage"
+        )
+
+        let viewModel = ProviderUsageEngine(
+            provider: provider,
+            codexCachedTokenTrendFetchAction: { _ in cachedSnapshot },
+            codexTokenTrendFetchAction: { _ in
+                struct StubError: LocalizedError {
+                    var errorDescription: String? { "live refresh failed" }
+                }
+                throw StubError()
+            },
+            providerIntradayFetchAction: { _, _, _ in nil }
+        )
+
+        _ = await viewModel.loadUsageIfNeeded()
+
+        XCTAssertEqual(viewModel.tokenTrendSnapshot, cachedSnapshot)
+        XCTAssertEqual(viewModel.tokenTrendErrorMessage, "live refresh failed")
+        XCTAssertFalse(viewModel.shouldShowTokenTrendLoadingSkeleton)
+    }
+
+    func testBDD_GivenCodexProjectedUsageProgressNotification_WhenRefreshingTokenTrend_ThenPublishesReadableRefreshStatus() async throws {
+        let provider = Provider(
+            name: "Codex",
+            defaultSkillsPath: "/tmp/codex-skills",
+            workflowPath: "/tmp/codex-prompts",
+            installMethod: .symlink,
+            templateId: "codex"
+        )
+        let refreshedSnapshot = ProviderTokenTrendSnapshot(
+            points: [
+                ProviderTokenTrendPoint(
+                    date: "2026-04-21",
+                    totalTokens: 120,
+                    inputTokens: 90,
+                    outputTokens: 30,
+                    cacheReadTokens: 12
+                )
+            ],
+            todayTokens: 120,
+            last7DaysTokens: 120,
+            last30DaysTokens: 120,
+            allDaysTokens: 120,
+            updatedAt: Date(timeIntervalSince1970: 1_745_276_400),
+            sourceLabel: "global local usage"
+        )
+        let gate = AsyncGate()
+        let viewModel = ProviderUsageEngine(
+            provider: provider,
+            codexTokenTrendFetchAction: { _ in
+                await gate.wait()
+                return refreshedSnapshot
+            },
+            providerIntradayFetchAction: { _, _, _ in nil }
+        )
+        let expectedCodexHomePath = URL(fileURLWithPath: NSHomeDirectory(), isDirectory: true)
+            .appendingPathComponent(".codex", isDirectory: true)
+            .path
+
+        let refreshTask = Task {
+            await viewModel.refreshTokenTrendForTesting()
+        }
+
+        try await waitUntil { viewModel.isLoadingTokenTrend }
+
+        NotificationCenter.default.post(
+            name: CodexSessionStore.performanceNotification,
+            object: nil,
+            userInfo: [
+                "operation": "refresh_projected_usage_day_keys",
+                "phase": "started",
+                "trace_id": "trace-progress-1",
+                "codex_home_path": expectedCodexHomePath,
+                "detail_phase": "scan_inventory",
+            ]
+        )
+
+        try await waitUntil {
+            viewModel.tokenTrendRefreshStatus?.title == "正在扫描会话文件"
+        }
+        XCTAssertEqual(
+            viewModel.tokenTrendRefreshStatus?.detail,
+            "正在遍历 sessions 与 archived_sessions，准备核对本地 rollout 清单。"
+        )
+        XCTAssertNil(viewModel.tokenTrendRefreshStatus?.progressLabel)
+        XCTAssertNil(viewModel.tokenTrendRefreshStatus?.fractionCompleted)
+
+        NotificationCenter.default.post(
+            name: CodexSessionStore.performanceNotification,
+            object: nil,
+            userInfo: [
+                "operation": "refresh_projected_usage_day_keys",
+                "phase": "started",
+                "trace_id": "trace-progress-1",
+                "codex_home_path": expectedCodexHomePath,
+                "detail_phase": "read_usage_index",
+                "current_database_name": "usage-index-v1.sqlite",
+                "scanned_file_count": 128,
+            ]
+        )
+
+        try await waitUntil {
+            viewModel.tokenTrendRefreshStatus?.title == "正在读取用量索引数据库"
+        }
+        XCTAssertEqual(
+            viewModel.tokenTrendRefreshStatus?.detail,
+            "正在读取 usage-index-v1.sqlite，准备比对 128 个会话文件与本地 minute 索引。"
+        )
+
+        NotificationCenter.default.post(
+            name: CodexSessionStore.performanceNotification,
+            object: nil,
+            userInfo: [
+                "operation": "refresh_projected_usage_day_keys",
+                "phase": "started",
+                "trace_id": "trace-progress-1",
+                "codex_home_path": expectedCodexHomePath,
+                "detail_phase": "reconcile_rollouts",
+                "scanned_file_count": 128,
+                "cached_entry_count": 96,
+                "dirty_rollout_count": 12,
+                "skipped_rollout_count": 116,
+            ]
+        )
+
+        try await waitUntil {
+            viewModel.tokenTrendRefreshStatus?.title == "正在比对待刷新文件"
+        }
+        XCTAssertEqual(
+            viewModel.tokenTrendRefreshStatus?.detail,
+            "已扫描 128 个会话文件，命中 96 条缓存记录，发现 12 个待回填会话。"
+        )
+        XCTAssertEqual(viewModel.tokenTrendRefreshStatus?.progressLabel, "0 / 12")
+        XCTAssertEqual(viewModel.tokenTrendRefreshStatus?.fractionCompleted, 0)
+
+        NotificationCenter.default.post(
+            name: CodexSessionStore.performanceNotification,
+            object: nil,
+            userInfo: [
+                "operation": "refresh_projected_usage_day_keys",
+                "phase": "progress",
+                "trace_id": "trace-progress-1",
+                "codex_home_path": expectedCodexHomePath,
+                "detail_phase": "analyze_rollout",
+                "dirty_rollout_count": 12,
+                "processed_rollout_count": 3,
+                "current_rollout_path": "sessions/2026/04/22/trace-progress-1.jsonl",
+                "current_refresh_reason": "live_fingerprint_changed",
+                "current_database_name": "usage-index-v1.sqlite",
+            ]
+        )
+
+        try await waitUntil {
+            viewModel.tokenTrendRefreshStatus?.title == "正在分析会话文件"
+        }
+        XCTAssertEqual(
+            viewModel.tokenTrendRefreshStatus?.detail,
+            "正在解析 04/22/trace-progress-1.jsonl，原因：live rollout 指纹变化。"
+        )
+
+        NotificationCenter.default.post(
+            name: CodexSessionStore.performanceNotification,
+            object: nil,
+            userInfo: [
+                "operation": "refresh_projected_usage_day_keys",
+                "phase": "progress",
+                "trace_id": "trace-progress-1",
+                "codex_home_path": expectedCodexHomePath,
+                "detail_phase": "rollout_completed",
+                "dirty_rollout_count": 12,
+                "processed_rollout_count": 3,
+                "refreshed_live_rollout_count": 2,
+                "refreshed_archived_rollout_count": 1,
+                "skipped_rollout_count": 116,
+                "affected_day_key_count": 2,
+                "current_rollout_path": "sessions/2026/04/22/trace-progress-1.jsonl",
+            ]
+        )
+
+        try await waitUntil {
+            viewModel.tokenTrendRefreshStatus?.progressLabel == "3 / 12"
+        }
+        XCTAssertEqual(viewModel.tokenTrendRefreshStatus?.title, "正在回填派生用量")
+        XCTAssertEqual(
+            viewModel.tokenTrendRefreshStatus?.detail,
+            "已刷新 live 2 个、archived 1 个，跳过 116 个，当前影响 2 天，刚完成 04/22/trace-progress-1.jsonl。"
+        )
+        XCTAssertEqual(viewModel.tokenTrendRefreshStatus?.fractionCompleted, 0.25)
+
+        await gate.open()
+        await refreshTask.value
+
+        try await waitUntil { viewModel.tokenTrendRefreshStatus == nil }
+        XCTAssertEqual(viewModel.tokenTrendSnapshot, refreshedSnapshot)
+    }
+
+    func testBDD_GivenSelectedCodexTrendDay_WhenRefreshingTokenTrend_ThenRefreshesIntradayDrilldownTogether() async throws {
+        let provider = Provider(
+            name: "Codex",
+            defaultSkillsPath: "/tmp/codex-skills",
+            workflowPath: "/tmp/codex-prompts",
+            installMethod: .symlink,
+            templateId: "codex"
+        )
+        let refreshedTrend = ProviderTokenTrendSnapshot(
+            points: [
+                ProviderTokenTrendPoint(
+                    date: "2026-04-20",
+                    totalTokens: 420,
+                    inputTokens: 400,
+                    outputTokens: 20,
+                    cacheReadTokens: 390
+                ),
+                ProviderTokenTrendPoint(
+                    date: "2026-04-21",
+                    totalTokens: 804,
+                    inputTokens: 801,
+                    outputTokens: 3,
+                    cacheReadTokens: 750
+                )
+            ],
+            todayTokens: 804,
+            last7DaysTokens: 1_224,
+            last30DaysTokens: 1_224,
+            allDaysTokens: 1_224,
+            updatedAt: Date(timeIntervalSince1970: 1_745_287_260),
+            sourceLabel: "global local usage"
+        )
+        let staleIntraday = ProviderIntradayUsageSnapshot(
+            dayKey: "2026-04-21",
+            timezoneIdentifier: TimeZone.current.identifier,
+            bucket: .minute30,
+            actualBucketCount: 2,
+            rangeStart: Date(timeIntervalSince1970: 1_745_164_800),
+            rangeEnd: Date(timeIntervalSince1970: 1_745_168_400),
+            points: [
+                ProviderIntradayUsagePoint(
+                    start: Date(timeIntervalSince1970: 1_745_164_800),
+                    end: Date(timeIntervalSince1970: 1_745_166_600),
+                    totalTokens: 300,
+                    inputTokens: 295,
+                    outputTokens: 5,
+                    cacheReadTokens: 280
+                ),
+                ProviderIntradayUsagePoint(
+                    start: Date(timeIntervalSince1970: 1_745_166_600),
+                    end: Date(timeIntervalSince1970: 1_745_168_400),
+                    totalTokens: 404,
+                    inputTokens: 401,
+                    outputTokens: 3,
+                    cacheReadTokens: 370
+                )
+            ],
+            fetchedAt: Date(timeIntervalSince1970: 1_745_286_720),
+            sourceLabel: "global local usage"
+        )
+        let refreshedIntraday = ProviderIntradayUsageSnapshot(
+            dayKey: "2026-04-21",
+            timezoneIdentifier: TimeZone.current.identifier,
+            bucket: .minute30,
+            actualBucketCount: 3,
+            rangeStart: Date(timeIntervalSince1970: 1_745_164_800),
+            rangeEnd: Date(timeIntervalSince1970: 1_745_170_200),
+            points: [
+                ProviderIntradayUsagePoint(
+                    start: Date(timeIntervalSince1970: 1_745_164_800),
+                    end: Date(timeIntervalSince1970: 1_745_166_600),
+                    totalTokens: 300,
+                    inputTokens: 295,
+                    outputTokens: 5,
+                    cacheReadTokens: 280
+                ),
+                ProviderIntradayUsagePoint(
+                    start: Date(timeIntervalSince1970: 1_745_166_600),
+                    end: Date(timeIntervalSince1970: 1_745_168_400),
+                    totalTokens: 404,
+                    inputTokens: 401,
+                    outputTokens: 3,
+                    cacheReadTokens: 370
+                ),
+                ProviderIntradayUsagePoint(
+                    start: Date(timeIntervalSince1970: 1_745_168_400),
+                    end: Date(timeIntervalSince1970: 1_745_170_200),
+                    totalTokens: 100,
+                    inputTokens: 99,
+                    outputTokens: 1,
+                    cacheReadTokens: 95
+                )
+            ],
+            fetchedAt: Date(timeIntervalSince1970: 1_745_287_320),
+            sourceLabel: "global local usage"
+        )
+        let intradayCallCount = LockedBox(0)
+
+        let viewModel = ProviderUsageEngine(
+            provider: provider,
+            codexTokenTrendFetchAction: { _ in refreshedTrend },
+            providerIntradayFetchAction: { _, dayKey, bucket in
+                XCTAssertEqual(dayKey, "2026-04-21")
+                XCTAssertEqual(bucket, .minute30)
+                let nextCount = await intradayCallCount.value() + 1
+                await intradayCallCount.set(nextCount)
+                return nextCount == 1 ? staleIntraday : refreshedIntraday
+            }
+        )
+
+        viewModel.selectTokenTrendDay("2026-04-21")
+        try await waitUntil { viewModel.intradaySnapshot == staleIntraday }
+
+        await viewModel.refreshTokenTrendForTesting()
+
+        XCTAssertEqual(viewModel.tokenTrendSnapshot, refreshedTrend)
+        XCTAssertEqual(viewModel.intradaySnapshot, refreshedIntraday)
+        let totalIntradayCalls = await intradayCallCount.value()
+        XCTAssertEqual(totalIntradayCalls, 2)
+        XCTAssertNil(viewModel.intradayErrorMessage)
+        XCTAssertFalse(viewModel.isLoadingIntraday)
+    }
+
+    func testBDD_GivenSelectedCodexTrendDay_WhenRefreshingIntradayPanel_ThenRefreshesTokenTrendAndIntradayTogether() async throws {
+        let provider = Provider(
+            name: "Codex",
+            defaultSkillsPath: "/tmp/codex-skills",
+            workflowPath: "/tmp/codex-prompts",
+            installMethod: .symlink,
+            templateId: "codex"
+        )
+        let refreshedTrend = ProviderTokenTrendSnapshot(
+            points: [
+                ProviderTokenTrendPoint(
+                    date: "2026-04-20",
+                    totalTokens: 420,
+                    inputTokens: 400,
+                    outputTokens: 20,
+                    cacheReadTokens: 390
+                ),
+                ProviderTokenTrendPoint(
+                    date: "2026-04-21",
+                    totalTokens: 825,
+                    inputTokens: 822,
+                    outputTokens: 3,
+                    cacheReadTokens: 770
+                )
+            ],
+            todayTokens: 825,
+            last7DaysTokens: 1_245,
+            last30DaysTokens: 1_245,
+            allDaysTokens: 1_245,
+            updatedAt: Date(timeIntervalSince1970: 1_745_288_944),
+            sourceLabel: "global local usage"
+        )
+        let staleIntraday = ProviderIntradayUsageSnapshot(
+            dayKey: "2026-04-21",
+            timezoneIdentifier: TimeZone.current.identifier,
+            bucket: .minute30,
+            actualBucketCount: 2,
+            rangeStart: Date(timeIntervalSince1970: 1_745_164_800),
+            rangeEnd: Date(timeIntervalSince1970: 1_745_168_400),
+            points: [
+                ProviderIntradayUsagePoint(
+                    start: Date(timeIntervalSince1970: 1_745_164_800),
+                    end: Date(timeIntervalSince1970: 1_745_166_600),
+                    totalTokens: 300,
+                    inputTokens: 295,
+                    outputTokens: 5,
+                    cacheReadTokens: 280
+                ),
+                ProviderIntradayUsagePoint(
+                    start: Date(timeIntervalSince1970: 1_745_166_600),
+                    end: Date(timeIntervalSince1970: 1_745_168_400),
+                    totalTokens: 404,
+                    inputTokens: 401,
+                    outputTokens: 3,
+                    cacheReadTokens: 370
+                )
+            ],
+            fetchedAt: Date(timeIntervalSince1970: 1_745_286_720),
+            sourceLabel: "global local usage"
+        )
+        let refreshedIntraday = ProviderIntradayUsageSnapshot(
+            dayKey: "2026-04-21",
+            timezoneIdentifier: TimeZone.current.identifier,
+            bucket: .minute30,
+            actualBucketCount: 3,
+            rangeStart: Date(timeIntervalSince1970: 1_745_164_800),
+            rangeEnd: Date(timeIntervalSince1970: 1_745_170_200),
+            points: [
+                ProviderIntradayUsagePoint(
+                    start: Date(timeIntervalSince1970: 1_745_164_800),
+                    end: Date(timeIntervalSince1970: 1_745_166_600),
+                    totalTokens: 300,
+                    inputTokens: 295,
+                    outputTokens: 5,
+                    cacheReadTokens: 280
+                ),
+                ProviderIntradayUsagePoint(
+                    start: Date(timeIntervalSince1970: 1_745_166_600),
+                    end: Date(timeIntervalSince1970: 1_745_168_400),
+                    totalTokens: 404,
+                    inputTokens: 401,
+                    outputTokens: 3,
+                    cacheReadTokens: 370
+                ),
+                ProviderIntradayUsagePoint(
+                    start: Date(timeIntervalSince1970: 1_745_168_400),
+                    end: Date(timeIntervalSince1970: 1_745_170_200),
+                    totalTokens: 121,
+                    inputTokens: 120,
+                    outputTokens: 1,
+                    cacheReadTokens: 120
+                )
+            ],
+            fetchedAt: Date(timeIntervalSince1970: 1_745_288_944),
+            sourceLabel: "global local usage"
+        )
+        let tokenTrendCallCount = LockedBox(0)
+        let intradayCallCount = LockedBox(0)
+
+        let viewModel = ProviderUsageEngine(
+            provider: provider,
+            codexTokenTrendFetchAction: { _ in
+                let count = await tokenTrendCallCount.value() + 1
+                await tokenTrendCallCount.set(count)
+                return refreshedTrend
+            },
+            providerIntradayFetchAction: { _, dayKey, bucket in
+                XCTAssertEqual(dayKey, "2026-04-21")
+                XCTAssertEqual(bucket, .minute30)
+                let nextCount = await intradayCallCount.value() + 1
+                await intradayCallCount.set(nextCount)
+                return nextCount == 1 ? staleIntraday : refreshedIntraday
+            }
+        )
+
+        viewModel.selectTokenTrendDay("2026-04-21")
+        try await waitUntil { viewModel.intradaySnapshot == staleIntraday }
+
+        await viewModel.refreshIntradayPanelForTesting()
+
+        XCTAssertEqual(viewModel.tokenTrendSnapshot, refreshedTrend)
+        XCTAssertEqual(viewModel.intradaySnapshot, refreshedIntraday)
+        let totalTokenTrendCalls = await tokenTrendCallCount.value()
+        let totalIntradayCalls = await intradayCallCount.value()
+        XCTAssertEqual(totalTokenTrendCalls, 1)
+        XCTAssertEqual(totalIntradayCalls, 2)
+        XCTAssertNil(viewModel.intradayErrorMessage)
+        XCTAssertFalse(viewModel.isLoadingTokenTrend)
+        XCTAssertFalse(viewModel.isLoadingIntraday)
+    }
+
+    func testBDD_GivenNoSelectedTrendDay_WhenLoadingTokenTrend_ThenAutoSelectsLatestDayAndLoadsIntraday() async throws {
+        let provider = Provider(
+            name: "Codex",
+            defaultSkillsPath: "/tmp/codex-skills",
+            workflowPath: "/tmp/codex-prompts",
+            installMethod: .symlink,
+            templateId: "codex"
+        )
+        let refreshedTrend = ProviderTokenTrendSnapshot(
+            points: [
+                ProviderTokenTrendPoint(
+                    date: "2026-04-20",
+                    totalTokens: 420,
+                    inputTokens: 400,
+                    outputTokens: 20,
+                    cacheReadTokens: 390
+                ),
+                ProviderTokenTrendPoint(
+                    date: "2026-04-21",
+                    totalTokens: 825,
+                    inputTokens: 822,
+                    outputTokens: 3,
+                    cacheReadTokens: 770
+                )
+            ],
+            todayTokens: 825,
+            last7DaysTokens: 1_245,
+            last30DaysTokens: 1_245,
+            allDaysTokens: 1_245,
+            updatedAt: Date(timeIntervalSince1970: 1_745_288_944),
+            sourceLabel: "global local usage"
+        )
+        let expectedIntraday = ProviderIntradayUsageSnapshot(
+            dayKey: "2026-04-21",
+            timezoneIdentifier: TimeZone.current.identifier,
+            bucket: .minute30,
+            actualBucketCount: 2,
+            rangeStart: Date(timeIntervalSince1970: 1_745_164_800),
+            rangeEnd: Date(timeIntervalSince1970: 1_745_168_400),
+            points: [
+                ProviderIntradayUsagePoint(
+                    start: Date(timeIntervalSince1970: 1_745_164_800),
+                    end: Date(timeIntervalSince1970: 1_745_166_600),
+                    totalTokens: 300,
+                    inputTokens: 295,
+                    outputTokens: 5,
+                    cacheReadTokens: 280
+                ),
+                ProviderIntradayUsagePoint(
+                    start: Date(timeIntervalSince1970: 1_745_166_600),
+                    end: Date(timeIntervalSince1970: 1_745_168_400),
+                    totalTokens: 404,
+                    inputTokens: 401,
+                    outputTokens: 3,
+                    cacheReadTokens: 370
+                )
+            ],
+            fetchedAt: Date(timeIntervalSince1970: 1_745_288_944),
+            sourceLabel: "global local usage"
+        )
+        let intradayCallCount = LockedBox(0)
+
+        let viewModel = ProviderUsageEngine(
+            provider: provider,
+            codexTokenTrendFetchAction: { _ in refreshedTrend },
+            providerIntradayFetchAction: { _, dayKey, bucket in
+                XCTAssertEqual(dayKey, "2026-04-21")
+                XCTAssertEqual(bucket, .minute30)
+                await intradayCallCount.set((await intradayCallCount.value()) + 1)
+                return expectedIntraday
+            }
+        )
+
+        XCTAssertNil(viewModel.selectedTokenTrendDayKey)
+
+        await viewModel.refreshTokenTrendForTesting()
+
+        XCTAssertEqual(viewModel.selectedTokenTrendDayKey, "2026-04-21")
+        XCTAssertEqual(viewModel.intradaySnapshot, expectedIntraday)
+        let intradayCallsAfterAutoSelection = await intradayCallCount.value()
+        XCTAssertEqual(intradayCallsAfterAutoSelection, 1)
+        XCTAssertNil(viewModel.intradayErrorMessage)
+    }
+
+    func testBDD_GivenSelectedTrendDayFallsOutsideNewRange_WhenRefreshingTokenTrend_ThenFallsBackToLatestAvailableDay() async throws {
+        let provider = Provider(
+            name: "Codex",
+            defaultSkillsPath: "/tmp/codex-skills",
+            workflowPath: "/tmp/codex-prompts",
+            installMethod: .symlink,
+            templateId: "codex"
+        )
+        let refreshedTrend = ProviderTokenTrendSnapshot(
+            points: [
+                ProviderTokenTrendPoint(
+                    date: "2026-04-21",
+                    totalTokens: 825,
+                    inputTokens: 822,
+                    outputTokens: 3,
+                    cacheReadTokens: 770
+                )
+            ],
+            todayTokens: 825,
+            last7DaysTokens: 825,
+            last30DaysTokens: 825,
+            allDaysTokens: 1_245,
+            updatedAt: Date(timeIntervalSince1970: 1_745_288_944),
+            sourceLabel: "global local usage"
+        )
+        let expectedIntraday = ProviderIntradayUsageSnapshot(
+            dayKey: "2026-04-21",
+            timezoneIdentifier: TimeZone.current.identifier,
+            bucket: .minute30,
+            actualBucketCount: 1,
+            rangeStart: Date(timeIntervalSince1970: 1_745_164_800),
+            rangeEnd: Date(timeIntervalSince1970: 1_745_166_600),
+            points: [
+                ProviderIntradayUsagePoint(
+                    start: Date(timeIntervalSince1970: 1_745_164_800),
+                    end: Date(timeIntervalSince1970: 1_745_166_600),
+                    totalTokens: 300,
+                    inputTokens: 295,
+                    outputTokens: 5,
+                    cacheReadTokens: 280
+                )
+            ],
+            fetchedAt: Date(timeIntervalSince1970: 1_745_288_944),
+            sourceLabel: "global local usage"
+        )
+        let intradayRequestedDays = LockedBox<[String]>([])
+
+        let viewModel = ProviderUsageEngine(
+            provider: provider,
+            codexTokenTrendFetchAction: { _ in refreshedTrend },
+            providerIntradayFetchAction: { _, dayKey, _ in
+                await intradayRequestedDays.set((await intradayRequestedDays.value()) + [dayKey])
+                return expectedIntraday
+            }
+        )
+        viewModel.selectedTokenTrendDayKey = "2026-04-19"
+
+        await viewModel.refreshTokenTrendForTesting()
+
+        XCTAssertEqual(viewModel.selectedTokenTrendDayKey, "2026-04-21")
+        XCTAssertEqual(viewModel.intradaySnapshot, expectedIntraday)
+        let requestedDays = await intradayRequestedDays.value()
+        XCTAssertEqual(requestedDays, ["2026-04-21"])
+    }
+
+    func testBDD_GivenUserCollapsedIntradayDrilldown_WhenRefreshingTokenTrend_ThenDoesNotAutoReopenIt() async throws {
+        let provider = Provider(
+            name: "Codex",
+            defaultSkillsPath: "/tmp/codex-skills",
+            workflowPath: "/tmp/codex-prompts",
+            installMethod: .symlink,
+            templateId: "codex"
+        )
+        let refreshedTrend = ProviderTokenTrendSnapshot(
+            points: [
+                ProviderTokenTrendPoint(
+                    date: "2026-04-20",
+                    totalTokens: 420,
+                    inputTokens: 400,
+                    outputTokens: 20,
+                    cacheReadTokens: 390
+                ),
+                ProviderTokenTrendPoint(
+                    date: "2026-04-21",
+                    totalTokens: 825,
+                    inputTokens: 822,
+                    outputTokens: 3,
+                    cacheReadTokens: 770
+                )
+            ],
+            todayTokens: 825,
+            last7DaysTokens: 1_245,
+            last30DaysTokens: 1_245,
+            allDaysTokens: 1_245,
+            updatedAt: Date(timeIntervalSince1970: 1_745_288_944),
+            sourceLabel: "global local usage"
+        )
+        let intradayCallCount = LockedBox(0)
+
+        let viewModel = ProviderUsageEngine(
+            provider: provider,
+            codexTokenTrendFetchAction: { _ in refreshedTrend },
+            providerIntradayFetchAction: { _, _, _ in
+                await intradayCallCount.set((await intradayCallCount.value()) + 1)
+                return nil
+            }
+        )
+
+        viewModel.selectTokenTrendDay("2026-04-21")
+        viewModel.selectTokenTrendDay(nil)
+
+        await viewModel.refreshTokenTrendForTesting()
+
+        XCTAssertNil(viewModel.selectedTokenTrendDayKey)
+        XCTAssertNil(viewModel.intradaySnapshot)
+        let intradayCallsAfterCollapse = await intradayCallCount.value()
+        XCTAssertEqual(intradayCallsAfterCollapse, 0)
     }
 
     func testBDD_GivenInactiveCodexAccountHasPersistedFailure_WhenInitialLoadRuns_ThenInitialRefreshStillFetchesAllAccounts() async throws {
