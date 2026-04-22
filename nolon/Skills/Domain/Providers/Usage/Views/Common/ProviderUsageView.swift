@@ -710,9 +710,13 @@ extension ProviderUsageView {
             isLoading: tokenTrendViewModel.isLoadingTokenTrend,
             errorMessage: tokenTrendViewModel.tokenTrendErrorMessage,
             range: tokenTrendViewModel.tokenTrendRange,
+            chartStyle: tokenTrendViewModel.chartStyle,
+            activeTab: tokenTrendViewModel.activeContentTab,
             onRangeChange: { tokenTrendViewModel.setRange($0) },
             onSelectDay: { tokenTrendViewModel.selectDay($0) },
             onIntradayBucketChange: { tokenTrendViewModel.setIntradayBucket($0) },
+            onChartStyleChange: { tokenTrendViewModel.setChartStyle($0) },
+            onContentTabChange: { tokenTrendViewModel.setContentTab($0) },
             onRefresh: { tokenTrendViewModel.refreshNow() },
             onRefreshIntraday: { tokenTrendViewModel.refreshIntradayPanelNow() },
             debugPageMarkerItems: tokenTrendDebugPageMarkerItems

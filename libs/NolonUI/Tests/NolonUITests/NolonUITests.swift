@@ -24,6 +24,23 @@ final class NolonUITests: XCTestCase {
         _ = DesignSystem.Animations.quick
     }
 
+    func testProviderTokenTrendLayoutMetrics_GivenFourSummaryMetrics_UsesSingleFlexibleRow() {
+        let columns = ProviderTokenTrendLayoutMetrics.summaryGridColumns(metricCount: 4)
+
+        XCTAssertEqual(columns.count, 4)
+    }
+
+    func testProviderTokenTrendLayoutMetrics_ExposeStableRefreshBannerMetrics() {
+        XCTAssertEqual(ProviderTokenTrendLayoutMetrics.refreshStatusMinHeight, 82)
+        XCTAssertEqual(ProviderTokenTrendLayoutMetrics.refreshProgressLabelWidth, 88)
+    }
+
+    func testProviderTokenTrendLayoutMetrics_ExposeStableChartSizingMetrics() {
+        XCTAssertEqual(ProviderTokenTrendLayoutMetrics.chartHeight, 170)
+        XCTAssertEqual(ProviderTokenTrendLayoutMetrics.intradayChartHeight, 158)
+        XCTAssertEqual(ProviderTokenTrendLayoutMetrics.chartMinimumSlotWidth, 28)
+    }
+
     func testSidebarProviderRowMetrics_GivenSmallSize_HidesSubtitleAndUsesCompactIcon() {
         let metrics = SidebarProviderRowMetrics(sidebarRowSize: .small)
 

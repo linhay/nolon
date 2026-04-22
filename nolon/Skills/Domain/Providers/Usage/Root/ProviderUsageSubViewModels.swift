@@ -2,6 +2,7 @@ import Observation
 import ProviderUsage
 import Foundation
 import CodexBarProviderCatalog
+import ProviderCatalog
 import SwiftUI
 import NolonUIFoundation
 
@@ -822,9 +823,17 @@ final class ProviderUsageAccountsViewModel {
 @Observable
 final class ProviderTokenTrendViewModel {
     private let state: ProviderUsageStateStore
+    private let preferencesStore: ProviderUsageTokenTrendPreferencesStore
+    private var preferredContentTab: ProviderTokenTrendContentTab = .daily
 
-    init(state: ProviderUsageStateStore) {
+    init(
+        state: ProviderUsageStateStore,
+        preferencesStore: ProviderUsageTokenTrendPreferencesStore? = nil
+    ) {
         self.state = state
+        let resolvedPreferencesStore = preferencesStore ?? ProviderUsageTokenTrendPreferencesStore(providerID: state.provider.id)
+        self.preferencesStore = resolvedPreferencesStore
+        self.chartStyle = resolvedPreferencesStore.chartStyle
     }
 
     private var engine: any ProviderUsageMetricsEngineProtocol { state.metricsEngine }
@@ -840,6 +849,17 @@ final class ProviderTokenTrendViewModel {
     var intradayErrorMessage: String? { engine.intradayErrorMessage }
     var isLoadingIntraday: Bool { engine.isLoadingIntraday }
     var shouldShowLoadingSkeleton: Bool { engine.shouldShowTokenTrendLoadingSkeleton }
+    var supportsIntradayDrilldown: Bool { tokenTrendCapability == .dailyWithIntradayDrilldown }
+    var chartStyle: ProviderTokenTrendChartStyle
+    var activeContentTab: ProviderTokenTrendContentTab {
+        if !supportsIntradayDrilldown {
+            return .daily
+        }
+        if preferredContentTab == .intraday, selectedDayKey == nil {
+            return .daily
+        }
+        return preferredContentTab
+    }
 
     func load() async {
         await engine.loadUsage()
@@ -859,10 +879,27 @@ final class ProviderTokenTrendViewModel {
 
     func selectDay(_ dayKey: String?) {
         engine.selectTokenTrendDay(dayKey)
+        guard supportsIntradayDrilldown else { return }
+        preferredContentTab = dayKey == nil ? .daily : .intraday
     }
 
     func setIntradayBucket(_ bucket: ProviderIntradayBucket) {
         engine.setIntradayBucket(bucket)
+    }
+
+    func setChartStyle(_ style: ProviderTokenTrendChartStyle) {
+        guard chartStyle != style else { return }
+        chartStyle = style
+        preferencesStore.chartStyle = style
+    }
+
+    func setContentTab(_ tab: ProviderTokenTrendContentTab) {
+        guard supportsIntradayDrilldown else {
+            preferredContentTab = .daily
+            return
+        }
+        guard tab != .intraday || selectedDayKey != nil else { return }
+        preferredContentTab = tab
     }
 
     func refreshIntradayNow() {
@@ -871,6 +908,38 @@ final class ProviderTokenTrendViewModel {
 
     func refreshIntradayPanelNow() {
         engine.refreshIntradayPanelNow()
+    }
+}
+
+@MainActor
+final class ProviderUsageTokenTrendPreferencesStore {
+    private enum Keys {
+        static func chartStyle(providerID: String) -> String {
+            "provider.usage.\(providerID).token_trend.chart_style"
+        }
+    }
+
+    private let providerID: String
+    private let userDefaults: UserDefaults
+
+    init(providerID: String, userDefaults: UserDefaults = .standard) {
+        self.providerID = providerID
+        self.userDefaults = userDefaults
+    }
+
+    var chartStyle: ProviderTokenTrendChartStyle {
+        get {
+            guard
+                let rawValue = userDefaults.string(forKey: Keys.chartStyle(providerID: providerID)),
+                let chartStyle = ProviderTokenTrendChartStyle(rawValue: rawValue)
+            else {
+                return .bar
+            }
+            return chartStyle
+        }
+        set {
+            userDefaults.set(newValue.rawValue, forKey: Keys.chartStyle(providerID: providerID))
+        }
     }
 }
 

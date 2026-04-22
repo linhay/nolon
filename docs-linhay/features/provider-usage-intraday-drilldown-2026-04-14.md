@@ -75,14 +75,17 @@
 
 ### 布局
 
-1. `Daily Trend` 与 `Intraday Drilldown` 必须拆成两个独立 block。
-2. `Daily Trend` block 采用 `图 + 表` 结构：
+1. `Daily Trend` 与 `Intraday Drilldown` 收敛为同一个 `Trend Workspace`。
+2. `Trend Workspace` 顶部使用 segmented control 在 `Daily Trend` 与 `Intraday Drilldown` 间切换。
+3. 用户在 `Daily Trend` 中点击某一天后，页面应自动切换到 `Intraday Drilldown`，并展示该日的分钟级视图。
+4. `Daily Trend` 视图采用 `图 + 表` 结构：
    - 上半区为日级趋势图
    - 下半区为 `Daily Breakdown`
-3. `Intraday Drilldown` block 也采用 `图 + 表` 结构：
+5. `Intraday Drilldown` 视图也采用 `图 + 表` 结构：
    - 上半区为分钟级趋势图
    - 下半区为 `Intraday Breakdown`
-4. `Intraday Breakdown` 的时间列必须展示完整时间段，例如 `09:30-10:00`，而不是只展示桶起点。
+6. `Trend Workspace` 的图区在整页滚动时需要保持 sticky，图区下方表格不再有内部高度限制，应跟随整页继续滚动。
+7. `Intraday Breakdown` 的时间列必须展示完整时间段，例如 `09:30-10:00`，而不是只展示桶起点。
 
 ### UI 反馈要求
 
@@ -92,6 +95,10 @@
 4. 单日钻取图表必须只保留有用量的时间桶，所有零用量桶都不显示，包括中间零桶。
 5. 当选中日期是 Today 时，分钟级图表不得展示当前时刻之后的未来时间桶。
 6. 钻取区必须展示当前可见桶摘要，并明确说明该视图只展示有用量时段。
+7. `Daily Trend` 需要支持 `Bars / Line` 两种图表模式：
+   - `Bars` 展示 `input / output / cache`
+   - `Line` 只展示 `total`
+8. `Bars / Line` 的显示选择需要记住，避免用户每次回到 `Usage` 页都重设。
 
 ## 数据模型规则
 

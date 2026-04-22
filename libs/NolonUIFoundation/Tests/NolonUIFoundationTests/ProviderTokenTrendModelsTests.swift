@@ -2,6 +2,52 @@ import XCTest
 @testable import NolonUIFoundation
 
 final class ProviderTokenTrendModelsTests: XCTestCase {
+    func testTokenTrendSnapshotDisplayDateRange_UsesTrailingWindowForKnownRanges() {
+        let snapshot = ProviderTokenTrendSnapshotData(
+            points: [
+                .init(date: "2026-04-13", inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, totalTokens: 0),
+                .init(date: "2026-04-14", inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, totalTokens: 0),
+                .init(date: "2026-04-15", inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, totalTokens: 0),
+                .init(date: "2026-04-16", inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, totalTokens: 0),
+                .init(date: "2026-04-17", inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, totalTokens: 0),
+                .init(date: "2026-04-18", inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, totalTokens: 0),
+                .init(date: "2026-04-19", inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, totalTokens: 0),
+                .init(date: "2026-04-20", inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, totalTokens: 0),
+                .init(date: "2026-04-21", inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, totalTokens: 0),
+                .init(date: "2026-04-22", inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, totalTokens: 0),
+            ],
+            todayTokens: 0,
+            last7DaysTokens: 0,
+            last30DaysTokens: 0,
+            allDaysTokens: 0,
+            updatedAt: .distantPast,
+            sourceLabel: "fixture"
+        )
+
+        XCTAssertEqual(snapshot.displayDateRange(for: "days1"), "04-22")
+        XCTAssertEqual(snapshot.displayDateRange(for: "days7"), "04-16 - 04-22")
+        XCTAssertEqual(snapshot.displayDateRange(for: "days30"), "04-13 - 04-22")
+        XCTAssertEqual(snapshot.displayDateRange(for: "all"), "04-13 - 04-22")
+    }
+
+    func testTokenTrendSnapshotDisplayDateRange_GivenCrossYearRange_KeepsFullDates() {
+        let snapshot = ProviderTokenTrendSnapshotData(
+            points: [
+                .init(date: "2025-12-31", inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, totalTokens: 0),
+                .init(date: "2026-01-01", inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, totalTokens: 0),
+                .init(date: "2026-01-02", inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, totalTokens: 0),
+            ],
+            todayTokens: 0,
+            last7DaysTokens: 0,
+            last30DaysTokens: 0,
+            allDaysTokens: 0,
+            updatedAt: .distantPast,
+            sourceLabel: "fixture"
+        )
+
+        XCTAssertEqual(snapshot.displayDateRange(for: "all"), "2025-12-31 - 2026-01-02")
+    }
+
     func testIntradayUsagePointData_RetainsRangeLabel() {
         let point = ProviderIntradayUsagePointData(
             label: "09:30",
@@ -62,5 +108,33 @@ final class ProviderTokenTrendModelsTests: XCTestCase {
         let status = ProviderTokenTrendRefreshStatusData(title: "正在扫描会话文件")
 
         XCTAssertEqual(status.headlineText, "正在扫描会话文件")
+    }
+
+    func testTokenTrendPresentationEnums_ExposeStableRawValues() {
+        XCTAssertEqual(ProviderTokenTrendChartStyle.bar.rawValue, "bar")
+        XCTAssertEqual(ProviderTokenTrendChartStyle.line.rawValue, "line")
+        XCTAssertEqual(ProviderTokenTrendContentTab.daily.rawValue, "daily")
+        XCTAssertEqual(ProviderTokenTrendContentTab.intraday.rawValue, "intraday")
+    }
+
+    func testTokenTrendSectionData_RetainsPresentationState() {
+        let data = ProviderTokenTrendSectionData(
+            snapshot: nil,
+            refreshStatus: nil,
+            drilldown: nil,
+            supportsIntradayDrilldown: true,
+            chartStyle: .line,
+            activeTab: .intraday,
+            selectedDayKey: "2026-04-22",
+            isLoading: false,
+            errorMessage: nil,
+            selectedRangeID: "days7",
+            availableRanges: [.init(id: "days7", title: "7 Days")]
+        )
+
+        XCTAssertTrue(data.supportsIntradayDrilldown)
+        XCTAssertEqual(data.chartStyle, .line)
+        XCTAssertEqual(data.activeTab, .intraday)
+        XCTAssertEqual(data.selectedDayKey, "2026-04-22")
     }
 }

@@ -58,6 +58,68 @@ public struct ProviderTokenTrendSnapshotData: Sendable {
         self.updatedAt = updatedAt
         self.sourceLabel = sourceLabel
     }
+
+    public func displayDateRange(for rangeID: String) -> String {
+        let orderedDays = points.map(\.date).sorted()
+        guard !orderedDays.isEmpty else { return "-" }
+
+        let visibleDays: ArraySlice<String>
+        switch rangeID {
+        case "days30":
+            visibleDays = orderedDays.suffix(30)
+        case "days7":
+            visibleDays = orderedDays.suffix(7)
+        case "days1":
+            visibleDays = orderedDays.suffix(1)
+        case "all":
+            visibleDays = orderedDays[orderedDays.startIndex..<orderedDays.endIndex]
+        default:
+            visibleDays = orderedDays.suffix(1)
+        }
+
+        guard let startDay = visibleDays.first,
+              let endDay = visibleDays.last else {
+            return "-"
+        }
+        return Self.compactDateRange(startDay: startDay, endDay: endDay)
+    }
+
+    private static func compactDateRange(startDay: String, endDay: String) -> String {
+        if startDay == endDay {
+            return compactDateLabel(day: endDay, comparedTo: nil)
+        }
+
+        let startYear = yearComponent(in: startDay)
+        let endYear = yearComponent(in: endDay)
+        if startYear == endYear, startYear != nil {
+            return "\(compactDateLabel(day: startDay, comparedTo: endDay)) - \(compactDateLabel(day: endDay, comparedTo: startDay))"
+        }
+
+        return "\(startDay) - \(endDay)"
+    }
+
+    private static func compactDateLabel(day: String, comparedTo otherDay: String?) -> String {
+        let components = day.split(separator: "-", omittingEmptySubsequences: false)
+        guard components.count == 3 else { return day }
+
+        if let otherDay,
+           yearComponent(in: day) != nil,
+           yearComponent(in: day) == yearComponent(in: otherDay) {
+            return "\(components[1])-\(components[2])"
+        }
+
+        if otherDay == nil {
+            return "\(components[1])-\(components[2])"
+        }
+
+        return day
+    }
+
+    private static func yearComponent(in day: String) -> String? {
+        let components = day.split(separator: "-", omittingEmptySubsequences: false)
+        guard let year = components.first, components.count == 3 else { return nil }
+        return String(year)
+    }
 }
 
 public struct ProviderTokenTrendRefreshStatusData: Hashable, Sendable {
@@ -87,10 +149,23 @@ public struct ProviderTokenTrendRefreshStatusData: Hashable, Sendable {
     }
 }
 
+public enum ProviderTokenTrendChartStyle: String, CaseIterable, Hashable, Sendable {
+    case bar
+    case line
+}
+
+public enum ProviderTokenTrendContentTab: String, CaseIterable, Hashable, Sendable {
+    case daily
+    case intraday
+}
+
 public struct ProviderTokenTrendSectionData: Sendable {
     public let snapshot: ProviderTokenTrendSnapshotData?
     public let refreshStatus: ProviderTokenTrendRefreshStatusData?
     public let drilldown: ProviderTokenTrendDrilldownData?
+    public let supportsIntradayDrilldown: Bool
+    public let chartStyle: ProviderTokenTrendChartStyle
+    public let activeTab: ProviderTokenTrendContentTab
     public let selectedDayKey: String?
     public let isLoading: Bool
     public let errorMessage: String?
@@ -101,6 +176,9 @@ public struct ProviderTokenTrendSectionData: Sendable {
         snapshot: ProviderTokenTrendSnapshotData?,
         refreshStatus: ProviderTokenTrendRefreshStatusData? = nil,
         drilldown: ProviderTokenTrendDrilldownData? = nil,
+        supportsIntradayDrilldown: Bool = false,
+        chartStyle: ProviderTokenTrendChartStyle = .bar,
+        activeTab: ProviderTokenTrendContentTab = .daily,
         selectedDayKey: String? = nil,
         isLoading: Bool,
         errorMessage: String?,
@@ -110,6 +188,9 @@ public struct ProviderTokenTrendSectionData: Sendable {
         self.snapshot = snapshot
         self.refreshStatus = refreshStatus
         self.drilldown = drilldown
+        self.supportsIntradayDrilldown = supportsIntradayDrilldown
+        self.chartStyle = chartStyle
+        self.activeTab = activeTab
         self.selectedDayKey = selectedDayKey
         self.isLoading = isLoading
         self.errorMessage = errorMessage

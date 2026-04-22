@@ -15,9 +15,13 @@ struct ProviderTokenTrendSection: View, DebugPageLocatable {
     let isLoading: Bool
     let errorMessage: String?
     let range: ProviderUsageEngine.TokenTrendRange
+    let chartStyle: ProviderTokenTrendChartStyle
+    let activeTab: ProviderTokenTrendContentTab
     let onRangeChange: (ProviderUsageEngine.TokenTrendRange) -> Void
     let onSelectDay: (String?) -> Void
     let onIntradayBucketChange: (ProviderIntradayBucket) -> Void
+    let onChartStyleChange: (ProviderTokenTrendChartStyle) -> Void
+    let onContentTabChange: (ProviderTokenTrendContentTab) -> Void
     let onRefresh: () -> Void
     let onRefreshIntraday: () -> Void
     let debugPageMarkerItems: [PageMarkerItem]
@@ -34,9 +38,13 @@ struct ProviderTokenTrendSection: View, DebugPageLocatable {
         isLoading: Bool,
         errorMessage: String?,
         range: ProviderUsageEngine.TokenTrendRange,
+        chartStyle: ProviderTokenTrendChartStyle,
+        activeTab: ProviderTokenTrendContentTab,
         onRangeChange: @escaping (ProviderUsageEngine.TokenTrendRange) -> Void,
         onSelectDay: @escaping (String?) -> Void,
         onIntradayBucketChange: @escaping (ProviderIntradayBucket) -> Void,
+        onChartStyleChange: @escaping (ProviderTokenTrendChartStyle) -> Void,
+        onContentTabChange: @escaping (ProviderTokenTrendContentTab) -> Void,
         onRefresh: @escaping () -> Void,
         onRefreshIntraday: @escaping () -> Void,
         debugPageMarkerItems: [PageMarkerItem] = []
@@ -52,9 +60,13 @@ struct ProviderTokenTrendSection: View, DebugPageLocatable {
         self.isLoading = isLoading
         self.errorMessage = errorMessage
         self.range = range
+        self.chartStyle = chartStyle
+        self.activeTab = activeTab
         self.onRangeChange = onRangeChange
         self.onSelectDay = onSelectDay
         self.onIntradayBucketChange = onIntradayBucketChange
+        self.onChartStyleChange = onChartStyleChange
+        self.onContentTabChange = onContentTabChange
         self.onRefresh = onRefresh
         self.onRefreshIntraday = onRefreshIntraday
         self.debugPageMarkerItems = debugPageMarkerItems
@@ -72,6 +84,8 @@ struct ProviderTokenTrendSection: View, DebugPageLocatable {
                 guard let bucket = ProviderIntradayBucket(rawValue: bucketID) else { return }
                 onIntradayBucketChange(bucket)
             },
+            onChartStyleChange: onChartStyleChange,
+            onContentTabChange: onContentTabChange,
             onRefresh: onRefresh,
             onRefreshIntraday: onRefreshIntraday
         )
@@ -101,6 +115,9 @@ struct ProviderTokenTrendSection: View, DebugPageLocatable {
             },
             refreshStatus: refreshStatus,
             drilldown: drilldownData,
+            supportsIntradayDrilldown: capability == .dailyWithIntradayDrilldown,
+            chartStyle: chartStyle,
+            activeTab: activeTab,
             selectedDayKey: selectedDayKey,
             isLoading: isLoading,
             errorMessage: errorMessage,

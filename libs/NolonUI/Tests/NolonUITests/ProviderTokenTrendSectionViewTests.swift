@@ -49,6 +49,9 @@ final class ProviderTokenTrendSectionViewTests: XCTestCase {
                     errorMessage: nil,
                     freshnessText: "静态快照 · 12:00"
                 ),
+                supportsIntradayDrilldown: true,
+                chartStyle: .line,
+                activeTab: .intraday,
                 selectedDayKey: "2026-04-15",
                 isLoading: false,
                 errorMessage: nil,
@@ -62,6 +65,8 @@ final class ProviderTokenTrendSectionViewTests: XCTestCase {
             onRangeChange: { _ in },
             onSelectDay: { _ in },
             onIntradayBucketChange: { _ in },
+            onChartStyleChange: { _ in },
+            onContentTabChange: { _ in },
             onRefresh: {},
             onRefreshIntraday: {}
         )
@@ -71,6 +76,62 @@ final class ProviderTokenTrendSectionViewTests: XCTestCase {
                 .frame(width: 960, height: 900, alignment: .topLeading)
         )
         host.frame = NSRect(x: 0, y: 0, width: 960, height: 900)
+        host.layoutSubtreeIfNeeded()
+
+        XCTAssertGreaterThan(host.fittingSize.height, 0)
+    }
+
+    func testProviderTokenTrendSectionView_GivenNarrowWidthAndRefreshProgress_RendersWithoutLayoutFailure() {
+        let view = ProviderTokenTrendSectionView(
+            data: .init(
+                snapshot: .init(
+                    points: [
+                        .init(date: "2026-04-20", inputTokens: 120, outputTokens: 40, cacheReadTokens: 20, totalTokens: 180),
+                        .init(date: "2026-04-21", inputTokens: 90, outputTokens: 30, cacheReadTokens: 10, totalTokens: 130),
+                        .init(date: "2026-04-22", inputTokens: 110, outputTokens: 20, cacheReadTokens: 15, totalTokens: 145),
+                    ],
+                    todayTokens: 145,
+                    last7DaysTokens: 455,
+                    last30DaysTokens: 1_980,
+                    allDaysTokens: 12_420,
+                    updatedAt: Date(timeIntervalSince1970: 1_744_700_800),
+                    sourceLabel: "fixture"
+                ),
+                refreshStatus: .init(
+                    title: "正在分析会话文件",
+                    detail: "正在解析 2026/04/22/rollout-123.jsonl，原因：发现新 rollout。",
+                    progressLabel: "12 / 128",
+                    fractionCompleted: 0.09375
+                ),
+                drilldown: nil,
+                supportsIntradayDrilldown: true,
+                chartStyle: .bar,
+                activeTab: .daily,
+                selectedDayKey: nil,
+                isLoading: false,
+                errorMessage: nil,
+                selectedRangeID: "days7",
+                availableRanges: [
+                    .init(id: "days1", title: "Today"),
+                    .init(id: "days7", title: "7 Days"),
+                    .init(id: "days30", title: "30 Days"),
+                    .init(id: "all", title: "ALL"),
+                ]
+            ),
+            onRangeChange: { _ in },
+            onSelectDay: { _ in },
+            onIntradayBucketChange: { _ in },
+            onChartStyleChange: { _ in },
+            onContentTabChange: { _ in },
+            onRefresh: {},
+            onRefreshIntraday: {}
+        )
+
+        let host = NSHostingView(
+            rootView: view
+                .frame(width: 560, height: 520, alignment: .topLeading)
+        )
+        host.frame = NSRect(x: 0, y: 0, width: 560, height: 520)
         host.layoutSubtreeIfNeeded()
 
         XCTAssertGreaterThan(host.fittingSize.height, 0)

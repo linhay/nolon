@@ -200,9 +200,13 @@ final class PageMarkerRouteResolverTests: XCTestCase {
             isLoading: false,
             errorMessage: nil,
             range: .days30,
+            chartStyle: .bar,
+            activeTab: .daily,
             onRangeChange: { _ in },
             onSelectDay: { _ in },
             onIntradayBucketChange: { _ in },
+            onChartStyleChange: { _ in },
+            onContentTabChange: { _ in },
             onRefresh: {},
             onRefreshIntraday: {},
             debugPageMarkerItems: [
