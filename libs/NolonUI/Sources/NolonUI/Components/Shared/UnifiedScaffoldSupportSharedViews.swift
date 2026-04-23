@@ -534,6 +534,10 @@ public struct MaterialPanelScaffold<Header: View, Content: View, Footer: View>: 
 
 // MARK: - PaddedScrollContainer.swift"
 
+public enum PaddedScrollContainerCoordinateSpace {
+    public static let name = "NolonUI.PaddedScrollContainer"
+}
+
 public struct PaddedScrollContainer<Content: View>: View {
     public struct Config {
         public var showsIndicators: Bool
@@ -616,6 +620,7 @@ public struct PaddedScrollContainer<Content: View>: View {
                     .frame(maxWidth: .infinity, alignment: contentAlignment)
             }
         }
+        .coordinateSpace(name: PaddedScrollContainerCoordinateSpace.name)
         .frame(minHeight: minHeight, maxHeight: maxHeight)
     }
 }

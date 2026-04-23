@@ -7,19 +7,23 @@ struct ProviderTokenTrendSection: View, DebugPageLocatable {
     let snapshot: ProviderTokenTrendSnapshot?
     let refreshStatus: ProviderTokenTrendRefreshStatusData?
     let capability: ProviderUsageCurveCapability
+    let layoutMode: ProviderTokenTrendSectionLayoutMode
     let selectedDayKey: String?
     let intradayBucket: ProviderIntradayBucket
+    let availableIntradayBuckets: [ProviderIntradayBucket]
     let intradaySnapshot: ProviderIntradayUsageSnapshot?
     let intradayErrorMessage: String?
     let isLoadingIntraday: Bool
     let isLoading: Bool
     let errorMessage: String?
     let range: ProviderUsageEngine.TokenTrendRange
+    let metricMode: ProviderTokenTrendMetricMode
     let chartStyle: ProviderTokenTrendChartStyle
     let activeTab: ProviderTokenTrendContentTab
     let onRangeChange: (ProviderUsageEngine.TokenTrendRange) -> Void
     let onSelectDay: (String?) -> Void
     let onIntradayBucketChange: (ProviderIntradayBucket) -> Void
+    let onMetricModeChange: (ProviderTokenTrendMetricMode) -> Void
     let onChartStyleChange: (ProviderTokenTrendChartStyle) -> Void
     let onContentTabChange: (ProviderTokenTrendContentTab) -> Void
     let onRefresh: () -> Void
@@ -30,19 +34,23 @@ struct ProviderTokenTrendSection: View, DebugPageLocatable {
         snapshot: ProviderTokenTrendSnapshot?,
         refreshStatus: ProviderTokenTrendRefreshStatusData?,
         capability: ProviderUsageCurveCapability,
+        layoutMode: ProviderTokenTrendSectionLayoutMode = .flowing,
         selectedDayKey: String?,
         intradayBucket: ProviderIntradayBucket,
+        availableIntradayBuckets: [ProviderIntradayBucket],
         intradaySnapshot: ProviderIntradayUsageSnapshot?,
         intradayErrorMessage: String?,
         isLoadingIntraday: Bool,
         isLoading: Bool,
         errorMessage: String?,
         range: ProviderUsageEngine.TokenTrendRange,
+        metricMode: ProviderTokenTrendMetricMode,
         chartStyle: ProviderTokenTrendChartStyle,
         activeTab: ProviderTokenTrendContentTab,
         onRangeChange: @escaping (ProviderUsageEngine.TokenTrendRange) -> Void,
         onSelectDay: @escaping (String?) -> Void,
         onIntradayBucketChange: @escaping (ProviderIntradayBucket) -> Void,
+        onMetricModeChange: @escaping (ProviderTokenTrendMetricMode) -> Void,
         onChartStyleChange: @escaping (ProviderTokenTrendChartStyle) -> Void,
         onContentTabChange: @escaping (ProviderTokenTrendContentTab) -> Void,
         onRefresh: @escaping () -> Void,
@@ -52,19 +60,23 @@ struct ProviderTokenTrendSection: View, DebugPageLocatable {
         self.snapshot = snapshot
         self.refreshStatus = refreshStatus
         self.capability = capability
+        self.layoutMode = layoutMode
         self.selectedDayKey = selectedDayKey
         self.intradayBucket = intradayBucket
+        self.availableIntradayBuckets = availableIntradayBuckets
         self.intradaySnapshot = intradaySnapshot
         self.intradayErrorMessage = intradayErrorMessage
         self.isLoadingIntraday = isLoadingIntraday
         self.isLoading = isLoading
         self.errorMessage = errorMessage
         self.range = range
+        self.metricMode = metricMode
         self.chartStyle = chartStyle
         self.activeTab = activeTab
         self.onRangeChange = onRangeChange
         self.onSelectDay = onSelectDay
         self.onIntradayBucketChange = onIntradayBucketChange
+        self.onMetricModeChange = onMetricModeChange
         self.onChartStyleChange = onChartStyleChange
         self.onContentTabChange = onContentTabChange
         self.onRefresh = onRefresh
@@ -75,6 +87,7 @@ struct ProviderTokenTrendSection: View, DebugPageLocatable {
     var body: some View {
         NolonUI.ProviderTokenTrendSectionView(
             data: sectionData,
+            layoutMode: layoutMode,
             onRangeChange: { rangeID in
                 guard let next = ProviderUsageEngine.TokenTrendRange(rawValue: rangeID) else { return }
                 onRangeChange(next)
@@ -84,6 +97,7 @@ struct ProviderTokenTrendSection: View, DebugPageLocatable {
                 guard let bucket = ProviderIntradayBucket(rawValue: bucketID) else { return }
                 onIntradayBucketChange(bucket)
             },
+            onMetricModeChange: onMetricModeChange,
             onChartStyleChange: onChartStyleChange,
             onContentTabChange: onContentTabChange,
             onRefresh: onRefresh,
@@ -102,13 +116,18 @@ struct ProviderTokenTrendSection: View, DebugPageLocatable {
                             inputTokens: $0.inputTokens,
                             outputTokens: $0.outputTokens,
                             cacheReadTokens: $0.cacheReadTokens,
-                            totalTokens: $0.totalTokens
+                            totalTokens: $0.totalTokens,
+                            requestCount: $0.requestCount
                         )
                     },
                     todayTokens: snapshot.todayTokens,
+                    todayRequests: snapshot.todayRequests,
                     last7DaysTokens: snapshot.last7DaysTokens,
+                    last7DaysRequests: snapshot.last7DaysRequests,
                     last30DaysTokens: snapshot.last30DaysTokens,
+                    last30DaysRequests: snapshot.last30DaysRequests,
                     allDaysTokens: snapshot.allDaysTokens,
+                    allDaysRequests: snapshot.allDaysRequests,
                     updatedAt: snapshot.updatedAt,
                     sourceLabel: snapshot.sourceLabel
                 )
@@ -116,6 +135,7 @@ struct ProviderTokenTrendSection: View, DebugPageLocatable {
             refreshStatus: refreshStatus,
             drilldown: drilldownData,
             supportsIntradayDrilldown: capability == .dailyWithIntradayDrilldown,
+            metricMode: metricMode,
             chartStyle: chartStyle,
             activeTab: activeTab,
             selectedDayKey: selectedDayKey,
@@ -136,10 +156,11 @@ struct ProviderTokenTrendSection: View, DebugPageLocatable {
         return ProviderTokenTrendSectionPresentationSupport.makeDrilldownData(
             dayKey: selectedDayKey,
             bucket: intradayBucket,
+            metricMode: metricMode,
             snapshot: snapshot,
             isLoading: isLoadingIntraday,
             errorMessage: intradayErrorMessage,
-            availableBuckets: ProviderIntradayBucket.allCases.map {
+            availableBuckets: availableIntradayBuckets.map {
                 .init(id: $0.rawValue, title: $0.title)
             }
         )
@@ -150,6 +171,7 @@ enum ProviderTokenTrendSectionPresentationSupport {
     static func makeDrilldownData(
         dayKey: String,
         bucket: ProviderIntradayBucket,
+        metricMode: ProviderTokenTrendMetricMode,
         snapshot: ProviderIntradayUsageSnapshot?,
         isLoading: Bool,
         errorMessage: String?,
@@ -164,7 +186,8 @@ enum ProviderTokenTrendSectionPresentationSupport {
                 totalTokens: $0.totalTokens,
                 inputTokens: $0.inputTokens,
                 outputTokens: $0.outputTokens,
-                cacheReadTokens: $0.cacheReadTokens
+                cacheReadTokens: $0.cacheReadTokens,
+                requestCount: $0.requestCount
             )
         } ?? []
         let visibleBucketCount = snapshot?.actualBucketCount ?? 0
@@ -175,19 +198,25 @@ enum ProviderTokenTrendSectionPresentationSupport {
         )
         let usageSummaryText = snapshot.map { snapshot in
             let totals = snapshot.points.reduce(
-                into: (total: 0, input: 0, output: 0, cache: 0)
+                into: (total: 0, input: 0, output: 0, cache: 0, requests: 0)
             ) { partialResult, point in
                 partialResult.total += point.totalTokens
                 partialResult.input += point.inputTokens
                 partialResult.output += point.outputTokens
                 partialResult.cache += point.cacheReadTokens
+                partialResult.requests += point.requestCount
             }
-            return [
-                "总量 \(TokenCountFormatters.compact(totals.total))",
-                "输入 \(TokenCountFormatters.compact(totals.input))",
-                "输出 \(TokenCountFormatters.compact(totals.output))",
-                "缓存 \(TokenCountFormatters.compact(totals.cache))",
-            ].joined(separator: " · ")
+            switch metricMode {
+            case .tokens:
+                return [
+                    "总量 \(TokenCountFormatters.compact(totals.total))",
+                    "输入 \(TokenCountFormatters.compact(totals.input))",
+                    "输出 \(TokenCountFormatters.compact(totals.output))",
+                    "缓存 \(TokenCountFormatters.compact(totals.cache))",
+                ].joined(separator: " · ")
+            case .requests:
+                return "请求 \(TokenCountFormatters.compact(totals.requests))"
+            }
         }
         let bucketSummary = snapshot != nil && fullBucketCount > 0
             ? "\(visibleBucketCount)/\(fullBucketCount) 可见时间桶"
@@ -235,16 +264,7 @@ enum ProviderTokenTrendSectionPresentationSupport {
             return 0
         }
 
-        let seconds: TimeInterval
-        switch bucket {
-        case .minute15:
-            seconds = 15 * 60
-        case .minute30:
-            seconds = 30 * 60
-        case .hour1:
-            seconds = 60 * 60
-        }
-        return Int((end.timeIntervalSince(start) / seconds).rounded())
+        return Int(ceil(end.timeIntervalSince(start) / bucket.seconds))
     }
 
     static func timeLabel(for date: Date, timezone: TimeZone) -> String {

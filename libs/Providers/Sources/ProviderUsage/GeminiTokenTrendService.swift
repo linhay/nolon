@@ -62,9 +62,13 @@ public struct GeminiTokenTrendService: Sendable {
             return ProviderTokenTrendSnapshot(
                 points: [],
                 todayTokens: nil,
+                todayRequests: nil,
                 last7DaysTokens: nil,
+                last7DaysRequests: nil,
                 last30DaysTokens: nil,
+                last30DaysRequests: nil,
                 allDaysTokens: nil,
+                allDaysRequests: nil,
                 updatedAt: now(),
                 sourceLabel: "session"
             )
@@ -75,9 +79,13 @@ public struct GeminiTokenTrendService: Sendable {
             return ProviderTokenTrendSnapshot(
                 points: [],
                 todayTokens: nil,
+                todayRequests: nil,
                 last7DaysTokens: nil,
+                last7DaysRequests: nil,
                 last30DaysTokens: nil,
+                last30DaysRequests: nil,
                 allDaysTokens: nil,
+                allDaysRequests: nil,
                 updatedAt: now(),
                 sourceLabel: "session"
             )
@@ -96,7 +104,8 @@ public struct GeminiTokenTrendService: Sendable {
                 totalTokens: totals.total,
                 inputTokens: totals.input,
                 outputTokens: totals.output,
-                cacheReadTokens: totals.cached
+                cacheReadTokens: totals.cached,
+                requestCount: totals.requests
             )
         }
 
@@ -114,9 +123,13 @@ public struct GeminiTokenTrendService: Sendable {
         return ProviderTokenTrendSnapshot(
             points: points,
             todayTokens: today,
+            todayRequests: todayRequests(from: allPoints, now: now()),
             last7DaysTokens: last7,
+            last7DaysRequests: sumTrailingRequests(points: allPoints, days: 7),
             last30DaysTokens: last30,
+            last30DaysRequests: sumTrailingRequests(points: allPoints, days: 30),
             allDaysTokens: all,
+            allDaysRequests: sumAllRequests(points: allPoints),
             updatedAt: now(),
             sourceLabel: "session"
         )
@@ -134,9 +147,26 @@ public struct GeminiTokenTrendService: Sendable {
         return points.map(\.totalTokens).reduce(0, +)
     }
 
+    private func sumTrailingRequests(points: [ProviderTokenTrendPoint], days: Int) -> Int? {
+        guard days > 0, !points.isEmpty else { return nil }
+        let values = points.suffix(days).map(\.requestCount)
+        guard !values.isEmpty else { return nil }
+        return values.reduce(0, +)
+    }
+
+    private func sumAllRequests(points: [ProviderTokenTrendPoint]) -> Int? {
+        guard !points.isEmpty else { return nil }
+        return points.map(\.requestCount).reduce(0, +)
+    }
+
     private func todayTokens(from points: [ProviderTokenTrendPoint], now: Date) -> Int {
         let todayKey = Self.dayKey(from: now)
         return points.first(where: { $0.date == todayKey })?.totalTokens ?? 0
+    }
+
+    private func todayRequests(from points: [ProviderTokenTrendPoint], now: Date) -> Int {
+        let todayKey = Self.dayKey(from: now)
+        return points.first(where: { $0.date == todayKey })?.requestCount ?? 0
     }
 
     private static func dayKey(from date: Date) -> String {
@@ -160,6 +190,7 @@ struct GeminiCachedTokenEvent: Codable, Sendable, Equatable {
     let output: Int
     let cached: Int
     let total: Int
+    let requestCount: Int
 }
 
 struct GeminiCachedDayTotals: Codable, Sendable, Equatable {
@@ -167,19 +198,22 @@ struct GeminiCachedDayTotals: Codable, Sendable, Equatable {
     var output: Int
     var cached: Int
     var total: Int
+    var requests: Int
 
-    init(input: Int = 0, output: Int = 0, cached: Int = 0, total: Int = 0) {
+    init(input: Int = 0, output: Int = 0, cached: Int = 0, total: Int = 0, requests: Int = 0) {
         self.input = input
         self.output = output
         self.cached = cached
         self.total = total
+        self.requests = requests
     }
 
-    mutating func add(input: Int, output: Int, cached: Int, total: Int) {
+    mutating func add(input: Int, output: Int, cached: Int, total: Int, requests: Int) {
         self.input += input
         self.output += output
         self.cached += cached
         self.total += total
+        self.requests += requests
     }
 }
 
@@ -190,7 +224,7 @@ private struct GeminiSessionUsageFileCache: Codable, Sendable, Equatable {
 }
 
 private struct GeminiSessionUsageCache: Codable, Sendable, Equatable {
-    var version: Int = 1
+    var version: Int = 2
     var files: [String: GeminiSessionUsageFileCache] = [:]
 }
 
@@ -327,7 +361,7 @@ actor GeminiSessionUsageStore {
         guard let url,
               let data = try? Data(contentsOf: url),
               let decoded = try? JSONDecoder().decode(GeminiSessionUsageCache.self, from: data),
-              decoded.version == 1 else {
+              decoded.version == 2 else {
             return GeminiSessionUsageCache()
         }
         return decoded
@@ -367,7 +401,8 @@ actor GeminiSessionUsageStore {
                     input: max(0, tokens.input),
                     output: max(0, tokens.output),
                     cached: max(0, tokens.cached),
-                    total: max(0, tokens.total)
+                    total: max(0, tokens.total),
+                    requests: 1
                 )
                 daily[dayKey] = totals
             }
@@ -379,7 +414,8 @@ actor GeminiSessionUsageStore {
                     input: max(0, tokens.input),
                     output: max(0, tokens.output),
                     cached: max(0, tokens.cached),
-                    total: max(0, tokens.total)
+                    total: max(0, tokens.total),
+                    requestCount: 1
                 )
             )
         }
@@ -397,7 +433,8 @@ actor GeminiSessionUsageStore {
                 input: totals.input,
                 output: totals.output,
                 cached: totals.cached,
-                total: totals.total
+                total: totals.total,
+                requests: totals.requests
             )
             destination[dayKey] = merged
         }

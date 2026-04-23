@@ -7,6 +7,50 @@ import NolonResourceKit
 import NolonUI
 import NolonUIFoundation
 
+private struct ProviderDetailViewportHostingView<Content: View>: NSViewRepresentable {
+    final class ContainerView: NSView {
+        let hostingView: NSHostingView<AnyView>
+
+        init(rootView: AnyView) {
+            hostingView = NSHostingView(rootView: rootView)
+            super.init(frame: .zero)
+            translatesAutoresizingMaskIntoConstraints = false
+            hostingView.translatesAutoresizingMaskIntoConstraints = false
+            hostingView.sizingOptions = []
+            addSubview(hostingView)
+            NSLayoutConstraint.activate([
+                hostingView.leadingAnchor.constraint(equalTo: leadingAnchor),
+                hostingView.trailingAnchor.constraint(equalTo: trailingAnchor),
+                hostingView.topAnchor.constraint(equalTo: topAnchor),
+                hostingView.bottomAnchor.constraint(equalTo: bottomAnchor),
+            ])
+        }
+
+        @available(*, unavailable)
+        required init?(coder: NSCoder) {
+            fatalError("init(coder:) has not been implemented")
+        }
+
+        func update(rootView: AnyView) {
+            hostingView.rootView = rootView
+        }
+    }
+
+    let content: Content
+
+    init(@ViewBuilder content: () -> Content) {
+        self.content = content()
+    }
+
+    func makeNSView(context: Context) -> ContainerView {
+        ContainerView(rootView: AnyView(content))
+    }
+
+    func updateNSView(_ nsView: ContainerView, context: Context) {
+        nsView.update(rootView: AnyView(content))
+    }
+}
+
 /// Detail 区域 - Grid 布局显示 Skills 或 Workflows
 struct ProviderDetailGridView: View, DebugPageLocatable {
     @Environment(\.openWindow) private var openWindow
@@ -182,82 +226,95 @@ struct ProviderDetailGridView: View, DebugPageLocatable {
     
     @ViewBuilder
     private var gridContent: some View {
-        NolonUI.ProviderDetailGridScaffoldView(
-            showSearch: shouldShowSearch,
-            searchText: $viewModel.searchText,
-            showFloatingButton: shouldShowQuickInstallButton,
-            searchTrailing: {
-                guard let provider else { return AnyView(EmptyView()) }
-                if selectedTab == .skills {
-                    return AnyView(
-                        NolonUI.ProviderSkillsLinkToolbarMenuButton(
-                            isEnabled: Binding(
-                                get: { viewModel.skillsLinkEnabled },
-                                set: { _ in }
-                            ),
-                            isApplying: viewModel.isApplyingSkillsLink,
-                            providerPath: provider.defaultSkillsPath,
-                            onShowInFinder: {
-                                viewModel.revealSkillsFolderInFinder()
-                            },
-                            onToggleRequested: { newValue in
-                                Task { await viewModel.requestSetSkillsLinkEnabled(newValue) }
-                            }
+        if Self.shouldUseScrollableGridScaffold(for: selectedTab) {
+            NolonUI.ProviderDetailGridScaffoldView(
+                showSearch: shouldShowSearch,
+                searchText: $viewModel.searchText,
+                showFloatingButton: shouldShowQuickInstallButton,
+                searchTrailing: {
+                    guard let provider else { return AnyView(EmptyView()) }
+                    if selectedTab == .skills {
+                        return AnyView(
+                            NolonUI.ProviderSkillsLinkToolbarMenuButton(
+                                isEnabled: Binding(
+                                    get: { viewModel.skillsLinkEnabled },
+                                    set: { _ in }
+                                ),
+                                isApplying: viewModel.isApplyingSkillsLink,
+                                providerPath: provider.defaultSkillsPath,
+                                onShowInFinder: {
+                                    viewModel.revealSkillsFolderInFinder()
+                                },
+                                onToggleRequested: { newValue in
+                                    Task { await viewModel.requestSetSkillsLinkEnabled(newValue) }
+                                }
+                            )
                         )
-                    )
-                }
-                if selectedTab == .mcp {
-                    return AnyView(
-                        NolonUI.ProviderMCPLinkToolbarMenuButton(
-                            isEnabled: Binding(
-                                get: { viewModel.mcpLinkEnabled },
-                                set: { _ in }
-                            ),
-                            providerPath: providerMcpConfigPath ?? NolonManager.shared.mcpsPath,
-                            onShowInFinder: {
-                                viewModel.revealMcpConfigInFinder()
-                            },
-                            onToggleRequested: { newValue in
-                                Task { await viewModel.requestSetMcpLinkEnabled(newValue) }
-                            }
+                    }
+                    if selectedTab == .mcp {
+                        return AnyView(
+                            NolonUI.ProviderMCPLinkToolbarMenuButton(
+                                isEnabled: Binding(
+                                    get: { viewModel.mcpLinkEnabled },
+                                    set: { _ in }
+                                ),
+                                providerPath: providerMcpConfigPath ?? NolonManager.shared.mcpsPath,
+                                onShowInFinder: {
+                                    viewModel.revealMcpConfigInFinder()
+                                },
+                                onToggleRequested: { newValue in
+                                    Task { await viewModel.requestSetMcpLinkEnabled(newValue) }
+                                }
+                            )
                         )
-                    )
-                }
-                if selectedTab == .agents, supportsAgentsLink(provider) {
-                    return AnyView(
-                        NolonUI.ProviderAgentsLinkToolbarMenuButton(
-                            isEnabled: Binding(
-                                get: { viewModel.agentsLinkEnabled },
-                                set: { _ in }
-                            ),
-                            providerPath: providerAgentsFilePath(for: provider),
-                            onShowInFinder: {
-                                viewModel.revealAgentsFolderInFinder()
-                            },
-                            onToggleRequested: { newValue in
-                                Task { await viewModel.requestSetAgentsLinkEnabled(newValue) }
-                            }
+                    }
+                    if selectedTab == .agents, supportsAgentsLink(provider) {
+                        return AnyView(
+                            NolonUI.ProviderAgentsLinkToolbarMenuButton(
+                                isEnabled: Binding(
+                                    get: { viewModel.agentsLinkEnabled },
+                                    set: { _ in }
+                                ),
+                                providerPath: providerAgentsFilePath(for: provider),
+                                onShowInFinder: {
+                                    viewModel.revealAgentsFolderInFinder()
+                                },
+                                onToggleRequested: { newValue in
+                                    Task { await viewModel.requestSetAgentsLinkEnabled(newValue) }
+                                }
+                            )
                         )
-                    )
+                    }
+                    return AnyView(EmptyView())
                 }
-                return AnyView(EmptyView())
+            ) { scrollProxy in
+                NolonUI.ProviderCodexTopHintsView(
+                    noticeData: codexXcodeNoticeData,
+                    linkedHintData: codexLinkedHintData,
+                    onDismissNotice: {
+                        codexXcodeNoticeDismissed = true
+                    },
+                    onTapLinkedHint: {
+                        guard let selectedTab else { return }
+                        handleCodexLinkedHintAction(for: selectedTab)
+                    }
+                )
+                resourceHealthSummary(scrollProxy: scrollProxy)
+                tabContent
+            } floatingButton: {
+                quickInstallButton
             }
-        ) { scrollProxy in
-            NolonUI.ProviderCodexTopHintsView(
-                noticeData: codexXcodeNoticeData,
-                linkedHintData: codexLinkedHintData,
-                onDismissNotice: {
-                    codexXcodeNoticeDismissed = true
-                },
-                onTapLinkedHint: {
-                    guard let selectedTab else { return }
-                    handleCodexLinkedHintAction(for: selectedTab)
-                }
-            )
-            resourceHealthSummary(scrollProxy: scrollProxy)
-            tabContent
-        } floatingButton: {
-            quickInstallButton
+        } else {
+            GeometryReader { proxy in
+                tabContent
+                    .padding(16)
+                    .frame(
+                        width: proxy.size.width,
+                        height: proxy.size.height,
+                        alignment: .topLeading
+                    )
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
     }
 
@@ -664,13 +721,16 @@ struct ProviderDetailGridView: View, DebugPageLocatable {
             }
         case .usage:
             if let provider = provider {
-                ProviderUsageView(
-                    provider: provider,
-                    pageMode: ProviderContentTabType.shouldSplitAccountsAndUsage(for: provider) ? .usage : .combined
-                )
+                ProviderDetailViewportHostingView {
+                    ProviderUsageView(
+                        provider: provider,
+                        pageMode: ProviderContentTabType.shouldSplitAccountsAndUsage(for: provider) ? .usage : .combined
+                    )
                     .debugCardLocator(debugPageMarkerItems)
                     .id(provider.id)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             }
         case .sessions:
             if let provider = provider {
@@ -694,6 +754,10 @@ struct ProviderDetailGridView: View, DebugPageLocatable {
         selectedTab: ProviderContentTabType?
     ) -> Bool {
         skillsLinkEnabled && selectedTab == .skills
+    }
+
+    static func shouldUseScrollableGridScaffold(for selectedTab: ProviderContentTabType?) -> Bool {
+        selectedTab != .usage
     }
 
     static func shouldShowQuickInstallButton(

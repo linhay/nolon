@@ -46,6 +46,7 @@ struct ProviderTokenTrendSectionPresentationSupportTests {
         let drilldown = ProviderTokenTrendSectionPresentationSupport.makeDrilldownData(
             dayKey: "2026-04-15",
             bucket: .minute30,
+            metricMode: .tokens,
             snapshot: snapshot,
             isLoading: false,
             errorMessage: nil,

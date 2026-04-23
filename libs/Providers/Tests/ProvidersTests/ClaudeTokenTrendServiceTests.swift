@@ -42,6 +42,7 @@ struct ClaudeTokenTrendServiceTests {
                     return ""
                 }
             },
+            usageStore: ClaudeSessionUsageStore(),
             now: { Self.makeLocalDate(year: 2026, month: 3, day: 8, hour: 20, minute: 0) }
         )
 
@@ -53,20 +54,26 @@ struct ClaudeTokenTrendServiceTests {
                 totalTokens: 115,
                 inputTokens: 90,
                 outputTokens: 20,
-                cacheReadTokens: 5
+                cacheReadTokens: 5,
+                requestCount: 1
             ),
             ProviderTokenTrendPoint(
                 date: "2026-03-08",
                 totalTokens: 165,
                 inputTokens: 120,
                 outputTokens: 40,
-                cacheReadTokens: 5
+                cacheReadTokens: 5,
+                requestCount: 1
             ),
         ])
         #expect(snapshot.todayTokens == 165)
+        #expect(snapshot.todayRequests == 1)
         #expect(snapshot.last7DaysTokens == 280)
+        #expect(snapshot.last7DaysRequests == 2)
         #expect(snapshot.last30DaysTokens == 280)
+        #expect(snapshot.last30DaysRequests == 2)
         #expect(snapshot.allDaysTokens == 280)
+        #expect(snapshot.allDaysRequests == 2)
         #expect(snapshot.sourceLabel == "session")
     }
 
@@ -85,7 +92,8 @@ struct ClaudeTokenTrendServiceTests {
             readFile: { _ in
                 Issue.record("Should not read Claude project files without active account")
                 return ""
-            }
+            },
+            usageStore: ClaudeSessionUsageStore()
         )
 
         let snapshot = try await service.fetchActiveSnapshot()

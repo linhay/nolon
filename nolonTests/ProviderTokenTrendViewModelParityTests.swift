@@ -72,4 +72,88 @@ struct ProviderTokenTrendViewModelParityTests {
         root.tokenTrendViewModel.selectDay(nil)
         #expect(root.tokenTrendViewModel.activeContentTab == .daily)
     }
+
+    @Test("BDD: Given line chart style when switching between daily and intraday tabs then chart style stays unchanged")
+    func testBDD_GivenLineChartStyle_WhenSwitchingBetweenDailyAndIntradayTabs_ThenChartStyleStaysUnchanged() {
+        let provider = Provider(
+            id: "codex",
+            kind: .vendor,
+            name: "Codex",
+            defaultSkillsPath: "/tmp/codex/skills",
+            workflowPath: "/tmp/codex/prompts",
+            vendorCategory: .original,
+            templateId: ProviderTemplate.codex.rawValue
+        )
+        let root = ProviderUsageRootViewModel(provider: provider)
+
+        root.tokenTrendViewModel.setChartStyle(.line)
+        root.tokenTrendViewModel.selectDay("2026-04-22")
+
+        #expect(root.tokenTrendViewModel.activeContentTab == .intraday)
+        #expect(root.tokenTrendViewModel.chartStyle == .line)
+
+        root.tokenTrendViewModel.setContentTab(.daily)
+        #expect(root.tokenTrendViewModel.activeContentTab == .daily)
+        #expect(root.tokenTrendViewModel.chartStyle == .line)
+
+        root.tokenTrendViewModel.setContentTab(.intraday)
+        #expect(root.tokenTrendViewModel.activeContentTab == .intraday)
+        #expect(root.tokenTrendViewModel.chartStyle == .line)
+    }
+
+    @Test("BDD: Given different providers when reading intraday buckets then exposed options follow provider precision")
+    func testBDD_GivenDifferentProviders_WhenReadingIntradayBuckets_ThenOptionsFollowProviderPrecision() {
+        let codexProvider = Provider(
+            id: "codex",
+            kind: .vendor,
+            name: "Codex",
+            defaultSkillsPath: "/tmp/codex/skills",
+            workflowPath: "/tmp/codex/prompts",
+            vendorCategory: .original,
+            templateId: ProviderTemplate.codex.rawValue
+        )
+        let geminiProvider = Provider(
+            id: "gemini",
+            kind: .vendor,
+            name: "Gemini",
+            defaultSkillsPath: "/tmp/gemini/skills",
+            workflowPath: "/tmp/gemini/prompts",
+            vendorCategory: .original,
+            templateId: ProviderTemplate.gemini.rawValue
+        )
+
+        let codexRoot = ProviderUsageRootViewModel(provider: codexProvider)
+        let geminiRoot = ProviderUsageRootViewModel(provider: geminiProvider)
+
+        #expect(codexRoot.tokenTrendViewModel.availableIntradayBuckets == [.minute1, .minute5, .minute10, .minute15, .minute30, .hour1])
+        #expect(geminiRoot.tokenTrendViewModel.availableIntradayBuckets == [.minute1, .minute5, .minute10, .minute15, .minute30, .hour1])
+    }
+
+    @Test("BDD: Given metric mode switch when toggling token trend metric then view model exposes the selected mode")
+    func testBDD_GivenMetricModeSwitch_WhenTogglingTokenTrendMetric_ThenViewModelExposesSelectedMode() throws {
+        let provider = Provider(
+            id: "codex-\(UUID().uuidString)",
+            kind: .vendor,
+            name: "Codex",
+            defaultSkillsPath: "/tmp/codex/skills",
+            workflowPath: "/tmp/codex/prompts",
+            vendorCategory: .original,
+            templateId: ProviderTemplate.codex.rawValue
+        )
+        let suiteName = "ProviderTokenTrendViewModelParityTests.metricMode.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suiteName))
+        let store = ProviderUsageTokenTrendPreferencesStore(providerID: provider.id, userDefaults: defaults)
+
+        let engine = ProviderUsageEngine(provider: provider)
+        let state = ProviderUsageStateStore(provider: provider, engine: engine)
+        let viewModel = ProviderTokenTrendViewModel(state: state, preferencesStore: store)
+
+        #expect(viewModel.metricMode == .tokens)
+
+        viewModel.setMetricMode(.requests)
+        #expect(viewModel.metricMode == .requests)
+        #expect(store.metricMode == .requests)
+
+        defaults.removePersistentDomain(forName: suiteName)
+    }
 }

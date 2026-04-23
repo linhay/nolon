@@ -16,45 +16,60 @@ public struct ProviderTokenTrendPointData: Hashable, Sendable {
     public let outputTokens: Int
     public let cacheReadTokens: Int
     public let totalTokens: Int
+    public let requestCount: Int
 
     public init(
         date: String,
         inputTokens: Int,
         outputTokens: Int,
         cacheReadTokens: Int,
-        totalTokens: Int
+        totalTokens: Int,
+        requestCount: Int = 0
     ) {
         self.date = date
         self.inputTokens = inputTokens
         self.outputTokens = outputTokens
         self.cacheReadTokens = cacheReadTokens
         self.totalTokens = totalTokens
+        self.requestCount = requestCount
     }
 }
 
 public struct ProviderTokenTrendSnapshotData: Sendable {
     public let points: [ProviderTokenTrendPointData]
     public let todayTokens: Int?
+    public let todayRequests: Int?
     public let last7DaysTokens: Int?
+    public let last7DaysRequests: Int?
     public let last30DaysTokens: Int?
+    public let last30DaysRequests: Int?
     public let allDaysTokens: Int?
+    public let allDaysRequests: Int?
     public let updatedAt: Date
     public let sourceLabel: String
 
     public init(
         points: [ProviderTokenTrendPointData],
         todayTokens: Int?,
+        todayRequests: Int? = nil,
         last7DaysTokens: Int?,
+        last7DaysRequests: Int? = nil,
         last30DaysTokens: Int?,
+        last30DaysRequests: Int? = nil,
         allDaysTokens: Int?,
+        allDaysRequests: Int? = nil,
         updatedAt: Date,
         sourceLabel: String
     ) {
         self.points = points
         self.todayTokens = todayTokens
+        self.todayRequests = todayRequests
         self.last7DaysTokens = last7DaysTokens
+        self.last7DaysRequests = last7DaysRequests
         self.last30DaysTokens = last30DaysTokens
+        self.last30DaysRequests = last30DaysRequests
         self.allDaysTokens = allDaysTokens
+        self.allDaysRequests = allDaysRequests
         self.updatedAt = updatedAt
         self.sourceLabel = sourceLabel
     }
@@ -154,6 +169,11 @@ public enum ProviderTokenTrendChartStyle: String, CaseIterable, Hashable, Sendab
     case line
 }
 
+public enum ProviderTokenTrendMetricMode: String, CaseIterable, Hashable, Sendable {
+    case tokens
+    case requests
+}
+
 public enum ProviderTokenTrendContentTab: String, CaseIterable, Hashable, Sendable {
     case daily
     case intraday
@@ -164,6 +184,7 @@ public struct ProviderTokenTrendSectionData: Sendable {
     public let refreshStatus: ProviderTokenTrendRefreshStatusData?
     public let drilldown: ProviderTokenTrendDrilldownData?
     public let supportsIntradayDrilldown: Bool
+    public let metricMode: ProviderTokenTrendMetricMode
     public let chartStyle: ProviderTokenTrendChartStyle
     public let activeTab: ProviderTokenTrendContentTab
     public let selectedDayKey: String?
@@ -177,6 +198,7 @@ public struct ProviderTokenTrendSectionData: Sendable {
         refreshStatus: ProviderTokenTrendRefreshStatusData? = nil,
         drilldown: ProviderTokenTrendDrilldownData? = nil,
         supportsIntradayDrilldown: Bool = false,
+        metricMode: ProviderTokenTrendMetricMode = .tokens,
         chartStyle: ProviderTokenTrendChartStyle = .bar,
         activeTab: ProviderTokenTrendContentTab = .daily,
         selectedDayKey: String? = nil,
@@ -189,6 +211,7 @@ public struct ProviderTokenTrendSectionData: Sendable {
         self.refreshStatus = refreshStatus
         self.drilldown = drilldown
         self.supportsIntradayDrilldown = supportsIntradayDrilldown
+        self.metricMode = metricMode
         self.chartStyle = chartStyle
         self.activeTab = activeTab
         self.selectedDayKey = selectedDayKey
@@ -216,6 +239,7 @@ public struct ProviderIntradayUsagePointData: Hashable, Sendable {
     public let inputTokens: Int
     public let outputTokens: Int
     public let cacheReadTokens: Int
+    public let requestCount: Int
 
     public init(
         label: String,
@@ -223,7 +247,8 @@ public struct ProviderIntradayUsagePointData: Hashable, Sendable {
         totalTokens: Int,
         inputTokens: Int,
         outputTokens: Int,
-        cacheReadTokens: Int
+        cacheReadTokens: Int,
+        requestCount: Int = 0
     ) {
         self.label = label
         self.rangeLabel = rangeLabel
@@ -231,6 +256,7 @@ public struct ProviderIntradayUsagePointData: Hashable, Sendable {
         self.inputTokens = inputTokens
         self.outputTokens = outputTokens
         self.cacheReadTokens = cacheReadTokens
+        self.requestCount = requestCount
     }
 }
 

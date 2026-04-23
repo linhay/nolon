@@ -422,6 +422,7 @@ final class ProviderUsageEngine: CopyToastPresenting {
         }
         guard let operation = userInfo["operation"] as? String,
               operation == "refresh_projected_usage_day_keys"
+                || operation == "prepare_projected_usage_index"
         else {
             return
         }
@@ -453,6 +454,10 @@ final class ProviderUsageEngine: CopyToastPresenting {
     static func makeTokenTrendRefreshStatusData(
         from userInfo: [AnyHashable: Any]
     ) -> ProviderTokenTrendRefreshStatusData? {
+        let operation = ((userInfo["operation"] as? String) ?? "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        let isInitialBuild = operation == "prepare_projected_usage_index"
         let phase = ((userInfo["phase"] as? String) ?? "completed")
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .lowercased()
@@ -483,13 +488,19 @@ final class ProviderUsageEngine: CopyToastPresenting {
             case "scan_inventory":
                 return ProviderTokenTrendRefreshStatusData(
                     title: NSLocalizedString(
-                        "usage.token_trend.refresh.scan_inventory.title",
-                        value: "正在扫描会话文件",
+                        isInitialBuild
+                            ? "usage.token_trend.prepare.scan_inventory.title"
+                            : "usage.token_trend.refresh.scan_inventory.title",
+                        value: isInitialBuild ? "正在扫描历史会话文件" : "正在扫描会话文件",
                         comment: "Codex token trend refresh scan inventory title"
                     ),
                     detail: NSLocalizedString(
-                        "usage.token_trend.refresh.scan_inventory.detail",
-                        value: "正在遍历 sessions 与 archived_sessions，准备核对本地 rollout 清单。",
+                        isInitialBuild
+                            ? "usage.token_trend.prepare.scan_inventory.detail"
+                            : "usage.token_trend.refresh.scan_inventory.detail",
+                        value: isInitialBuild
+                            ? "正在遍历 sessions 与 archived_sessions，准备建立本地 minute 索引。"
+                            : "正在遍历 sessions 与 archived_sessions，准备核对本地 rollout 清单。",
                         comment: "Codex token trend refresh scan inventory detail"
                     ),
                     progressLabel: nil,
@@ -499,8 +510,12 @@ final class ProviderUsageEngine: CopyToastPresenting {
             case "read_usage_index":
                 let detail = String(
                     format: NSLocalizedString(
-                        "usage.token_trend.refresh.read_usage_index.detail",
-                        value: "正在读取 %@，准备比对 %d 个会话文件与本地 minute 索引。",
+                        isInitialBuild
+                            ? "usage.token_trend.prepare.read_usage_index.detail"
+                            : "usage.token_trend.refresh.read_usage_index.detail",
+                        value: isInitialBuild
+                            ? "正在读取 %@，准备为 %d 个会话文件建立本地 minute 索引。"
+                            : "正在读取 %@，准备比对 %d 个会话文件与本地 minute 索引。",
                         comment: "Codex token trend refresh read usage index detail"
                     ),
                     currentDatabaseName,
@@ -520,8 +535,12 @@ final class ProviderUsageEngine: CopyToastPresenting {
             case "reconcile_rollouts":
                 let detail = String(
                     format: NSLocalizedString(
-                        "usage.token_trend.refresh.reconcile_rollouts.detail",
-                        value: "已扫描 %d 个会话文件，命中 %d 条缓存记录，发现 %d 个待回填会话。",
+                        isInitialBuild
+                            ? "usage.token_trend.prepare.reconcile_rollouts.detail"
+                            : "usage.token_trend.refresh.reconcile_rollouts.detail",
+                        value: isInitialBuild
+                            ? "已扫描 %d 个会话文件，命中 %d 条缓存记录，准备建立 %d 个本地索引条目。"
+                            : "已扫描 %d 个会话文件，命中 %d 条缓存记录，发现 %d 个待回填会话。",
                         comment: "Codex token trend refresh reconcile rollouts detail"
                     ),
                     scannedFileCount,
@@ -530,8 +549,10 @@ final class ProviderUsageEngine: CopyToastPresenting {
                 )
                 return ProviderTokenTrendRefreshStatusData(
                     title: NSLocalizedString(
-                        "usage.token_trend.refresh.reconcile_rollouts.title",
-                        value: "正在比对待刷新文件",
+                        isInitialBuild
+                            ? "usage.token_trend.prepare.reconcile_rollouts.title"
+                            : "usage.token_trend.refresh.reconcile_rollouts.title",
+                        value: isInitialBuild ? "正在准备建立索引" : "正在比对待刷新文件",
                         comment: "Codex token trend refresh reconcile rollouts title"
                     ),
                     detail: detail,
@@ -544,8 +565,12 @@ final class ProviderUsageEngine: CopyToastPresenting {
             }
             let detail = String(
                 format: NSLocalizedString(
-                    "usage.token_trend.refresh.started.detail",
-                    value: "已扫描 %d 个会话文件，命中 %d 条缓存记录，发现 %d 个待回填会话。",
+                    isInitialBuild
+                        ? "usage.token_trend.prepare.started.detail"
+                        : "usage.token_trend.refresh.started.detail",
+                    value: isInitialBuild
+                        ? "已扫描 %d 个会话文件，命中 %d 条缓存记录，准备建立 %d 个本地索引条目。"
+                        : "已扫描 %d 个会话文件，命中 %d 条缓存记录，发现 %d 个待回填会话。",
                     comment: "Codex token trend refresh started detail"
                 ),
                 scannedFileCount,
@@ -554,8 +579,10 @@ final class ProviderUsageEngine: CopyToastPresenting {
             )
             return ProviderTokenTrendRefreshStatusData(
                 title: NSLocalizedString(
-                    "usage.token_trend.refresh.started.title",
-                    value: "正在扫描会话用量",
+                    isInitialBuild
+                        ? "usage.token_trend.prepare.started.title"
+                        : "usage.token_trend.refresh.started.title",
+                    value: isInitialBuild ? "正在建立历史用量索引" : "正在扫描会话用量",
                     comment: "Codex token trend refresh started title"
                 ),
                 detail: detail,
@@ -601,8 +628,12 @@ final class ProviderUsageEngine: CopyToastPresenting {
                 if let refreshReasonDescription {
                     detail = String(
                         format: NSLocalizedString(
-                            "usage.token_trend.refresh.analyze_rollout.detail_with_reason",
-                            value: "正在解析 %@，原因：%@。",
+                            isInitialBuild
+                                ? "usage.token_trend.prepare.analyze_rollout.detail_with_reason"
+                                : "usage.token_trend.refresh.analyze_rollout.detail_with_reason",
+                            value: isInitialBuild
+                                ? "正在解析 %@ 并写入本地索引，原因：%@。"
+                                : "正在解析 %@，原因：%@。",
                             comment: "Codex token trend refresh analyze rollout detail with reason"
                         ),
                         currentRolloutPath,
@@ -611,8 +642,12 @@ final class ProviderUsageEngine: CopyToastPresenting {
                 } else {
                     detail = String(
                         format: NSLocalizedString(
-                            "usage.token_trend.refresh.analyze_rollout.detail",
-                            value: "正在解析 %@，并重算它的派生 minute 用量。",
+                            isInitialBuild
+                                ? "usage.token_trend.prepare.analyze_rollout.detail"
+                                : "usage.token_trend.refresh.analyze_rollout.detail",
+                            value: isInitialBuild
+                                ? "正在解析 %@，并写入它的本地 minute 索引。"
+                                : "正在解析 %@，并重算它的派生 minute 用量。",
                             comment: "Codex token trend refresh analyze rollout detail"
                         ),
                         currentRolloutPath
@@ -620,8 +655,10 @@ final class ProviderUsageEngine: CopyToastPresenting {
                 }
                 return ProviderTokenTrendRefreshStatusData(
                     title: NSLocalizedString(
-                        "usage.token_trend.refresh.analyze_rollout.title",
-                        value: "正在分析会话文件",
+                        isInitialBuild
+                            ? "usage.token_trend.prepare.analyze_rollout.title"
+                            : "usage.token_trend.refresh.analyze_rollout.title",
+                        value: isInitialBuild ? "正在建立文件索引" : "正在分析会话文件",
                         comment: "Codex token trend refresh analyze rollout title"
                     ),
                     detail: detail,
@@ -753,8 +790,10 @@ final class ProviderUsageEngine: CopyToastPresenting {
             }
             return ProviderTokenTrendRefreshStatusData(
                 title: NSLocalizedString(
-                    "usage.token_trend.refresh.progress.title",
-                    value: "正在回填派生用量",
+                    isInitialBuild
+                        ? "usage.token_trend.prepare.progress.title"
+                        : "usage.token_trend.refresh.progress.title",
+                    value: isInitialBuild ? "正在建立派生用量索引" : "正在回填派生用量",
                     comment: "Codex token trend refresh progress title"
                 ),
                 detail: detailParts.joined(separator: "，") + "。",

@@ -12,6 +12,7 @@ struct ClaudeCachedTokenEvent: Codable, Sendable, Equatable {
     let output: Int
     let cacheRead: Int
     let total: Int
+    let requestCount: Int
 }
 
 private struct ClaudeSessionUsageFileCache: Codable, Sendable, Equatable {
@@ -255,7 +256,8 @@ enum ClaudeSessionUsageSupport {
             input: adjustedInput,
             output: output,
             cacheRead: cacheRead,
-            total: total
+            total: total,
+            requestCount: 1
         )
     }
 

@@ -31,6 +31,7 @@ struct CodexSessionUsageMinuteEntry: Equatable, Sendable {
     let inputTokens: Int
     let cachedInputTokens: Int
     let outputTokens: Int
+    let requestCount: Int
     let updatedAtUnixMs: Int64
 
     var minuteStartAt: Date {
@@ -43,6 +44,7 @@ public struct CodexSessionProjectedMinuteEntry: Equatable, Sendable {
     public let inputTokens: Int
     public let cachedInputTokens: Int
     public let outputTokens: Int
+    public let requestCount: Int
 
     public var minuteStartAt: Date {
         Date(timeIntervalSince1970: TimeInterval(minuteStartUnixMs) / 1_000)
@@ -52,12 +54,14 @@ public struct CodexSessionProjectedMinuteEntry: Equatable, Sendable {
         minuteStartUnixMs: Int64,
         inputTokens: Int,
         cachedInputTokens: Int,
-        outputTokens: Int
+        outputTokens: Int,
+        requestCount: Int = 0
     ) {
         self.minuteStartUnixMs = minuteStartUnixMs
         self.inputTokens = inputTokens
         self.cachedInputTokens = cachedInputTokens
         self.outputTokens = outputTokens
+        self.requestCount = requestCount
     }
 }
 
@@ -79,15 +83,18 @@ public struct CodexSessionProjectedUsage: Equatable, Sendable {
 
 public struct CodexSessionProjectedUsageSummary: Equatable, Sendable {
     public let totalTokens: Int
+    public let requestCount: Int
     public let updatedAt: Date
     public let sourceLabel: String
 
     public init(
         totalTokens: Int,
+        requestCount: Int = 0,
         updatedAt: Date,
         sourceLabel: String
     ) {
         self.totalTokens = totalTokens
+        self.requestCount = requestCount
         self.updatedAt = updatedAt
         self.sourceLabel = sourceLabel
     }
@@ -197,11 +204,21 @@ final class CodexSessionUsageIndex: @unchecked Sendable {
             codexHomePath: codexHome.path,
             rolloutPath: rolloutPath
         )
+        let requiresRequestCountBackfill: Bool
+        if cachedMinuteEntriesExist {
+            requiresRequestCountBackfill = try hasRequestlessTokenUsageMinuteEntries(
+                codexHomePath: codexHome.path,
+                rolloutPath: rolloutPath
+            )
+        } else {
+            requiresRequestCountBackfill = false
+        }
 
         if isArchived,
            let cachedEntry,
            cachedEntry.isArchived,
            cachedEntry.contentHash != nil,
+           !requiresRequestCountBackfill,
            cachedEntry.totals == nil || cachedMinuteEntriesExist {
             try upsert(
                 Self.touch(
@@ -229,6 +246,7 @@ final class CodexSessionUsageIndex: @unchecked Sendable {
 
         if let cachedEntry,
            !requiresArchivedRepair,
+           !requiresRequestCountBackfill,
            Self.matchesCache(entry: cachedEntry, fingerprint: fingerprint),
            cachedEntry.totals == nil || cachedMinuteEntriesExist {
             try upsert(
@@ -253,6 +271,7 @@ final class CodexSessionUsageIndex: @unchecked Sendable {
         )?.forkedFromID != nil
 
         if let cachedEntry,
+           !requiresRequestCountBackfill,
            !isDerivedRollout,
            Self.canUseAppendDelta(entry: cachedEntry, fingerprint: fingerprint) {
             do {
@@ -380,6 +399,7 @@ final class CodexSessionUsageIndex: @unchecked Sendable {
                 input_tokens,
                 cached_input_tokens,
                 output_tokens,
+                request_count,
                 started_at_unix_ms,
                 last_activity_at_unix_ms,
                 updated_at_unix_ms,
@@ -421,6 +441,7 @@ final class CodexSessionUsageIndex: @unchecked Sendable {
                 input_tokens,
                 cached_input_tokens,
                 output_tokens,
+                request_count,
                 updated_at_unix_ms
             FROM session_usage_minutes
             WHERE codex_home_path = ? AND rollout_path = ?
@@ -468,7 +489,8 @@ final class CodexSessionUsageIndex: @unchecked Sendable {
                 minuteStartUnixMs: minuteStartUnixMs,
                 inputTokens: totals.inputTokens,
                 cachedInputTokens: totals.cachedInputTokens,
-                outputTokens: totals.outputTokens
+                outputTokens: totals.outputTokens,
+                requestCount: totals.requestCount
             )
             )
         }
@@ -489,6 +511,7 @@ final class CodexSessionUsageIndex: @unchecked Sendable {
         guard !entries.isEmpty else { return nil }
 
         var totalTokens = 0
+        var requestCount = 0
         var latestUpdatedAtUnixMs = entries.map(\.updatedAtUnixMs).max() ?? 0
         var hasProjectedMinute = false
 
@@ -499,12 +522,14 @@ final class CodexSessionUsageIndex: @unchecked Sendable {
         ) { _, totals, updatedAtUnixMs in
             hasProjectedMinute = true
             totalTokens += max(0, totals.inputTokens + totals.outputTokens)
+            requestCount += max(0, totals.requestCount)
             latestUpdatedAtUnixMs = max(latestUpdatedAtUnixMs, updatedAtUnixMs)
         }
 
         guard hasProjectedMinute else { return nil }
         return .init(
             totalTokens: totalTokens,
+            requestCount: requestCount,
             updatedAt: Date(timeIntervalSince1970: TimeInterval(latestUpdatedAtUnixMs) / 1_000),
             sourceLabel: "global local usage"
         )
@@ -531,10 +556,11 @@ final class CodexSessionUsageIndex: @unchecked Sendable {
                 minuteStartUnixMs: minuteStartUnixMs,
                 timezone: timezone
             )
-            var packed = quarterHours[bucketKey] ?? [0, 0, 0]
+            var packed = quarterHours[bucketKey] ?? [0, 0, 0, 0]
             packed[0] += totals.inputTokens
             packed[1] += totals.cachedInputTokens
             packed[2] += totals.outputTokens
+            packed[3] += totals.requestCount
             quarterHours[bucketKey] = packed
             latestUpdatedAtUnixMs = max(latestUpdatedAtUnixMs, updatedAtUnixMs)
         }
@@ -596,13 +622,14 @@ final class CodexSessionUsageIndex: @unchecked Sendable {
                 input_tokens,
                 cached_input_tokens,
                 output_tokens,
+                request_count,
                 started_at_unix_ms,
                 last_activity_at_unix_ms,
                 updated_at_unix_ms,
                 last_seen_at_unix_ms,
                 last_requested_at_unix_ms,
                 is_archived
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(codex_home_path, rollout_path) DO UPDATE SET
                 absolute_rollout_path = excluded.absolute_rollout_path,
                 session_id = excluded.session_id,
@@ -615,6 +642,7 @@ final class CodexSessionUsageIndex: @unchecked Sendable {
                 input_tokens = excluded.input_tokens,
                 cached_input_tokens = excluded.cached_input_tokens,
                 output_tokens = excluded.output_tokens,
+                request_count = excluded.request_count,
                 started_at_unix_ms = excluded.started_at_unix_ms,
                 last_activity_at_unix_ms = excluded.last_activity_at_unix_ms,
                 updated_at_unix_ms = excluded.updated_at_unix_ms,
@@ -642,12 +670,13 @@ final class CodexSessionUsageIndex: @unchecked Sendable {
             Self.bindOptionalInt64(entry.totals.map { Int64($0.inputTokens) }, to: statement, at: 11)
             Self.bindOptionalInt64(entry.totals.map { Int64($0.cachedInputTokens) }, to: statement, at: 12)
             Self.bindOptionalInt64(entry.totals.map { Int64($0.outputTokens) }, to: statement, at: 13)
-            Self.bindOptionalInt64(entry.startedAtUnixMs, to: statement, at: 14)
-            Self.bindOptionalInt64(entry.lastActivityAtUnixMs, to: statement, at: 15)
-            sqlite3_bind_int64(statement, 16, entry.updatedAtUnixMs)
-            sqlite3_bind_int64(statement, 17, entry.lastSeenAtUnixMs)
-            sqlite3_bind_int64(statement, 18, entry.lastRequestedAtUnixMs)
-            sqlite3_bind_int(statement, 19, entry.isArchived ? 1 : 0)
+            Self.bindOptionalInt64(entry.totals.map { Int64($0.requestCount) }, to: statement, at: 14)
+            Self.bindOptionalInt64(entry.startedAtUnixMs, to: statement, at: 15)
+            Self.bindOptionalInt64(entry.lastActivityAtUnixMs, to: statement, at: 16)
+            sqlite3_bind_int64(statement, 17, entry.updatedAtUnixMs)
+            sqlite3_bind_int64(statement, 18, entry.lastSeenAtUnixMs)
+            sqlite3_bind_int64(statement, 19, entry.lastRequestedAtUnixMs)
+            sqlite3_bind_int(statement, 20, entry.isArchived ? 1 : 0)
 
             guard sqlite3_step(statement) == SQLITE_DONE else {
                 throw Self.sqliteError(db: db, code: 4, fallback: "Failed to write usage entry.")
@@ -720,6 +749,7 @@ final class CodexSessionUsageIndex: @unchecked Sendable {
                 input_tokens INTEGER,
                 cached_input_tokens INTEGER,
                 output_tokens INTEGER,
+                request_count INTEGER,
                 started_at_unix_ms INTEGER,
                 last_activity_at_unix_ms INTEGER,
                 updated_at_unix_ms INTEGER NOT NULL,
@@ -738,6 +768,7 @@ final class CodexSessionUsageIndex: @unchecked Sendable {
                 input_tokens INTEGER NOT NULL,
                 cached_input_tokens INTEGER NOT NULL,
                 output_tokens INTEGER NOT NULL,
+                request_count INTEGER NOT NULL DEFAULT 0,
                 updated_at_unix_ms INTEGER NOT NULL,
                 PRIMARY KEY (codex_home_path, rollout_path, minute_start_unix_ms)
             );
@@ -747,6 +778,18 @@ final class CodexSessionUsageIndex: @unchecked Sendable {
             nil,
             nil,
             nil
+        )
+        try ensureColumnIfNeeded(
+            db: db,
+            table: "usage_entries",
+            column: "request_count",
+            definition: "INTEGER"
+        )
+        try ensureColumnIfNeeded(
+            db: db,
+            table: "session_usage_minutes",
+            column: "request_count",
+            definition: "INTEGER NOT NULL DEFAULT 0"
         )
         try ensureColumnIfNeeded(
             db: db,
@@ -792,12 +835,14 @@ final class CodexSessionUsageIndex: @unchecked Sendable {
         let inputTokens = sqliteInt(statement, column: 10)
         let cachedInputTokens = sqliteInt(statement, column: 11)
         let outputTokens = sqliteInt(statement, column: 12)
+        let requestCount = sqliteInt(statement, column: 13)
         let totals: CodexSessionTokenTotals?
         if let inputTokens, let cachedInputTokens, let outputTokens {
             totals = .init(
                 inputTokens: inputTokens,
                 cachedInputTokens: cachedInputTokens,
-                outputTokens: outputTokens
+                outputTokens: outputTokens,
+                requestCount: requestCount ?? 0
             )
         } else {
             totals = nil
@@ -815,12 +860,12 @@ final class CodexSessionUsageIndex: @unchecked Sendable {
             parsedBytes: sqliteInt64(statement, column: 8) ?? 0,
             lastModel: sqliteText(statement, column: 9),
             totals: totals,
-            startedAtUnixMs: sqliteInt64(statement, column: 13),
-            lastActivityAtUnixMs: sqliteInt64(statement, column: 14),
-            updatedAtUnixMs: sqliteInt64(statement, column: 15) ?? 0,
-            lastSeenAtUnixMs: sqliteInt64(statement, column: 16) ?? 0,
-            lastRequestedAtUnixMs: sqliteInt64(statement, column: 17) ?? 0,
-            isArchived: sqliteInt(statement, column: 18) != 0
+            startedAtUnixMs: sqliteInt64(statement, column: 14),
+            lastActivityAtUnixMs: sqliteInt64(statement, column: 15),
+            updatedAtUnixMs: sqliteInt64(statement, column: 16) ?? 0,
+            lastSeenAtUnixMs: sqliteInt64(statement, column: 17) ?? 0,
+            lastRequestedAtUnixMs: sqliteInt64(statement, column: 18) ?? 0,
+            isArchived: sqliteInt(statement, column: 19) != 0
         )
     }
 
@@ -833,7 +878,8 @@ final class CodexSessionUsageIndex: @unchecked Sendable {
             inputTokens: sqliteInt(statement, column: 4) ?? 0,
             cachedInputTokens: sqliteInt(statement, column: 5) ?? 0,
             outputTokens: sqliteInt(statement, column: 6) ?? 0,
-            updatedAtUnixMs: sqliteInt64(statement, column: 7) ?? 0
+            requestCount: sqliteInt(statement, column: 7) ?? 0,
+            updatedAtUnixMs: sqliteInt64(statement, column: 8) ?? 0
         )
     }
 
@@ -984,7 +1030,8 @@ final class CodexSessionUsageIndex: @unchecked Sendable {
                 minuteBuckets[minuteStartUnixMs] = .init(
                     inputTokens: (current?.inputTokens ?? 0) + tokenDelta.inputTokens,
                     cachedInputTokens: (current?.cachedInputTokens ?? 0) + tokenDelta.cachedInputTokens,
-                    outputTokens: (current?.outputTokens ?? 0) + tokenDelta.outputTokens
+                    outputTokens: (current?.outputTokens ?? 0) + tokenDelta.outputTokens,
+                    requestCount: (current?.requestCount ?? 0) + tokenDelta.requestCount
                 )
                 nextTotals = Self.addDelta(tokenDelta, to: nextTotals)
             }
@@ -995,8 +1042,8 @@ final class CodexSessionUsageIndex: @unchecked Sendable {
                     updatedTotals
                 }
             }
-            if let parsedLine = try? CodexGeneratedFilesParser.parseRolloutLine(data: lineData),
-               let timestamp = Self.parseISO8601(parsedLine.timestamp) {
+            if let rawTimestamp = CodexSessionEventParser.fastTopLevelTimestamp(data: lineData),
+               let timestamp = Self.parseISO8601(rawTimestamp) {
                 if startedAt == nil {
                     startedAt = timestamp
                 }
@@ -1032,7 +1079,8 @@ final class CodexSessionUsageIndex: @unchecked Sendable {
         .init(
             inputTokens: max(0, lhs.inputTokens - (rhs?.inputTokens ?? 0)),
             cachedInputTokens: max(0, lhs.cachedInputTokens - (rhs?.cachedInputTokens ?? 0)),
-            outputTokens: max(0, lhs.outputTokens - (rhs?.outputTokens ?? 0))
+            outputTokens: max(0, lhs.outputTokens - (rhs?.outputTokens ?? 0)),
+            requestCount: max(0, lhs.requestCount - (rhs?.requestCount ?? 0))
         )
     }
 
@@ -1043,7 +1091,8 @@ final class CodexSessionUsageIndex: @unchecked Sendable {
         .init(
             inputTokens: (totals?.inputTokens ?? 0) + delta.inputTokens,
             cachedInputTokens: (totals?.cachedInputTokens ?? 0) + delta.cachedInputTokens,
-            outputTokens: (totals?.outputTokens ?? 0) + delta.outputTokens
+            outputTokens: (totals?.outputTokens ?? 0) + delta.outputTokens,
+            requestCount: (totals?.requestCount ?? 0) + delta.requestCount
         )
     }
 
@@ -1083,6 +1132,7 @@ final class CodexSessionUsageIndex: @unchecked Sendable {
                 input_tokens,
                 cached_input_tokens,
                 output_tokens,
+                request_count,
                 started_at_unix_ms,
                 last_activity_at_unix_ms,
                 updated_at_unix_ms,
@@ -1124,6 +1174,7 @@ final class CodexSessionUsageIndex: @unchecked Sendable {
                 input_tokens,
                 cached_input_tokens,
                 output_tokens,
+                request_count,
                 updated_at_unix_ms
             FROM session_usage_minutes
             WHERE codex_home_path = ?
@@ -1186,6 +1237,34 @@ final class CodexSessionUsageIndex: @unchecked Sendable {
         }
     }
 
+    private func hasRequestlessTokenUsageMinuteEntries(
+        codexHomePath: String,
+        rolloutPath: String
+    ) throws -> Bool {
+        try withDatabase { db in
+            let sql = """
+            SELECT 1
+            FROM session_usage_minutes
+            WHERE codex_home_path = ?
+              AND rollout_path = ?
+              AND (input_tokens > 0 OR cached_input_tokens > 0 OR output_tokens > 0)
+              AND IFNULL(request_count, 0) <= 0
+            LIMIT 1;
+            """
+
+            var statement: OpaquePointer?
+            guard sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK else {
+                throw Self.sqliteError(db: db, code: 24, fallback: "Failed to inspect minute request backfill state.")
+            }
+            defer { sqlite3_finalize(statement) }
+
+            sqlite3_bind_text(statement, 1, codexHomePath, -1, unsafeBitCast(-1, to: sqlite3_destructor_type.self))
+            sqlite3_bind_text(statement, 2, rolloutPath, -1, unsafeBitCast(-1, to: sqlite3_destructor_type.self))
+
+            return sqlite3_step(statement) == SQLITE_ROW
+        }
+    }
+
     private func loadMinuteEntries(
         codexHomePath: String,
         sessionID: String
@@ -1200,6 +1279,7 @@ final class CodexSessionUsageIndex: @unchecked Sendable {
                 input_tokens,
                 cached_input_tokens,
                 output_tokens,
+                request_count,
                 updated_at_unix_ms
             FROM session_usage_minutes
             WHERE codex_home_path = ? AND session_id = ?
@@ -1236,6 +1316,7 @@ final class CodexSessionUsageIndex: @unchecked Sendable {
                 SUM(input_tokens) AS input_tokens,
                 SUM(cached_input_tokens) AS cached_input_tokens,
                 SUM(output_tokens) AS output_tokens,
+                SUM(request_count) AS request_count,
                 MAX(updated_at_unix_ms) AS updated_at_unix_ms
             FROM (
                 SELECT
@@ -1247,6 +1328,7 @@ final class CodexSessionUsageIndex: @unchecked Sendable {
                     MAX(input_tokens) AS input_tokens,
                     MAX(cached_input_tokens) AS cached_input_tokens,
                     MAX(output_tokens) AS output_tokens,
+                    MAX(request_count) AS request_count,
                     MAX(updated_at_unix_ms) AS updated_at_unix_ms
                 FROM session_usage_minutes
                 WHERE codex_home_path = ?
@@ -1286,9 +1368,10 @@ final class CodexSessionUsageIndex: @unchecked Sendable {
                 let totals = CodexSessionTokenTotals(
                     inputTokens: Int(sqlite3_column_int64(statement, 1)),
                     cachedInputTokens: Int(sqlite3_column_int64(statement, 2)),
-                    outputTokens: Int(sqlite3_column_int64(statement, 3))
+                    outputTokens: Int(sqlite3_column_int64(statement, 3)),
+                    requestCount: Int(sqlite3_column_int64(statement, 4))
                 )
-                let updatedAtUnixMs = sqlite3_column_int64(statement, 4)
+                let updatedAtUnixMs = sqlite3_column_int64(statement, 5)
                 handleRow(minuteStartUnixMs, totals, updatedAtUnixMs)
             }
         }
@@ -1305,13 +1388,15 @@ final class CodexSessionUsageIndex: @unchecked Sendable {
             SELECT
                 SUM(input_tokens) AS input_tokens,
                 SUM(cached_input_tokens) AS cached_input_tokens,
-                SUM(output_tokens) AS output_tokens
+                SUM(output_tokens) AS output_tokens,
+                SUM(request_count) AS request_count
             FROM (
                 SELECT
                     minute_start_unix_ms,
                     MAX(input_tokens) AS input_tokens,
                     MAX(cached_input_tokens) AS cached_input_tokens,
-                    MAX(output_tokens) AS output_tokens
+                    MAX(output_tokens) AS output_tokens,
+                    MAX(request_count) AS request_count
                 FROM session_usage_minutes
                 WHERE codex_home_path = ? AND rollout_path IN (\(placeholders))
                 GROUP BY minute_start_unix_ms
@@ -1346,13 +1431,15 @@ final class CodexSessionUsageIndex: @unchecked Sendable {
             SELECT
                 SUM(input_tokens) AS input_tokens,
                 SUM(cached_input_tokens) AS cached_input_tokens,
-                SUM(output_tokens) AS output_tokens
+                SUM(output_tokens) AS output_tokens,
+                SUM(request_count) AS request_count
             FROM (
                 SELECT
                     minute_start_unix_ms,
                     MAX(input_tokens) AS input_tokens,
                     MAX(cached_input_tokens) AS cached_input_tokens,
-                    MAX(output_tokens) AS output_tokens
+                    MAX(output_tokens) AS output_tokens,
+                    MAX(request_count) AS request_count
                 FROM session_usage_minutes
                 WHERE codex_home_path = ? AND session_id = ?
                 GROUP BY minute_start_unix_ms
@@ -1435,13 +1522,15 @@ final class CodexSessionUsageIndex: @unchecked Sendable {
             input_tokens,
             cached_input_tokens,
             output_tokens,
+            request_count,
             updated_at_unix_ms
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(codex_home_path, rollout_path, minute_start_unix_ms) DO UPDATE SET
             session_id = excluded.session_id,
             input_tokens = session_usage_minutes.input_tokens + excluded.input_tokens,
             cached_input_tokens = session_usage_minutes.cached_input_tokens + excluded.cached_input_tokens,
             output_tokens = session_usage_minutes.output_tokens + excluded.output_tokens,
+            request_count = session_usage_minutes.request_count + excluded.request_count,
             updated_at_unix_ms = excluded.updated_at_unix_ms;
         """
 
@@ -1452,7 +1541,7 @@ final class CodexSessionUsageIndex: @unchecked Sendable {
         defer { sqlite3_finalize(statement) }
 
         for minuteStartUnixMs in minuteBuckets.keys.sorted() {
-            let totals = minuteBuckets[minuteStartUnixMs] ?? .init(inputTokens: 0, cachedInputTokens: 0, outputTokens: 0)
+            let totals = minuteBuckets[minuteStartUnixMs] ?? .init(inputTokens: 0, cachedInputTokens: 0, outputTokens: 0, requestCount: 0)
             sqlite3_reset(statement)
             sqlite3_clear_bindings(statement)
 
@@ -1463,7 +1552,8 @@ final class CodexSessionUsageIndex: @unchecked Sendable {
             sqlite3_bind_int64(statement, 5, Int64(totals.inputTokens))
             sqlite3_bind_int64(statement, 6, Int64(totals.cachedInputTokens))
             sqlite3_bind_int64(statement, 7, Int64(totals.outputTokens))
-            sqlite3_bind_int64(statement, 8, updatedAtUnixMs)
+            sqlite3_bind_int64(statement, 8, Int64(totals.requestCount))
+            sqlite3_bind_int64(statement, 9, updatedAtUnixMs)
 
             guard sqlite3_step(statement) == SQLITE_DONE else {
                 throw Self.sqliteError(db: db, code: 13, fallback: "Failed to write minute entry.")
@@ -1534,7 +1624,8 @@ final class CodexSessionUsageIndex: @unchecked Sendable {
             partialResult[key] = .init(
                 inputTokens: max(existing?.inputTokens ?? 0, row.inputTokens),
                 cachedInputTokens: max(existing?.cachedInputTokens ?? 0, row.cachedInputTokens),
-                outputTokens: max(existing?.outputTokens ?? 0, row.outputTokens)
+                outputTokens: max(existing?.outputTokens ?? 0, row.outputTokens),
+                requestCount: max(existing?.requestCount ?? 0, row.requestCount)
             )
         }
     }
@@ -1547,7 +1638,8 @@ final class CodexSessionUsageIndex: @unchecked Sendable {
             partialResult[row.minuteStartUnixMs] = .init(
                 inputTokens: max(existing?.inputTokens ?? 0, row.inputTokens),
                 cachedInputTokens: max(existing?.cachedInputTokens ?? 0, row.cachedInputTokens),
-                outputTokens: max(existing?.outputTokens ?? 0, row.outputTokens)
+                outputTokens: max(existing?.outputTokens ?? 0, row.outputTokens),
+                requestCount: max(existing?.requestCount ?? 0, row.requestCount)
             )
         }
     }
@@ -1573,7 +1665,8 @@ final class CodexSessionUsageIndex: @unchecked Sendable {
         return .init(
             inputTokens: Int(sqlite3_column_int64(statement, 0)),
             cachedInputTokens: Int(sqlite3_column_int64(statement, 1)),
-            outputTokens: Int(sqlite3_column_int64(statement, 2))
+            outputTokens: Int(sqlite3_column_int64(statement, 2)),
+            requestCount: sqlite3_column_type(statement, 3) == SQLITE_NULL ? 0 : Int(sqlite3_column_int64(statement, 3))
         )
     }
 

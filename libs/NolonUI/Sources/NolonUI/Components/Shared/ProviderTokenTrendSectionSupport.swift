@@ -1,6 +1,11 @@
 import NolonUIFoundation
 import SwiftUI
 
+public enum ProviderTokenTrendSectionLayoutMode: Sendable, Equatable {
+    case flowing
+    case standaloneUsageTab
+}
+
 enum ProviderTokenTrendLayoutMetrics {
     static let summaryCardSpacing: CGFloat = 10
     static let summaryCardMinHeight: CGFloat = 88
@@ -11,6 +16,7 @@ enum ProviderTokenTrendLayoutMetrics {
     static let chartMinimumSlotWidth: CGFloat = 28
     static let chartMaximumSlotWidth: CGFloat = 54
     static let chartBarHorizontalInset: CGFloat = 8
+    static let tableNumericColumnWidth: CGFloat = 72
 
     static func summaryGridColumns(metricCount: Int) -> [GridItem] {
         Array(
@@ -20,9 +26,118 @@ enum ProviderTokenTrendLayoutMetrics {
     }
 }
 
+enum ProviderTokenTrendChartSupport {
+    static func resolvedLayout(
+        pointCount: Int,
+        containerWidth: CGFloat
+    ) -> ProviderTokenTrendSectionView.ChartLayout {
+        let resolvedPointCount = max(pointCount, 1)
+        let slotWidth = min(
+            ProviderTokenTrendLayoutMetrics.chartMaximumSlotWidth,
+            max(
+                ProviderTokenTrendLayoutMetrics.chartMinimumSlotWidth,
+                containerWidth / CGFloat(resolvedPointCount)
+            )
+        )
+        let barWidth = max(
+            12,
+            slotWidth - ProviderTokenTrendLayoutMetrics.chartBarHorizontalInset
+        )
+        return ProviderTokenTrendSectionView.ChartLayout(
+            slotWidth: slotWidth,
+            barWidth: barWidth,
+            edgePadding: 4
+        )
+    }
+
+    static func compactTokenCount(_ value: Int?) -> String {
+        guard let value else { return "-" }
+        let absValue = abs(value)
+        switch absValue {
+        case 1_000_000_000...:
+            return String(format: "%.1fB", Double(value) / 1_000_000_000)
+        case 1_000_000...:
+            return String(format: "%.1fM", Double(value) / 1_000_000)
+        case 1_000...:
+            return String(format: "%.1fK", Double(value) / 1_000)
+        default:
+            return "\(value)"
+        }
+    }
+
+    static func resolvedValue(
+        for point: ProviderTokenTrendPointData,
+        metricMode: ProviderTokenTrendMetricMode
+    ) -> Int {
+        switch metricMode {
+        case .tokens:
+            return point.totalTokens
+        case .requests:
+            return point.requestCount
+        }
+    }
+
+    static func resolvedValue(
+        for point: ProviderIntradayUsagePointData,
+        metricMode: ProviderTokenTrendMetricMode
+    ) -> Int {
+        switch metricMode {
+        case .tokens:
+            return point.totalTokens
+        case .requests:
+            return point.requestCount
+        }
+    }
+
+    static func lineLegendTitle(metricMode: ProviderTokenTrendMetricMode) -> String {
+        switch metricMode {
+        case .tokens:
+            return "Total"
+        case .requests:
+            return "Requests"
+        }
+    }
+}
+
+struct ProviderTokenTrendIntradayLinePlotPoint: Identifiable {
+    let point: ProviderIntradayUsagePointData
+    let x: CGFloat
+    let y: CGFloat
+    let valueLabel: String
+
+    var id: String { point.rangeLabel }
+}
+
+enum ProviderTokenTrendIntradayChartSupport {
+    static func linePlotPoints(
+        for points: [ProviderIntradayUsagePointData],
+        maxValue: Int,
+        slotWidth: CGFloat,
+        plotHeight: CGFloat,
+        metricMode: ProviderTokenTrendMetricMode = .tokens
+    ) -> [ProviderTokenTrendIntradayLinePlotPoint] {
+        points.enumerated().map { index, point in
+            let x = (CGFloat(index) * slotWidth) + (slotWidth / 2)
+            let value = ProviderTokenTrendChartSupport.resolvedValue(
+                for: point,
+                metricMode: metricMode
+            )
+            let ratio = maxValue > 0 ? CGFloat(value) / CGFloat(maxValue) : 0
+            let clampedRatio = min(max(ratio, 0), 1)
+            let y = max(18, plotHeight - (clampedRatio * max(plotHeight - 22, 1)))
+            return ProviderTokenTrendIntradayLinePlotPoint(
+                point: point,
+                x: x,
+                y: y,
+                valueLabel: ProviderTokenTrendChartSupport.compactTokenCount(value)
+            )
+        }
+    }
+}
+
 extension ProviderTokenTrendSectionView {
     enum SortKey {
-        case date, total, input, output, cache
+        case date, total, input, output, cache, requests
     }
 
     struct ChartLayout {
@@ -35,6 +150,7 @@ extension ProviderTokenTrendSectionView {
         let point: ProviderTokenTrendPointData
         let x: CGFloat
         let y: CGFloat
+        let valueLabel: String
 
         var id: String { point.date }
     }
@@ -50,22 +166,9 @@ extension ProviderTokenTrendSectionView {
     }
 
     func resolvedChartLayout(pointCount: Int, containerWidth: CGFloat) -> ChartLayout {
-        let resolvedPointCount = max(pointCount, 1)
-        let slotWidth = min(
-            ProviderTokenTrendLayoutMetrics.chartMaximumSlotWidth,
-            max(
-                ProviderTokenTrendLayoutMetrics.chartMinimumSlotWidth,
-                containerWidth / CGFloat(resolvedPointCount)
-            )
-        )
-        let barWidth = max(
-            12,
-            slotWidth - ProviderTokenTrendLayoutMetrics.chartBarHorizontalInset
-        )
-        return ChartLayout(
-            slotWidth: slotWidth,
-            barWidth: barWidth,
-            edgePadding: 4
+        ProviderTokenTrendChartSupport.resolvedLayout(
+            pointCount: pointCount,
+            containerWidth: containerWidth
         )
     }
 
@@ -73,14 +176,24 @@ extension ProviderTokenTrendSectionView {
         for points: [ProviderTokenTrendPointData],
         maxValue: Int,
         slotWidth: CGFloat,
-        plotHeight: CGFloat
+        plotHeight: CGFloat,
+        metricMode: ProviderTokenTrendMetricMode = .tokens
     ) -> [LinePlotPoint] {
         points.enumerated().map { index, point in
             let x = (CGFloat(index) * slotWidth) + (slotWidth / 2)
-            let ratio = maxValue > 0 ? CGFloat(point.totalTokens) / CGFloat(maxValue) : 0
+            let value = ProviderTokenTrendChartSupport.resolvedValue(
+                for: point,
+                metricMode: metricMode
+            )
+            let ratio = maxValue > 0 ? CGFloat(value) / CGFloat(maxValue) : 0
             let clampedRatio = min(max(ratio, 0), 1)
-            let y = max(10, plotHeight - (clampedRatio * max(plotHeight - 12, 1)))
-            return LinePlotPoint(point: point, x: x, y: y)
+            let y = max(18, plotHeight - (clampedRatio * max(plotHeight - 22, 1)))
+            return LinePlotPoint(
+                point: point,
+                x: x,
+                y: y,
+                valueLabel: ProviderTokenTrendChartSupport.compactTokenCount(value)
+            )
         }
     }
 
@@ -97,6 +210,19 @@ extension ProviderTokenTrendSectionView {
             )
             .frame(width: diameter, height: diameter)
             .position(x: plotPoint.x, y: plotPoint.y)
+    }
+
+    func lineValueLabel(_ plotPoint: LinePlotPoint, isSelected: Bool) -> some View {
+        Text(plotPoint.valueLabel)
+            .font(.system(size: 8, weight: isSelected ? .bold : .semibold))
+            .monospacedDigit()
+            .foregroundStyle(
+                isSelected
+                    ? DesignSystem.Colors.Text.primary
+                    : DesignSystem.Colors.Text.secondary
+            )
+            .frame(width: 44)
+            .position(x: plotPoint.x, y: max(8, plotPoint.y - 14))
     }
 
     @ViewBuilder

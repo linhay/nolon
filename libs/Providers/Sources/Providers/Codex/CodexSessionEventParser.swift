@@ -20,11 +20,18 @@ public struct CodexSessionTokenTotals: Sendable, Equatable {
     public let inputTokens: Int
     public let cachedInputTokens: Int
     public let outputTokens: Int
+    public let requestCount: Int
 
-    public init(inputTokens: Int, cachedInputTokens: Int, outputTokens: Int) {
+    public init(
+        inputTokens: Int,
+        cachedInputTokens: Int,
+        outputTokens: Int,
+        requestCount: Int = 0
+    ) {
         self.inputTokens = inputTokens
         self.cachedInputTokens = cachedInputTokens
         self.outputTokens = outputTokens
+        self.requestCount = requestCount
     }
 }
 
@@ -34,19 +41,22 @@ public struct CodexSessionTokenDelta: Sendable, Equatable {
     public let inputTokens: Int
     public let cachedInputTokens: Int
     public let outputTokens: Int
+    public let requestCount: Int
 
     public init(
         timestamp: String?,
         model: String,
         inputTokens: Int,
         cachedInputTokens: Int,
-        outputTokens: Int)
+        outputTokens: Int,
+        requestCount: Int = 1)
     {
         self.timestamp = timestamp
         self.model = model
         self.inputTokens = inputTokens
         self.cachedInputTokens = cachedInputTokens
         self.outputTokens = outputTokens
+        self.requestCount = requestCount
     }
 }
 
@@ -70,6 +80,11 @@ public struct CodexSessionUsageReduction: Sendable, Equatable {
 }
 
 public enum CodexSessionEventParser {
+    struct FastRolloutEnvelope: Equatable, Sendable {
+        let timestamp: String?
+        let type: String?
+    }
+
     public static func parseEventLine(data: Data) throws -> CodexSessionEvent {
         let parsed = try CodexGeneratedFilesParser.parseRolloutLine(data: data)
         switch parsed.item {
@@ -100,14 +115,20 @@ public enum CodexSessionEventParser {
     // Usage scanner fast path: only parse lines that can affect usage/session stats.
     public static func parseUsageEventLine(data: Data) -> CodexSessionUsageEvent? {
         if data.isEmpty { return nil }
+        guard let envelope = fastTopLevelEnvelope(data: data),
+              let lineType = envelope.type
+        else {
+            return nil
+        }
 
-        let hasEventMsg = containsASCII(data: data, text: #"event_msg"#)
-        let hasTokenCount = containsASCII(data: data, text: #"token_count"#)
-        let hasTurnContext = containsASCII(data: data, text: #"turn_context"#)
-        let hasSessionMeta = containsASCII(data: data, text: #"session_meta"#)
-
-        guard hasEventMsg || hasTurnContext || hasSessionMeta || hasTokenCount else { return nil }
-        if hasEventMsg && !hasTokenCount { return nil }
+        switch lineType {
+        case "session_meta", "turn_context", "token_count":
+            break
+        case "event_msg":
+            guard containsASCII(data: data, text: #"token_count"#) else { return nil }
+        default:
+            return nil
+        }
 
         guard let event = try? parseEventLine(data: data) else { return nil }
         switch event {
@@ -167,7 +188,9 @@ public enum CodexSessionEventParser {
                 nextTotals = .init(
                     inputTokens: total.inputTokens,
                     cachedInputTokens: total.cachedInputTokens,
-                    outputTokens: total.outputTokens)
+                    outputTokens: total.outputTokens,
+                    requestCount: previousTotals?.requestCount ?? 0
+                )
             } else if let last = tokenCount.lastUsage {
                 deltaInput = max(0, last.inputTokens)
                 deltaCached = max(0, last.cachedInputTokens)
@@ -186,7 +209,9 @@ public enum CodexSessionEventParser {
                         model: model,
                         inputTokens: deltaInput,
                         cachedInputTokens: clampedCached,
-                        outputTokens: deltaOutput)
+                        outputTokens: deltaOutput,
+                        requestCount: 1
+                    )
                 }
 
             return .init(
@@ -199,5 +224,116 @@ public enum CodexSessionEventParser {
 
     private static func containsASCII(data: Data, text: String) -> Bool {
         data.range(of: Data(text.utf8)) != nil
+    }
+
+    static func fastTopLevelTimestamp(data: Data) -> String? {
+        fastTopLevelEnvelope(data: data)?.timestamp
+    }
+
+    static func fastTopLevelEnvelope(data: Data) -> FastRolloutEnvelope? {
+        guard !data.isEmpty else { return nil }
+
+        var depth = 0
+        var inString = false
+        var escaping = false
+        var currentString = [UInt8]()
+        var pendingTopLevelKey: String?
+        var expectingValueForKey = false
+        var currentStringPurpose: StringPurpose?
+        var timestamp: String?
+        var type: String?
+
+        for byte in data {
+            if inString {
+                if escaping {
+                    currentString.append(byte)
+                    escaping = false
+                    continue
+                }
+
+                switch byte {
+                case 0x5C:
+                    escaping = true
+                case 0x22:
+                    let decoded = String(decoding: currentString, as: UTF8.self)
+                    currentString.removeAll(keepingCapacity: true)
+                    inString = false
+
+                    switch currentStringPurpose {
+                    case .key:
+                        pendingTopLevelKey = decoded
+                    case .value:
+                        if pendingTopLevelKey == "timestamp" {
+                            timestamp = decoded
+                        } else if pendingTopLevelKey == "type" {
+                            type = decoded
+                        }
+                        pendingTopLevelKey = nil
+                        expectingValueForKey = false
+                        if timestamp != nil, type != nil {
+                            return .init(timestamp: timestamp, type: type)
+                        }
+                    case .none:
+                        break
+                    }
+                    currentStringPurpose = nil
+                default:
+                    currentString.append(byte)
+                }
+                continue
+            }
+
+            switch byte {
+            case 0x7B, 0x5B:
+                if depth == 1, expectingValueForKey {
+                    pendingTopLevelKey = nil
+                    expectingValueForKey = false
+                }
+                depth += 1
+
+            case 0x7D, 0x5D:
+                depth = max(0, depth - 1)
+                if depth == 1 {
+                    pendingTopLevelKey = nil
+                    expectingValueForKey = false
+                }
+
+            case 0x22:
+                guard depth == 1 else { continue }
+                inString = true
+                currentString.removeAll(keepingCapacity: true)
+                currentStringPurpose = expectingValueForKey ? .value : .key
+
+            case 0x3A:
+                if depth == 1, pendingTopLevelKey != nil {
+                    expectingValueForKey = true
+                }
+
+            case 0x2C:
+                if depth == 1 {
+                    pendingTopLevelKey = nil
+                    expectingValueForKey = false
+                }
+
+            case 0x20, 0x09, 0x0A, 0x0D:
+                continue
+
+            default:
+                if depth == 1, expectingValueForKey {
+                    pendingTopLevelKey = nil
+                    expectingValueForKey = false
+                }
+            }
+        }
+
+        if timestamp != nil || type != nil {
+            return .init(timestamp: timestamp, type: type)
+        }
+        return nil
+    }
+
+    private enum StringPurpose {
+        case key
+        case value
     }
 }

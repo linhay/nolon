@@ -55,11 +55,13 @@ final class ProviderTokenTrendModelsTests: XCTestCase {
             totalTokens: 120,
             inputTokens: 80,
             outputTokens: 30,
-            cacheReadTokens: 10
+            cacheReadTokens: 10,
+            requestCount: 3
         )
 
         XCTAssertEqual(point.label, "09:30")
         XCTAssertEqual(point.rangeLabel, "09:30-10:00")
+        XCTAssertEqual(point.requestCount, 3)
     }
 
     func testTokenTrendDrilldownData_RetainsPresentationFields() {
@@ -115,6 +117,8 @@ final class ProviderTokenTrendModelsTests: XCTestCase {
         XCTAssertEqual(ProviderTokenTrendChartStyle.line.rawValue, "line")
         XCTAssertEqual(ProviderTokenTrendContentTab.daily.rawValue, "daily")
         XCTAssertEqual(ProviderTokenTrendContentTab.intraday.rawValue, "intraday")
+        XCTAssertEqual(ProviderTokenTrendMetricMode.tokens.rawValue, "tokens")
+        XCTAssertEqual(ProviderTokenTrendMetricMode.requests.rawValue, "requests")
     }
 
     func testTokenTrendSectionData_RetainsPresentationState() {
@@ -123,6 +127,7 @@ final class ProviderTokenTrendModelsTests: XCTestCase {
             refreshStatus: nil,
             drilldown: nil,
             supportsIntradayDrilldown: true,
+            metricMode: .requests,
             chartStyle: .line,
             activeTab: .intraday,
             selectedDayKey: "2026-04-22",
@@ -133,6 +138,7 @@ final class ProviderTokenTrendModelsTests: XCTestCase {
         )
 
         XCTAssertTrue(data.supportsIntradayDrilldown)
+        XCTAssertEqual(data.metricMode, .requests)
         XCTAssertEqual(data.chartStyle, .line)
         XCTAssertEqual(data.activeTab, .intraday)
         XCTAssertEqual(data.selectedDayKey, "2026-04-22")

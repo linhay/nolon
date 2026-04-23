@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 import ProviderCatalog
 import ProviderUsage
 import CodexBarProviderCatalog
@@ -92,6 +93,7 @@ struct ProviderUsageView: View, DebugPageLocatable {
         } content: {
             content
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .task(id: provider.id) {
             syncSettingsFromStore()
             _ = await rootViewModel.loadIfNeeded(for: pageMode)
@@ -564,10 +566,8 @@ extension ProviderUsageView {
         NolonUI.PaddedScrollContainer(
             padding: EdgeInsets(top: 2, leading: 0, bottom: 2, trailing: 12)
         ) {
-            LazyVStack(alignment: .leading, spacing: 16) {
-                tokenTrendSection
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
+            tokenTrendSection
+                .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 
@@ -702,19 +702,23 @@ extension ProviderUsageView {
             snapshot: tokenTrendViewModel.tokenTrendSnapshot,
             refreshStatus: tokenTrendViewModel.tokenTrendRefreshStatus,
             capability: tokenTrendViewModel.tokenTrendCapability,
+            layoutMode: pageMode == .usage ? .standaloneUsageTab : .flowing,
             selectedDayKey: tokenTrendViewModel.selectedDayKey,
             intradayBucket: tokenTrendViewModel.intradayBucket,
+            availableIntradayBuckets: tokenTrendViewModel.availableIntradayBuckets,
             intradaySnapshot: tokenTrendViewModel.intradaySnapshot,
             intradayErrorMessage: tokenTrendViewModel.intradayErrorMessage,
             isLoadingIntraday: tokenTrendViewModel.isLoadingIntraday,
             isLoading: tokenTrendViewModel.isLoadingTokenTrend,
             errorMessage: tokenTrendViewModel.tokenTrendErrorMessage,
             range: tokenTrendViewModel.tokenTrendRange,
+            metricMode: tokenTrendViewModel.metricMode,
             chartStyle: tokenTrendViewModel.chartStyle,
             activeTab: tokenTrendViewModel.activeContentTab,
             onRangeChange: { tokenTrendViewModel.setRange($0) },
             onSelectDay: { tokenTrendViewModel.selectDay($0) },
             onIntradayBucketChange: { tokenTrendViewModel.setIntradayBucket($0) },
+            onMetricModeChange: { tokenTrendViewModel.setMetricMode($0) },
             onChartStyleChange: { tokenTrendViewModel.setChartStyle($0) },
             onContentTabChange: { tokenTrendViewModel.setContentTab($0) },
             onRefresh: { tokenTrendViewModel.refreshNow() },
@@ -1390,7 +1394,6 @@ extension ProviderUsageView {
         }
     }
 }
-
 
 // MARK: - Codex Compact List
 

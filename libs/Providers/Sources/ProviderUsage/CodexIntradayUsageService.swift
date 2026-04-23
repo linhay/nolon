@@ -1,59 +1,22 @@
 import Foundation
-import CodexBarProviderCatalog
 import CodexProvider
 
-public struct CostUsageQuarterHourDay: Sendable, Equatable {
-    public let dayKey: String
-    public let quarterHours: [String: [Int]]
-    public let updatedAt: Date
-    public let sourceLabel: String
-
-    public init(
-        dayKey: String,
-        quarterHours: [String: [Int]],
-        updatedAt: Date,
-        sourceLabel: String
-    ) {
-        self.dayKey = dayKey
-        self.quarterHours = quarterHours
-        self.updatedAt = updatedAt
-        self.sourceLabel = sourceLabel
-    }
-}
-
 public struct CodexIntradayUsageService: Sendable {
-    public typealias QuarterHoursLoader = @Sendable (
-        _ provider: UsageProvider,
+    public typealias ProjectedUsageLoader = @Sendable (
         _ dayKey: String,
         _ timezone: TimeZone,
         _ forceRefresh: Bool,
         _ environment: [String: String]
-    ) async throws -> CostUsageQuarterHourDay?
+    ) async throws -> CodexSessionProjectedUsage?
 
-    private let loadQuarterHours: QuarterHoursLoader
+    private let loadProjectedUsage: ProjectedUsageLoader
     private let now: @Sendable () -> Date
 
     public init(
-        loadQuarterHours: @escaping QuarterHoursLoader = { provider, dayKey, timezone, forceRefresh, environment in
-            let fetched = try await CodexQuarterHourUsageFetcher().loadQuarterHourDay(
-                provider: provider,
-                dayKey: dayKey,
-                timezone: timezone,
-                forceRefresh: forceRefresh,
-                environment: environment
-            )
-            return fetched.map {
-                CostUsageQuarterHourDay(
-                    dayKey: $0.dayKey,
-                    quarterHours: $0.quarterHours,
-                    updatedAt: $0.updatedAt,
-                    sourceLabel: $0.sourceLabel
-                )
-            }
-        },
+        loadProjectedUsage: ProjectedUsageLoader? = nil,
         now: @escaping @Sendable () -> Date = Date.init
     ) {
-        self.loadQuarterHours = loadQuarterHours
+        self.loadProjectedUsage = loadProjectedUsage ?? Self.defaultProjectedUsageLoader
         self.now = now
     }
 
@@ -71,9 +34,9 @@ public struct CodexIntradayUsageService: Sendable {
         var globalEnvironment = environment
         globalEnvironment.removeValue(forKey: "CODEX_HOME")
 
-        let quarterHourDay = try await loadQuarterHours(.codex, dayKey, timezone, false, globalEnvironment)
+        let projectedUsage = try await loadProjectedUsage(dayKey, timezone, false, globalEnvironment)
         return Self.buildSnapshot(
-            from: quarterHourDay,
+            from: projectedUsage,
             dayKey: dayKey,
             bucket: bucket,
             timezone: timezone,
@@ -85,7 +48,7 @@ public struct CodexIntradayUsageService: Sendable {
     }
 
     private static func buildSnapshot(
-        from day: CostUsageQuarterHourDay?,
+        from projectedUsage: CodexSessionProjectedUsage?,
         dayKey: String,
         bucket: ProviderIntradayBucket,
         timezone: TimeZone,
@@ -93,34 +56,32 @@ public struct CodexIntradayUsageService: Sendable {
         rangeEnd: Date,
         fallbackFetchedAt: Date
     ) -> ProviderIntradayUsageSnapshot {
-        let bucketSeconds = Self.bucketSeconds(for: bucket)
-        let actualBucketCount = Int((rangeEnd.timeIntervalSince(rangeStart) / bucketSeconds).rounded())
+        let bucketSeconds = bucket.seconds
+        let actualBucketCount = Int(ceil(rangeEnd.timeIntervalSince(rangeStart) / bucketSeconds))
         var totals = Array(
             repeating: IntradayBucketTotals(),
             count: max(0, actualBucketCount)
         )
 
-        for (quarterHourKey, packed) in day?.quarterHours ?? [:] {
-            guard let bucketStart = Self.makeBucketStart(
-                dayKey: dayKey,
-                bucketKey: quarterHourKey,
-                timezone: timezone
-            ) else {
-                continue
-            }
-            guard bucketStart >= rangeStart, bucketStart < rangeEnd, !totals.isEmpty else {
+        for entry in projectedUsage?.entries ?? [] {
+            let bucketStart = entry.minuteStartAt
+            guard bucketStart >= rangeStart,
+                  bucketStart < rangeEnd,
+                  !totals.isEmpty else {
                 continue
             }
 
             let rawIndex = Int(bucketStart.timeIntervalSince(rangeStart) / bucketSeconds)
             let index = min(max(0, rawIndex), totals.count - 1)
-            let input = max(0, packed[safe: 0] ?? 0)
-            let cache = max(0, packed[safe: 1] ?? 0)
-            let output = max(0, packed[safe: 2] ?? 0)
+            let input = max(0, entry.inputTokens)
+            let cache = max(0, entry.cachedInputTokens)
+            let output = max(0, entry.outputTokens)
+            let requests = max(0, entry.requestCount)
             totals[index].input += input
             totals[index].cache += cache
             totals[index].output += output
             totals[index].total += input + output
+            totals[index].requests += requests
         }
 
         let points = totals.enumerated().map { index, item in
@@ -132,7 +93,8 @@ public struct CodexIntradayUsageService: Sendable {
                 totalTokens: item.total,
                 inputTokens: item.input,
                 outputTokens: item.output,
-                cacheReadTokens: item.cache
+                cacheReadTokens: item.cache,
+                requestCount: item.requests
             )
         }
 
@@ -144,12 +106,12 @@ public struct CodexIntradayUsageService: Sendable {
             rangeStart: rangeStart,
             rangeEnd: rangeEnd,
             points: points,
-            fetchedAt: day?.updatedAt ?? fallbackFetchedAt,
-            sourceLabel: day?.sourceLabel ?? "global local usage"
+            fetchedAt: projectedUsage?.updatedAt ?? fallbackFetchedAt,
+            sourceLabel: projectedUsage?.sourceLabel ?? "global local usage"
         )
     }
 
-    private static func makeDayRange(dayKey: String, timezone: TimeZone) -> (start: Date, end: Date)? {
+    static func makeDayRange(dayKey: String, timezone: TimeZone) -> (start: Date, end: Date)? {
         let formatter = DateFormatter()
         formatter.calendar = Self.calendar(timezone: timezone)
         formatter.locale = Locale(identifier: "en_US_POSIX")
@@ -173,21 +135,57 @@ public struct CodexIntradayUsageService: Sendable {
         return formatter.date(from: "\(dayKey) \(bucketKey)")
     }
 
-    private static func bucketSeconds(for bucket: ProviderIntradayBucket) -> TimeInterval {
-        switch bucket {
-        case .minute15:
-            return 15 * 60
-        case .minute30:
-            return 30 * 60
-        case .hour1:
-            return 60 * 60
-        }
-    }
-
     private static func calendar(timezone: TimeZone) -> Calendar {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = timezone
         return calendar
+    }
+
+    static func defaultProjectedUsageLoader(
+        dayKey: String,
+        timezone: TimeZone,
+        forceRefresh: Bool,
+        environment: [String: String]
+    ) throws -> CodexSessionProjectedUsage? {
+        guard let range = Self.makeDayRange(dayKey: dayKey, timezone: timezone) else {
+            return nil
+        }
+        let codexHome = Self.resolveCodexHomeURL(environment: environment)
+        let store = CodexSessionStore()
+
+        if forceRefresh {
+            let projected = try store.loadProjectedUsageMinutes(
+                codexHome: codexHome,
+                rangeStart: range.start,
+                rangeEnd: range.end
+            )
+            return projected.entries.isEmpty ? nil : projected
+        }
+
+        if let cached = try? store.loadCachedProjectedUsageMinutes(
+            codexHome: codexHome,
+            rangeStart: range.start,
+            rangeEnd: range.end
+        ),
+           !cached.entries.isEmpty {
+            return cached
+        }
+
+        let projected = try store.loadProjectedUsageMinutes(
+            codexHome: codexHome,
+            rangeStart: range.start,
+            rangeEnd: range.end
+        )
+        return projected.entries.isEmpty ? nil : projected
+    }
+
+    static func resolveCodexHomeURL(environment: [String: String]) -> URL {
+        if let override = environment["CODEX_HOME"]?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !override.isEmpty {
+            return URL(fileURLWithPath: override, isDirectory: true)
+        }
+        return URL(fileURLWithPath: NSHomeDirectory(), isDirectory: true)
+            .appendingPathComponent(".codex", isDirectory: true)
     }
 }
 
@@ -196,10 +194,5 @@ private struct IntradayBucketTotals: Sendable {
     var input = 0
     var output = 0
     var cache = 0
-}
-
-private extension Array {
-    subscript(safe index: Int) -> Element? {
-        indices.contains(index) ? self[index] : nil
-    }
+    var requests = 0
 }

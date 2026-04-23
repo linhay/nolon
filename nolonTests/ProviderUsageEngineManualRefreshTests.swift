@@ -655,6 +655,134 @@ final class ProviderUsageEngineManualRefreshTests: XCTestCase {
         XCTAssertEqual(viewModel.tokenTrendSnapshot, refreshedSnapshot)
     }
 
+    func testBDD_GivenCodexInitialIndexBuildProgressNotification_WhenRefreshingTokenTrend_ThenPublishesReadableBuildStatus() async throws {
+        let provider = Provider(
+            name: "Codex",
+            defaultSkillsPath: "/tmp/codex-skills",
+            workflowPath: "/tmp/codex-prompts",
+            installMethod: .symlink,
+            templateId: "codex"
+        )
+        let refreshedSnapshot = ProviderTokenTrendSnapshot(
+            points: [
+                ProviderTokenTrendPoint(
+                    date: "2026-04-21",
+                    totalTokens: 120,
+                    inputTokens: 90,
+                    outputTokens: 30,
+                    cacheReadTokens: 12
+                )
+            ],
+            todayTokens: 120,
+            last7DaysTokens: 120,
+            last30DaysTokens: 120,
+            allDaysTokens: 120,
+            updatedAt: Date(timeIntervalSince1970: 1_745_276_400),
+            sourceLabel: "global local usage"
+        )
+        let gate = AsyncGate()
+        let viewModel = ProviderUsageEngine(
+            provider: provider,
+            codexTokenTrendFetchAction: { _ in
+                await gate.wait()
+                return refreshedSnapshot
+            },
+            providerIntradayFetchAction: { _, _, _ in nil }
+        )
+        let expectedCodexHomePath = URL(fileURLWithPath: NSHomeDirectory(), isDirectory: true)
+            .appendingPathComponent(".codex", isDirectory: true)
+            .path
+
+        let refreshTask = Task {
+            await viewModel.refreshTokenTrendForTesting()
+        }
+
+        try await waitUntil { viewModel.isLoadingTokenTrend }
+
+        NotificationCenter.default.post(
+            name: CodexSessionStore.performanceNotification,
+            object: nil,
+            userInfo: [
+                "operation": "prepare_projected_usage_index",
+                "phase": "started",
+                "trace_id": "trace-prepare-1",
+                "codex_home_path": expectedCodexHomePath,
+                "detail_phase": "reconcile_rollouts",
+                "scanned_file_count": 64,
+                "cached_entry_count": 0,
+                "dirty_rollout_count": 64,
+            ]
+        )
+
+        try await waitUntil {
+            viewModel.tokenTrendRefreshStatus?.title == "正在准备建立索引"
+        }
+        XCTAssertEqual(
+            viewModel.tokenTrendRefreshStatus?.detail,
+            "已扫描 64 个会话文件，命中 0 条缓存记录，准备建立 64 个本地索引条目。"
+        )
+        XCTAssertEqual(viewModel.tokenTrendRefreshStatus?.progressLabel, "0 / 64")
+        XCTAssertEqual(viewModel.tokenTrendRefreshStatus?.fractionCompleted, 0)
+
+        NotificationCenter.default.post(
+            name: CodexSessionStore.performanceNotification,
+            object: nil,
+            userInfo: [
+                "operation": "prepare_projected_usage_index",
+                "phase": "progress",
+                "trace_id": "trace-prepare-1",
+                "codex_home_path": expectedCodexHomePath,
+                "detail_phase": "analyze_rollout",
+                "dirty_rollout_count": 64,
+                "processed_rollout_count": 12,
+                "current_rollout_path": "sessions/2026/04/22/build-progress.jsonl",
+                "current_database_name": "usage-index-v1.sqlite",
+            ]
+        )
+
+        try await waitUntil {
+            viewModel.tokenTrendRefreshStatus?.title == "正在建立文件索引"
+        }
+        XCTAssertEqual(
+            viewModel.tokenTrendRefreshStatus?.detail,
+            "正在解析 04/22/build-progress.jsonl，并写入它的本地 minute 索引。"
+        )
+        XCTAssertEqual(viewModel.tokenTrendRefreshStatus?.progressLabel, "12 / 64")
+        XCTAssertEqual(viewModel.tokenTrendRefreshStatus?.fractionCompleted, 12.0 / 64.0)
+
+        NotificationCenter.default.post(
+            name: CodexSessionStore.performanceNotification,
+            object: nil,
+            userInfo: [
+                "operation": "prepare_projected_usage_index",
+                "phase": "progress",
+                "trace_id": "trace-prepare-1",
+                "codex_home_path": expectedCodexHomePath,
+                "detail_phase": "rollout_completed",
+                "dirty_rollout_count": 64,
+                "processed_rollout_count": 13,
+                "refreshed_live_rollout_count": 10,
+                "refreshed_archived_rollout_count": 3,
+                "current_rollout_path": "sessions/2026/04/22/build-progress.jsonl",
+            ]
+        )
+
+        try await waitUntil {
+            viewModel.tokenTrendRefreshStatus?.progressLabel == "13 / 64"
+        }
+        XCTAssertEqual(viewModel.tokenTrendRefreshStatus?.title, "正在建立派生用量索引")
+        XCTAssertEqual(
+            viewModel.tokenTrendRefreshStatus?.detail,
+            "已刷新 live 10 个、archived 3 个，刚完成 04/22/build-progress.jsonl。"
+        )
+
+        await gate.open()
+        await refreshTask.value
+
+        try await waitUntil { viewModel.tokenTrendRefreshStatus == nil }
+        XCTAssertEqual(viewModel.tokenTrendSnapshot, refreshedSnapshot)
+    }
+
     func testBDD_GivenSelectedCodexTrendDay_WhenRefreshingTokenTrend_ThenRefreshesIntradayDrilldownTogether() async throws {
         let provider = Provider(
             name: "Codex",

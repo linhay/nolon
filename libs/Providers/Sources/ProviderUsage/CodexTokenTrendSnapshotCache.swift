@@ -7,7 +7,7 @@ final class CodexTokenTrendSnapshotCache: @unchecked Sendable {
         let snapshot: ProviderTokenTrendSnapshot
     }
 
-    private static let schemaVersion = 2
+    private static let schemaVersion = 3
 
     private let fileManager: FileManager
     private let rootDirectory: URL

@@ -102,20 +102,26 @@ struct GeminiTokenTrendServiceTests {
                 totalTokens: 110,
                 inputTokens: 80,
                 outputTokens: 30,
-                cacheReadTokens: 5
+                cacheReadTokens: 5,
+                requestCount: 1
             ),
             ProviderTokenTrendPoint(
                 date: "2026-03-08",
                 totalTokens: 220,
                 inputTokens: 160,
                 outputTokens: 60,
-                cacheReadTokens: 35
+                cacheReadTokens: 35,
+                requestCount: 2
             ),
         ])
         #expect(snapshot.todayTokens == 220)
+        #expect(snapshot.todayRequests == 2)
         #expect(snapshot.last7DaysTokens == 330)
+        #expect(snapshot.last7DaysRequests == 3)
         #expect(snapshot.last30DaysTokens == 330)
+        #expect(snapshot.last30DaysRequests == 3)
         #expect(snapshot.allDaysTokens == 330)
+        #expect(snapshot.allDaysRequests == 3)
         #expect(snapshot.sourceLabel == "session")
     }
 
@@ -242,13 +248,18 @@ struct GeminiTokenTrendServiceTests {
                 totalTokens: 150,
                 inputTokens: 120,
                 outputTokens: 30,
-                cacheReadTokens: 10
+                cacheReadTokens: 10,
+                requestCount: 1
             ),
         ])
         #expect(snapshot.todayTokens == 150)
+        #expect(snapshot.todayRequests == 1)
         #expect(snapshot.last7DaysTokens == 150)
+        #expect(snapshot.last7DaysRequests == 1)
         #expect(snapshot.last30DaysTokens == 150)
+        #expect(snapshot.last30DaysRequests == 1)
         #expect(snapshot.allDaysTokens == 150)
+        #expect(snapshot.allDaysRequests == 1)
     }
 
     @Test("Returns zero for today when latest Gemini session is before current date")

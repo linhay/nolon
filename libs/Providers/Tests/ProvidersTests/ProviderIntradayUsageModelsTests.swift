@@ -6,9 +6,22 @@ import Testing
 struct ProviderIntradayUsageModelsTests {
     @Test("Intraday bucket titles stay aligned with product copy")
     func intradayBucket_titles() {
+        #expect(ProviderIntradayBucket.minute1.title == "1min")
+        #expect(ProviderIntradayBucket.minute5.title == "5min")
+        #expect(ProviderIntradayBucket.minute10.title == "10min")
         #expect(ProviderIntradayBucket.minute15.title == "15min")
         #expect(ProviderIntradayBucket.minute30.title == "30min")
         #expect(ProviderIntradayBucket.hour1.title == "60min")
+    }
+
+    @Test("Intraday bucket seconds stay aligned with aggregation math")
+    func intradayBucket_seconds() {
+        #expect(ProviderIntradayBucket.minute1.seconds == 60)
+        #expect(ProviderIntradayBucket.minute5.seconds == 5 * 60)
+        #expect(ProviderIntradayBucket.minute10.seconds == 10 * 60)
+        #expect(ProviderIntradayBucket.minute15.seconds == 15 * 60)
+        #expect(ProviderIntradayBucket.minute30.seconds == 30 * 60)
+        #expect(ProviderIntradayBucket.hour1.seconds == 60 * 60)
     }
 
     @Test("Intraday snapshot keeps required metadata")
@@ -21,7 +34,8 @@ struct ProviderIntradayUsageModelsTests {
             totalTokens: 120,
             inputTokens: 70,
             outputTokens: 30,
-            cacheReadTokens: 20
+            cacheReadTokens: 20,
+            requestCount: 4
         )
 
         let snapshot = ProviderIntradayUsageSnapshot(
@@ -43,6 +57,7 @@ struct ProviderIntradayUsageModelsTests {
         #expect(snapshot.rangeStart == start)
         #expect(snapshot.rangeEnd == end)
         #expect(snapshot.points == [point])
+        #expect(snapshot.points.first?.requestCount == 4)
     }
 
     @Test("Intraday presentation removes all zero buckets and hides future time for today")
@@ -109,7 +124,8 @@ struct ProviderIntradayUsageModelsTests {
             totalTokens: total,
             inputTokens: total,
             outputTokens: 0,
-            cacheReadTokens: 0
+            cacheReadTokens: 0,
+            requestCount: total > 0 ? 1 : 0
         )
     }
 

@@ -487,21 +487,191 @@ public struct CodexSessionStore: Sendable {
     private func prepareProjectedUsageIndex(
         codexHome: URL
     ) throws -> Set<String> {
-        let scannedFiles = cachedScannedFiles(in: STFolder(codexHome))
-        let rolloutPaths = Set(scannedFiles.map(\.relativePath))
+        let traceID = UUID().uuidString
+        let startedAt = CFAbsoluteTimeGetCurrent()
+        let codexHomeFolder = STFolder(codexHome)
+        let usageIndexDatabasePath = usageIndex.databasePath
+        let usageIndexDatabaseName = (usageIndexDatabasePath as NSString).lastPathComponent
 
-        for scannedFile in scannedFiles {
+        Self.emitPerformance(
+            operation: "prepare_projected_usage_index",
+            traceID: traceID,
+            startedAt: startedAt,
+            extra: [
+                "cached_entry_count": 0,
+                "codex_home_path": codexHome.path,
+                "current_database_name": usageIndexDatabaseName,
+                "current_database_path": usageIndexDatabasePath,
+                "detail_phase": ProjectedUsageRefreshDetailPhase.scanInventory.rawValue,
+                "dirty_rollout_count": 0,
+                "phase": "started",
+                "processed_rollout_count": 0,
+                "refreshed_archived_rollout_count": 0,
+                "refreshed_live_rollout_count": 0,
+                "removed_rollout_count": 0,
+                "scanned_file_count": 0,
+                "skipped_rollout_count": 0,
+            ]
+        )
+
+        let scannedFiles = cachedScannedFiles(in: codexHomeFolder)
+        let rolloutPaths = Set(scannedFiles.map(\.relativePath))
+        let existingEntries = try loadUsageIndexEntries(codexHome: codexHome)
+        let removedRolloutCount = existingEntries.reduce(into: 0) { partialResult, entry in
+            if !rolloutPaths.contains(entry.rolloutPath) {
+                partialResult += 1
+            }
+        }
+        let dirtyRolloutCount = scannedFiles.count
+        var refreshedLiveRolloutCount = 0
+        var refreshedArchivedRolloutCount = 0
+
+        Self.emitPerformance(
+            operation: "prepare_projected_usage_index",
+            traceID: traceID,
+            startedAt: startedAt,
+            extra: [
+                "cached_entry_count": 0,
+                "codex_home_path": codexHome.path,
+                "current_database_name": usageIndexDatabaseName,
+                "current_database_path": usageIndexDatabasePath,
+                "detail_phase": ProjectedUsageRefreshDetailPhase.readUsageIndex.rawValue,
+                "dirty_rollout_count": dirtyRolloutCount,
+                "phase": "started",
+                "processed_rollout_count": 0,
+                "refreshed_archived_rollout_count": 0,
+                "refreshed_live_rollout_count": 0,
+                "removed_rollout_count": removedRolloutCount,
+                "scanned_file_count": scannedFiles.count,
+                "skipped_rollout_count": 0,
+            ]
+        )
+
+        Self.emitPerformance(
+            operation: "prepare_projected_usage_index",
+            traceID: traceID,
+            startedAt: startedAt,
+            extra: [
+                "cached_entry_count": existingEntries.count,
+                "codex_home_path": codexHome.path,
+                "current_database_name": usageIndexDatabaseName,
+                "current_database_path": usageIndexDatabasePath,
+                "detail_phase": ProjectedUsageRefreshDetailPhase.reconcileRollouts.rawValue,
+                "dirty_rollout_count": dirtyRolloutCount,
+                "phase": "started",
+                "processed_rollout_count": 0,
+                "refreshed_archived_rollout_count": 0,
+                "refreshed_live_rollout_count": 0,
+                "removed_rollout_count": removedRolloutCount,
+                "scanned_file_count": scannedFiles.count,
+                "skipped_rollout_count": 0,
+            ]
+        )
+
+        for (index, scannedFile) in scannedFiles.enumerated() {
+            Self.emitPerformance(
+                operation: "prepare_projected_usage_index",
+                traceID: traceID,
+                startedAt: startedAt,
+                extra: [
+                    "cached_entry_count": existingEntries.count,
+                    "codex_home_path": codexHome.path,
+                    "current_database_name": usageIndexDatabaseName,
+                    "current_database_path": usageIndexDatabasePath,
+                    "current_rollout_path": scannedFile.relativePath,
+                    "detail_phase": ProjectedUsageRefreshDetailPhase.analyzeRollout.rawValue,
+                    "dirty_rollout_count": dirtyRolloutCount,
+                    "phase": "progress",
+                    "processed_rollout_count": index,
+                    "refreshed_archived_rollout_count": refreshedArchivedRolloutCount,
+                    "refreshed_live_rollout_count": refreshedLiveRolloutCount,
+                    "removed_rollout_count": removedRolloutCount,
+                    "scanned_file_count": scannedFiles.count,
+                    "skipped_rollout_count": 0,
+                ]
+            )
             _ = try loadSessionUsageRecord(
                 codexHome: codexHome,
                 rolloutPath: scannedFile.relativePath,
                 isArchived: scannedFile.archived
             )
+            if scannedFile.archived {
+                refreshedArchivedRolloutCount += 1
+            } else {
+                refreshedLiveRolloutCount += 1
+            }
+
+            Self.emitPerformance(
+                operation: "prepare_projected_usage_index",
+                traceID: traceID,
+                startedAt: startedAt,
+                extra: [
+                    "cached_entry_count": existingEntries.count,
+                    "codex_home_path": codexHome.path,
+                    "current_database_name": usageIndexDatabaseName,
+                    "current_database_path": usageIndexDatabasePath,
+                    "current_rollout_path": scannedFile.relativePath,
+                    "detail_phase": ProjectedUsageRefreshDetailPhase.rolloutCompleted.rawValue,
+                    "dirty_rollout_count": dirtyRolloutCount,
+                    "phase": "progress",
+                    "processed_rollout_count": index + 1,
+                    "refreshed_archived_rollout_count": refreshedArchivedRolloutCount,
+                    "refreshed_live_rollout_count": refreshedLiveRolloutCount,
+                    "removed_rollout_count": removedRolloutCount,
+                    "scanned_file_count": scannedFiles.count,
+                    "skipped_rollout_count": 0,
+                ]
+            )
         }
+
+        Self.emitPerformance(
+            operation: "prepare_projected_usage_index",
+            traceID: traceID,
+            startedAt: startedAt,
+            extra: [
+                "cached_entry_count": existingEntries.count,
+                "codex_home_path": codexHome.path,
+                "current_database_name": usageIndexDatabaseName,
+                "current_database_path": usageIndexDatabasePath,
+                "detail_phase": ProjectedUsageRefreshDetailPhase.purgeStaleEntries.rawValue,
+                "dirty_rollout_count": dirtyRolloutCount,
+                "phase": "completed",
+                "processed_rollout_count": dirtyRolloutCount,
+                "refreshed_archived_rollout_count": refreshedArchivedRolloutCount,
+                "refreshed_live_rollout_count": refreshedLiveRolloutCount,
+                "removed_rollout_count": removedRolloutCount,
+                "scanned_file_count": scannedFiles.count,
+                "skipped_rollout_count": 0,
+            ]
+        )
 
         try usageIndex.purgeEntries(
             codexHomePath: codexHome.path,
             keepingRolloutPaths: rolloutPaths
         )
+
+        let finalEntryCount = try loadUsageIndexEntries(codexHome: codexHome).count
+        Self.emitPerformance(
+            operation: "prepare_projected_usage_index",
+            traceID: traceID,
+            startedAt: startedAt,
+            extra: [
+                "cached_entry_count": finalEntryCount,
+                "codex_home_path": codexHome.path,
+                "current_database_name": usageIndexDatabaseName,
+                "current_database_path": usageIndexDatabasePath,
+                "detail_phase": ProjectedUsageRefreshDetailPhase.finished.rawValue,
+                "dirty_rollout_count": dirtyRolloutCount,
+                "phase": "completed",
+                "processed_rollout_count": dirtyRolloutCount,
+                "refreshed_archived_rollout_count": refreshedArchivedRolloutCount,
+                "refreshed_live_rollout_count": refreshedLiveRolloutCount,
+                "removed_rollout_count": removedRolloutCount,
+                "scanned_file_count": scannedFiles.count,
+                "skipped_rollout_count": 0,
+            ]
+        )
+
         return rolloutPaths
     }
 

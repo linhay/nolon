@@ -11,12 +11,15 @@ struct CodexTokenTrendServiceTests {
         let now = Self.makeLocalDate(year: 2026, month: 2, day: 26, hour: 12, minute: 0)
         let snapshot = CostUsageTokenSnapshot(
             sessionTokens: 120,
+            sessionRequests: 2,
             sessionCostUSD: nil,
             todayInputTokens: 60,
             todayOutputTokens: 40,
             todayCachedInputTokens: 20,
+            todayRequests: 2,
             rangeDays: 30,
             rangeTokens: 1_000,
+            rangeRequests: 6,
             rangeCostUSD: nil,
             rangeInputTokens: 500,
             rangeOutputTokens: 350,
@@ -28,6 +31,7 @@ struct CodexTokenTrendServiceTests {
                     outputTokens: 80,
                     cacheReadTokens: 20,
                     totalTokens: 180,
+                    requestCount: 2,
                     costUSD: nil,
                     modelsUsed: nil,
                     modelBreakdowns: nil
@@ -38,6 +42,7 @@ struct CodexTokenTrendServiceTests {
                     outputTokens: 90,
                     cacheReadTokens: 30,
                     totalTokens: 210,
+                    requestCount: 2,
                     costUSD: nil,
                     modelsUsed: nil,
                     modelBreakdowns: nil
@@ -48,6 +53,7 @@ struct CodexTokenTrendServiceTests {
                     outputTokens: 40,
                     cacheReadTokens: 20,
                     totalTokens: 120,
+                    requestCount: 2,
                     costUSD: nil,
                     modelsUsed: nil,
                     modelBreakdowns: nil
@@ -66,10 +72,15 @@ struct CodexTokenTrendServiceTests {
         #expect(result.points[0].inputTokens == 100)
         #expect(result.points[0].outputTokens == 80)
         #expect(result.points[0].cacheReadTokens == 20)
+        #expect(result.points[0].requestCount == 2)
         #expect(result.todayTokens == 120)
+        #expect(result.todayRequests == 2)
         #expect(result.last7DaysTokens == 510)
+        #expect(result.last7DaysRequests == 6)
         #expect(result.last30DaysTokens == 510)
+        #expect(result.last30DaysRequests == 6)
         #expect(result.allDaysTokens == 510)
+        #expect(result.allDaysRequests == 6)
         #expect(result.sourceLabel == "global local usage")
     }
 
@@ -211,13 +222,15 @@ struct CodexTokenTrendServiceTests {
                     minuteStartUnixMs: Int64((try #require(Self.makeUTCDate(year: 2026, month: 4, day: 15, hour: 6, minute: 10))).timeIntervalSince1970 * 1_000),
                     inputTokens: 12,
                     cachedInputTokens: 3,
-                    outputTokens: 4
+                    outputTokens: 4,
+                    requestCount: 1
                 ),
                 .init(
                     minuteStartUnixMs: Int64((try #require(Self.makeUTCDate(year: 2026, month: 4, day: 15, hour: 7, minute: 10))).timeIntervalSince1970 * 1_000),
                     inputTokens: 20,
                     cachedInputTokens: 5,
-                    outputTokens: 7
+                    outputTokens: 7,
+                    requestCount: 3
                 ),
             ],
             updatedAt: now,
@@ -236,7 +249,9 @@ struct CodexTokenTrendServiceTests {
         #expect(snapshot.todayInputTokens == 20)
         #expect(snapshot.todayCachedInputTokens == 5)
         #expect(snapshot.todayOutputTokens == 7)
+        #expect(snapshot.todayRequests == 3)
         #expect(snapshot.rangeTokens == 43)
+        #expect(snapshot.rangeRequests == 4)
     }
 
     @Test("session-backed snapshot uses wall clock day for today totals")

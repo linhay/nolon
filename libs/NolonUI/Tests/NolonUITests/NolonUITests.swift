@@ -1,5 +1,6 @@
 import XCTest
 import SwiftUI
+import AppKit
 @testable import NolonUI
 import NolonUIFoundation
 
@@ -39,6 +40,43 @@ final class NolonUITests: XCTestCase {
         XCTAssertEqual(ProviderTokenTrendLayoutMetrics.chartHeight, 170)
         XCTAssertEqual(ProviderTokenTrendLayoutMetrics.intradayChartHeight, 158)
         XCTAssertEqual(ProviderTokenTrendLayoutMetrics.chartMinimumSlotWidth, 28)
+    }
+
+    @MainActor
+    func testProviderTokenTrendMenuControl_GivenCompactTitle_UsesTightIntrinsicWidth() {
+        let host = NSHostingView(
+            rootView: ProviderTokenTrendMenuControl(
+                title: "1m",
+                systemImage: "slider.horizontal.3",
+                width: nil
+            )
+        )
+
+        host.frame = NSRect(x: 0, y: 0, width: 200, height: 40)
+        host.layoutSubtreeIfNeeded()
+
+        XCTAssertLessThan(host.fittingSize.width, 110)
+        XCTAssertEqual(host.fittingSize.height, 28)
+    }
+
+    @MainActor
+    func testProviderTokenTrendToggleControl_GivenTwoShortOptions_UsesIntrinsicWidth() {
+        let host = NSHostingView(
+            rootView: ProviderTokenTrendToggleControl(
+                options: [
+                    .init(id: "daily", title: "Daily"),
+                    .init(id: "intraday", title: "Intraday"),
+                ],
+                selection: "daily",
+                onSelectionChange: { _ in }
+            )
+        )
+
+        host.frame = NSRect(x: 0, y: 0, width: 300, height: 40)
+        host.layoutSubtreeIfNeeded()
+
+        XCTAssertLessThan(host.fittingSize.width, 220)
+        XCTAssertEqual(host.fittingSize.height, 28)
     }
 
     func testSidebarProviderRowMetrics_GivenSmallSize_HidesSubtitleAndUsesCompactIcon() {
@@ -119,24 +157,6 @@ final class NolonUITests: XCTestCase {
     func testMcpServerCardCacheState_ContainsExpectedStates() {
         let states: Set<McpServerCardCacheState> = [.notMigrated, .migratedUpToDate, .migratedNeedsUpdate]
         XCTAssertEqual(states.count, 3)
-    }
-
-    @MainActor
-    func testProviderCardTemplate_CanConstructWithAllSections() {
-        _ = ProviderCardTemplate(
-            minHeight: 140,
-            showsActionDivider: true
-        ) {
-            Text("Header")
-        } bodyContent: {
-            Text("Body")
-        } footerContent: {
-            Text("Footer")
-        } actionContent: {
-            Text("Action")
-        } contextMenuContent: {
-            Button("Menu") {}
-        }
     }
 
     func testMcpServerMaintenanceAction_ResolvesFromCacheState() {

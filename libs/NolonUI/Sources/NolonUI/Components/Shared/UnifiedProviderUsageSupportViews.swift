@@ -107,9 +107,11 @@ public struct ProviderSkillsTopControlsView: View {
 
 public struct ProviderTokenTrendSectionView: View {
     private let data: ProviderTokenTrendSectionData
+    private let layoutMode: ProviderTokenTrendSectionLayoutMode
     private let onRangeChange: (String) -> Void
     private let onSelectDay: (String?) -> Void
     private let onIntradayBucketChange: (String) -> Void
+    private let onMetricModeChange: (ProviderTokenTrendMetricMode) -> Void
     private let onChartStyleChange: (ProviderTokenTrendChartStyle) -> Void
     private let onContentTabChange: (ProviderTokenTrendContentTab) -> Void
     private let onRefresh: () -> Void
@@ -120,9 +122,11 @@ public struct ProviderTokenTrendSectionView: View {
 
     public struct Config {
         public var data: ProviderTokenTrendSectionData
+        public var layoutMode: ProviderTokenTrendSectionLayoutMode
         public var onRangeChange: (String) -> Void
         public var onSelectDay: (String?) -> Void
         public var onIntradayBucketChange: (String) -> Void
+        public var onMetricModeChange: (ProviderTokenTrendMetricMode) -> Void
         public var onChartStyleChange: (ProviderTokenTrendChartStyle) -> Void
         public var onContentTabChange: (ProviderTokenTrendContentTab) -> Void
         public var onRefresh: () -> Void
@@ -130,18 +134,22 @@ public struct ProviderTokenTrendSectionView: View {
 
         public init(
             data: ProviderTokenTrendSectionData,
+            layoutMode: ProviderTokenTrendSectionLayoutMode = .flowing,
             onRangeChange: @escaping (String) -> Void,
             onSelectDay: @escaping (String?) -> Void,
             onIntradayBucketChange: @escaping (String) -> Void,
+            onMetricModeChange: @escaping (ProviderTokenTrendMetricMode) -> Void,
             onChartStyleChange: @escaping (ProviderTokenTrendChartStyle) -> Void,
             onContentTabChange: @escaping (ProviderTokenTrendContentTab) -> Void,
             onRefresh: @escaping () -> Void,
             onRefreshIntraday: @escaping () -> Void
         ) {
             self.data = data
+            self.layoutMode = layoutMode
             self.onRangeChange = onRangeChange
             self.onSelectDay = onSelectDay
             self.onIntradayBucketChange = onIntradayBucketChange
+            self.onMetricModeChange = onMetricModeChange
             self.onChartStyleChange = onChartStyleChange
             self.onContentTabChange = onContentTabChange
             self.onRefresh = onRefresh
@@ -151,9 +159,11 @@ public struct ProviderTokenTrendSectionView: View {
 
     public init(config: Config) {
         self.data = config.data
+        self.layoutMode = config.layoutMode
         self.onRangeChange = config.onRangeChange
         self.onSelectDay = config.onSelectDay
         self.onIntradayBucketChange = config.onIntradayBucketChange
+        self.onMetricModeChange = config.onMetricModeChange
         self.onChartStyleChange = config.onChartStyleChange
         self.onContentTabChange = config.onContentTabChange
         self.onRefresh = config.onRefresh
@@ -162,9 +172,11 @@ public struct ProviderTokenTrendSectionView: View {
 
     public init(
         data: ProviderTokenTrendSectionData,
+        layoutMode: ProviderTokenTrendSectionLayoutMode = .flowing,
         onRangeChange: @escaping (String) -> Void,
         onSelectDay: @escaping (String?) -> Void,
         onIntradayBucketChange: @escaping (String) -> Void,
+        onMetricModeChange: @escaping (ProviderTokenTrendMetricMode) -> Void,
         onChartStyleChange: @escaping (ProviderTokenTrendChartStyle) -> Void,
         onContentTabChange: @escaping (ProviderTokenTrendContentTab) -> Void,
         onRefresh: @escaping () -> Void,
@@ -173,9 +185,11 @@ public struct ProviderTokenTrendSectionView: View {
         self.init(
             config: Config(
                 data: data,
+                layoutMode: layoutMode,
                 onRangeChange: onRangeChange,
                 onSelectDay: onSelectDay,
                 onIntradayBucketChange: onIntradayBucketChange,
+                onMetricModeChange: onMetricModeChange,
                 onChartStyleChange: onChartStyleChange,
                 onContentTabChange: onContentTabChange,
                 onRefresh: onRefresh,
@@ -184,29 +198,67 @@ public struct ProviderTokenTrendSectionView: View {
         )
     }
 
+    @ViewBuilder
     public var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            header
+        if let snapshot = data.snapshot {
+            switch layoutMode {
+            case .flowing:
+                flowingSnapshotContent(snapshot: snapshot)
+            case .standaloneUsageTab:
+                standaloneUsageSnapshotContent(snapshot: snapshot)
+            }
+        } else {
+            VStack(alignment: .leading, spacing: 16) {
+                header
 
-            if let snapshot = data.snapshot {
-                summary(snapshot: snapshot)
-                trendWorkspace(snapshot: snapshot)
-            } else if let errorMessage = data.errorMessage, !errorMessage.isEmpty {
-                errorState(message: errorMessage)
-            } else if data.isLoading {
-                loadingState()
-            } else {
-                emptyState
+                if let errorMessage = data.errorMessage, !errorMessage.isEmpty {
+                    errorState(message: errorMessage)
+                } else if data.isLoading {
+                    loadingState()
+                } else {
+                    emptyState
+                }
+            }
+            .padding(16)
+            .dsCard()
+        }
+    }
+
+    private func flowingSnapshotContent(snapshot: ProviderTokenTrendSnapshotData) -> some View {
+        LazyVStack(alignment: .leading, spacing: 16) {
+            header
+            summary(snapshot: snapshot)
+            trendWorkspaceSection(snapshot: snapshot)
+        }
+        .padding(16)
+        .providerTokenTrendCardChrome()
+    }
+
+    private func standaloneUsageSnapshotContent(snapshot: ProviderTokenTrendSnapshotData) -> some View {
+        LazyVStack(alignment: .leading, spacing: 16, pinnedViews: [.sectionHeaders]) {
+            header
+            summary(snapshot: snapshot)
+
+            Section {
+                workspaceBodyContent(snapshot: snapshot)
+                    .padding(.horizontal, 12)
+                    .padding(.top, 12)
+                    .padding(.bottom, 12)
+                    .background(workspaceBodyBackground)
+                    .overlay(workspaceBodyBorder)
+            } header: {
+                workspaceHeader(snapshot: snapshot)
+                    .zIndex(1)
             }
         }
         .padding(16)
-        .dsCard()
+        .providerTokenTrendCardChrome()
     }
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .center) {
-                Text(NSLocalizedString("usage.token_trend.title", value: "历史 Token 消耗", comment: "Token trend section title"))
+                Text(sectionTitle)
                     .font(.headline)
 
                 Spacer()
@@ -227,7 +279,7 @@ public struct ProviderTokenTrendSectionView: View {
             }
 
             HStack(alignment: .firstTextBaseline) {
-                Text(NSLocalizedString("usage.token_trend.subtitle", value: "按日聚合输入、输出与缓存命中 token。", comment: "Token trend section subtitle"))
+                Text(sectionSubtitle)
                     .font(.caption)
                     .foregroundStyle(DesignSystem.Colors.Text.secondary)
 
@@ -250,6 +302,32 @@ public struct ProviderTokenTrendSectionView: View {
             if let refreshStatus = data.refreshStatus {
                 refreshStatusBanner(refreshStatus)
             }
+        }
+    }
+
+    private var sectionTitle: String {
+        switch data.metricMode {
+        case .tokens:
+            return NSLocalizedString(
+                "usage.token_trend.title",
+                value: "历史 Token 消耗",
+                comment: "Token trend section title"
+            )
+        case .requests:
+            return "历史请求趋势"
+        }
+    }
+
+    private var sectionSubtitle: String {
+        switch data.metricMode {
+        case .tokens:
+            return NSLocalizedString(
+                "usage.token_trend.subtitle",
+                value: "按日聚合输入、输出与缓存命中 token。",
+                comment: "Token trend section subtitle"
+            )
+        case .requests:
+            return "按日与分钟时间桶聚合请求数，统计口径与 token 趋势保持一致。"
         }
     }
 
@@ -330,65 +408,81 @@ public struct ProviderTokenTrendSectionView: View {
         }
     }
 
-    private func trendWorkspace(snapshot: ProviderTokenTrendSnapshotData) -> some View {
-        LazyVStack(alignment: .leading, spacing: 0, pinnedViews: [.sectionHeaders]) {
-            Section {
-                Group {
-                    if resolvedContentTab == .daily {
-                        dailyTableSection(snapshot: snapshot)
-                    } else {
-                        intradayContentSection()
-                    }
-                }
-                .padding(.horizontal, 12)
-                .padding(.top, 12)
-                .padding(.bottom, 12)
-            } header: {
-                VStack(alignment: .leading, spacing: 12) {
-                    if data.supportsIntradayDrilldown {
-                        Picker(
-                            "Trend Content",
-                            selection: Binding(
-                                get: { resolvedContentTab },
-                                set: { onContentTabChange($0) }
-                            )
-                        ) {
-                            Text(NSLocalizedString("usage.token_trend.chart", value: "Daily Trend", comment: "Daily trend chart title"))
-                                .tag(ProviderTokenTrendContentTab.daily)
-                            Text("Intraday Drilldown")
-                                .tag(ProviderTokenTrendContentTab.intraday)
-                        }
-                        .pickerStyle(.segmented)
-                    }
+    private func trendWorkspaceSection(snapshot: ProviderTokenTrendSnapshotData) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            workspaceHeader(snapshot: snapshot)
 
-                    if resolvedContentTab == .daily {
-                        dailyWorkspaceHeader(snapshot: snapshot)
-                    } else {
-                        intradayWorkspaceHeader()
-                    }
-                }
-                .padding(12)
-                .background(workspaceSurfaceBackground)
-                .overlay(alignment: .bottom) {
-                    Rectangle()
-                        .fill(DesignSystem.Colors.Background.elevated.opacity(0.55))
-                        .frame(height: 1)
-                }
+            workspaceBodyContent(snapshot: snapshot)
+            .padding(.horizontal, 12)
+            .padding(.top, 12)
+            .padding(.bottom, 12)
+            .background(workspaceBodyBackground)
+            .overlay(workspaceBodyBorder)
+        }
+    }
+
+    @ViewBuilder
+    private func workspaceBodyContent(snapshot: ProviderTokenTrendSnapshotData) -> some View {
+        if resolvedContentTab == .daily {
+            dailyTableSection(snapshot: snapshot)
+        } else {
+            ProviderTokenTrendIntradayContentSectionView(
+                data: data,
+                onRefreshIntraday: onRefreshIntraday
+            )
+        }
+    }
+
+    private func workspaceHeader(snapshot: ProviderTokenTrendSnapshotData) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            workspaceControlDeck
+
+            if resolvedContentTab == .daily {
+                dailyWorkspaceHeader(snapshot: snapshot)
+            } else {
+                ProviderTokenTrendIntradayWorkspaceHeaderView(
+                    data: data,
+                    onIntradayBucketChange: onIntradayBucketChange,
+                    onRefreshIntraday: onRefreshIntraday
+                )
             }
         }
-        .background(
-            RoundedRectangle(cornerRadius: 12)
-                .fill(DesignSystem.Colors.Background.elevated.opacity(0.22))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 12)
-                .strokeBorder(DesignSystem.Colors.Background.elevated.opacity(0.45), lineWidth: 1)
+        .padding(10)
+        .background(workspaceHeaderBackground)
+        .overlay(alignment: .bottom) {
+            Rectangle()
+                .fill(DesignSystem.Colors.Background.elevated.opacity(0.42))
+                .frame(height: 1)
+        }
+    }
+
+    private var workspaceHeaderBackground: some View {
+        workspaceHeaderShape
+            .fill(DesignSystem.Colors.Background.elevated.opacity(0.9))
+    }
+
+    private var workspaceBodyBackground: some View {
+        workspaceBodyShape
+            .fill(DesignSystem.Colors.Background.elevated.opacity(0.22))
+    }
+
+    private var workspaceBodyBorder: some View {
+        workspaceBodyShape
+            .strokeBorder(DesignSystem.Colors.Background.elevated.opacity(0.45), lineWidth: 1)
+    }
+
+    private var workspaceHeaderShape: UnevenRoundedRectangle {
+        UnevenRoundedRectangle(
+            cornerRadii: .init(topLeading: 12, topTrailing: 12),
+            style: .continuous
         )
     }
 
-    private var workspaceSurfaceBackground: some View {
-        Rectangle()
-            .fill(DesignSystem.Colors.Background.elevated.opacity(0.96))
+    private var workspaceBodyShape: UnevenRoundedRectangle {
+        UnevenRoundedRectangle(
+            cornerRadii: .init(bottomLeading: 12, bottomTrailing: 12),
+            style: .continuous
+        )
     }
 
     private var resolvedContentTab: ProviderTokenTrendContentTab {
@@ -399,76 +493,171 @@ public struct ProviderTokenTrendSectionView: View {
         return data.activeTab
     }
 
-    private func dailyWorkspaceHeader(snapshot: ProviderTokenTrendSnapshotData) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .firstTextBaseline, spacing: 12) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(NSLocalizedString("usage.token_trend.chart", value: "Daily Trend", comment: "Daily trend chart title"))
-                        .font(.subheadline.weight(.semibold))
+    private var workspaceControlDeck: some View {
+        ProviderTokenTrendToolbarRail {
+            ViewThatFits(in: .horizontal) {
+                toolbarRailRow(compact: false)
+                toolbarRailRow(compact: true)
+            }
+        }
+    }
 
-                    if data.supportsIntradayDrilldown {
-                        Text("点击单日柱体或点位可切换到对应的 Intraday Drilldown。")
-                            .font(.caption)
-                            .foregroundStyle(DesignSystem.Colors.Text.secondary)
+    private func toolbarRailRow(compact: Bool) -> some View {
+        HStack(alignment: .center, spacing: 10) {
+            leadingToolbarControls(compact: compact)
+
+            Spacer(minLength: 8)
+
+            if showsIntradayOptionsMenu {
+                intradayOptionsMenu
+            }
+        }
+        .frame(height: 28, alignment: .leading)
+    }
+
+    private func leadingToolbarControls(compact: Bool) -> some View {
+        HStack(alignment: .center, spacing: 6) {
+            if data.supportsIntradayDrilldown {
+                contentTabControl(compact: compact)
+            }
+
+            metricModeControl(compact: compact)
+            chartStyleControl(compact: compact)
+        }
+    }
+
+    private func contentTabControl(compact: Bool) -> some View {
+        ProviderTokenTrendToolbarField {
+            ProviderTokenTrendToggleControl(
+                options: [
+                    .init(id: ProviderTokenTrendContentTab.daily, title: "Daily"),
+                    .init(id: ProviderTokenTrendContentTab.intraday, title: compact ? "Intra" : "Intraday"),
+                ],
+                selection: resolvedContentTab,
+                onSelectionChange: onContentTabChange
+            )
+        }
+        .help("切换 Daily 与 Intraday 视图")
+    }
+
+    private func metricModeControl(compact: Bool) -> some View {
+        ProviderTokenTrendToolbarField {
+            ProviderTokenTrendToggleControl(
+                options: [
+                    .init(id: ProviderTokenTrendMetricMode.tokens, title: compact ? "Tok" : "Tokens"),
+                    .init(id: ProviderTokenTrendMetricMode.requests, title: compact ? "Req" : "Requests"),
+                ],
+                selection: data.metricMode,
+                onSelectionChange: onMetricModeChange
+            )
+        }
+        .help("切换 Token 与请求数统计")
+    }
+
+    private func chartStyleControl(compact: Bool) -> some View {
+        ProviderTokenTrendToolbarField {
+            ProviderTokenTrendChartControlsView(
+                compact: compact,
+                chartStyle: data.chartStyle,
+                onChartStyleChange: onChartStyleChange
+            )
+        }
+        .help("切换柱状图与折线图")
+    }
+
+    private var showsIntradayBucketControl: Bool {
+        resolvedContentTab == .intraday &&
+            (data.drilldown?.availableBuckets.isEmpty == false)
+    }
+
+    private var intradayOptionsMenu: some View {
+        ProviderTokenTrendToolbarField {
+            Menu {
+                if showsIntradayBucketControl {
+                    Section("Bucket") {
+                        ForEach(data.drilldown?.availableBuckets ?? []) { option in
+                            Button {
+                                onIntradayBucketChange(option.id)
+                            } label: {
+                                if option.id == data.drilldown?.bucketID {
+                                    Label(compactBucketTitle(option.title), systemImage: "checkmark")
+                                } else {
+                                    Text(compactBucketTitle(option.title))
+                                }
+                            }
+                        }
                     }
                 }
 
-                Spacer()
+                if showsIntradayRefreshControl {
+                    Button {
+                        onRefreshIntraday()
+                    } label: {
+                        Label(
+                            data.drilldown?.isLoading == true ? "Refreshing..." : "Refresh",
+                            systemImage: "arrow.clockwise"
+                        )
+                    }
+                }
+            } label: {
+                ProviderTokenTrendMenuControl(
+                    title: intradayMenuDisplayTitle,
+                    systemImage: "slider.horizontal.3"
+                )
             }
+            .menuStyle(.borderlessButton)
+        }
+        .help("分钟级时间桶与刷新操作")
+    }
 
-            ViewThatFits(in: .horizontal) {
-                HStack(alignment: .center, spacing: 12) {
-                    chartStylePicker
-                    Spacer(minLength: 12)
-                    dailyChartLegend
-                }
+    private var showsIntradayRefreshControl: Bool {
+        resolvedContentTab == .intraday && data.selectedDayKey != nil
+    }
 
-                VStack(alignment: .leading, spacing: 10) {
-                    chartStylePicker
-                    dailyChartLegend
-                }
+    private var showsIntradayOptionsMenu: Bool {
+        showsIntradayBucketControl || showsIntradayRefreshControl
+    }
+
+    private var intradayMenuDisplayTitle: String {
+        if data.drilldown?.isLoading == true {
+            return "Refreshing"
+        }
+
+        let currentTitle = data.drilldown?.availableBuckets.first(where: {
+            $0.id == data.drilldown?.bucketID
+        })?.title ?? data.drilldown?.bucketID ?? "Options"
+        return compactBucketTitle(currentTitle)
+    }
+
+    private func compactBucketTitle(_ title: String) -> String {
+        title
+            .replacingOccurrences(of: "min", with: "m")
+            .replacingOccurrences(of: "Min", with: "m")
+            .replacingOccurrences(of: " ", with: "")
+    }
+
+    private func dailyWorkspaceHeader(snapshot: ProviderTokenTrendSnapshotData) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            if data.supportsIntradayDrilldown {
+                ProviderTokenTrendContextTag(
+                    icon: "cursorarrow.click.2",
+                    text: "点选单日柱体或点位后，会自动切到 Intraday。",
+                    accentColor: DesignSystem.Colors.primary
+                )
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
 
             dailyChart(snapshot: snapshot)
+            dailyChartFooter
         }
     }
 
-    private var chartStylePicker: some View {
-        Picker(
-            "Chart Style",
-            selection: Binding(
-                get: { data.chartStyle },
-                set: { onChartStyleChange($0) }
-            )
-        ) {
-            Text("Bars").tag(ProviderTokenTrendChartStyle.bar)
-            Text("Line").tag(ProviderTokenTrendChartStyle.line)
-        }
-        .pickerStyle(.segmented)
-        .frame(maxWidth: 180)
-    }
-
-    private var dailyChartLegend: some View {
-        HStack(spacing: 12) {
-            if data.chartStyle == .line {
-                legendItem(title: "Total", color: DesignSystem.Colors.primary)
-            } else {
-                legendItem(title: "Input", color: DesignSystem.Colors.primary)
-                legendItem(title: "Output", color: DesignSystem.Colors.Status.success)
-                legendItem(title: "Cache", color: DesignSystem.Colors.Status.warning)
-            }
-        }
-    }
-
-    private func legendItem(title: String, color: Color) -> some View {
-        HStack(spacing: 4) {
-            Circle()
-                .fill(color)
-                .frame(width: 6, height: 6)
-            Text(title)
-                .font(.system(size: 10, weight: .medium))
-                .foregroundStyle(DesignSystem.Colors.Text.secondary)
-        }
+    private var dailyChartFooter: some View {
+        ProviderTokenTrendChartLegendView(
+            chartStyle: data.chartStyle,
+            metricMode: data.metricMode
+        )
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     @ViewBuilder
@@ -484,7 +673,15 @@ public struct ProviderTokenTrendSectionView: View {
     private func dailyBarChart(snapshot: ProviderTokenTrendSnapshotData) -> some View {
         GeometryReader { proxy in
             let points = snapshot.points
-            let maxValue = max(points.map(\.totalTokens).max() ?? 1, 1)
+            let maxValue = max(
+                points.map {
+                    ProviderTokenTrendChartSupport.resolvedValue(
+                        for: $0,
+                        metricMode: data.metricMode
+                    )
+                }.max() ?? 1,
+                1
+            )
             let layout = resolvedChartLayout(pointCount: points.count, containerWidth: proxy.size.width)
             let plotHeight = max(48, proxy.size.height - 22)
 
@@ -524,7 +721,11 @@ public struct ProviderTokenTrendSectionView: View {
         plotHeight: CGFloat
     ) -> some View {
         let isSelected = point.date == data.selectedDayKey
-        let totalRatio = CGFloat(point.totalTokens) / CGFloat(maxValue)
+        let metricValue = ProviderTokenTrendChartSupport.resolvedValue(
+            for: point,
+            metricMode: data.metricMode
+        )
+        let totalRatio = CGFloat(metricValue) / CGFloat(maxValue)
         let barHeight = max(6, totalRatio * plotHeight)
 
         return Button {
@@ -534,9 +735,15 @@ public struct ProviderTokenTrendSectionView: View {
                 Spacer(minLength: 0)
 
                 VStack(spacing: 0) {
-                    barSegment(value: point.inputTokens, total: point.totalTokens, height: barHeight, color: DesignSystem.Colors.primary)
-                    barSegment(value: point.outputTokens, total: point.totalTokens, height: barHeight, color: DesignSystem.Colors.Status.success)
-                    barSegment(value: point.cacheReadTokens, total: point.totalTokens, height: barHeight, color: DesignSystem.Colors.Status.warning)
+                    if data.metricMode == .requests {
+                        RoundedRectangle(cornerRadius: 6)
+                            .fill(DesignSystem.Colors.primary)
+                            .frame(width: barWidth, height: barHeight)
+                    } else {
+                        barSegment(value: point.inputTokens, total: point.totalTokens, height: barHeight, color: DesignSystem.Colors.primary)
+                        barSegment(value: point.outputTokens, total: point.totalTokens, height: barHeight, color: DesignSystem.Colors.Status.success)
+                        barSegment(value: point.cacheReadTokens, total: point.totalTokens, height: barHeight, color: DesignSystem.Colors.Status.warning)
+                    }
                 }
                 .frame(width: barWidth, height: barHeight)
                 .background(DesignSystem.Colors.Background.elevated.opacity(0.28), in: RoundedRectangle(cornerRadius: 6))
@@ -568,14 +775,23 @@ public struct ProviderTokenTrendSectionView: View {
     private func dailyLineChart(snapshot: ProviderTokenTrendSnapshotData) -> some View {
         GeometryReader { proxy in
             let points = snapshot.points
-            let maxValue = max(points.map(\.totalTokens).max() ?? 1, 1)
+            let maxValue = max(
+                points.map {
+                    ProviderTokenTrendChartSupport.resolvedValue(
+                        for: $0,
+                        metricMode: data.metricMode
+                    )
+                }.max() ?? 1,
+                1
+            )
             let layout = resolvedChartLayout(pointCount: points.count, containerWidth: proxy.size.width)
             let plotHeight = max(52, proxy.size.height - 22)
             let plotPoints = linePlotPoints(
                 for: points,
                 maxValue: maxValue,
                 slotWidth: layout.slotWidth,
-                plotHeight: plotHeight
+                plotHeight: plotHeight,
+                metricMode: data.metricMode
             )
             let contentWidth = max(proxy.size.width - (layout.edgePadding * 2), CGFloat(max(points.count, 1)) * layout.slotWidth)
 
@@ -633,6 +849,10 @@ public struct ProviderTokenTrendSectionView: View {
                         .stroke(DesignSystem.Colors.primary, style: StrokeStyle(lineWidth: 2.5, lineCap: .round, lineJoin: .round))
 
                         ForEach(plotPoints) { plotPoint in
+                            lineValueLabel(
+                                plotPoint,
+                                isSelected: plotPoint.point.date == data.selectedDayKey
+                            )
                             linePointMarker(
                                 plotPoint,
                                 isSelected: plotPoint.point.date == data.selectedDayKey
@@ -703,10 +923,11 @@ public struct ProviderTokenTrendSectionView: View {
         HStack(spacing: 0) {
             sortableHeader(title: "Date", key: .date, width: 90, alignment: .leading)
             Spacer()
-            sortableHeader(title: "Total", key: .total, width: 80)
-            sortableHeader(title: "Input", key: .input, width: 80)
-            sortableHeader(title: "Output", key: .output, width: 80)
-            sortableHeader(title: "Cache", key: .cache, width: 80)
+            sortableHeader(title: "Total", key: .total, width: ProviderTokenTrendLayoutMetrics.tableNumericColumnWidth)
+            sortableHeader(title: "Requests", key: .requests, width: ProviderTokenTrendLayoutMetrics.tableNumericColumnWidth)
+            sortableHeader(title: "Input", key: .input, width: ProviderTokenTrendLayoutMetrics.tableNumericColumnWidth)
+            sortableHeader(title: "Output", key: .output, width: ProviderTokenTrendLayoutMetrics.tableNumericColumnWidth)
+            sortableHeader(title: "Cache", key: .cache, width: ProviderTokenTrendLayoutMetrics.tableNumericColumnWidth)
         }
     }
 
@@ -743,10 +964,15 @@ public struct ProviderTokenTrendSectionView: View {
             Text(point.date)
                 .frame(width: 90, alignment: .leading)
             Spacer()
-            cell(formatTokenCount(point.totalTokens), width: 80)
-            cell(formatTokenCount(point.inputTokens), width: 80, color: DesignSystem.Colors.primary.opacity(0.8))
-            cell(formatTokenCount(point.outputTokens), width: 80, color: DesignSystem.Colors.Status.success.opacity(0.8))
-            cell(formatTokenCount(point.cacheReadTokens), width: 80, color: DesignSystem.Colors.Status.warning.opacity(0.8))
+            cell(formatTokenCount(point.totalTokens), width: ProviderTokenTrendLayoutMetrics.tableNumericColumnWidth)
+            cell(
+                formatTokenCount(point.requestCount),
+                width: ProviderTokenTrendLayoutMetrics.tableNumericColumnWidth,
+                color: data.metricMode == .requests ? DesignSystem.Colors.primary : .primary
+            )
+            cell(formatTokenCount(point.inputTokens), width: ProviderTokenTrendLayoutMetrics.tableNumericColumnWidth, color: DesignSystem.Colors.primary.opacity(0.8))
+            cell(formatTokenCount(point.outputTokens), width: ProviderTokenTrendLayoutMetrics.tableNumericColumnWidth, color: DesignSystem.Colors.Status.success.opacity(0.8))
+            cell(formatTokenCount(point.cacheReadTokens), width: ProviderTokenTrendLayoutMetrics.tableNumericColumnWidth, color: DesignSystem.Colors.Status.warning.opacity(0.8))
         }
         .font(.system(size: 11, design: .monospaced))
         .padding(.horizontal, 12)
@@ -761,258 +987,6 @@ public struct ProviderTokenTrendSectionView: View {
                 .fill(DesignSystem.Colors.Background.elevated.opacity(0.3))
                 .frame(height: 1)
         }
-    }
-
-    private func intradayWorkspaceHeader() -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .top, spacing: 12) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Intraday Drilldown")
-                        .font(.subheadline.weight(.semibold))
-
-                    if let selectedDayKey = data.selectedDayKey {
-                        Text("\(selectedDayKey) · \(data.drilldown?.rangeDescription ?? "分钟级趋势")")
-                            .font(.caption)
-                            .foregroundStyle(DesignSystem.Colors.Text.secondary)
-                    } else {
-                        Text("先在 Daily Trend 中选择一天，再查看分钟级明细。")
-                            .font(.caption)
-                            .foregroundStyle(DesignSystem.Colors.Text.secondary)
-                    }
-
-                    if let usageSummaryText = data.drilldown?.usageSummaryText, !usageSummaryText.isEmpty {
-                        Text(usageSummaryText)
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundStyle(DesignSystem.Colors.Text.secondary)
-                    }
-
-                    if let freshnessText = data.drilldown?.freshnessText, !freshnessText.isEmpty {
-                        Text(freshnessText)
-                            .font(.system(size: 10, weight: .medium))
-                            .foregroundStyle(DesignSystem.Colors.Text.tertiary)
-                    }
-                }
-
-                Spacer()
-
-                if data.selectedDayKey != nil {
-                    Button(action: onRefreshIntraday) {
-                        if data.drilldown?.isLoading == true {
-                            ProgressView().controlSize(.small)
-                        } else {
-                            Image(systemName: "arrow.clockwise")
-                                .font(.system(size: 13, weight: .medium))
-                        }
-                    }
-                    .buttonStyle(.plain)
-                    .foregroundStyle(DesignSystem.Colors.Text.secondary)
-                }
-            }
-
-            if let drilldown = data.drilldown, !drilldown.availableBuckets.isEmpty {
-                Picker(
-                    "Bucket",
-                    selection: Binding(
-                        get: { drilldown.bucketID },
-                        set: { onIntradayBucketChange($0) }
-                    )
-                ) {
-                    ForEach(drilldown.availableBuckets) { option in
-                        Text(option.title).tag(option.id)
-                    }
-                }
-                .pickerStyle(.segmented)
-            }
-
-            if let bucketSummary = data.drilldown?.bucketSummary, !bucketSummary.isEmpty {
-                Text(bucketSummary)
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(DesignSystem.Colors.Text.primary)
-            }
-
-            if let presentationNote = data.drilldown?.presentationNote, !presentationNote.isEmpty {
-                Text(presentationNote)
-                    .font(.system(size: 10, weight: .regular))
-                    .foregroundStyle(DesignSystem.Colors.Text.tertiary)
-            }
-
-            intradayChartPanel()
-        }
-    }
-
-    private func intradayChartPanel() -> some View {
-        Group {
-            if let drilldown = data.drilldown, !drilldown.points.isEmpty {
-                drilldownChart(points: drilldown.points)
-            } else if data.drilldown?.isLoading == true {
-                RoundedRectangle(cornerRadius: 10)
-                    .fill(DesignSystem.Colors.Background.elevated.opacity(0.28))
-                    .frame(height: ProviderTokenTrendLayoutMetrics.intradayChartHeight)
-                    .overlay(alignment: .center) {
-                        drilldownLoadingState
-                    }
-            } else if data.selectedDayKey == nil {
-                RoundedRectangle(cornerRadius: 10)
-                    .fill(DesignSystem.Colors.Background.elevated.opacity(0.2))
-                    .frame(height: ProviderTokenTrendLayoutMetrics.intradayChartHeight)
-                    .overlay(alignment: .center) {
-                        intradaySelectionPrompt
-                    }
-            } else {
-                RoundedRectangle(cornerRadius: 10)
-                    .fill(DesignSystem.Colors.Background.elevated.opacity(0.2))
-                    .frame(height: ProviderTokenTrendLayoutMetrics.intradayChartHeight)
-                    .overlay(alignment: .center) {
-                        drilldownEmptyState
-                    }
-            }
-        }
-    }
-
-    @ViewBuilder
-    private func intradayContentSection() -> some View {
-        if let drilldown = data.drilldown {
-            if let errorMessage = drilldown.errorMessage, !errorMessage.isEmpty, drilldown.points.isEmpty {
-                drilldownErrorState(message: errorMessage)
-            } else if drilldown.isLoading, drilldown.points.isEmpty {
-                drilldownLoadingState
-            } else if drilldown.points.isEmpty {
-                drilldownEmptyState
-            } else {
-                intradayTableSection(drilldown)
-            }
-        } else {
-            intradaySelectionPrompt
-        }
-    }
-
-    private func drilldownChart(points: [ProviderIntradayUsagePointData]) -> some View {
-        let maxValue = max(points.map(\.totalTokens).max() ?? 1, 1)
-        return GeometryReader { proxy in
-            let layout = resolvedChartLayout(pointCount: points.count, containerWidth: proxy.size.width)
-            let plotHeight = max(48, proxy.size.height - 24)
-
-            ZStack(alignment: .bottomLeading) {
-                VStack(spacing: 0) {
-                    ForEach([1.0, 0.5, 0.0], id: \.self) { ratio in
-                        Rectangle()
-                            .fill(DesignSystem.Colors.Background.elevated.opacity(ratio == 0 ? 0.45 : 0.24))
-                            .frame(height: 1)
-                        if ratio > 0 {
-                            Spacer()
-                        }
-                    }
-                }
-                .padding(.bottom, 20)
-
-                ScrollView(.horizontal) {
-                    HStack(alignment: .bottom, spacing: 0) {
-                        ForEach(Array(points.enumerated()), id: \.offset) { _, point in
-                            let barHeight = max(6, CGFloat(point.totalTokens) / CGFloat(maxValue) * plotHeight)
-                            VStack(spacing: 6) {
-                                Spacer(minLength: 0)
-                                VStack(spacing: 0) {
-                                    barSegment(value: point.inputTokens, total: point.totalTokens, height: barHeight, color: DesignSystem.Colors.primary)
-                                    barSegment(value: point.outputTokens, total: point.totalTokens, height: barHeight, color: DesignSystem.Colors.Status.success)
-                                    barSegment(value: point.cacheReadTokens, total: point.totalTokens, height: barHeight, color: DesignSystem.Colors.Status.warning)
-                                }
-                                .frame(width: layout.barWidth, height: barHeight)
-                                .background(DesignSystem.Colors.Background.elevated.opacity(0.28), in: RoundedRectangle(cornerRadius: 6))
-                                .clipShape(RoundedRectangle(cornerRadius: 6))
-
-                                Text(point.label)
-                                    .font(.system(size: 9))
-                                    .monospacedDigit()
-                                    .foregroundStyle(DesignSystem.Colors.Text.tertiary)
-                            }
-                            .frame(width: layout.slotWidth, height: plotHeight + 20, alignment: .bottom)
-                        }
-                    }
-                    .padding(.horizontal, layout.edgePadding)
-                    .padding(.bottom, 4)
-                }
-                .scrollIndicators(.hidden)
-            }
-        }
-        .frame(height: ProviderTokenTrendLayoutMetrics.intradayChartHeight)
-    }
-
-    private func intradayTableSection(_ drilldown: ProviderTokenTrendDrilldownData) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Intraday Breakdown")
-                .font(.subheadline.weight(.semibold))
-
-            VStack(spacing: 0) {
-                intradayHeaderRow
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 8)
-                    .background(DesignSystem.Colors.Background.elevated.opacity(0.3))
-
-                VStack(spacing: 0) {
-                    ForEach(Array(drilldown.points.enumerated()), id: \.offset) { _, point in
-                        intradayDataRow(point: point)
-                    }
-                }
-            }
-            .clipShape(RoundedRectangle(cornerRadius: 12))
-            .overlay(
-                RoundedRectangle(cornerRadius: 12)
-                    .strokeBorder(DesignSystem.Colors.Background.elevated.opacity(0.5), lineWidth: 1)
-            )
-        }
-    }
-
-    private var intradayHeaderRow: some View {
-        HStack(spacing: 0) {
-            Text("Time Range")
-                .frame(width: 110, alignment: .leading)
-                .font(.caption2.weight(.bold))
-                .foregroundStyle(DesignSystem.Colors.Text.secondary)
-            Spacer()
-            Text("Total")
-                .frame(width: 80, alignment: .trailing)
-                .font(.caption2.weight(.bold))
-                .foregroundStyle(DesignSystem.Colors.Text.secondary)
-            Text("Input")
-                .frame(width: 80, alignment: .trailing)
-                .font(.caption2.weight(.bold))
-                .foregroundStyle(DesignSystem.Colors.Text.secondary)
-            Text("Output")
-                .frame(width: 80, alignment: .trailing)
-                .font(.caption2.weight(.bold))
-                .foregroundStyle(DesignSystem.Colors.Text.secondary)
-            Text("Cache")
-                .frame(width: 80, alignment: .trailing)
-                .font(.caption2.weight(.bold))
-                .foregroundStyle(DesignSystem.Colors.Text.secondary)
-        }
-    }
-
-    private func intradayDataRow(point: ProviderIntradayUsagePointData) -> some View {
-        HStack(spacing: 0) {
-            Text(point.rangeLabel)
-                .frame(width: 110, alignment: .leading)
-            Spacer()
-            cell(formatTokenCount(point.totalTokens), width: 80)
-            cell(formatTokenCount(point.inputTokens), width: 80, color: DesignSystem.Colors.primary.opacity(0.8))
-            cell(formatTokenCount(point.outputTokens), width: 80, color: DesignSystem.Colors.Status.success.opacity(0.8))
-            cell(formatTokenCount(point.cacheReadTokens), width: 80, color: DesignSystem.Colors.Status.warning.opacity(0.8))
-        }
-        .font(.system(size: 11, design: .monospaced))
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-        .overlay(alignment: .bottom) {
-            Rectangle()
-                .fill(DesignSystem.Colors.Background.elevated.opacity(0.3))
-                .frame(height: 1)
-        }
-    }
-
-    private var intradaySelectionPrompt: some View {
-        Text("先在 Daily Trend 里选择一天，这里会展示对应的分钟级明细。")
-            .font(.caption)
-            .foregroundStyle(DesignSystem.Colors.Text.secondary)
-            .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private func cell(_ text: String, width: CGFloat, alignment: Alignment = .trailing, color: Color = .primary) -> some View {
@@ -1058,37 +1032,6 @@ public struct ProviderTokenTrendSectionView: View {
         .padding(.vertical, 40)
     }
 
-    private func drilldownErrorState(message: String) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Label(message, systemImage: "exclamationmark.triangle")
-                .font(.caption)
-                .foregroundStyle(DesignSystem.Colors.Status.error)
-            Button(NSLocalizedString("generic.refresh", value: "Retry", comment: "Retry button")) {
-                onRefreshIntraday()
-            }
-            .buttonStyle(.bordered)
-            .controlSize(.small)
-        }
-    }
-
-    private var drilldownLoadingState: some View {
-        HStack(spacing: 8) {
-            ProgressView()
-                .controlSize(.small)
-            Text("正在生成分钟级钻取…")
-                .font(.caption)
-                .foregroundStyle(DesignSystem.Colors.Text.secondary)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    private var drilldownEmptyState: some View {
-        Text("该日暂无分钟级使用数据。")
-            .font(.caption)
-            .foregroundStyle(DesignSystem.Colors.Text.secondary)
-            .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
     private var emptyState: some View {
         VStack(spacing: 8) {
             Image(systemName: "chart.bar.xaxis")
@@ -1108,6 +1051,7 @@ public struct ProviderTokenTrendSectionView: View {
             switch sortKey {
             case .date: ordered = lhs.date < rhs.date
             case .total: ordered = lhs.totalTokens < rhs.totalTokens
+            case .requests: ordered = lhs.requestCount < rhs.requestCount
             case .input: ordered = lhs.inputTokens < rhs.inputTokens
             case .output: ordered = lhs.outputTokens < rhs.outputTokens
             case .cache: ordered = lhs.cacheReadTokens < rhs.cacheReadTokens
@@ -1139,34 +1083,39 @@ public struct ProviderTokenTrendSectionView: View {
 
 private extension ProviderTokenTrendSectionView {
     func summaryMetrics(snapshot: ProviderTokenTrendSnapshotData) -> [SummaryMetric] {
-        [
-            .init(
+        let todayValue = data.metricMode == .requests ? snapshot.todayRequests : snapshot.todayTokens
+        let last7Value = data.metricMode == .requests ? snapshot.last7DaysRequests : snapshot.last7DaysTokens
+        let last30Value = data.metricMode == .requests ? snapshot.last30DaysRequests : snapshot.last30DaysTokens
+        let allValue = data.metricMode == .requests ? snapshot.allDaysRequests : snapshot.allDaysTokens
+
+        return [
+            SummaryMetric(
                 title: NSLocalizedString("usage.token_trend.summary.today", value: "Today", comment: "Today tokens"),
-                value: formatTokenCount(snapshot.todayTokens),
+                value: formatTokenCount(todayValue),
                 periodText: snapshot.displayDateRange(for: "days1"),
                 accentColor: DesignSystem.Colors.primary,
                 secondaryAccentColor: DesignSystem.Colors.primary.opacity(0.5),
                 targetRangeID: "days1"
             ),
-            .init(
+            SummaryMetric(
                 title: NSLocalizedString("usage.token_trend.summary.7d", value: "7 Days", comment: "7 day tokens"),
-                value: formatTokenCount(snapshot.last7DaysTokens),
+                value: formatTokenCount(last7Value),
                 periodText: snapshot.displayDateRange(for: "days7"),
                 accentColor: DesignSystem.Colors.Status.success,
                 secondaryAccentColor: DesignSystem.Colors.Status.success.opacity(0.5),
                 targetRangeID: "days7"
             ),
-            .init(
+            SummaryMetric(
                 title: NSLocalizedString("usage.token_trend.summary.30d", value: "30 Days", comment: "30 day tokens"),
-                value: formatTokenCount(snapshot.last30DaysTokens),
+                value: formatTokenCount(last30Value),
                 periodText: snapshot.displayDateRange(for: "days30"),
                 accentColor: DesignSystem.Colors.Status.warning,
                 secondaryAccentColor: DesignSystem.Colors.Status.warning.opacity(0.5),
                 targetRangeID: "days30"
             ),
-            .init(
+            SummaryMetric(
                 title: NSLocalizedString("codex.usage.range.all", value: "ALL", comment: "Codex usage trend range all"),
-                value: formatTokenCount(snapshot.allDaysTokens),
+                value: formatTokenCount(allValue),
                 periodText: snapshot.displayDateRange(for: "all"),
                 accentColor: DesignSystem.Colors.Text.secondary,
                 secondaryAccentColor: DesignSystem.Colors.Background.elevated,
@@ -1198,6 +1147,35 @@ private extension ProviderTokenTrendSectionView {
                 isSelected ? item.accentColor.opacity(0.72) : item.accentColor.opacity(0.24),
                 lineWidth: isSelected ? 1.5 : 1
             )
+    }
+}
+
+private struct ProviderTokenTrendCardChromeModifier: ViewModifier {
+    func body(content: Content) -> some View {
+        content
+            .background(
+                RoundedRectangle(
+                    cornerRadius: DesignSystem.Metrics.cornerRadiusL,
+                    style: .continuous
+                )
+                .fill(DesignSystem.Colors.Component.controlFillSubtle)
+            )
+            .overlay(
+                RoundedRectangle(
+                    cornerRadius: DesignSystem.Metrics.cornerRadiusL,
+                    style: .continuous
+                )
+                .strokeBorder(
+                    DesignSystem.Colors.Component.border.opacity(0.3),
+                    lineWidth: 1
+                )
+            )
+    }
+}
+
+private extension View {
+    func providerTokenTrendCardChrome() -> some View {
+        modifier(ProviderTokenTrendCardChromeModifier())
     }
 }
 

@@ -46,6 +46,16 @@ final class ProviderDetailGridViewIssueNavigationTests: XCTestCase {
         XCTAssertFalse(result)
     }
 
+    func testBDD_GivenUsageTab_WhenResolvingGridScrollScaffold_ThenReturnsFalse() {
+        XCTAssertFalse(ProviderDetailGridView.shouldUseScrollableGridScaffold(for: .usage))
+    }
+
+    func testBDD_GivenNonUsageTabOrNoSelection_WhenResolvingGridScrollScaffold_ThenReturnsTrue() {
+        XCTAssertTrue(ProviderDetailGridView.shouldUseScrollableGridScaffold(for: .skills))
+        XCTAssertTrue(ProviderDetailGridView.shouldUseScrollableGridScaffold(for: .accounts))
+        XCTAssertTrue(ProviderDetailGridView.shouldUseScrollableGridScaffold(for: nil))
+    }
+
     func testBDD_GivenNonSkillsTabOrLinkDisabled_WhenCheckingPlaceholderVisibility_ThenReturnsFalse() {
         XCTAssertFalse(
             ProviderDetailGridView.shouldShowNolonSkillsLinkedPlaceholder(

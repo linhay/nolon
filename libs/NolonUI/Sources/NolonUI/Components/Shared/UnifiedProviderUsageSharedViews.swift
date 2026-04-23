@@ -335,6 +335,7 @@ public struct ProviderUsageScreenScaffold<Header: View, Content: View>: View {
             header
             content
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .bottomTrailingOverlay(isPresented: isShowingCopyToast) {
             ToastView(
                 config: .init(

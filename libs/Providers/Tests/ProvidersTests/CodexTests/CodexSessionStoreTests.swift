@@ -1267,6 +1267,43 @@ struct CodexSessionStoreTests {
         #expect(minuteRows[1].outputTokens == 2)
     }
 
+    @Test("Given rollout contains a huge response item line, when loading session usage, then timeline still uses the top-level timestamps")
+    func loadSessionUsageKeepsTimelineForHugeResponseItemLine() throws {
+        let root = try makeTempRoot("codex-session-usage-huge-response-item")
+        defer { try? root.delete() }
+
+        let codexHome = root.folder("provider")
+        _ = codexHome.createIfNotExists()
+        let hugeOutput = String(repeating: "A", count: 2_000_000)
+        _ = try writeUsageRollout(
+            codexHome: codexHome,
+            usageLines: [
+                """
+                {"timestamp":"2026-04-10T10:00:02Z","type":"response_item","payload":{"type":"function_call_output","call_id":"call_1","output":"\(hugeOutput)"}}
+                """,
+                #"{"timestamp":"2026-04-10T10:00:03Z","type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":120,"cached_input_tokens":20,"output_tokens":30,"total_tokens":150}}}}"#,
+            ]
+        )
+
+        let cacheRoot = root.folder("cache-root")
+        _ = cacheRoot.createIfNotExists()
+        let store = CodexSessionStore(
+            defaultProviderID: "openai",
+            usageIndexRootDirectory: cacheRoot.url
+        )
+
+        let result = try store.loadSessionUsageRecord(
+            codexHome: codexHome.url,
+            rolloutPath: "sessions/usage.jsonl"
+        )
+        let expectedStartedAt = try parseISO8601("2026-04-10T10:00:00Z")
+        let expectedLastActivityAt = try parseISO8601("2026-04-10T10:00:03Z")
+
+        #expect(result.totals == .init(inputTokens: 120, cachedInputTokens: 20, outputTokens: 30))
+        #expect(result.timeline?.startedAt == expectedStartedAt)
+        #expect(result.timeline?.lastActivityAt == expectedLastActivityAt)
+    }
+
     @Test("Given rollout usage index matches the current file, when reading session usage again, then store returns a cache hit")
     func loadSessionUsageReturnsCacheHitWhenFileIsUnchanged() throws {
         let root = try makeTempRoot("codex-session-usage-cache-hit")
@@ -1423,6 +1460,73 @@ struct CodexSessionStoreTests {
         #expect(minuteRows[1].outputTokens == 10)
     }
 
+    @Test("Given rollout usage cache still has token minute buckets but legacy request counts are zero, when reading session usage again, then store rebuilds and restores request counts")
+    func loadSessionUsageBackfillsMissingRequestCountsOnCacheHit() throws {
+        let root = try makeTempRoot("codex-session-usage-backfill-requests")
+        defer { try? root.delete() }
+
+        let codexHome = root.folder("provider")
+        _ = codexHome.createIfNotExists()
+        _ = try writeUsageRollout(
+            codexHome: codexHome,
+            rolloutPath: "sessions/backfill-requests.jsonl",
+            sessionID: "session-backfill-requests",
+            usageLines: [
+                #"{"timestamp":"2026-04-10T10:00:02Z","type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":100,"cached_input_tokens":10,"output_tokens":20,"total_tokens":120}}}}"#,
+                #"{"timestamp":"2026-04-10T10:01:02Z","type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":140,"cached_input_tokens":20,"output_tokens":30,"total_tokens":170}}}}"#,
+            ]
+        )
+
+        let cacheRoot = root.folder("cache-root")
+        _ = cacheRoot.createIfNotExists()
+        let store = CodexSessionStore(
+            defaultProviderID: "openai",
+            usageIndexRootDirectory: cacheRoot.url
+        )
+
+        _ = try store.loadSessionUsageRecord(
+            codexHome: codexHome.url,
+            rolloutPath: "sessions/backfill-requests.jsonl"
+        )
+
+        let initialMinuteRows = try store.loadSessionUsageMinuteEntries(
+            codexHome: codexHome.url,
+            rolloutPath: "sessions/backfill-requests.jsonl"
+        )
+        #expect(initialMinuteRows.map(\.requestCount) == [1, 1])
+
+        let usageIndexDatabaseURL = cacheRoot.url.appendingPathComponent("usage-index-v1.sqlite")
+        try sqliteExecute(
+            databaseURL: usageIndexDatabaseURL,
+            sql: """
+            UPDATE session_usage_minutes
+            SET request_count = 0
+            WHERE codex_home_path = ? AND rollout_path = ?;
+            """,
+            bindings: [
+                .text(codexHome.path),
+                .text("sessions/backfill-requests.jsonl"),
+            ]
+        )
+
+        let second = try store.loadSessionUsageRecord(
+            codexHome: codexHome.url,
+            rolloutPath: "sessions/backfill-requests.jsonl"
+        )
+
+        #expect(second.source == .fullRebuild)
+
+        let repairedMinuteRows = try store.loadSessionUsageMinuteEntries(
+            codexHome: codexHome.url,
+            rolloutPath: "sessions/backfill-requests.jsonl"
+        )
+
+        #expect(repairedMinuteRows.count == 2)
+        #expect(repairedMinuteRows.map(\.requestCount) == [1, 1])
+        #expect(repairedMinuteRows[0].inputTokens == 100)
+        #expect(repairedMinuteRows[1].inputTokens == 40)
+    }
+
     @Test("Given rollout usage file appends new token lines, when reading session usage again, then store only parses the appended tail and merges totals")
     func loadSessionUsageMergesAppendedTailDelta() throws {
         let root = try makeTempRoot("codex-session-usage-append")
@@ -1460,6 +1564,70 @@ struct CodexSessionStoreTests {
         #expect(first.source == .fullRebuild)
         #expect(second.source == .deltaAppend)
         #expect(second.totals == .init(inputTokens: 107, cachedInputTokens: 33, outputTokens: 29))
+    }
+
+    @Test("Given rollout usage cache has legacy zero request counts and the file grows, when reading session usage again, then store does a full rebuild instead of delta append")
+    func loadSessionUsagePrefersFullRebuildOverDeltaAppendWhenRequestCountsNeedBackfill() throws {
+        let root = try makeTempRoot("codex-session-usage-append-request-backfill")
+        defer { try? root.delete() }
+
+        let codexHome = root.folder("provider")
+        _ = codexHome.createIfNotExists()
+        let file = try writeUsageRollout(
+            codexHome: codexHome,
+            rolloutPath: "sessions/append-request-backfill.jsonl",
+            sessionID: "session-append-request-backfill",
+            usageLines: [
+                #"{"timestamp":"2026-04-10T10:00:02Z","type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":100,"cached_input_tokens":10,"output_tokens":20,"total_tokens":120}}}}"#,
+            ]
+        )
+
+        let cacheRoot = root.folder("cache-root")
+        _ = cacheRoot.createIfNotExists()
+        let store = CodexSessionStore(
+            defaultProviderID: "openai",
+            usageIndexRootDirectory: cacheRoot.url
+        )
+
+        _ = try store.loadSessionUsageRecord(
+            codexHome: codexHome.url,
+            rolloutPath: "sessions/append-request-backfill.jsonl"
+        )
+
+        let usageIndexDatabaseURL = cacheRoot.url.appendingPathComponent("usage-index-v1.sqlite")
+        try sqliteExecute(
+            databaseURL: usageIndexDatabaseURL,
+            sql: """
+            UPDATE session_usage_minutes
+            SET request_count = 0
+            WHERE codex_home_path = ? AND rollout_path = ?;
+            """,
+            bindings: [
+                .text(codexHome.path),
+                .text("sessions/append-request-backfill.jsonl"),
+            ]
+        )
+
+        try appendRolloutLines(file: file, lines: [
+            #"{"timestamp":"2026-04-10T10:01:02Z","type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":140,"cached_input_tokens":20,"output_tokens":30,"total_tokens":170}}}}"#,
+        ])
+
+        let second = try store.loadSessionUsageRecord(
+            codexHome: codexHome.url,
+            rolloutPath: "sessions/append-request-backfill.jsonl"
+        )
+
+        #expect(second.source == .fullRebuild)
+
+        let repairedMinuteRows = try store.loadSessionUsageMinuteEntries(
+            codexHome: codexHome.url,
+            rolloutPath: "sessions/append-request-backfill.jsonl"
+        )
+
+        #expect(repairedMinuteRows.count == 2)
+        #expect(repairedMinuteRows.map(\.requestCount) == [1, 1])
+        #expect(repairedMinuteRows[0].inputTokens == 100)
+        #expect(repairedMinuteRows[1].inputTokens == 40)
     }
 
     @Test("Given rollout usage file appends new token lines, when reading minute usage rows again, then store only merges affected UTC minute buckets")
@@ -1932,6 +2100,109 @@ struct CodexSessionStoreTests {
         #expect(projected.entries[1].inputTokens == 20)
         #expect(projected.entries[1].cachedInputTokens == 2)
         #expect(projected.entries[1].outputTokens == 5)
+    }
+
+    @Test("Given projected usage index is built from scratch, when loading projected usage minutes, then store publishes per-rollout progress notifications")
+    func loadProjectedUsageMinutesPublishesInitialBuildProgressMetrics() throws {
+        let root = try makeTempRoot("codex-session-minute-projection-progress")
+        defer { try? root.delete() }
+
+        let codexHome = root.folder("provider")
+        _ = codexHome.createIfNotExists()
+        _ = try writeUsageRollout(
+            codexHome: codexHome,
+            rolloutPath: "sessions/live-a.jsonl",
+            sessionID: "session-live-a",
+            usageLines: [
+                #"{"timestamp":"2026-04-10T10:00:02Z","type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":100,"cached_input_tokens":10,"output_tokens":20,"total_tokens":120}}}}"#,
+            ]
+        )
+        _ = try writeUsageRollout(
+            codexHome: codexHome,
+            rolloutPath: "archived_sessions/archive-b.jsonl",
+            sessionID: "session-archive-b",
+            usageLines: [
+                #"{"timestamp":"2026-04-10T10:01:02Z","type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":20,"cached_input_tokens":2,"output_tokens":5,"total_tokens":25}}}}"#,
+            ]
+        )
+
+        let cacheRoot = root.folder("cache-root")
+        _ = cacheRoot.createIfNotExists()
+        let store = CodexSessionStore(
+            defaultProviderID: "openai",
+            usageIndexRootDirectory: cacheRoot.url
+        )
+        let recorder = PerformanceRecorder()
+        let observer = NotificationCenter.default.addObserver(
+            forName: CodexSessionStore.performanceNotification,
+            object: nil,
+            queue: nil
+        ) { notification in
+            recorder.append(notification.userInfo ?? [:])
+        }
+        defer { NotificationCenter.default.removeObserver(observer) }
+
+        let projected = try store.loadProjectedUsageMinutes(codexHome: codexHome.url)
+
+        let startedMetrics = try #require(
+            recorder.payloads.first(where: { payload in
+                payload["operation"] as? String == "prepare_projected_usage_index"
+                    && payload["phase"] as? String == "started"
+                    && payload["detail_phase"] as? String == "reconcile_rollouts"
+                    && payload["codex_home_path"] as? String == codexHome.url.path
+            })
+        )
+        let analyzeMetrics = try #require(
+            recorder.payloads.first(where: { payload in
+                payload["operation"] as? String == "prepare_projected_usage_index"
+                    && payload["phase"] as? String == "progress"
+                    && payload["detail_phase"] as? String == "analyze_rollout"
+                    && payload["codex_home_path"] as? String == codexHome.url.path
+            })
+        )
+        let progressMetrics = recorder.payloads.filter { payload in
+            payload["operation"] as? String == "prepare_projected_usage_index"
+                && payload["phase"] as? String == "progress"
+                && payload["detail_phase"] as? String == "rollout_completed"
+                && payload["codex_home_path"] as? String == codexHome.url.path
+        }
+        let finishedMetrics = try #require(
+            recorder.payloads.last(where: { payload in
+                payload["operation"] as? String == "prepare_projected_usage_index"
+                    && payload["phase"] as? String == "completed"
+                    && payload["detail_phase"] as? String == "finished"
+                    && payload["codex_home_path"] as? String == codexHome.url.path
+            })
+        )
+
+        #expect(projected.entries.count == 2)
+        #expect(startedMetrics["dirty_rollout_count"] as? Int == 2)
+        #expect(startedMetrics["scanned_file_count"] as? Int == 2)
+        #expect(startedMetrics["cached_entry_count"] as? Int == 0)
+        let analyzedRolloutPath = analyzeMetrics["current_rollout_path"] as? String
+        let completedRolloutPaths = Set(progressMetrics.compactMap { payload in
+            payload["current_rollout_path"] as? String
+        })
+        let processedCounts = Set(progressMetrics.compactMap { payload in
+            payload["processed_rollout_count"] as? Int
+        })
+        let finalProgressMetrics = try #require(
+            progressMetrics.first(where: { payload in
+                payload["processed_rollout_count"] as? Int == 2
+            })
+        )
+
+        #expect(
+            analyzedRolloutPath == "sessions/live-a.jsonl"
+                || analyzedRolloutPath == "archived_sessions/archive-b.jsonl"
+        )
+        #expect(progressMetrics.count == 2)
+        #expect(completedRolloutPaths == Set(["sessions/live-a.jsonl", "archived_sessions/archive-b.jsonl"]))
+        #expect(processedCounts == Set([1, 2]))
+        #expect(finalProgressMetrics["refreshed_live_rollout_count"] as? Int == 1)
+        #expect(finalProgressMetrics["refreshed_archived_rollout_count"] as? Int == 1)
+        #expect(finishedMetrics["cached_entry_count"] as? Int == 2)
+        #expect((finishedMetrics["elapsed_ms"] as? Int ?? -1) >= 0)
     }
 
     @Test("Given projected usage includes archived rollouts, when only archived file metadata changes, then projection reuses the archived cache entry")

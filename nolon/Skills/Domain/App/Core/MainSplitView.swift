@@ -892,21 +892,29 @@ public struct MainSplitView: View, DebugPageLocatable {
                         )
                     }
                 } else {
-                    ProviderDetailGridView(
-                        provider: viewModel.selectedProvider,
-                        selectedTab: viewModel.selectedTab,
-                        settings: viewModel.settings,
-                        refreshTrigger: viewModel.refreshTrigger,
-                        onSelectProvider: { providerID in
-                            viewModel.selectedSidebarItem = .provider(providerID)
-                        },
-                        onSelectTab: { tab in
-                            viewModel.selectedTab = tab
-                        },
-                        onSelectNolon: {
-                            viewModel.selectedSidebarItem = .nolon
-                        }
-                    )
+                    GeometryReader { proxy in
+                        ProviderDetailGridView(
+                            provider: viewModel.selectedProvider,
+                            selectedTab: viewModel.selectedTab,
+                            settings: viewModel.settings,
+                            refreshTrigger: viewModel.refreshTrigger,
+                            onSelectProvider: { providerID in
+                                viewModel.selectedSidebarItem = .provider(providerID)
+                            },
+                            onSelectTab: { tab in
+                                viewModel.selectedTab = tab
+                            },
+                            onSelectNolon: {
+                                viewModel.selectedSidebarItem = .nolon
+                            }
+                        )
+                        .frame(
+                            width: proxy.size.width,
+                            height: proxy.size.height,
+                            alignment: .topLeading
+                        )
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                 }
             }
         } overlay: {

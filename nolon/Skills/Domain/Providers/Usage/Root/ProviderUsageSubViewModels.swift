@@ -833,6 +833,7 @@ final class ProviderTokenTrendViewModel {
         self.state = state
         let resolvedPreferencesStore = preferencesStore ?? ProviderUsageTokenTrendPreferencesStore(providerID: state.provider.id)
         self.preferencesStore = resolvedPreferencesStore
+        self.metricMode = resolvedPreferencesStore.metricMode
         self.chartStyle = resolvedPreferencesStore.chartStyle
     }
 
@@ -845,11 +846,15 @@ final class ProviderTokenTrendViewModel {
     var tokenTrendCapability: ProviderUsageCurveCapability { engine.tokenTrendCapability }
     var selectedDayKey: String? { engine.selectedTokenTrendDayKey }
     var intradayBucket: ProviderIntradayBucket { engine.intradayBucket }
+    var availableIntradayBuckets: [ProviderIntradayBucket] {
+        ProviderUsageRegistry.supportedIntradayBuckets(for: state.usageProvider)
+    }
     var intradaySnapshot: ProviderIntradayUsageSnapshot? { engine.intradaySnapshot }
     var intradayErrorMessage: String? { engine.intradayErrorMessage }
     var isLoadingIntraday: Bool { engine.isLoadingIntraday }
     var shouldShowLoadingSkeleton: Bool { engine.shouldShowTokenTrendLoadingSkeleton }
     var supportsIntradayDrilldown: Bool { tokenTrendCapability == .dailyWithIntradayDrilldown }
+    var metricMode: ProviderTokenTrendMetricMode
     var chartStyle: ProviderTokenTrendChartStyle
     var activeContentTab: ProviderTokenTrendContentTab {
         if !supportsIntradayDrilldown {
@@ -887,6 +892,12 @@ final class ProviderTokenTrendViewModel {
         engine.setIntradayBucket(bucket)
     }
 
+    func setMetricMode(_ mode: ProviderTokenTrendMetricMode) {
+        guard metricMode != mode else { return }
+        metricMode = mode
+        preferencesStore.metricMode = mode
+    }
+
     func setChartStyle(_ style: ProviderTokenTrendChartStyle) {
         guard chartStyle != style else { return }
         chartStyle = style
@@ -914,6 +925,10 @@ final class ProviderTokenTrendViewModel {
 @MainActor
 final class ProviderUsageTokenTrendPreferencesStore {
     private enum Keys {
+        static func metricMode(providerID: String) -> String {
+            "provider.usage.\(providerID).token_trend.metric_mode"
+        }
+
         static func chartStyle(providerID: String) -> String {
             "provider.usage.\(providerID).token_trend.chart_style"
         }
@@ -925,6 +940,21 @@ final class ProviderUsageTokenTrendPreferencesStore {
     init(providerID: String, userDefaults: UserDefaults = .standard) {
         self.providerID = providerID
         self.userDefaults = userDefaults
+    }
+
+    var metricMode: ProviderTokenTrendMetricMode {
+        get {
+            guard
+                let rawValue = userDefaults.string(forKey: Keys.metricMode(providerID: providerID)),
+                let metricMode = ProviderTokenTrendMetricMode(rawValue: rawValue)
+            else {
+                return .tokens
+            }
+            return metricMode
+        }
+        set {
+            userDefaults.set(newValue.rawValue, forKey: Keys.metricMode(providerID: providerID))
+        }
     }
 
     var chartStyle: ProviderTokenTrendChartStyle {

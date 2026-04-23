@@ -157,12 +157,14 @@ public struct CodexTokenTrendService: Sendable {
                 let output = max(0, entry.outputTokens ?? 0)
                 let cache = max(0, entry.cacheReadTokens ?? 0)
                 let total = max(0, entry.totalTokens ?? (input + output))
+                let requests = max(0, entry.requestCount ?? 0)
                 return ProviderTokenTrendPoint(
                     date: entry.date,
                     totalTokens: total,
                     inputTokens: input,
                     outputTokens: output,
-                    cacheReadTokens: cache
+                    cacheReadTokens: cache,
+                    requestCount: requests
                 )
             }
             .sorted { $0.date < $1.date }
@@ -179,16 +181,28 @@ public struct CodexTokenTrendService: Sendable {
             sessionTokens: snapshot.sessionTokens,
             now: snapshot.updatedAt
         )
+        let todayRequests = self.todayRequests(
+            from: allPoints,
+            sessionRequests: snapshot.sessionRequests ?? snapshot.todayRequests,
+            now: snapshot.updatedAt
+        )
         let last7 = Self.sumTrailing(points: allPoints, days: 7)
+        let last7Requests = Self.sumTrailingRequests(points: allPoints, days: 7)
         let last30 = Self.sumTrailing(points: allPoints, days: 30)
+        let last30Requests = Self.sumTrailingRequests(points: allPoints, days: 30)
         let all = Self.sumAll(points: allPoints)
+        let allRequests = Self.sumAllRequests(points: allPoints)
 
         return ProviderTokenTrendSnapshot(
             points: points,
             todayTokens: today,
+            todayRequests: todayRequests,
             last7DaysTokens: last7,
+            last7DaysRequests: last7Requests,
             last30DaysTokens: last30,
+            last30DaysRequests: last30Requests,
             allDaysTokens: all,
+            allDaysRequests: allRequests,
             updatedAt: snapshot.updatedAt,
             sourceLabel: "global local usage"
         )
@@ -208,9 +222,13 @@ public struct CodexTokenTrendService: Sendable {
         return ProviderTokenTrendSnapshot(
             points: points,
             todayTokens: snapshot.todayTokens,
+            todayRequests: snapshot.todayRequests,
             last7DaysTokens: snapshot.last7DaysTokens,
+            last7DaysRequests: snapshot.last7DaysRequests,
             last30DaysTokens: snapshot.last30DaysTokens,
+            last30DaysRequests: snapshot.last30DaysRequests,
             allDaysTokens: snapshot.allDaysTokens,
+            allDaysRequests: snapshot.allDaysRequests,
             updatedAt: snapshot.updatedAt,
             sourceLabel: snapshot.sourceLabel
         )
@@ -293,16 +311,24 @@ public struct CodexTokenTrendService: Sendable {
     ) -> ProviderTokenTrendSnapshot {
         let sortedPoints = points.sorted { $0.date < $1.date }
         let today = sortedPoints.first(where: { $0.date == todayKey })?.totalTokens ?? 0
+        let todayRequests = sortedPoints.first(where: { $0.date == todayKey })?.requestCount ?? 0
         let last7 = sumTrailing(points: sortedPoints, days: 7)
+        let last7Requests = sumTrailingRequests(points: sortedPoints, days: 7)
         let last30 = sumTrailing(points: sortedPoints, days: 30)
+        let last30Requests = sumTrailingRequests(points: sortedPoints, days: 30)
         let all = sumAll(points: sortedPoints)
+        let allRequests = sumAllRequests(points: sortedPoints)
 
         return ProviderTokenTrendSnapshot(
             points: sortedPoints,
             todayTokens: today,
+            todayRequests: todayRequests,
             last7DaysTokens: last7,
+            last7DaysRequests: last7Requests,
             last30DaysTokens: last30,
+            last30DaysRequests: last30Requests,
             allDaysTokens: all,
+            allDaysRequests: allRequests,
             updatedAt: updatedAt,
             sourceLabel: sourceLabel
         )
@@ -320,6 +346,18 @@ public struct CodexTokenTrendService: Sendable {
         return points.map(\.totalTokens).reduce(0, +)
     }
 
+    private static func sumTrailingRequests(points: [CodexTokenTrendPoint], days: Int) -> Int? {
+        guard days > 0, !points.isEmpty else { return nil }
+        let values = points.suffix(days).map(\.requestCount)
+        guard !values.isEmpty else { return nil }
+        return values.reduce(0, +)
+    }
+
+    private static func sumAllRequests(points: [CodexTokenTrendPoint]) -> Int? {
+        guard !points.isEmpty else { return nil }
+        return points.map(\.requestCount).reduce(0, +)
+    }
+
     private func todayTokens(
         from points: [CodexTokenTrendPoint],
         sessionTokens: Int?,
@@ -331,6 +369,19 @@ public struct CodexTokenTrendService: Sendable {
 
         let todayKey = Self.dayKey(from: now)
         return points.first(where: { $0.date == todayKey })?.totalTokens ?? 0
+    }
+
+    private func todayRequests(
+        from points: [CodexTokenTrendPoint],
+        sessionRequests: Int?,
+        now: Date
+    ) -> Int {
+        if let sessionRequests {
+            return max(0, sessionRequests)
+        }
+
+        let todayKey = Self.dayKey(from: now)
+        return points.first(where: { $0.date == todayKey })?.requestCount ?? 0
     }
 
     private static func dayKey(from date: Date) -> String {
@@ -373,15 +424,16 @@ public struct CodexTokenTrendService: Sendable {
         guard !projected.entries.isEmpty else { return nil }
 
         let totals = projected.entries.reduce(
-            into: (input: 0, output: 0, cached: 0)
+            into: (input: 0, output: 0, cached: 0, requests: 0)
         ) { partialResult, entry in
             partialResult.input += entry.inputTokens
             partialResult.output += entry.outputTokens
             partialResult.cached += entry.cachedInputTokens
+            partialResult.requests += entry.requestCount
         }
 
         let totalTokens = totals.input + totals.output
-        guard totalTokens > 0 || totals.cached > 0 else {
+        guard totalTokens > 0 || totals.cached > 0 || totals.requests > 0 else {
             return nil
         }
 
@@ -390,7 +442,8 @@ public struct CodexTokenTrendService: Sendable {
             totalTokens: totalTokens,
             inputTokens: totals.input,
             outputTokens: totals.output,
-            cacheReadTokens: totals.cached
+            cacheReadTokens: totals.cached,
+            requestCount: totals.requests
         )
     }
 
@@ -427,6 +480,7 @@ public struct CodexTokenTrendService: Sendable {
             var input = 0
             var cached = 0
             var output = 0
+            var requests = 0
 
             var total: Int { input + output }
         }
@@ -438,6 +492,7 @@ public struct CodexTokenTrendService: Sendable {
             totals.input += entry.inputTokens
             totals.cached += entry.cachedInputTokens
             totals.output += entry.outputTokens
+            totals.requests += entry.requestCount
             dayTotals[dayKey] = totals
         }
 
@@ -449,6 +504,7 @@ public struct CodexTokenTrendService: Sendable {
                 outputTokens: totals.output,
                 cacheReadTokens: totals.cached,
                 totalTokens: totals.total,
+                requestCount: totals.requests,
                 costUSD: nil,
                 modelsUsed: nil,
                 modelBreakdowns: nil
@@ -461,16 +517,20 @@ public struct CodexTokenTrendService: Sendable {
             partialResult.input += item.input
             partialResult.cached += item.cached
             partialResult.output += item.output
+            partialResult.requests += item.requests
         }
 
         return CostUsageTokenSnapshot(
             sessionTokens: today?.total,
+            sessionRequests: today?.requests,
             sessionCostUSD: nil,
             todayInputTokens: today?.input,
             todayOutputTokens: today?.output,
             todayCachedInputTokens: today?.cached,
+            todayRequests: today?.requests,
             rangeDays: nil,
             rangeTokens: daily.isEmpty ? nil : aggregate.total,
+            rangeRequests: daily.isEmpty ? nil : aggregate.requests,
             rangeCostUSD: nil,
             rangeInputTokens: daily.isEmpty ? nil : aggregate.input,
             rangeOutputTokens: daily.isEmpty ? nil : aggregate.output,

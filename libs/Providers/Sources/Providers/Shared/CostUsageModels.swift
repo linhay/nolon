@@ -7,12 +7,15 @@ public struct CostUsageTokenSnapshot: Sendable, Equatable {
     }
 
     public let sessionTokens: Int?
+    public let sessionRequests: Int?
     public let sessionCostUSD: Double?
     public let todayInputTokens: Int?
     public let todayOutputTokens: Int?
     public let todayCachedInputTokens: Int?
+    public let todayRequests: Int?
     public let rangeDays: Int?
     public let rangeTokens: Int?
+    public let rangeRequests: Int?
     public let rangeCostUSD: Double?
     public let rangeInputTokens: Int?
     public let rangeOutputTokens: Int?
@@ -23,12 +26,15 @@ public struct CostUsageTokenSnapshot: Sendable, Equatable {
 
     public init(
         sessionTokens: Int?,
+        sessionRequests: Int? = nil,
         sessionCostUSD: Double?,
         todayInputTokens: Int?,
         todayOutputTokens: Int?,
         todayCachedInputTokens: Int?,
+        todayRequests: Int? = nil,
         rangeDays: Int?,
         rangeTokens: Int?,
+        rangeRequests: Int? = nil,
         rangeCostUSD: Double?,
         rangeInputTokens: Int?,
         rangeOutputTokens: Int?,
@@ -38,12 +44,15 @@ public struct CostUsageTokenSnapshot: Sendable, Equatable {
         source: Source = .scopedSessions)
     {
         self.sessionTokens = sessionTokens
+        self.sessionRequests = sessionRequests
         self.sessionCostUSD = sessionCostUSD
         self.todayInputTokens = todayInputTokens
         self.todayOutputTokens = todayOutputTokens
         self.todayCachedInputTokens = todayCachedInputTokens
+        self.todayRequests = todayRequests
         self.rangeDays = rangeDays
         self.rangeTokens = rangeTokens
+        self.rangeRequests = rangeRequests
         self.rangeCostUSD = rangeCostUSD
         self.rangeInputTokens = rangeInputTokens
         self.rangeOutputTokens = rangeOutputTokens
@@ -86,6 +95,7 @@ public struct CostUsageDailyReport: Sendable, Decodable {
         public let cacheCreationTokens: Int?
         public let outputTokens: Int?
         public let totalTokens: Int?
+        public let requestCount: Int?
         public let costUSD: Double?
         public let modelsUsed: [String]?
         public let modelBreakdowns: [ModelBreakdown]?
@@ -99,6 +109,7 @@ public struct CostUsageDailyReport: Sendable, Decodable {
             case cacheCreationInputTokens
             case outputTokens
             case totalTokens
+            case requestCount
             case costUSD
             case totalCost
             case modelsUsed
@@ -118,6 +129,7 @@ public struct CostUsageDailyReport: Sendable, Decodable {
                 ?? container.decodeIfPresent(Int.self, forKey: .cacheCreationInputTokens)
             self.outputTokens = try container.decodeIfPresent(Int.self, forKey: .outputTokens)
             self.totalTokens = try container.decodeIfPresent(Int.self, forKey: .totalTokens)
+            self.requestCount = try container.decodeIfPresent(Int.self, forKey: .requestCount)
             self.costUSD =
                 try container.decodeIfPresent(Double.self, forKey: .costUSD)
                 ?? container.decodeIfPresent(Double.self, forKey: .totalCost)
@@ -132,6 +144,7 @@ public struct CostUsageDailyReport: Sendable, Decodable {
             cacheReadTokens: Int? = nil,
             cacheCreationTokens: Int? = nil,
             totalTokens: Int?,
+            requestCount: Int? = nil,
             costUSD: Double?,
             modelsUsed: [String]?,
             modelBreakdowns: [ModelBreakdown]?)
@@ -142,6 +155,7 @@ public struct CostUsageDailyReport: Sendable, Decodable {
             self.cacheReadTokens = cacheReadTokens
             self.cacheCreationTokens = cacheCreationTokens
             self.totalTokens = totalTokens
+            self.requestCount = requestCount
             self.costUSD = costUSD
             self.modelsUsed = modelsUsed
             self.modelBreakdowns = modelBreakdowns

@@ -1,4 +1,5 @@
 import Providers
+import ProviderUsage
 import Testing
 
 @Suite("ProviderUsageRegistry")
@@ -36,5 +37,18 @@ struct ProviderUsageRegistryTests {
         let metadata = ProviderUsageRegistry.metadata(for: .codex)
         #expect(metadata?.dashboardURL != nil)
         #expect(metadata?.displayName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false)
+    }
+
+    @Test("Supported intraday buckets stay provider-aware")
+    func supportedIntradayBuckets_areProviderAware() {
+        #expect(
+            ProviderUsageRegistry.supportedIntradayBuckets(for: .codex) == [.minute1, .minute5, .minute10, .minute15, .minute30, .hour1]
+        )
+        #expect(
+            ProviderUsageRegistry.supportedIntradayBuckets(for: .gemini) == [.minute1, .minute5, .minute10, .minute15, .minute30, .hour1]
+        )
+        #expect(
+            ProviderUsageRegistry.supportedIntradayBuckets(for: .claude) == [.minute1, .minute5, .minute10, .minute15, .minute30, .hour1]
+        )
     }
 }

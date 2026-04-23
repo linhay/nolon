@@ -60,10 +60,12 @@ struct ClaudeIntradayUsageServiceTests {
         #expect(snapshot.points[0].inputTokens == 120)
         #expect(snapshot.points[0].outputTokens == 40)
         #expect(snapshot.points[0].cacheReadTokens == 5)
+        #expect(snapshot.points[0].requestCount == 1)
         #expect(snapshot.points[1].totalTokens == 90)
         #expect(snapshot.points[1].inputTokens == 60)
         #expect(snapshot.points[1].outputTokens == 20)
         #expect(snapshot.points[1].cacheReadTokens == 10)
+        #expect(snapshot.points[1].requestCount == 1)
         #expect(snapshot.sourceLabel == "session")
     }
 

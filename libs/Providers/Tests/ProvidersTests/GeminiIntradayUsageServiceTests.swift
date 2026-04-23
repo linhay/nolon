@@ -81,7 +81,9 @@ struct GeminiIntradayUsageServiceTests {
         #expect(snapshot.points.count == 2)
         #expect(snapshot.points.reduce(0) { $0 + $1.totalTokens } == 230)
         #expect(snapshot.points[0].totalTokens == 140)
+        #expect(snapshot.points[0].requestCount == 1)
         #expect(snapshot.points[1].totalTokens == 90)
+        #expect(snapshot.points[1].requestCount == 1)
         #expect(snapshot.sourceLabel == "session")
     }
 

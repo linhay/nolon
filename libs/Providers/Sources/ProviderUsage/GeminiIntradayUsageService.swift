@@ -95,8 +95,8 @@ public struct GeminiIntradayUsageService: Sendable {
             readFile: readFile,
             loadFileFingerprint: loadFileFingerprint
         )
-        let bucketSeconds = Self.bucketSeconds(for: bucket)
-        let actualBucketCount = Int((range.end.timeIntervalSince(range.start) / bucketSeconds).rounded())
+        let bucketSeconds = bucket.seconds
+        let actualBucketCount = Int(ceil(range.end.timeIntervalSince(range.start) / bucketSeconds))
         var totals = Array(
             repeating: GeminiIntradayBucketTotals(),
             count: max(0, actualBucketCount)
@@ -117,6 +117,7 @@ public struct GeminiIntradayUsageService: Sendable {
             totals[bucketIndex].output += event.output
             totals[bucketIndex].cached += event.cached
             totals[bucketIndex].total += event.total
+            totals[bucketIndex].requests += event.requestCount
         }
 
         let points = totals.enumerated().map { index, item in
@@ -128,7 +129,8 @@ public struct GeminiIntradayUsageService: Sendable {
                 totalTokens: item.total,
                 inputTokens: item.input,
                 outputTokens: item.output,
-                cacheReadTokens: item.cached
+                cacheReadTokens: item.cached,
+                requestCount: item.requests
             )
         }
 
@@ -154,8 +156,8 @@ public struct GeminiIntradayUsageService: Sendable {
         rangeEnd: Date,
         fetchedAt: Date
     ) -> ProviderIntradayUsageSnapshot {
-        let bucketSeconds = Self.bucketSeconds(for: bucket)
-        let actualBucketCount = Int((rangeEnd.timeIntervalSince(rangeStart) / bucketSeconds).rounded())
+        let bucketSeconds = bucket.seconds
+        let actualBucketCount = Int(ceil(rangeEnd.timeIntervalSince(rangeStart) / bucketSeconds))
         let points = (0..<actualBucketCount).map { index in
             let start = rangeStart.addingTimeInterval(Double(index) * bucketSeconds)
             let end = min(start.addingTimeInterval(bucketSeconds), rangeEnd)
@@ -165,7 +167,8 @@ public struct GeminiIntradayUsageService: Sendable {
                 totalTokens: 0,
                 inputTokens: 0,
                 outputTokens: 0,
-                cacheReadTokens: 0
+                cacheReadTokens: 0,
+                requestCount: 0
             )
         }
         return ProviderIntradayUsageSnapshot(
@@ -179,17 +182,6 @@ public struct GeminiIntradayUsageService: Sendable {
             fetchedAt: fetchedAt,
             sourceLabel: "session"
         )
-    }
-
-    private static func bucketSeconds(for bucket: ProviderIntradayBucket) -> TimeInterval {
-        switch bucket {
-        case .minute15:
-            return 15 * 60
-        case .minute30:
-            return 30 * 60
-        case .hour1:
-            return 60 * 60
-        }
     }
 
     private static func makeDayRange(dayKey: String, timezone: TimeZone) -> (start: Date, end: Date)? {
@@ -215,4 +207,5 @@ private struct GeminiIntradayBucketTotals {
     var output = 0
     var cached = 0
     var total = 0
+    var requests = 0
 }

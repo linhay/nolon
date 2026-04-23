@@ -88,6 +88,17 @@ public enum ProviderUsageRegistry {
             return nil
         }
     }
+
+    public static func supportedIntradayBuckets(for provider: UsageProvider?) -> [ProviderIntradayBucket] {
+        switch provider {
+        case .claude, .gemini, .antigravity:
+            return [.minute1, .minute5, .minute10, .minute15, .minute30, .hour1]
+        case .codex:
+            return [.minute1, .minute5, .minute10, .minute15, .minute30, .hour1]
+        default:
+            return [.minute1, .minute5, .minute10, .minute15, .minute30, .hour1]
+        }
+    }
 }
 
 private struct UnsupportedUsageDescriptor: ProviderUsageDescribing {

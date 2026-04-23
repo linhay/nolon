@@ -90,9 +90,13 @@ public struct ClaudeTokenTrendService: Sendable {
         return ProviderTokenTrendSnapshot(
             points: points,
             todayTokens: Self.todayTokens(from: allPoints, now: referenceDate, timezone: timezone),
+            todayRequests: Self.todayRequests(from: allPoints, now: referenceDate, timezone: timezone),
             last7DaysTokens: Self.sumTrailing(points: allPoints, days: 7),
+            last7DaysRequests: Self.sumTrailingRequests(points: allPoints, days: 7),
             last30DaysTokens: Self.sumTrailing(points: allPoints, days: 30),
+            last30DaysRequests: Self.sumTrailingRequests(points: allPoints, days: 30),
             allDaysTokens: Self.sumAll(points: allPoints),
+            allDaysRequests: Self.sumAllRequests(points: allPoints),
             updatedAt: referenceDate,
             sourceLabel: "session"
         )
@@ -102,9 +106,13 @@ public struct ClaudeTokenTrendService: Sendable {
         ProviderTokenTrendSnapshot(
             points: [],
             todayTokens: nil,
+            todayRequests: nil,
             last7DaysTokens: nil,
+            last7DaysRequests: nil,
             last30DaysTokens: nil,
+            last30DaysRequests: nil,
             allDaysTokens: nil,
+            allDaysRequests: nil,
             updatedAt: referenceDate,
             sourceLabel: "session"
         )
@@ -123,6 +131,7 @@ public struct ClaudeTokenTrendService: Sendable {
             totals.output += event.output
             totals.cacheRead += event.cacheRead
             totals.total += event.total
+            totals.requests += event.requestCount
             totalsByDay[dayKey] = totals
         }
 
@@ -133,7 +142,8 @@ public struct ClaudeTokenTrendService: Sendable {
                 totalTokens: totals.total,
                 inputTokens: totals.input,
                 outputTokens: totals.output,
-                cacheReadTokens: totals.cacheRead
+                cacheReadTokens: totals.cacheRead,
+                requestCount: totals.requests
             )
         }
     }
@@ -147,9 +157,25 @@ public struct ClaudeTokenTrendService: Sendable {
         return points.first(where: { $0.date == todayKey })?.totalTokens ?? 0
     }
 
+    private static func todayRequests(
+        from points: [ProviderTokenTrendPoint],
+        now: Date,
+        timezone: TimeZone
+    ) -> Int {
+        let todayKey = ClaudeSessionUsageSupport.dayKey(from: now, timezone: timezone)
+        return points.first(where: { $0.date == todayKey })?.requestCount ?? 0
+    }
+
     private static func sumTrailing(points: [ProviderTokenTrendPoint], days: Int) -> Int? {
         guard days > 0, !points.isEmpty else { return nil }
         let values = points.suffix(days).map(\.totalTokens)
+        guard !values.isEmpty else { return nil }
+        return values.reduce(0, +)
+    }
+
+    private static func sumTrailingRequests(points: [ProviderTokenTrendPoint], days: Int) -> Int? {
+        guard days > 0, !points.isEmpty else { return nil }
+        let values = points.suffix(days).map(\.requestCount)
         guard !values.isEmpty else { return nil }
         return values.reduce(0, +)
     }
@@ -158,6 +184,11 @@ public struct ClaudeTokenTrendService: Sendable {
         guard !points.isEmpty else { return nil }
         return points.map(\.totalTokens).reduce(0, +)
     }
+
+    private static func sumAllRequests(points: [ProviderTokenTrendPoint]) -> Int? {
+        guard !points.isEmpty else { return nil }
+        return points.map(\.requestCount).reduce(0, +)
+    }
 }
 
 private struct ClaudeDailyTotals: Sendable {
@@ -165,4 +196,5 @@ private struct ClaudeDailyTotals: Sendable {
     var output = 0
     var cacheRead = 0
     var total = 0
+    var requests = 0
 }
