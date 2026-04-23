@@ -8,46 +8,20 @@ import NolonUI
 import NolonUIFoundation
 
 private struct ProviderDetailViewportHostingView<Content: View>: NSViewRepresentable {
-    final class ContainerView: NSView {
-        let hostingView: NSHostingView<AnyView>
-
-        init(rootView: AnyView) {
-            hostingView = NSHostingView(rootView: rootView)
-            super.init(frame: .zero)
-            translatesAutoresizingMaskIntoConstraints = false
-            hostingView.translatesAutoresizingMaskIntoConstraints = false
-            hostingView.sizingOptions = []
-            addSubview(hostingView)
-            NSLayoutConstraint.activate([
-                hostingView.leadingAnchor.constraint(equalTo: leadingAnchor),
-                hostingView.trailingAnchor.constraint(equalTo: trailingAnchor),
-                hostingView.topAnchor.constraint(equalTo: topAnchor),
-                hostingView.bottomAnchor.constraint(equalTo: bottomAnchor),
-            ])
-        }
-
-        @available(*, unavailable)
-        required init?(coder: NSCoder) {
-            fatalError("init(coder:) has not been implemented")
-        }
-
-        func update(rootView: AnyView) {
-            hostingView.rootView = rootView
-        }
-    }
-
     let content: Content
 
     init(@ViewBuilder content: () -> Content) {
         self.content = content()
     }
 
-    func makeNSView(context: Context) -> ContainerView {
-        ContainerView(rootView: AnyView(content))
+    func makeNSView(context: Context) -> NSHostingView<AnyView> {
+        let hostingView = NSHostingView(rootView: AnyView(content))
+        hostingView.sizingOptions = []
+        return hostingView
     }
 
-    func updateNSView(_ nsView: ContainerView, context: Context) {
-        nsView.update(rootView: AnyView(content))
+    func updateNSView(_ nsView: NSHostingView<AnyView>, context: Context) {
+        nsView.rootView = AnyView(content)
     }
 }
 
