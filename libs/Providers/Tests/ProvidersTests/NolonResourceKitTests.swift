@@ -1217,6 +1217,54 @@ struct NolonResourceKitTests {
         #expect(raw.contains(#"approval_mode = "prompt""#))
     }
 
+    @Test("Codex MCP enable toggle preserves unknown server keys and nested tables")
+    func codexMcpEnableTogglePreservesUnknownKeysAndTables() throws {
+        let root = try STFolder(sanbox: .temporary)
+            .folder("nolon-codex-mcp-toggle-unknown-fields-\(UUID().uuidString)")
+            .create()
+        defer { try? root.deleteIncludingBrokenSymlink() }
+
+        let previousHome = getenv("HOME").map { String(cString: $0) }
+        let previousNolonHome = getenv("NOLON_HOME").map { String(cString: $0) }
+        setenv("HOME", root.url.path, 1)
+        setenv("NOLON_HOME", root.folder(".nolon").url.path, 1)
+        defer {
+            if let previousHome {
+                setenv("HOME", previousHome, 1)
+            }
+            if let previousNolonHome {
+                setenv("NOLON_HOME", previousNolonHome, 1)
+            }
+        }
+
+        let configPath = ProviderTemplate.codex.defaultMcpConfigPath
+        _ = STFolder(configPath.deletingLastPathComponent()).createIfNotExists()
+        try """
+        [mcp_servers.playwright]
+        command = "npx"
+        args = ["-y", "@playwright/mcp@latest"]
+        custom_mode = "keep-me"
+
+        [mcp_servers.playwright.tools.browser_click]
+        approval_mode = "prompt"
+        custom_tool_flag = "keep-tool"
+
+        [mcp_servers.playwright.experimental_block]
+        alpha = "beta"
+        """.write(to: configPath, atomically: true, encoding: .utf8)
+
+        try MCPConfigManager.setEnabled(for: .codex, name: "playwright", enabled: false)
+
+        let raw = try String(contentsOf: configPath, encoding: .utf8)
+        #expect(raw.contains(#"enabled = false"#))
+        #expect(raw.contains(#"custom_mode = "keep-me""#))
+        #expect(raw.contains(#"[mcp_servers.playwright.tools.browser_click]"#))
+        #expect(raw.contains(#"approval_mode = "prompt""#))
+        #expect(raw.contains(#"custom_tool_flag = "keep-tool""#))
+        #expect(raw.contains(#"[mcp_servers.playwright.experimental_block]"#))
+        #expect(raw.contains(#"alpha = "beta""#))
+    }
+
     @Test("ResourceInstaller installs Codex MCP through shared patch writer")
     func resourceInstallerInstallsCodexMcpThroughSharedPatchWriter() async throws {
         let root = try STFolder(sanbox: .temporary)

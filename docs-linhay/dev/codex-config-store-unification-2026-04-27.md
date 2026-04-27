@@ -71,3 +71,18 @@
   - 对 `codex` / `codexXcode`，启动 repair 只修 cache，不再被动改 provider 原文件
   - 扩展 Codex MCP 模型和 TOML 渲染，保留上述官方字段
   - 新增回归测试，覆盖“repair 不改写”和“setEnabled 写回后字段仍保留”
+
+## Codex MCP 未知字段保留策略
+- 仅保留已知官方字段仍然不够，`setEnabled` 这类局部写回以前仍会把未知 server 键、未知工具字段和未知子表一起重渲染丢失。
+- 当前把 Codex MCP 的 TOML 写回从“整段重渲染替换”改成“基于现有 block 的局部 merge”：
+  - 已知受控键按当前状态更新或删除
+  - 未知顶层键原样保留
+  - 未知 `tools.<tool>` 子字段原样保留
+  - 未知子表（例如未来官方新增 section 或用户自定义 section）原样保留
+- 设计约束明确为：
+  - 可以不在 UI 暴露未知字段
+  - 但不能在一次 read-modify-write 之后吃掉未知字段
+- 新增回归测试覆盖：
+  - `setEnabled` 后仍保留未知 server 键
+  - `setEnabled` 后仍保留 `tools.<tool>` 下未知字段
+  - `setEnabled` 后仍保留未知嵌套表

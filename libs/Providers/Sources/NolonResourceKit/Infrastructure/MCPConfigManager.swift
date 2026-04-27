@@ -231,6 +231,12 @@ private extension MCPConfigManager {
         }
     }
 
+    struct CodexMCPServerTableGroup {
+        var baseLines: [String]?
+        var nestedLines: [String: [String]] = [:]
+        var nestedOrder: [String] = []
+    }
+
     static func effectiveServers(for template: ProviderTemplate) throws -> [String: [String: Any]] {
         var providerServers = try readProviderServersDict(for: template)
         let cacheEntries = readCacheEntriesIndexedByName()
@@ -293,9 +299,8 @@ private extension MCPConfigManager {
         _ = STFolder(path.deletingLastPathComponent()).createIfNotExists()
 
         if ext == "toml" {
-            let renderedSection = renderCodexMCPServersSection(servers)
             _ = try CodexConfigStore(file: STFile(path)).update { existingText in
-                replaceCodexMCPServersSection(in: existingText, with: renderedSection)
+                mergeCodexMCPServersSection(in: existingText, with: servers)
             }
             return
         }
@@ -1012,6 +1017,305 @@ private extension MCPConfigManager {
         }
         result.append(renderedSection)
         return trimTomlTrailingWhitespace(result)
+    }
+
+    static func mergeCodexMCPServersSection(in text: String, with servers: [String: [String: Any]]) -> String {
+        let normalizedInput = text.replacingOccurrences(of: "\r\n", with: "\n")
+        let lines = normalizedInput.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
+        var startIndex: Int?
+        var endIndex = lines.count
+
+        for index in lines.indices {
+            let trimmed = lines[index].trimmingCharacters(in: .whitespaces)
+            guard trimmed.hasPrefix("[mcp_servers") else { continue }
+            guard trimmed == "[mcp_servers]" || (trimmed.hasPrefix("[mcp_servers.") && trimmed.hasSuffix("]")) else { continue }
+            startIndex = index
+            break
+        }
+
+        let existingSectionLines: [String]
+        if let startIndex {
+            for index in lines.index(after: startIndex)..<lines.count {
+                let trimmed = lines[index].trimmingCharacters(in: .whitespaces)
+                guard trimmed.hasPrefix("[") && trimmed.hasSuffix("]") else { continue }
+                if trimmed == "[mcp_servers]" || trimmed.hasPrefix("[mcp_servers.") {
+                    continue
+                }
+                endIndex = index
+                break
+            }
+            existingSectionLines = Array(lines[startIndex..<endIndex])
+        } else {
+            existingSectionLines = []
+        }
+
+        let mergedSection = renderMergedCodexMCPServersSection(existingLines: existingSectionLines, servers: servers)
+        return replaceCodexMCPServersSection(in: normalizedInput, with: mergedSection)
+    }
+
+    static func renderMergedCodexMCPServersSection(existingLines: [String], servers: [String: [String: Any]]) -> String {
+        guard !servers.isEmpty else { return "" }
+
+        let parsed = parseCodexMCPSection(existingLines)
+        var finalOrder = parsed.serverOrder.filter { servers[$0] != nil }
+        for name in servers.keys.sorted() where finalOrder.contains(name) == false {
+            finalOrder.append(name)
+        }
+
+        var sectionBlocks: [String] = []
+        let rootLines = parsed.rootLines.isEmpty ? ["[mcp_servers]"] : trimTrailingEmptyLines(parsed.rootLines)
+        sectionBlocks.append(rootLines.joined(separator: "\n"))
+
+        for name in finalOrder {
+            guard let rawServer = servers[name] else { continue }
+            let desiredRendered = renderCodexMCPServer(name: name, server: normalizeServerConfigForStorage(rawServer))
+            let desiredParsed = parseCodexMCPSection(desiredRendered.split(separator: "\n", omittingEmptySubsequences: false).map(String.init))
+            guard let desiredGroup = desiredParsed.servers[name] else { continue }
+            sectionBlocks.append(
+                mergeCodexMCPServerGroup(
+                    name: name,
+                    existing: parsed.servers[name],
+                    desired: desiredGroup
+                )
+            )
+        }
+
+        return sectionBlocks.joined(separator: "\n\n")
+    }
+
+    static func mergeCodexMCPServerGroup(
+        name: String,
+        existing: CodexMCPServerTableGroup?,
+        desired: CodexMCPServerTableGroup
+    ) -> String {
+        let baseHeader = "[mcp_servers.\(tomlTableKey(name))]"
+        let mergedBase = mergeTomlAssignmentBlock(
+            existingLines: existing?.baseLines,
+            header: baseHeader,
+            desiredLines: desired.baseLines ?? [baseHeader],
+            knownKeys: codexKnownServerKeys
+        )
+
+        var blockStrings: [String] = [mergedBase.joined(separator: "\n")]
+        let existingOrder = existing?.nestedOrder ?? []
+        let desiredKeys = desired.nestedOrder
+        var finalOrder = existingOrder.filter { desired.nestedLines[$0] != nil || (existing?.nestedLines[$0] != nil) }
+        for key in desiredKeys where finalOrder.contains(key) == false {
+            finalOrder.append(key)
+        }
+
+        for key in finalOrder {
+            if let desiredLines = desired.nestedLines[key] {
+                let header = desiredLines.first ?? ""
+                let knownKeys: Set<String> = key.hasPrefix(codexMCPPathKey(["tools"])) ? ["approval_mode"] : []
+                let merged = mergeTomlAssignmentBlock(
+                    existingLines: existing?.nestedLines[key],
+                    header: header,
+                    desiredLines: desiredLines,
+                    knownKeys: knownKeys
+                )
+                blockStrings.append(merged.joined(separator: "\n"))
+            } else if let existingLines = existing?.nestedLines[key] {
+                blockStrings.append(trimTrailingEmptyLines(existingLines).joined(separator: "\n"))
+            }
+        }
+
+        return blockStrings.joined(separator: "\n\n")
+    }
+
+    static func mergeTomlAssignmentBlock(
+        existingLines: [String]?,
+        header: String,
+        desiredLines: [String],
+        knownKeys: Set<String>
+    ) -> [String] {
+        let desiredAssignments = Dictionary(
+            uniqueKeysWithValues: desiredLines.dropFirst().compactMap { line in
+                parseTomlAssignmentKey(from: line).map { ($0, line) }
+            }
+        )
+        let desiredOrder = desiredLines.dropFirst().compactMap(parseTomlAssignmentKey)
+
+        guard let existingLines, !existingLines.isEmpty else {
+            return trimTrailingEmptyLines(desiredLines.isEmpty ? [header] : desiredLines)
+        }
+
+        var merged = [header]
+        var emitted = Set<String>()
+        for line in existingLines.dropFirst() {
+            if let key = parseTomlAssignmentKey(from: line) {
+                if let desiredLine = desiredAssignments[key] {
+                    merged.append(desiredLine)
+                    emitted.insert(key)
+                } else if knownKeys.contains(key) {
+                    continue
+                } else {
+                    merged.append(line)
+                }
+            } else {
+                merged.append(line)
+            }
+        }
+        for key in desiredOrder where emitted.contains(key) == false {
+            if let line = desiredAssignments[key] {
+                merged.append(line)
+            }
+        }
+        return trimTrailingEmptyLines(merged)
+    }
+
+    static func parseCodexMCPSection(_ lines: [String]) -> (rootLines: [String], servers: [String: CodexMCPServerTableGroup], serverOrder: [String]) {
+        let blocks = tomlSectionBlocks(from: lines)
+        var rootLines: [String] = []
+        var servers: [String: CodexMCPServerTableGroup] = [:]
+        var serverOrder: [String] = []
+
+        for block in blocks {
+            guard let parsed = parseCodexMCPBlock(block) else {
+                if rootLines.isEmpty { rootLines = block }
+                continue
+            }
+            switch parsed {
+            case .root:
+                rootLines = block
+            case let .server(name, pathKey):
+                if serverOrder.contains(name) == false {
+                    serverOrder.append(name)
+                }
+                var group = servers[name] ?? CodexMCPServerTableGroup()
+                if let pathKey {
+                    group.nestedLines[pathKey] = trimTrailingEmptyLines(block)
+                    if group.nestedOrder.contains(pathKey) == false {
+                        group.nestedOrder.append(pathKey)
+                    }
+                } else {
+                    group.baseLines = trimTrailingEmptyLines(block)
+                }
+                servers[name] = group
+            }
+        }
+
+        return (rootLines, servers, serverOrder)
+    }
+
+    static func tomlSectionBlocks(from lines: [String]) -> [[String]] {
+        var blocks: [[String]] = []
+        var current: [String] = []
+        for line in lines {
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            if trimmed.hasPrefix("["),
+               trimmed.hasSuffix("]"),
+               !current.isEmpty {
+                blocks.append(current)
+                current = [line]
+            } else {
+                current.append(line)
+            }
+        }
+        if !current.isEmpty {
+            blocks.append(current)
+        }
+        return blocks
+    }
+
+    enum ParsedCodexMCPBlock {
+        case root
+        case server(name: String, pathKey: String?)
+    }
+
+    static func parseCodexMCPBlock(_ lines: [String]) -> ParsedCodexMCPBlock? {
+        guard let header = lines.first?.trimmingCharacters(in: .whitespacesAndNewlines),
+              header.hasPrefix("["),
+              header.hasSuffix("]")
+        else {
+            return nil
+        }
+        let raw = String(header.dropFirst().dropLast())
+        guard let segments = parseTomlPathSegments(raw),
+              segments.first == "mcp_servers"
+        else {
+            return nil
+        }
+        if segments.count == 1 {
+            return .root
+        }
+        let serverName = segments[1]
+        let relative = Array(segments.dropFirst(2))
+        return .server(
+            name: serverName,
+            pathKey: relative.isEmpty ? nil : codexMCPPathKey(relative)
+        )
+    }
+
+    static func parseTomlPathSegments(_ raw: String) -> [String]? {
+        var segments: [String] = []
+        var current = ""
+        var inQuotes = false
+        var escaping = false
+
+        for scalar in raw.unicodeScalars {
+            let char = Character(scalar)
+            if escaping {
+                current.append(char)
+                escaping = false
+                continue
+            }
+            if inQuotes {
+                switch char {
+                case "\\":
+                    escaping = true
+                case "\"":
+                    inQuotes = false
+                default:
+                    current.append(char)
+                }
+            } else if char == "\"" {
+                inQuotes = true
+            } else if char == "." {
+                segments.append(current.trimmingCharacters(in: .whitespacesAndNewlines))
+                current = ""
+            } else {
+                current.append(char)
+            }
+        }
+
+        guard !inQuotes, !escaping else { return nil }
+        segments.append(current.trimmingCharacters(in: .whitespacesAndNewlines))
+        return segments.filter { !$0.isEmpty }
+    }
+
+    static func codexMCPPathKey(_ segments: [String]) -> String {
+        segments.joined(separator: "\u{1F}")
+    }
+
+    static var codexKnownServerKeys: Set<String> {
+        [
+            "name", "url", "command", "args", "cwd", "env", "bearer_token_env_var",
+            "http_headers", "env_http_headers", "oauth_resource", "scopes",
+            "enabled_tools", "disabled_tools", "env_vars", "required",
+            "startup_timeout_sec", "startup_timeout_ms", "tool_timeout_sec",
+            "supports_parallel_tool_calls", "default_tools_approval_mode",
+            "experimental_environment", "type", "transport", "identity", "enabled"
+        ]
+    }
+
+    static func parseTomlAssignmentKey(from line: String) -> String? {
+        let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.hasPrefix("#"),
+              let equalIndex = trimmed.firstIndex(of: "=")
+        else {
+            return nil
+        }
+        let key = trimmed[..<equalIndex].trimmingCharacters(in: .whitespacesAndNewlines)
+        return key.isEmpty ? nil : String(key)
+    }
+
+    static func trimTrailingEmptyLines(_ lines: [String]) -> [String] {
+        var trimmed = lines
+        while let last = trimmed.last, last.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            trimmed.removeLast()
+        }
+        return trimmed
     }
 
     static func trimTomlTrailingWhitespace(_ text: String) -> String {
