@@ -399,7 +399,7 @@ extension CodexAuthManager {
     }
 
     @discardableResult
-    func reconcileActiveSymlinkDriftIfNeeded(for provider: Provider) throws -> CodexAuthAccount? {
+    func reconcileActiveSymlinkDriftIfNeeded(for provider: Provider, reason: String = "manual") throws -> CodexAuthAccount? {
         guard Self.isCodexTemplate(provider.templateId),
               let providerAuthFile = authFile(for: provider),
               providerAuthFile.isExists,
@@ -495,6 +495,17 @@ extension CodexAuthManager {
             provider: provider,
             excludedAccountID: refreshedRestoredAccount.id
         )
+
+        if shouldClearActiveSelectionOnDriftDuringPreflight(reason: reason) {
+            try clearActiveSelectionAndRestoreProviderState(for: provider)
+            fingerprints.removeValue(forKey: provider.id)
+            try saveActiveFingerprintMap(fingerprints)
+            Self.logger.info(
+                "Codex active selection cleared after passive preflight drift. provider=\(provider.id, privacy: .public) previousActive=\(refreshedRestoredAccount.id.uuidString, privacy: .public) reason=\(reason, privacy: .public)"
+            )
+            return nil
+        }
+
         try relinkProviderAuth(providerAuthFile: providerAuthFile, resolved: refreshedRestoredAccount, provider: provider)
 
         fingerprints[provider.id] = previousHash

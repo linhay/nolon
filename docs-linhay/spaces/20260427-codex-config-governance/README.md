@@ -37,6 +37,7 @@
 6. `ProviderMcpGridView` 创建原生 MCP 配置时的 Codex 直写旁路已改为共享入口 `MCPConfigManager.ensureNativeConfigScaffold(for:)`。
 7. 已新增 `scripts/tests/codex-config-governance-smoke.sh`，用正则门禁扫描生产源码中的典型 Codex 配置直写旁路。
 8. Codex iCloud 同步入口已从账号页迁到设置页（Advanced），账号页不再承载同步开关、清云动作、冲突处理或云同步摘要。
+9. 启动期被动预检（`usage_load` / `background_poll`）发现当前选中的 Codex 账号已发生漂移时，不再自动继续保留选中态；会清空 active selection，并撤回该账号的托管 provider 配置。
 - 待继续：
 1. 把 MCP patch 职责从 `MCPConfigManager` 里再拆清，降低继续叠逻辑的风险。
 2. 增加最小可观测性，记录关键配置写入来源与受控片段。
@@ -48,6 +49,7 @@
 4. Given 启动 repair、refresh、display 一类被动流程，When 未发生用户显式写操作，Then provider 原始配置文件不被改写。
 5. Given 后续新增 Codex 配置写路径，When 合入主干，Then 必须经过统一入口或对应门禁会失败。
 6. Given 用户查看 Codex 账号页，When 浏览账号列表与托管状态，Then 不出现 iCloud 同步卡；Given 用户进入设置页，When 打开 Advanced 配置，Then 能看到 iCloud 同步入口和冲突处理能力。
+7. Given 启动或后台被动预检发现已选中账号对应的活跃 auth 内容被修改，When app 执行 `usage_load` 或 `background_poll`，Then 默认取消选中该账号，并恢复掉它注入的 managed relay 配置，不继续自动套用该账号状态。
 
 ## 关联文档
 - [Codex config.toml 单一读写收拢](/Users/linhey/Desktop/FlowUp-Libs/nolon/docs-linhay/spaces/20260427-codex-config-store-unification/README.md)

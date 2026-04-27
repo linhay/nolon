@@ -1299,11 +1299,20 @@ public actor CodexAuthManager {
             return resolved
         }
         try withAuthFileLock {
-            _ = try reconcileActiveSymlinkDriftIfNeeded(for: provider)
+            _ = try reconcileActiveSymlinkDriftIfNeeded(for: provider, reason: reason)
             try backupActiveSnapshotIfNeeded(for: provider, force: forceBackup, reason: reason)
             try persistActiveFingerprintIfNeeded(for: provider)
         }
         return reconciled
+    }
+
+    func shouldClearActiveSelectionOnDriftDuringPreflight(reason: String) -> Bool {
+        switch reason {
+        case "usage_load", "background_poll":
+            return true
+        default:
+            return false
+        }
     }
 
     public func enableManagedAuth(for provider: Provider) async throws -> CodexManagementReport {

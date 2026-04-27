@@ -424,6 +424,68 @@ extension CodexAuthManagerTests {
         let restoredSummary = CodexAuthSummary.fromJSONData(try #require(manager.accountAuthData(for: restoredActive)))
         #expect(restoredSummary.email == "active@example.com")
     }
+
+    @Test("Given startup preflight sees modified selected relay account, when usage load runs then active selection is cleared and managed config is not applied")
+    func startupPreflightClearsModifiedActiveAccountSelectionAndRestoresConfig() async throws {
+        let root = try makeTempRoot("codex-auth-startup-preflight-clear-drifted-active")
+        defer { try? root.delete() }
+
+        let manager = CodexAuthManager(rootURL: root.url)
+        let provider = makeCodexProvider(root: root)
+        let configFile = root.folder("provider").file("config.toml")
+        let originalConfig = """
+        model = "o3"
+        approval_policy = "on-request"
+
+        [features]
+        web_search = true
+        """
+        try configFile.overlay(with: originalConfig + "\n")
+
+        let relay = try await manager.addConfiguredAccount(
+            name: "Relay",
+            apiKey: "rk-live-startup-1234",
+            relay: .init(
+                baseURL: "https://relay.example.com/v1",
+                modelProvider: "provider-relay"
+            )
+        )
+
+        try await manager.activateAccountAndMarkActive(relay, for: provider)
+
+        let patched = try configFile.read()
+        #expect(patched.contains(#"model_provider = "provider-relay""#))
+
+        let driftedRaw = #"""
+        {
+          "auth_mode": "chatgpt",
+          "email": "drifted@example.com",
+          "tokens": {
+            "id_token": "id-drifted",
+            "access_token": "access-drifted",
+            "account_id": "acct-drifted"
+          }
+        }
+        """#
+        let providerAuth = try #require(await manager.authFile(for: provider))
+        let activeFile = STFile(try providerAuth.destinationOfSymbolicLink().url.path)
+        try activeFile.overlay(with: Data(driftedRaw.utf8))
+
+        _ = try await manager.preflightManagedAuthIfNeeded(for: provider, forceBackup: false, reason: "usage_load")
+
+        #expect(await manager.activeAccountId(for: provider) == nil)
+        #expect(try configFile.read() == originalConfig + "\n")
+
+        #expect(providerAuth.isExists == false)
+
+        let accounts = try await manager.loadAccounts()
+        #expect(accounts.contains(where: { account in
+            let data = manager.accountAuthData(for: account) ?? Data()
+            let summary = CodexAuthSummary.fromJSONData(data)
+            return summary.email == "drifted@example.com"
+        }))
+    }
+
     @Test("Given active drift payload shares account id but has different email from existing snapshots, when preflight runs then drift payload is saved as a new snapshot")
     func preflightCreatesNewSnapshotWhenDriftEmailDiffersUnderSameAccountID() async throws {
         let root = try makeTempRoot("codex-auth-preflight-drift-email-diff")

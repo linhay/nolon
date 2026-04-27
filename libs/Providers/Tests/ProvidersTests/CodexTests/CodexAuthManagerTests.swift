@@ -695,9 +695,8 @@ struct CodexAuthManagerTests {
         try await manager.activateAccountAndMarkActive(active, for: provider)
 
         let driftedRaw = #"{"tokens":{"id_token":"id-drift","access_token":"access-drift"},"email":"drift-after-activate@example.com"}"#
-        let activeID = try #require(await manager.activeAccountId(for: provider))
-        let activeResolved = try #require((try await manager.loadAccounts()).first(where: { $0.id == activeID }))
-        let activeFile = await manager.accountAuthFile(activeResolved)
+        let providerAuth = try #require(await manager.authFile(for: provider))
+        let activeFile = STFile(try providerAuth.destinationOfSymbolicLink().url.path)
         try activeFile.overlay(with: Data(driftedRaw.utf8))
 
         _ = try await manager.preflightManagedAuthIfNeeded(
@@ -708,14 +707,13 @@ struct CodexAuthManagerTests {
 
         let restoredActiveID = try #require(await manager.activeAccountId(for: provider))
         let restoredActive = try #require((try await manager.loadAccounts()).first(where: { $0.id == restoredActiveID }))
-        let restoredSummary = CodexAuthSummary.fromJSONData(try await manager.accountAuthFile(restoredActive).data())
+        let restoredSummary = CodexAuthSummary.fromJSONData(try #require(manager.accountAuthData(for: restoredActive)))
         #expect(restoredSummary.email == "active@example.com")
 
         let accounts = try await manager.loadAccounts()
         var driftedFound = false
         for account in accounts where account.id != restoredActiveID {
-            let file = await manager.accountAuthFile(account)
-            let summary = CodexAuthSummary.fromJSONData((try? file.data()) ?? Data())
+            let summary = CodexAuthSummary.fromJSONData(manager.accountAuthData(for: account) ?? Data())
             if summary.email == "drift-after-activate@example.com" {
                 driftedFound = true
                 break
