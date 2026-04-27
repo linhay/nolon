@@ -6,6 +6,7 @@
 
 ## 目标
 - 收拢 `config.toml` 到单一读写类，统一处理读取、按路径串行化的 read-modify-write、常见顶层键 patch，以及 provider id 解析。
+- 在单进程收口之外，再补跨进程锁与原子落盘，降低仓外/子进程并发写导致的丢配置风险。
 - 将现有主要写路径迁移到统一 store，避免继续直接整文件 `overlay` / `write`。
 
 ## 范围
@@ -19,6 +20,7 @@
 1. Given 不同模块先后更新同一个 `config.toml`，When 变更都通过统一 store 落盘，Then 先前未冲突的配置不会丢失。
 2. Given 现有 `config.toml` 含自定义 top-level 键和 section，When 登录预处理或模型切换发生，Then 非受控配置保持不变。
 3. Given MCP section、relay provider section 与模型偏好共同存在，When 任一模块更新自己的受控片段，Then 其他片段保持可读且不被整文件覆盖。
+4. Given 另一个进程正持有同一 `config.toml` 的写锁，When 当前进程通过 store 更新，Then 写入会等待锁释放后再原子落盘。
 
 ## 关联文档
 - `libs/Providers/Sources/Providers/Codex/`

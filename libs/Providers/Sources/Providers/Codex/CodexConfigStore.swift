@@ -1,3 +1,4 @@
+import Darwin
 import Foundation
 import STFilePath
 import TOML
@@ -10,7 +11,7 @@ public struct CodexConfigStore: Sendable {
     }
 
     public func readRaw() throws -> String {
-        try CodexConfigPathLockRegistry.shared.withLock(for: standardizedPath) {
+        try withExclusiveAccess {
             Self.normalizedText((try? file.read()) ?? "")
         }
     }
@@ -29,14 +30,14 @@ public struct CodexConfigStore: Sendable {
 
     @discardableResult
     public func update(_ mutate: (String) throws -> String) throws -> String {
-        try CodexConfigPathLockRegistry.shared.withLock(for: standardizedPath) {
+        try withExclusiveAccess {
             let current = Self.normalizedText((try? file.read()) ?? "")
             let next = Self.normalizedText(try mutate(current))
             guard next != current else {
                 return next
             }
             _ = file.parentFolder()?.createIfNotExists()
-            try file.overlay(with: next)
+            try Self.atomicWrite(next, to: file)
             return next
         }
     }
@@ -152,8 +153,51 @@ public struct CodexConfigStore: Sendable {
         file.url.standardizedFileURL.path
     }
 
+    private var lockFile: STFile {
+        let url = file.url.standardizedFileURL
+        return STFile(url.deletingLastPathComponent().appendingPathComponent("\(url.lastPathComponent).lock"))
+    }
+
+    private func withExclusiveAccess<T>(_ body: () throws -> T) throws -> T {
+        try CodexConfigPathLockRegistry.shared.withLock(for: standardizedPath) {
+            try Self.withAdvisoryFileLock(lockFile) {
+                try body()
+            }
+        }
+    }
+
+    static func lockFilePath(for file: STFile) -> String {
+        let url = file.url.standardizedFileURL
+        return url.deletingLastPathComponent().appendingPathComponent("\(url.lastPathComponent).lock").path
+    }
+
     private static func normalizedText(_ raw: String) -> String {
         raw.replacingOccurrences(of: "\r\n", with: "\n")
+    }
+
+    private static func atomicWrite(_ text: String, to file: STFile) throws {
+        let data = Data(text.utf8)
+        try data.write(to: file.url, options: .atomic)
+    }
+
+    private static func withAdvisoryFileLock<T>(_ lockFile: STFile, body: () throws -> T) throws -> T {
+        _ = lockFile.parentFolder()?.createIfNotExists()
+        if !lockFile.isExists {
+            try Data().write(to: lockFile.url, options: .atomic)
+        }
+
+        let fd = open(lockFile.url.path, O_CREAT | O_RDWR, mode_t(S_IRUSR | S_IWUSR))
+        guard fd >= 0 else {
+            throw NSError(domain: NSPOSIXErrorDomain, code: Int(errno))
+        }
+        defer { _ = close(fd) }
+
+        guard flock(fd, LOCK_EX) == 0 else {
+            throw NSError(domain: NSPOSIXErrorDomain, code: Int(errno))
+        }
+        defer { _ = flock(fd, LOCK_UN) }
+
+        return try body()
     }
 
     private static func parseAssignmentKey(from line: String) -> String? {
