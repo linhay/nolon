@@ -10,6 +10,7 @@
 - 为 Codex MCP 建立局部 patch 语义，明确 `preserve unknowns` 原则，禁止 canonical rewrite 吃掉未知参数。
 - 明确哪些流程可以写原文件、哪些流程只能读，防止 repair / refresh / display 一类被动路径再次引入副作用。
 - 给后续扩展字段、接入新入口、排查用户反馈提供稳定的回归和可观测性基础。
+- 明确 Codex 账号云同步的页面边界：同步开关与冲突处理属于设置能力，入口放在设置页，不放在账号列表页。
 
 ## 范围
 - `libs/Providers/Sources/Providers/Codex/CodexConfigStore.swift`
@@ -35,6 +36,7 @@
 5. Codex MCP 已知官方字段与未知字段/未知子表保留已补齐回归。
 6. `ProviderMcpGridView` 创建原生 MCP 配置时的 Codex 直写旁路已改为共享入口 `MCPConfigManager.ensureNativeConfigScaffold(for:)`。
 7. 已新增 `scripts/tests/codex-config-governance-smoke.sh`，用正则门禁扫描生产源码中的典型 Codex 配置直写旁路。
+8. Codex iCloud 同步入口已从账号页迁到设置页（Advanced），账号页不再承载同步开关与清云动作。
 - 待继续：
 1. 把 MCP patch 职责从 `MCPConfigManager` 里再拆清，降低继续叠逻辑的风险。
 2. 增加最小可观测性，记录关键配置写入来源与受控片段。
@@ -45,6 +47,7 @@
 3. Given 用户的 Codex MCP server 含未知键、未知工具字段或未知子表，When 执行 enable/disable、install 或其他局部写操作，Then 这些未知内容保持原样。
 4. Given 启动 repair、refresh、display 一类被动流程，When 未发生用户显式写操作，Then provider 原始配置文件不被改写。
 5. Given 后续新增 Codex 配置写路径，When 合入主干，Then 必须经过统一入口或对应门禁会失败。
+6. Given 用户查看 Codex 账号页，When 浏览账号列表与托管状态，Then 不出现 iCloud 同步卡；Given 用户进入设置页，When 打开 Advanced 配置，Then 能看到 iCloud 同步入口和冲突处理能力。
 
 ## 关联文档
 - [Codex config.toml 单一读写收拢](/Users/linhey/Desktop/FlowUp-Libs/nolon/docs-linhay/spaces/20260427-codex-config-store-unification/README.md)

@@ -10,6 +10,7 @@
 4. Codex MCP 对官方已知字段、未知字段和未知子表的保留已补回归。
 5. `ProviderMcpGridView` 的 Codex 配置初始化已改走共享 scaffold writer。
 6. 已补 `scripts/tests/codex-config-governance-smoke.sh`，扫描典型 Codex 配置直写旁路。
+7. Codex iCloud 同步入口已迁到设置页，账号页只保留账号与托管相关内容。
 
 ## 下一步
 1. 抽离 MCP patch writer
@@ -30,6 +31,7 @@
   - 高级配置保存 + relay restore
   - 全文编辑 + 结构化 patch
   - 用户已有手写未知 section
+  - iCloud 同步入口在设置页可见、账号页不可见
 
 ## 风险
 1. `MCPConfigManager` 当前职责偏重，继续叠逻辑会提高后续维护成本。

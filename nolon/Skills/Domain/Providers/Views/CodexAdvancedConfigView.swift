@@ -58,6 +58,11 @@ struct CodexAdvancedConfigView: View {
     var body: some View {
         NolonUI.ProviderTabScrollScaffold {
                 NolonUI.CodexAdvancedSectionHeaderView(
+                    title: NSLocalizedString("codex.advanced.cloud_sync.title", value: "Cloud Sync", comment: "Cloud sync section title")
+                )
+                CodexCloudSyncSettingsView(provider: provider)
+
+                NolonUI.CodexAdvancedSectionHeaderView(
                     title: NSLocalizedString("codex.advanced.config.options.title", value: "Common Options", comment: "Common options")
                 )
                 commonOptionsSection
