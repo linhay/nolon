@@ -64,6 +64,48 @@ public enum MCPConfigManager {
         }
     }
 
+    public static func ensureNativeConfigScaffold(for template: ProviderTemplate) throws {
+        guard template.supportsNativeMcpConfig else { return }
+        let path = template.defaultMcpConfigPath.path
+        _ = STFolder((path as NSString).deletingLastPathComponent).createIfNotExists()
+
+        if template == .codex || template == .codexXcode {
+            _ = try CodexConfigStore(file: STFile(path)).update { existingText in
+                let trimmed = existingText.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard trimmed.isEmpty else { return existingText }
+                return """
+                model = ""
+
+                [mcp_servers]
+                """
+            }
+            return
+        }
+
+        let file = STFile(path)
+        guard file.isExists == false || (try? String(contentsOf: file.url, encoding: .utf8).trimmingCharacters(in: .whitespacesAndNewlines).isEmpty) == true else {
+            return
+        }
+
+        let content: String
+        if file.url.pathExtension.lowercased() == "toml" {
+            content = """
+            model = ""
+
+            [mcp_servers]
+            """
+        } else if template == .opencode {
+            content = """
+            {
+              "mcp": {}
+            }
+            """
+        } else {
+            content = "{}"
+        }
+        try file.overlay(with: content)
+    }
+
     public static func setEnabled(for template: ProviderTemplate, name: String, enabled: Bool) throws {
         guard template.supportsNativeMcpConfig else { return }
         let serverName = try validateComponent(name, field: "name")

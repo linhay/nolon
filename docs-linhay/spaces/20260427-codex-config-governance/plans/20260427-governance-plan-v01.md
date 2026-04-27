@@ -8,18 +8,15 @@
 2. 切账号导致的旧快照回写问题已修复。
 3. Codex provider 的被动 MCP repair 重写已停止。
 4. Codex MCP 对官方已知字段、未知字段和未知子表的保留已补回归。
+5. `ProviderMcpGridView` 的 Codex 配置初始化已改走共享 scaffold writer。
+6. 已补 `scripts/tests/codex-config-governance-smoke.sh`，扫描典型 Codex 配置直写旁路。
 
 ## 下一步
 1. 抽离 MCP patch writer
 - 从 `MCPConfigManager` 中分离 Codex TOML patch 逻辑。
 - 明确输入输出：上层传递意图，下层负责 merge，不允许调用方传“整段 TOML 覆盖”。
 
-2. 旁路审计与门禁
-- 全仓搜索 `config.toml`、`mcp_servers`、`write(to:`、`overlay(`、`atomically:` 等可疑写路径。
-- 标注已纳管路径与禁止新增路径。
-- 视复杂度补充脚本或测试门禁，阻止新的直接写入。
-
-3. 可观测性
+2. 可观测性
 - 给关键配置写操作加最小 debug 日志：
   - 触发模块
   - 目标文件
@@ -27,7 +24,7 @@
   - 是否为 merge 写回
 - 目标是以后收到“配置被改坏”时可快速定位责任路径。
 
-4. 回归矩阵扩充
+3. 回归矩阵扩充
 - 增加混合场景测试：
   - 切账号 + MCP enable/disable
   - 高级配置保存 + relay restore

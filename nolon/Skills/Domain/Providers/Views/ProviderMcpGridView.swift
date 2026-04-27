@@ -63,25 +63,8 @@ struct ProviderMcpGridView: View {
                     NolonUI.McpConfigActionStateView(
                         preset: .noConfiguration
                     ) {
-                        _ = STFolder(configPath.deletingLastPathComponent()).createIfNotExists()
-                        if isToml {
-                            let template = """
-                            model = ""
-
-                            [mcp_servers]
-                            """
-                            try? STFile(configPath).overlay(with: template)
-                        } else {
-                            if template?.rawValue == "opencode" {
-                                let template = """
-                                {
-                                  "mcp": {}
-                                }
-                                """
-                                try? STFile(configPath).overlay(with: template)
-                            } else {
-                                try? STFile(configPath).overlay(with: "{}")
-                            }
+                        if let template {
+                            try? MCPConfigManager.ensureNativeConfigScaffold(for: template)
                         }
                         editingConfig = EditingConfig(
                             configURL: configPath,

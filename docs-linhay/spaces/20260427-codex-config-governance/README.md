@@ -33,10 +33,11 @@
 3. 切账号 restore 已从“整份旧快照回写”改为“只撤 managed fragment”。
 4. Codex provider 的被动 MCP repair 重写已停止。
 5. Codex MCP 已知官方字段与未知字段/未知子表保留已补齐回归。
+6. `ProviderMcpGridView` 创建原生 MCP 配置时的 Codex 直写旁路已改为共享入口 `MCPConfigManager.ensureNativeConfigScaffold(for:)`。
+7. 已新增 `scripts/tests/codex-config-governance-smoke.sh`，用正则门禁扫描生产源码中的典型 Codex 配置直写旁路。
 - 待继续：
 1. 把 MCP patch 职责从 `MCPConfigManager` 里再拆清，降低继续叠逻辑的风险。
-2. 做一轮写路径旁路审计和门禁，防止新代码再次直接写 `config.toml`。
-3. 增加最小可观测性，记录关键配置写入来源与受控片段。
+2. 增加最小可观测性，记录关键配置写入来源与受控片段。
 
 ## 验收标准
 1. Given app 内不同模块先后修改同一个 `config.toml`，When 变更都通过统一 store 落盘，Then 非冲突配置不会丢失。

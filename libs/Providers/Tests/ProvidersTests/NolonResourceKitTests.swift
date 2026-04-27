@@ -1265,6 +1265,47 @@ struct NolonResourceKitTests {
         #expect(raw.contains(#"alpha = "beta""#))
     }
 
+    @Test("Codex MCP scaffold creation preserves existing config and creates minimal root via store")
+    func codexMcpEnsureNativeConfigScaffoldPreservesExistingConfig() throws {
+        let root = try STFolder(sanbox: .temporary)
+            .folder("nolon-codex-mcp-scaffold-\(UUID().uuidString)")
+            .create()
+        defer { try? root.deleteIncludingBrokenSymlink() }
+
+        let previousHome = getenv("HOME").map { String(cString: $0) }
+        let previousNolonHome = getenv("NOLON_HOME").map { String(cString: $0) }
+        setenv("HOME", root.url.path, 1)
+        setenv("NOLON_HOME", root.folder(".nolon").url.path, 1)
+        defer {
+            if let previousHome {
+                setenv("HOME", previousHome, 1)
+            }
+            if let previousNolonHome {
+                setenv("NOLON_HOME", previousNolonHome, 1)
+            }
+        }
+
+        let configPath = ProviderTemplate.codex.defaultMcpConfigPath
+
+        try MCPConfigManager.ensureNativeConfigScaffold(for: .codex)
+        let created = try String(contentsOf: configPath, encoding: .utf8)
+        #expect(created.contains(#"model = """#))
+        #expect(created.contains(#"[mcp_servers]"#))
+
+        try """
+        approval_policy = "on-request"
+
+        [mcp_servers.playwright]
+        command = "npx"
+        """.write(to: configPath, atomically: true, encoding: .utf8)
+
+        try MCPConfigManager.ensureNativeConfigScaffold(for: .codex)
+        let preserved = try String(contentsOf: configPath, encoding: .utf8)
+        #expect(preserved.contains(#"approval_policy = "on-request""#))
+        #expect(preserved.contains(#"[mcp_servers.playwright]"#))
+        #expect(preserved.contains(#"command = "npx""#))
+    }
+
     @Test("ResourceInstaller installs Codex MCP through shared patch writer")
     func resourceInstallerInstallsCodexMcpThroughSharedPatchWriter() async throws {
         let root = try STFolder(sanbox: .temporary)
