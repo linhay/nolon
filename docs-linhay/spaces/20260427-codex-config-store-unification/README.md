@@ -23,6 +23,7 @@
 2. Given 现有 `config.toml` 含自定义 top-level 键和 section，When 登录预处理或模型切换发生，Then 非受控配置保持不变。
 3. Given MCP section、relay provider section 与模型偏好共同存在，When 任一模块更新自己的受控片段，Then 其他片段保持可读且不被整文件覆盖。
 4. Given 另一个进程正持有同一 `config.toml` 的写锁，When 当前进程通过 store 更新，Then 写入会等待锁释放后再原子落盘。
+5. Given relay 账号已激活且 app 随后又写入其他 config 片段，When 切回 oauth 账号触发 restore，Then restore 只撤 managed relay 片段，不回滚这些后续片段。
 
 ## 关联文档
 - `libs/Providers/Sources/Providers/Codex/`

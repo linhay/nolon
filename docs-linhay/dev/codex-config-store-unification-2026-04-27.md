@@ -37,6 +37,7 @@
   - 外部进程持锁时，store 更新会等待释放后再写入。
   - 登录预处理只更新受控键，不抹掉其他 section。
   - app 内 `ProviderUsageEngine` 登录 home 预处理同样只更新受控键，不覆盖已有 section。
+  - 切账号 restore 不再整份回滚 relay 激活时记录的旧快照；relay 激活后由 app 内其他模块新增的 MCP / 其他无关配置会被保留。
 
 ## 未做
 - 没有把所有只读解析都完全收口；当前优先解决“配置丢失”的写路径问题。
@@ -44,3 +45,16 @@
   - 当前采用 advisory lock，前提是参与方都遵守同一锁文件协议。
 - 没有新增 repo 级 `skills` 或调整 `AGENTS.md`：
   - 这次是一次性实现收敛，还不足以沉淀成稳定、重复出现的项目级操作模板。
+
+## 额外根因修正
+- 仅靠单一写入口还不够，`CodexActiveProviderConfigManager.restoreManagedConfig` 原先仍会把 `originalRawConfig` 整份写回。
+- 这会导致一个纯 app 内即可复现的问题：
+  1. 激活 relay 账号，记录 baseline 到 `originalRawConfig`
+  2. app 内其他功能继续写入 `config.toml`（例如 MCP section）
+  3. 切回 oauth / 非 relay 账号
+  4. restore 直接回放旧 baseline，把第 2 步新增项一起覆盖掉
+- 当前已改为：
+  - 以当前 `config.toml` 为主
+  - 只移除 managed relay 顶层键和 `[model_providers.<managed>]`
+  - 再把 baseline 中受控顶层键补回
+  - 从而保留 relay 激活后 app 内新增的无关配置

@@ -1,6 +1,7 @@
 import Foundation
 import Testing
 import ProviderCatalog
+import CodexProvider
 import STFilePath
 import STJSON
 import SQLite3
@@ -773,6 +774,56 @@ struct CodexAuthManagerTests {
 
         let restored = try configFile.read()
         #expect(restored == originalConfig + "\n")
+    }
+
+    @Test("Given relay config is active and app later updates config.toml, when switching back to oauth, then later app-owned config fragments are preserved")
+    func oauthRestorePreservesConfigFragmentsWrittenWhileRelayWasActive() async throws {
+        let root = try makeTempRoot("codex-auth-relay-config-preserve-later-app-writes")
+        defer { try? root.delete() }
+
+        let manager = CodexAuthManager(rootURL: root.url)
+        let provider = makeCodexProvider(root: root)
+        let configFile = root.folder("provider").file("config.toml")
+        let originalConfig = """
+        approval_policy = "on-request"
+
+        [features]
+        web_search = true
+        """
+        try configFile.overlay(with: originalConfig + "\n")
+
+        let relay = try await manager.addConfiguredAccount(
+            name: "Relay",
+            apiKey: "rk-live-12345678",
+            relay: .init(
+                baseURL: "https://relay.example.com/v1",
+                modelProvider: "provider-relay"
+            )
+        )
+        let oauth = try await manager.addAccount(
+            name: "oauth",
+            authJSONString: #"{"auth_mode":"chatgpt","tokens":{"id_token":"id-oauth","access_token":"access-oauth"},"email":"oauth@example.com"}"#
+        )
+
+        try await manager.activateAccountAndMarkActive(relay, for: provider)
+
+        _ = try CodexConfigStore(file: configFile).update { current in
+            let rendered = """
+            [mcp_servers.context7]
+            command = "node"
+            """
+            return current + (current.hasSuffix("\n") ? "" : "\n") + rendered + "\n"
+        }
+
+        try await manager.activateAccountAndMarkActive(oauth, for: provider)
+
+        let restored = try configFile.read()
+        #expect(restored.contains(#"approval_policy = "on-request""#))
+        #expect(restored.contains(#"[features]"#))
+        #expect(restored.contains(#"[mcp_servers.context7]"#))
+        #expect(restored.contains(#"command = "node""#))
+        #expect(restored.contains(#"[model_providers.provider-relay]"#) == false)
+        #expect(restored.contains(#"model_provider = "provider-relay""#) == false)
     }
 
     @Test("Given active oauth with stale managed relay config and missing state, when refreshing active provider config, then config.toml self-heals by removing managed relay patch")

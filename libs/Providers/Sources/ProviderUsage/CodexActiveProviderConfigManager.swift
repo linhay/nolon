@@ -144,12 +144,19 @@ struct CodexActiveProviderConfigManager: Sendable {
             return
         }
 
+        let current = normalizeConfigText((try? CodexConfigStore(file: configFile).readRaw()) ?? "")
+        let restored = restoredConfigPreservingCurrentChanges(
+            current: current,
+            baseline: state.originalRawConfig,
+            managedProviderID: state.managedProviderID
+        )
+
         if state.configExistedBeforePatch == false &&
-            state.originalRawConfig.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            restored.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         {
             try removeFileIfPresent(configFile)
         } else {
-            _ = try CodexConfigStore(file: configFile).update { _ in state.originalRawConfig }
+            _ = try CodexConfigStore(file: configFile).update { _ in restored }
         }
         try stateStore.remove(configFilePath: path)
     }
@@ -284,6 +291,40 @@ struct CodexActiveProviderConfigManager: Sendable {
             return nil
         }
 
+        return render(document: strippingManagedRelayFragment(from: document, managedProviderID: managedProviderID))
+    }
+
+    private func restoredConfigPreservingCurrentChanges(
+        current: String,
+        baseline: String,
+        managedProviderID: String
+    ) -> String {
+        let baselineDocument = parseDocument(baseline)
+        let unmanagedCurrent = strippingManagedRelayFragment(
+            from: parseDocument(current),
+            managedProviderID: managedProviderID
+        )
+
+        let preamble = mergePreamble(
+            baseline: baselineDocument.preamble,
+            current: unmanagedCurrent.preamble
+        )
+        let sections = mergeSections(
+            baseline: baselineDocument.sections,
+            current: unmanagedCurrent.sections
+        )
+
+        return render(document: Document(
+            preamble: preamble,
+            sections: sections,
+            hasTrailingNewline: unmanagedCurrent.hasTrailingNewline || baselineDocument.hasTrailingNewline
+        ))
+    }
+
+    private func strippingManagedRelayFragment(
+        from document: Document,
+        managedProviderID: String
+    ) -> Document {
         let strippedPreamble = document.preamble.filter { line in
             guard let key = parseAssignmentKey(from: line) else { return true }
             return controlledTopLevelKeys.contains(key) == false
@@ -294,11 +335,94 @@ struct CodexActiveProviderConfigManager: Sendable {
             from: document.sections
         )
 
-        return render(document: Document(
+        return Document(
             preamble: trimTrailingEmptyLines(from: strippedPreamble),
             sections: strippedSections,
             hasTrailingNewline: document.hasTrailingNewline
-        ))
+        )
+    }
+
+    private func mergePreamble(baseline: [String], current: [String]) -> [String] {
+        var currentAssignments: [String: String] = [:]
+        var currentExtraLines: [String] = []
+        for line in current {
+            if let key = parseAssignmentKey(from: line) {
+                currentAssignments[key] = line
+            } else if baseline.contains(line) == false {
+                currentExtraLines.append(line)
+            }
+        }
+
+        var baselineAssignmentKeys: Set<String> = []
+        var merged: [String] = []
+        for line in baseline {
+            guard let key = parseAssignmentKey(from: line) else {
+                merged.append(line)
+                continue
+            }
+            baselineAssignmentKeys.insert(key)
+            if controlledTopLevelKeys.contains(key) {
+                merged.append(line)
+            } else if let currentLine = currentAssignments[key] {
+                merged.append(currentLine)
+            } else {
+                merged.append(line)
+            }
+        }
+
+        for line in current {
+            if let key = parseAssignmentKey(from: line) {
+                guard baselineAssignmentKeys.contains(key) == false else { continue }
+                merged.append(line)
+            }
+        }
+        merged.append(contentsOf: currentExtraLines)
+
+        return trimTrailingEmptyLines(from: merged)
+    }
+
+    private func mergeSections(baseline: [String], current: [String]) -> [String] {
+        let baselineBlocks = sectionBlocks(from: baseline)
+        let currentBlocks = sectionBlocks(from: current)
+        let currentByName = Dictionary(uniqueKeysWithValues: currentBlocks.map { ($0.name, $0.lines) })
+        let baselineNames = Set(baselineBlocks.map(\.name))
+
+        var merged: [String] = []
+        for block in baselineBlocks {
+            merged.append(contentsOf: currentByName[block.name] ?? block.lines)
+        }
+        for block in currentBlocks where baselineNames.contains(block.name) == false {
+            if !merged.isEmpty, merged.last?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false {
+                merged.append("")
+            }
+            merged.append(contentsOf: block.lines)
+        }
+
+        return trimTrailingEmptyLines(from: merged)
+    }
+
+    private func sectionBlocks(from lines: [String]) -> [(name: String, lines: [String])] {
+        var blocks: [(name: String, lines: [String])] = []
+        var currentName: String?
+        var currentLines: [String] = []
+
+        for line in lines {
+            if let sectionName = parseSectionName(from: line) {
+                if let currentName {
+                    blocks.append((name: currentName, lines: trimTrailingEmptyLines(from: currentLines)))
+                }
+                currentName = sectionName
+                currentLines = [line]
+            } else if currentName != nil {
+                currentLines.append(line)
+            }
+        }
+
+        if let currentName {
+            blocks.append((name: currentName, lines: trimTrailingEmptyLines(from: currentLines)))
+        }
+
+        return blocks
     }
 
     private func managedProviderID(from document: Document) -> String? {
