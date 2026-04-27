@@ -1097,13 +1097,8 @@ extension ProviderUsageEngine {
 
     func writeCLILoginConfig(codexHome: STFolder) throws {
         let configFile = codexHome.file("config.toml")
-        let content = "cli_auth_credentials_store = \"file\"\n"
-        if configFile.isExists,
-           let existing = try? configFile.read(),
-           existing == content {
-            return
-        }
-        try configFile.overlay(with: content)
+        _ = try CodexConfigStore(file: configFile)
+            .setTopLevelStringValue(key: "cli_auth_credentials_store", value: "file")
     }
 
     func removeCLILoginAuthFileIfPresent(codexHome: STFolder) throws {

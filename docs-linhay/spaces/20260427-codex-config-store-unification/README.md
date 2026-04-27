@@ -14,7 +14,9 @@
 - `MCPConfigManager`
 - `CodexActiveProviderConfigManager`
 - `NolonCodexCLI.prepareIsolatedLoginHome`
+- `ProviderUsageEngine.prepareCLILoginHomeDirectory`
 - Codex 相关 UI 的结构化配置保存与初始建档
+- Codex 全文 `config.toml` 编辑保存
 
 ## 验收标准
 1. Given 不同模块先后更新同一个 `config.toml`，When 变更都通过统一 store 落盘，Then 先前未冲突的配置不会丢失。

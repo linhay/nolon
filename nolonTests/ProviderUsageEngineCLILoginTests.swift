@@ -71,6 +71,50 @@ final class ProviderUsageEngineCLILoginTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: staleAuthFile.path))
     }
 
+    func testBDD_GivenExistingConfigSections_WhenPreparingCLILoginHome_ThenOnlyCredentialStoreIsUpdated() throws {
+        let provider = Provider(
+            name: "Codex",
+            defaultSkillsPath: "/tmp/codex-skills",
+            workflowPath: "/tmp/codex-prompts",
+            installMethod: .symlink,
+            templateId: "codex"
+        )
+
+        let isolatedRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent("nolon-vm-login-home-preserve-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: isolatedRoot, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: isolatedRoot) }
+
+        let viewModel = ProviderUsageEngine(
+            provider: provider,
+            codexAuthManager: CodexAuthManager(rootURL: isolatedRoot)
+        )
+
+        let home = isolatedRoot
+            .appendingPathComponent("codex", isDirectory: true)
+            .appendingPathComponent("cli-login-home", isDirectory: true)
+            .appendingPathComponent("codex", isDirectory: true)
+        try FileManager.default.createDirectory(at: home, withIntermediateDirectories: true)
+
+        let configFile = home.appendingPathComponent("config.toml")
+        try """
+        cli_auth_credentials_store = "keyring"
+        custom_top = "keep"
+
+        [mcp_servers.local]
+        command = "node"
+        """.write(to: configFile, atomically: true, encoding: .utf8)
+
+        _ = try viewModel.prepareCLILoginHomeDirectory()
+
+        let saved = try String(contentsOf: configFile, encoding: .utf8)
+        XCTAssertTrue(saved.contains(#"cli_auth_credentials_store = "file""#))
+        XCTAssertTrue(saved.contains(#"custom_top = "keep""#))
+        XCTAssertTrue(saved.contains(#"[mcp_servers.local]"#))
+        XCTAssertTrue(saved.contains(#"command = "node""#))
+        XCTAssertFalse(saved.contains(#"cli_auth_credentials_store = "keyring""#))
+    }
+
     func testBDD_GivenCodexXcodeProvider_WhenPreparingCLILoginHome_ThenUsesCodexXcodeFolder() throws {
         let provider = Provider(
             id: "codex-xcode-provider",

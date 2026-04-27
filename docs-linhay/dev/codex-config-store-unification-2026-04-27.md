@@ -22,7 +22,9 @@
   - `MCPConfigManager` 写 TOML 时改为通过 store 更新 `[mcp_servers]` 片段。
   - `CodexActiveProviderConfigManager` 的 relay apply / restore 改为通过 store 落盘。
   - `NolonCodexCLI.prepareIsolatedLoginHome` 不再覆盖整份文件，只修 `cli_auth_credentials_store`。
+  - `ProviderUsageEngine.prepareCLILoginHomeDirectory` 的 app 内登录 home 预处理也改为只修 `cli_auth_credentials_store`。
   - 高级配置 UI 保存改为基于 store 执行 patch。
+  - `CodexConfigEditorView` 的全文编辑保存改为通过 store 落盘，共享同一路径锁和原子写。
 
 ## 结果
 - 统一了 `config.toml` 的核心写入口。
@@ -34,6 +36,7 @@
   - 并发非重叠更新不会互相覆盖。
   - 外部进程持锁时，store 更新会等待释放后再写入。
   - 登录预处理只更新受控键，不抹掉其他 section。
+  - app 内 `ProviderUsageEngine` 登录 home 预处理同样只更新受控键，不覆盖已有 section。
 
 ## 未做
 - 没有把所有只读解析都完全收口；当前优先解决“配置丢失”的写路径问题。

@@ -1,15 +1,18 @@
 import SwiftUI
 import NolonUI
 import CodexProvider
+import STFilePath
 
 struct CodexConfigEditorView: View {
     let configURL: URL
     let onSave: () -> Void
 
     var body: some View {
-        NolonUI.FileBackedCodeEditorSheetView(
+        NolonUI.CodeEditorSheetView(
             title: NSLocalizedString("codex.config.editor.title", value: "Edit config.toml", comment: "Codex config editor title"),
-            fileURL: configURL,
+            initialTextLoader: {
+                (try? CodexConfigStore(file: STFile(configURL)).readRaw()) ?? ""
+            },
             highlight: nil,
             invalidAlertTitle: NSLocalizedString("codex.config.editor.error.title", value: "Invalid config.toml", comment: "Invalid config title"),
             minWidth: 860,
@@ -17,7 +20,8 @@ struct CodexConfigEditorView: View {
             onValidate: { text in
                 try validate(text)
             },
-            onAfterSave: { _ in
+            onSave: { text in
+                _ = try CodexConfigStore(file: STFile(configURL)).update { _ in text }
                 onSave()
             }
         )
