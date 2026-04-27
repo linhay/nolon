@@ -37,7 +37,10 @@ struct CodexCloudSyncPlacementTests {
                 """
             )
         )
-        #expect(source.contains("codexManagementCard\n            codexCloudSyncCard") == false)
+        #expect(source.contains("codexCloudSyncCard") == false)
+        #expect(source.contains("CodexCloudAttentionSheet") == false)
+        #expect(source.contains("clearCloudData()") == false)
+        #expect(source.contains("iCloud 已同步") == false)
     }
 
     private func makeCodexProvider() -> Provider {

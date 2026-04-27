@@ -298,6 +298,7 @@ struct ProviderUsageView: View, DebugPageLocatable {
             isDestructiveConfirm: true
         )
     }
+
 }
 
 
@@ -744,7 +745,6 @@ extension ProviderUsageView {
             authState
         ].joined(separator: " · ")
     }
-
     private var genericAccountsSection: some View {
         let cards = viewModel.unifiedAccountCards(
             providerName: provider.name,

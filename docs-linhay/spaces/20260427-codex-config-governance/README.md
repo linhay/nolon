@@ -36,7 +36,7 @@
 5. Codex MCP 已知官方字段与未知字段/未知子表保留已补齐回归。
 6. `ProviderMcpGridView` 创建原生 MCP 配置时的 Codex 直写旁路已改为共享入口 `MCPConfigManager.ensureNativeConfigScaffold(for:)`。
 7. 已新增 `scripts/tests/codex-config-governance-smoke.sh`，用正则门禁扫描生产源码中的典型 Codex 配置直写旁路。
-8. Codex iCloud 同步入口已从账号页迁到设置页（Advanced），账号页不再承载同步开关与清云动作。
+8. Codex iCloud 同步入口已从账号页迁到设置页（Advanced），账号页不再承载同步开关、清云动作、冲突处理或云同步摘要。
 - 待继续：
 1. 把 MCP patch 职责从 `MCPConfigManager` 里再拆清，降低继续叠逻辑的风险。
 2. 增加最小可观测性，记录关键配置写入来源与受控片段。
