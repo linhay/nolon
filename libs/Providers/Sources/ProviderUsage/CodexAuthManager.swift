@@ -179,6 +179,7 @@ public actor CodexAuthManager {
         static let runtimeSkillsTemplateFolder: PathName = "runtime-skills-template"
         static let activeAccountsFile: PathName = "active-accounts.json"
         static let activeFingerprintsFile: PathName = "active-fingerprints.json"
+        static let pausedProviderAuthManagementFile: PathName = "paused-provider-auth-management.json"
         static let backupsFolder: PathName = "backups"
         static let activeBackupsFolder: PathName = "active"
         static let authLockFile: PathName = ".auth.lock"
@@ -351,6 +352,10 @@ public actor CodexAuthManager {
 
     public nonisolated func activeFingerprintsFile() -> STFile {
         nolonCodexRootFolder().file(PathName.activeFingerprintsFile.rawValue)
+    }
+
+    public nonisolated func pausedProviderAuthManagementFile() -> STFile {
+        nolonCodexRootFolder().file(PathName.pausedProviderAuthManagementFile.rawValue)
     }
 
     public nonisolated func runtimeHomeFolder(accountID: UUID) -> STFolder {
@@ -1222,6 +1227,9 @@ public actor CodexAuthManager {
     }
 
     public func activeAccountId(for provider: Provider, accounts: [CodexAuthAccount]) -> UUID? {
+        if isProviderAuthManagementPaused(for: provider) {
+            return nil
+        }
         let registryActiveID = activeAccountIdFromRegistry(for: provider, accounts: accounts)
         if let registryActiveID,
            let registryAccount = accounts.first(where: { $0.id == registryActiveID }),
@@ -1287,6 +1295,10 @@ public actor CodexAuthManager {
     ) async throws -> CodexAuthAccount? {
         guard Self.isCodexTemplate(provider.templateId) else { return nil }
         try await migrateLegacyIfNeeded()
+        if shouldClearActiveSelectionOnDriftDuringPreflight(reason: reason),
+           isProviderAuthManagementPaused(for: provider) {
+            return nil
+        }
         if let blocked = try preflightBlockedByCloudSync(for: provider) {
             throw blocked
         }
@@ -1383,6 +1395,7 @@ public actor CodexAuthManager {
             throw CodexCloudSyncPreflightBlock.tombstonedActiveAccount(accountID: account.id, status: state.syncStatus)
         }
         try withAuthFileLock {
+            try setProviderAuthManagementPaused(false, for: provider)
             try activateAccount(account, for: provider)
             try setActiveAccount(account, for: provider)
             let resolved = try reconcileProviderAuthWithSnapshotsIfNeeded(for: provider) ?? account

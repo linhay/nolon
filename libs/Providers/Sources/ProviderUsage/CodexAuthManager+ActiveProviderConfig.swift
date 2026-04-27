@@ -138,14 +138,20 @@ extension CodexAuthManager {
         try refreshActiveProviderFilesIfNeeded(for: account, provider: provider, syncRuntimeConfig: true)
     }
 
-    func clearActiveSelectionAndRestoreProviderState(for provider: Provider) throws {
+    func clearActiveSelectionAndRestoreProviderState(
+        for provider: Provider,
+        preserveProviderAuthFile: Bool = false,
+        pauseMonitoring: Bool = false
+    ) throws {
         try clearActiveAccount(for: provider)
         if let configFile = configFile(for: provider) {
             try activeProviderConfigManager().restoreManagedConfig(configFile: configFile)
         }
-        if let providerAuthFile = authFile(for: provider) {
+        if preserveProviderAuthFile == false,
+           let providerAuthFile = authFile(for: provider) {
             try removeFileOrSymlinkIfPresent(providerAuthFile)
         }
+        try setProviderAuthManagementPaused(pauseMonitoring, for: provider)
     }
 
     private func activeProviderConfigIntent(

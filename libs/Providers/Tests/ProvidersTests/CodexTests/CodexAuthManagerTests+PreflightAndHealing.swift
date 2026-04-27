@@ -427,8 +427,8 @@ extension CodexAuthManagerTests {
         #expect(restoredSummary.email == "active@example.com")
     }
 
-    @Test("Given startup preflight sees modified selected relay account, when usage load runs then active selection is cleared and managed config is not applied")
-    func startupPreflightClearsModifiedActiveAccountSelectionAndRestoresConfig() async throws {
+    @Test("Given startup preflight sees modified selected relay account, when usage load runs then active selection is cleared, managed config is not applied, and external auth is preserved")
+    func startupPreflightClearsModifiedActiveAccountSelectionAndPreservesExternalAuth() async throws {
         let root = try makeTempRoot("codex-auth-startup-preflight-clear-drifted-active")
         defer { try? root.delete() }
 
@@ -477,8 +477,13 @@ extension CodexAuthManagerTests {
 
         #expect(await manager.activeAccountId(for: provider) == nil)
         #expect(try configFile.read() == originalConfig + "\n")
+        #expect(providerAuth.isExists == true)
+        let preservedAuthRaw = try providerAuth.read()
+        #expect(preservedAuthRaw.contains(#""email": "drifted@example.com""#))
 
-        #expect(providerAuth.isExists == false)
+        _ = try await manager.preflightManagedAuthIfNeeded(for: provider, forceBackup: false, reason: "usage_load")
+        #expect(await manager.activeAccountId(for: provider) == nil)
+        #expect(try providerAuth.read() == preservedAuthRaw)
 
         let accounts = try await manager.loadAccounts()
         #expect(accounts.contains(where: { account in
@@ -486,6 +491,58 @@ extension CodexAuthManagerTests {
             let summary = CodexAuthSummary.fromJSONData(data)
             return summary.email == "drifted@example.com"
         }))
+    }
+
+    @Test("Given runtime auth json is modified externally, when background poll runs then active selection is cleared and future polling stops until app reselects")
+    func backgroundPollClearsSelectionAndPausesAuthManagementAfterExternalChange() async throws {
+        let root = try makeTempRoot("codex-auth-background-poll-pause-after-external-change")
+        defer { try? root.delete() }
+
+        let manager = CodexAuthManager(rootURL: root.url)
+        let provider = makeCodexProvider(root: root)
+        let configFile = root.folder("provider").file("config.toml")
+        let originalConfig = """
+        model = "o3"
+        approval_policy = "on-request"
+        """
+        try configFile.overlay(with: originalConfig + "\n")
+
+        let relay = try await manager.addConfiguredAccount(
+            name: "Relay",
+            apiKey: "rk-live-poll-1234",
+            relay: .init(
+                baseURL: "https://relay.example.com/v1",
+                modelProvider: "provider-relay"
+            )
+        )
+        try await manager.activateAccountAndMarkActive(relay, for: provider)
+
+        let providerAuth = try #require(await manager.authFile(for: provider))
+        let activeFile = STFile(try providerAuth.destinationOfSymbolicLink().url.path)
+        let driftedRaw = #"""
+        {
+          "auth_mode": "chatgpt",
+          "email": "poll-drifted@example.com",
+          "tokens": {
+            "id_token": "id-poll-drifted",
+            "access_token": "access-poll-drifted",
+            "account_id": "acct-poll-drifted"
+          }
+        }
+        """#
+        try activeFile.overlay(with: Data(driftedRaw.utf8))
+
+        await manager.pollProviderAuthChange(for: provider, authFilePath: providerAuth.url.path)
+
+        #expect(await manager.activeAccountId(for: provider) == nil)
+        #expect(try configFile.read() == originalConfig + "\n")
+        #expect(providerAuth.isExists == true)
+        let preservedAuthRaw = try providerAuth.read()
+        #expect(preservedAuthRaw.contains(#""email": "poll-drifted@example.com""#))
+
+        await manager.pollProviderAuthChange(for: provider, authFilePath: providerAuth.url.path)
+        #expect(await manager.activeAccountId(for: provider) == nil)
+        #expect(try providerAuth.read() == preservedAuthRaw)
     }
 
     @Test("Given active drift payload shares account id but has different email from existing snapshots, when preflight runs then drift payload is saved as a new snapshot")

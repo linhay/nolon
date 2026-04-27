@@ -522,7 +522,11 @@ extension CodexAuthManager {
         }
 
         if shouldClearActiveSelectionOnDriftDuringPreflight(reason: reason) {
-            try clearActiveSelectionAndRestoreProviderState(for: provider)
+            try clearActiveSelectionAndRestoreProviderState(
+                for: provider,
+                preserveProviderAuthFile: true,
+                pauseMonitoring: true
+            )
             fingerprints.removeValue(forKey: provider.id)
             try saveActiveFingerprintMap(fingerprints)
             Self.logger.info(
@@ -630,6 +634,43 @@ extension CodexAuthManager {
         try file.overlay(with: Self.encodeJSONObject(root))
     }
 
+    func loadPausedProviderAuthManagementMap() -> [String: Bool] {
+        let file = pausedProviderAuthManagementFile()
+        guard file.isExists,
+              let data = try? file.data(),
+              !data.isEmpty,
+              let root = Self.decodeJSONObject(from: data),
+              let providers = root["providers"] as? JSONObject
+        else { return [:] }
+
+        return providers.reduce(into: [String: Bool]()) { result, element in
+            if let value = element.value as? Bool {
+                result[element.key] = value
+            }
+        }
+    }
+
+    func savePausedProviderAuthManagementMap(_ map: [String: Bool]) throws {
+        let file = pausedProviderAuthManagementFile()
+        _ = file.parentFolder()?.createIfNotExists()
+        let root: JSONObject = ["providers": map]
+        try file.overlay(with: Self.encodeJSONObject(root))
+    }
+
+    func isProviderAuthManagementPaused(for provider: Provider) -> Bool {
+        loadPausedProviderAuthManagementMap()[provider.id] == true
+    }
+
+    func setProviderAuthManagementPaused(_ paused: Bool, for provider: Provider) throws {
+        var map = loadPausedProviderAuthManagementMap()
+        if paused {
+            map[provider.id] = true
+        } else {
+            map.removeValue(forKey: provider.id)
+        }
+        try savePausedProviderAuthManagementMap(map)
+    }
+
     func backupActiveSnapshotIfNeeded(for provider: Provider, force: Bool, reason: String) throws {
         guard Self.isCodexTemplate(provider.templateId) else { return }
         let accounts = try loadAccountsFromAuthFolder()
@@ -727,22 +768,17 @@ extension CodexAuthManager {
 extension CodexAuthManager {
     func startProviderAuthPolling(for provider: Provider) {
         stopProviderAuthPolling(for: provider.id)
+        guard isProviderAuthManagementPaused(for: provider) == false else { return }
         guard let authFile = authFile(for: provider) else { return }
         let authFilePath = authFile.url.path
         if let raw = try? String(contentsOf: URL(fileURLWithPath: authFilePath), encoding: .utf8) {
             providerAuthLastHashes[provider.id] = CodexAuthAccount.hashHex(for: raw)
         }
 
-        let providerID = provider.id
-        let activeProviderKey = activeAccountProviderKey(for: provider)
-        let task = Task { [providerID, activeProviderKey, authFilePath] in
+        let task = Task { [provider, authFilePath] in
             while !Task.isCancelled {
                 try? await Task.sleep(nanoseconds: providerAuthPollIntervalNanoseconds)
-                await pollProviderAuthChange(
-                    providerID: providerID,
-                    activeProviderKey: activeProviderKey,
-                    authFilePath: authFilePath
-                )
+                await pollProviderAuthChange(for: provider, authFilePath: authFilePath)
             }
         }
         providerAuthPollingTasks[provider.id] = task
@@ -754,7 +790,8 @@ extension CodexAuthManager {
         providerAuthLastHashes[providerID] = nil
     }
 
-    func pollProviderAuthChange(providerID: String, activeProviderKey: String, authFilePath: String) async {
+    func pollProviderAuthChange(for provider: Provider, authFilePath: String) async {
+        let providerID = provider.id
         let authURL = URL(fileURLWithPath: authFilePath)
         guard let data = try? Data(contentsOf: authURL),
               !data.isEmpty,
@@ -781,26 +818,14 @@ extension CodexAuthManager {
             return
         }
 
-        let activeMap = loadActiveAccountMap()
-        let rawID = activeMap[activeProviderKey] ?? activeMap[providerID]
-        guard let rawID,
-              let activeID = UUID(uuidString: rawID),
-              let account = (try? loadAccountsFromAuthFolder())?.first(where: { $0.id == activeID })
-        else {
-            return
-        }
-
         do {
-            let normalizedPayload = try normalizeAccountPayloadData(
-                authJSONString: normalizedRaw,
-                preferredId: account.id,
-                preferredCreatedAt: account.createdAt,
-                relativeAuthPath: account.relativeAuthPath
+            _ = try await preflightManagedAuthIfNeeded(
+                for: provider,
+                forceBackup: false,
+                reason: "background_poll"
             )
-            let reloaded = accountFromNormalizedPayloadData(normalizedPayload, fallbackRelativeAuthPath: account.relativeAuthPath)
-            try upsertCodexAccountInSQLite(reloaded, authData: normalizedPayload)
         } catch {
-            Self.logger.error("Provider auth polling failed to persist snapshot. provider=\(providerID, privacy: .public) error=\(String(describing: error), privacy: .public)")
+            Self.logger.error("Provider auth polling failed to process drift. provider=\(providerID, privacy: .public) error=\(String(describing: error), privacy: .public)")
         }
     }
 
