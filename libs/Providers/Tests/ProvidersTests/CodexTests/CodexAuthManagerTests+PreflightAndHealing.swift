@@ -427,8 +427,8 @@ extension CodexAuthManagerTests {
         #expect(restoredSummary.email == "active@example.com")
     }
 
-    @Test("Given startup preflight sees modified selected relay account, when usage load runs then active selection is cleared, managed config is not applied, and external auth is preserved")
-    func startupPreflightClearsModifiedActiveAccountSelectionAndPreservesExternalAuth() async throws {
+    @Test("Given startup preflight sees modified selected account with stable unique identity, when usage load runs then active selection switches to the drifted account and management continues")
+    func startupPreflightAdoptsDriftedAccountWhenIdentityIsStable() async throws {
         let root = try makeTempRoot("codex-auth-startup-preflight-clear-drifted-active")
         defer { try? root.delete() }
 
@@ -475,11 +475,70 @@ extension CodexAuthManagerTests {
 
         _ = try await manager.preflightManagedAuthIfNeeded(for: provider, forceBackup: false, reason: "usage_load")
 
+        let adoptedActiveID = try #require(await manager.activeAccountId(for: provider))
+        let adoptedAccount = try #require((try await manager.loadAccounts()).first(where: { $0.id == adoptedActiveID }))
+        let adoptedSummary = CodexAuthSummary.fromJSONData(try #require(manager.accountAuthData(for: adoptedAccount)))
+        #expect(adoptedSummary.email == "drifted@example.com")
+        #expect(try configFile.read() == originalConfig + "\n")
+        #expect(providerAuth.isExists == true)
+        let preservedAuthRaw = try providerAuth.read()
+        #expect(preservedAuthRaw.contains(#""drifted@example.com""#))
+
+        _ = try await manager.preflightManagedAuthIfNeeded(for: provider, forceBackup: false, reason: "usage_load")
+        let activeIDAfterSecondPreflight = try #require(await manager.activeAccountId(for: provider))
+        #expect(activeIDAfterSecondPreflight == adoptedActiveID)
+        #expect(try providerAuth.read() == preservedAuthRaw)
+    }
+
+    @Test("Given startup preflight sees modified selected account without stable unique identity, when usage load runs then active selection is cleared and external auth is left unmanaged")
+    func startupPreflightPausesManagementWhenIdentityIsNotStable() async throws {
+        let root = try makeTempRoot("codex-auth-startup-preflight-pause-unstable-identity")
+        defer { try? root.delete() }
+
+        let manager = CodexAuthManager(rootURL: root.url)
+        let provider = makeCodexProvider(root: root)
+        let configFile = root.folder("provider").file("config.toml")
+        let originalConfig = """
+        model = "o3"
+        approval_policy = "on-request"
+
+        [features]
+        web_search = true
+        """
+        try configFile.overlay(with: originalConfig + "\n")
+
+        let relay = try await manager.addConfiguredAccount(
+            name: "Relay",
+            apiKey: "rk-live-startup-unstable-1234",
+            relay: .init(
+                baseURL: "https://relay.example.com/v1",
+                modelProvider: "provider-relay"
+            )
+        )
+
+        try await manager.activateAccountAndMarkActive(relay, for: provider)
+
+        let driftedRaw = #"""
+        {
+          "auth_mode": "chatgpt",
+          "tokens": {
+            "id_token": "id-drifted-unstable",
+            "access_token": "access-drifted-unstable",
+            "account_id": "acct-drifted-unstable"
+          }
+        }
+        """#
+        let providerAuth = try #require(await manager.authFile(for: provider))
+        let activeFile = STFile(try providerAuth.destinationOfSymbolicLink().url.path)
+        try activeFile.overlay(with: Data(driftedRaw.utf8))
+
+        _ = try await manager.preflightManagedAuthIfNeeded(for: provider, forceBackup: false, reason: "usage_load")
+
         #expect(await manager.activeAccountId(for: provider) == nil)
         #expect(try configFile.read() == originalConfig + "\n")
         #expect(providerAuth.isExists == true)
         let preservedAuthRaw = try providerAuth.read()
-        #expect(preservedAuthRaw.contains(#""email": "drifted@example.com""#))
+        #expect(preservedAuthRaw.contains(#""account_id": "acct-drifted-unstable""#))
 
         _ = try await manager.preflightManagedAuthIfNeeded(for: provider, forceBackup: false, reason: "usage_load")
         #expect(await manager.activeAccountId(for: provider) == nil)
@@ -489,12 +548,12 @@ extension CodexAuthManagerTests {
         #expect(accounts.contains(where: { account in
             let data = manager.accountAuthData(for: account) ?? Data()
             let summary = CodexAuthSummary.fromJSONData(data)
-            return summary.email == "drifted@example.com"
+            return summary.accountID == "acct-drifted-unstable"
         }))
     }
 
-    @Test("Given runtime auth json is modified externally, when background poll runs then active selection is cleared and future polling stops until app reselects")
-    func backgroundPollClearsSelectionAndPausesAuthManagementAfterExternalChange() async throws {
+    @Test("Given runtime auth json is modified externally with stable unique identity, when background poll runs then active selection switches and management continues")
+    func backgroundPollAdoptsDriftedAccountWhenIdentityIsStable() async throws {
         let root = try makeTempRoot("codex-auth-background-poll-pause-after-external-change")
         defer { try? root.delete() }
 
@@ -534,11 +593,66 @@ extension CodexAuthManagerTests {
 
         await manager.pollProviderAuthChange(for: provider, authFilePath: providerAuth.url.path)
 
+        let adoptedActiveID = try #require(await manager.activeAccountId(for: provider))
+        let adoptedAccount = try #require((try await manager.loadAccounts()).first(where: { $0.id == adoptedActiveID }))
+        let adoptedSummary = CodexAuthSummary.fromJSONData(try #require(manager.accountAuthData(for: adoptedAccount)))
+        #expect(adoptedSummary.email == "poll-drifted@example.com")
+        #expect(try configFile.read() == originalConfig + "\n")
+        #expect(providerAuth.isExists == true)
+        let preservedAuthRaw = try providerAuth.read()
+        #expect(preservedAuthRaw.contains(#""poll-drifted@example.com""#))
+
+        await manager.pollProviderAuthChange(for: provider, authFilePath: providerAuth.url.path)
+        let activeIDAfterSecondPoll = try #require(await manager.activeAccountId(for: provider))
+        #expect(activeIDAfterSecondPoll == adoptedActiveID)
+        #expect(try providerAuth.read() == preservedAuthRaw)
+    }
+
+    @Test("Given runtime auth json is modified externally without stable unique identity, when background poll runs then active selection is cleared and future polling stops until app reselects")
+    func backgroundPollClearsSelectionAndPausesAuthManagementAfterUnstableExternalChange() async throws {
+        let root = try makeTempRoot("codex-auth-background-poll-pause-after-unstable-external-change")
+        defer { try? root.delete() }
+
+        let manager = CodexAuthManager(rootURL: root.url)
+        let provider = makeCodexProvider(root: root)
+        let configFile = root.folder("provider").file("config.toml")
+        let originalConfig = """
+        model = "o3"
+        approval_policy = "on-request"
+        """
+        try configFile.overlay(with: originalConfig + "\n")
+
+        let relay = try await manager.addConfiguredAccount(
+            name: "Relay",
+            apiKey: "rk-live-poll-unstable-1234",
+            relay: .init(
+                baseURL: "https://relay.example.com/v1",
+                modelProvider: "provider-relay"
+            )
+        )
+        try await manager.activateAccountAndMarkActive(relay, for: provider)
+
+        let providerAuth = try #require(await manager.authFile(for: provider))
+        let activeFile = STFile(try providerAuth.destinationOfSymbolicLink().url.path)
+        let driftedRaw = #"""
+        {
+          "auth_mode": "chatgpt",
+          "tokens": {
+            "id_token": "id-poll-drifted-unstable",
+            "access_token": "access-poll-drifted-unstable",
+            "account_id": "acct-poll-drifted-unstable"
+          }
+        }
+        """#
+        try activeFile.overlay(with: Data(driftedRaw.utf8))
+
+        await manager.pollProviderAuthChange(for: provider, authFilePath: providerAuth.url.path)
+
         #expect(await manager.activeAccountId(for: provider) == nil)
         #expect(try configFile.read() == originalConfig + "\n")
         #expect(providerAuth.isExists == true)
         let preservedAuthRaw = try providerAuth.read()
-        #expect(preservedAuthRaw.contains(#""email": "poll-drifted@example.com""#))
+        #expect(preservedAuthRaw.contains(#""account_id": "acct-poll-drifted-unstable""#))
 
         await manager.pollProviderAuthChange(for: provider, authFilePath: providerAuth.url.path)
         #expect(await manager.activeAccountId(for: provider) == nil)

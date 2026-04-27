@@ -496,6 +496,7 @@ extension CodexAuthManager {
         let refreshedRestoredAccount = refreshedSnapshots.first(where: { $0.id == restoredAccount.id }) ?? restoredAccount
         let driftSummary = CodexAuthSummary.fromJSONData(activeData)
         let driftIdentity = accountIdentity(from: activeData, summary: driftSummary)
+        let driftResolvedAccount: CodexAuthAccount
         if let strictMatch = matchAccountByStrictIdentity(
             authIdentity: driftIdentity,
             snapshots: loadAccountSnapshots(for: refreshedSnapshots),
@@ -511,8 +512,12 @@ extension CodexAuthManager {
                 relativeAuthPath: strictMatch.relativeAuthPath
             )
             try saveAccountAuthData(strictMatch, data: normalized)
+            driftResolvedAccount = accountFromNormalizedPayloadData(
+                normalized,
+                fallbackRelativeAuthPath: strictMatch.relativeAuthPath
+            )
         } else {
-            _ = try upsertSnapshotFromProviderData(
+            driftResolvedAccount = try upsertSnapshotFromProviderData(
                 authData: activeData,
                 providerRaw: String(data: activeData, encoding: .utf8),
                 snapshots: refreshedSnapshots,
@@ -522,6 +527,17 @@ extension CodexAuthManager {
         }
 
         if shouldClearActiveSelectionOnDriftDuringPreflight(reason: reason) {
+            if hasStableCredentialIdentity(authData: activeData) {
+                try setProviderAuthManagementPaused(false, for: provider)
+                try relinkProviderAuth(providerAuthFile: providerAuthFile, resolved: driftResolvedAccount, provider: provider)
+                try syncActiveProviderConfig(for: driftResolvedAccount, provider: provider)
+                fingerprints[provider.id] = currentHash
+                try saveActiveFingerprintMap(fingerprints)
+                Self.logger.info(
+                    "Codex passive drift adopted uniquely identified account and kept management. provider=\(provider.id, privacy: .public) active=\(driftResolvedAccount.id.uuidString, privacy: .public) reason=\(reason, privacy: .public)"
+                )
+                return driftResolvedAccount
+            }
             try clearActiveSelectionAndRestoreProviderState(
                 for: provider,
                 preserveProviderAuthFile: true,
@@ -671,6 +687,14 @@ extension CodexAuthManager {
         try savePausedProviderAuthManagementMap(map)
     }
 
+    func hasStableCredentialIdentity(authData: Data) -> Bool {
+        guard let json = try? JSON(data: authData) else { return false }
+        if case .valid = credentialIdentityValidationResult(from: json) {
+            return true
+        }
+        return false
+    }
+
     func backupActiveSnapshotIfNeeded(for provider: Provider, force: Bool, reason: String) throws {
         guard Self.isCodexTemplate(provider.templateId) else { return }
         let accounts = try loadAccountsFromAuthFolder()
@@ -808,13 +832,8 @@ extension CodexAuthManager {
 
         let normalizedData = Self.normalizeImportedAuthJSONDataIfNeeded(data) ?? data
         guard let normalizedRaw = String(data: normalizedData, encoding: .utf8),
-              hasImportableCredentials(authJSONString: normalizedRaw),
-              let parsed = try? JSON(data: normalizedData)
+              hasImportableCredentials(authJSONString: normalizedRaw)
         else {
-            return
-        }
-        if case let .invalid(reason) = credentialIdentityValidationResult(from: parsed) {
-            Self.logger.error("Provider auth polling ignored invalid identity combination. provider=\(providerID, privacy: .public) reason=\(reason, privacy: .public)")
             return
         }
 
