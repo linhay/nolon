@@ -1,7 +1,7 @@
 # Codex Runtime Tab 实现说明（2026-03-05）
 
 ## 关联需求
-- `docs-linhay/features/codex-runtime-tab-2026-03-05.md`
+- `docs-linhay/spaces/codex-runtime-tab/README.md`
 
 ## 实现概览
 - ProviderCatalog:

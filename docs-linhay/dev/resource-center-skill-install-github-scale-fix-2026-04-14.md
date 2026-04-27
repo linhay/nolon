@@ -1,8 +1,8 @@
 # Resource Center GitHub Skill 安装修复执行说明（2026-04-14）
 
 ## 关联文档
-- `docs-linhay/features/skill-install-nonstandard-symlink-layout-2026-03-03.md`
-- `docs-linhay/debate/20260414/resource-center/20260414-skill-install-github-scale-v01.md`
+- `docs-linhay/spaces/skill-install-nonstandard-symlink-layout/README.md`
+- `docs-linhay/spaces/skill-install-nonstandard-symlink-layout/debate/20260414/resource-center/20260414-skill-install-github-scale-v01.md`
 
 ## 背景
 - 用户反馈：从 GitHub 仓库安装 `scale` 这类 skill 时，界面会长时间显示“安装中”，随后安装失败。

@@ -1,6 +1,6 @@
 # Clawhub 链接导入与添加仓库文本可选中：实现说明（2026-03-05）
 
-关联需求：`docs-linhay/features/clawhub-url-import-and-add-repo-text-selection-2026-03-05.md`
+关联需求：`docs-linhay/spaces/clawhub-url-import-and-add-repo-text-selection/README.md`
 
 ## 设计决策
 1. 统一导入意图解析（避免“按页面分别猜 URL”）：

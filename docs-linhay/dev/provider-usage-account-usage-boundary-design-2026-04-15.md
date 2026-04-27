@@ -9,7 +9,7 @@
 
 关联辩论文档：
 
-- `docs-linhay/debate/20260415/provider-usage/20260415-accounts-vs-usage-page-split-v01.md`
+- `docs-linhay/spaces/provider-account-usage-tab-split/debate/20260415/provider-usage/20260415-accounts-vs-usage-page-split-v01.md`
 
 ## 当前代码事实
 

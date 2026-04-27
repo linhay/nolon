@@ -11,7 +11,7 @@
    - 代码层优先把 `AccountsFeature` 与 `UsageFeature` 的状态所有权、加载入口、刷新边界拆开
 3. 本文档仍然有效，但需要与以下新文档一起阅读：
    - `docs-linhay/dev/provider-usage-account-usage-boundary-design-2026-04-15.md`
-   - `docs-linhay/plans/2026-04-15-provider-usage-domain-split-and-page-boundary-plan.md`
+   - `docs-linhay/spaces/provider-account-usage-tab-split/plans/2026-04-15-provider-usage-domain-split-and-page-boundary-plan.md`
 
 ## 1. 现状问题
 1. `ProviderUsageViewModel` 体量过大（约 4.8k 行），包含账号、登录、导入导出、网关、趋势图等多域职责。

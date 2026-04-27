@@ -1,7 +1,7 @@
 # Codex Advanced Config MainActor Deinit Crash（2026-03-02）
 
 ## 关联需求
-- Feature 文档：`docs-linhay/features/codex-config-toml-phase1.md`
+- Feature 文档：`docs-linhay/spaces/codex-config-toml-phase1/README.md`
 
 ## 背景
 - 单测 `CodexAdvancedConfigRoleDraftTests` 在释放 `CodexAdvancedConfigViewModel` 时触发运行时崩溃：

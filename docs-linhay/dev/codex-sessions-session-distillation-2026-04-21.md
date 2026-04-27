@@ -90,7 +90,7 @@
    - 交互布局
    - 诊断链路
 2. 阅读对应基础文档：
-   - feature：`docs-linhay/features/codex-sessions-tab-2026-04-10.md`
+   - feature：`docs-linhay/spaces/codex-sessions-tab/README.md`
    - 缓存：`docs-linhay/dev/codex-sessions-projection-cache-design-2026-04-18.md`
    - 启动刷新：`docs-linhay/dev/codex-sessions-startup-acceleration-design-2026-04-19.md`
    - 内存：`docs-linhay/dev/codex-sessions-memory-control-design-2026-04-20.md`

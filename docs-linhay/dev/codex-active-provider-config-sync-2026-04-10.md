@@ -179,7 +179,7 @@ wire_api = "responses"
 
 ## 增量（2026-04-10：Sessions tab 手动修正入口）
 - 关联规格：
-  - [codex-sessions-tab-2026-04-10.md](/Users/linhey/Desktop/FlowUp-Libs/nolon/docs-linhay/features/codex-sessions-tab-2026-04-10.md)
+  - [codex-sessions-tab-2026-04-10.md](/Users/linhey/Desktop/FlowUp-Libs/nolon/docs-linhay/spaces/codex-sessions-tab/README.md)
 - 目的：
   - 在自动迁移之外，为 Codex / CodexXcode 提供可视化、可确认的历史会话 provider 重写入口。
 - UI 接线：

@@ -1,6 +1,6 @@
 # Gemini Auth CLI 隔离实现说明（2026-03-05）
 
-关联 feature: `docs-linhay/features/gemini-antigravity-auth-isolation-2026-03-05.md`
+关联 feature: `docs-linhay/spaces/gemini-antigravity-auth-isolation/README.md`
 
 ## 实现摘要
 1. `gemini` 命令组从 `usage` 改为 `auth`。

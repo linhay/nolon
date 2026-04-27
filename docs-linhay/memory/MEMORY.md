@@ -8,7 +8,7 @@
 ## 文档系统与流程
 
 - `docs-linhay/` 是唯一文档系统根目录，固定子目录为 `dev/`、`features/`、`plans/`、`memory/`、`references/`、`screenshots/`、`debate/`、`scripts/`。
-- 需求变更先更新 `docs-linhay/features/`，技术方案放 `docs-linhay/dev/`，每日工作记录写回 `docs-linhay/memory/YYYY-MM-DD.md`。
+- 需求变更先更新对应 `docs-linhay/spaces/<space-key>/README.md`，技术方案放 `docs-linhay/dev/`，每日工作记录写回 `docs-linhay/memory/YYYY-MM-DD.md`。
 - 记忆系统查询优先走 `qmd query` / `qmd get`；写回后执行 `qmd update && qmd embed`。
 
 ## 代码边界
