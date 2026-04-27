@@ -39,6 +39,11 @@ public enum MCPConfigManager {
     public static func repairProviderMCPStateIfNeeded(for template: ProviderTemplate) throws -> Bool {
         let cacheChanged = try repairCacheEntriesIfNeeded()
         guard template.supportsNativeMcpConfig else { return cacheChanged }
+        if template == .codex || template == .codexXcode {
+            // Codex provider configs may contain user-authored official fields and layout
+            // that should not be rewritten during passive startup repair.
+            return cacheChanged
+        }
         let providerChanged = try repairProviderConfigIfNeeded(for: template)
         return cacheChanged || providerChanged
     }
@@ -649,6 +654,7 @@ private extension MCPConfigManager {
 
     static func codexServerDictionary(_ server: CodexMCPServer) -> [String: Any] {
         var dict: [String: Any] = [:]
+        if let name = server.name { dict["name"] = name }
         if let url = server.url { dict["url"] = url }
         if let command = server.command { dict["command"] = command }
         if let args = server.args { dict["args"] = args }
@@ -667,6 +673,24 @@ private extension MCPConfigManager {
         if let startupTimeoutSec = server.startupTimeoutSec { dict["startup_timeout_sec"] = startupTimeoutSec }
         if let startupTimeoutMs = server.startupTimeoutMs { dict["startup_timeout_ms"] = startupTimeoutMs }
         if let toolTimeoutSec = server.toolTimeoutSec { dict["tool_timeout_sec"] = toolTimeoutSec }
+        if let supportsParallelToolCalls = server.supportsParallelToolCalls {
+            dict["supports_parallel_tool_calls"] = supportsParallelToolCalls
+        }
+        if let defaultToolsApprovalMode = server.defaultToolsApprovalMode {
+            dict["default_tools_approval_mode"] = defaultToolsApprovalMode
+        }
+        if let experimentalEnvironment = server.experimentalEnvironment {
+            dict["experimental_environment"] = experimentalEnvironment
+        }
+        if let tools = server.tools, !tools.isEmpty {
+            dict["tools"] = tools.mapValues { tool in
+                var output: [String: Any] = [:]
+                if let approvalMode = tool.approvalMode {
+                    output["approval_mode"] = approvalMode
+                }
+                return output
+            }
+        }
         if let type = server.type { dict["type"] = type }
         if let transport = server.transport { dict["transport"] = transport }
         if let identity = server.identity { dict["identity"] = identity }
@@ -811,6 +835,15 @@ private extension MCPConfigManager {
         if let toolTimeoutSec = numberValue(normalized["tool_timeout_sec"]) {
             lines.append("tool_timeout_sec = \(tomlNumber(toolTimeoutSec))")
         }
+        if let supportsParallelToolCalls = normalized["supports_parallel_tool_calls"] as? Bool {
+            lines.append("supports_parallel_tool_calls = \(supportsParallelToolCalls ? "true" : "false")")
+        }
+        if let defaultToolsApprovalMode = normalized["default_tools_approval_mode"] as? String {
+            lines.append("default_tools_approval_mode = \(tomlString(defaultToolsApprovalMode))")
+        }
+        if let experimentalEnvironment = normalized["experimental_environment"] as? String {
+            lines.append("experimental_environment = \(tomlString(experimentalEnvironment))")
+        }
         if let type = explicitType,
            type != effectiveType || (type != "stdio" && type != "http") {
             lines.append("type = \(tomlString(type))")
@@ -826,6 +859,18 @@ private extension MCPConfigManager {
         let isEnabled = MCPJsonFile.serverFields(from: normalized).isEnabled
         if !isEnabled {
             lines.append("enabled = false")
+        }
+
+        if let tools = (normalized["tools"] as? [String: [String: Any]]) ?? (normalized["tools"] as? [String: Any])?.compactMapValues({ $0 as? [String: Any] }),
+           !tools.isEmpty {
+            for toolName in tools.keys.sorted() {
+                guard let tool = tools[toolName] else { continue }
+                lines.append("")
+                lines.append("[mcp_servers.\(tomlTableKey(name)).tools.\(tomlTableKey(toolName))]")
+                if let approvalMode = tool["approval_mode"] as? String {
+                    lines.append("approval_mode = \(tomlString(approvalMode))")
+                }
+            }
         }
 
         return lines.joined(separator: "\n")

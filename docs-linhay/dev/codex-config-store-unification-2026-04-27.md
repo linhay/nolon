@@ -58,3 +58,16 @@
   - 只移除 managed relay 顶层键和 `[model_providers.<managed>]`
   - 再把 baseline 中受控顶层键补回
   - 从而保留 relay 激活后 app 内新增的无关配置
+
+## MCP 标准化副作用修正
+- 用户反馈 Codex MCP 配置会被我们“标准化”后失效，根因有两层：
+  - 启动期 `repairProviderMCPStateIfNeeded(for:)` 会被动重写 Codex provider 原始 `config.toml`
+  - `CodexMCPServer` / `MCPConfigManager` 先前未覆盖全部官方 MCP 字段，导致一旦进入读写链路，以下官方字段会被吃掉：
+    - `supports_parallel_tool_calls`
+    - `default_tools_approval_mode`
+    - `experimental_environment`
+    - `[mcp_servers.<server>.tools.<tool>] approval_mode`
+- 已修正：
+  - 对 `codex` / `codexXcode`，启动 repair 只修 cache，不再被动改 provider 原文件
+  - 扩展 Codex MCP 模型和 TOML 渲染，保留上述官方字段
+  - 新增回归测试，覆盖“repair 不改写”和“setEnabled 写回后字段仍保留”

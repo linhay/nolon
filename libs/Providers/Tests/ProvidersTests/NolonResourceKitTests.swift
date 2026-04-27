@@ -1127,6 +1127,96 @@ struct NolonResourceKitTests {
         #expect(raw.contains(#"[mcp_servers.context7.http_headers]"#) == false)
     }
 
+    @Test("Codex MCP repair preserves official server approval and parallel tool fields")
+    func codexMcpRepairPreservesOfficialApprovalFields() throws {
+        let root = try STFolder(sanbox: .temporary)
+            .folder("nolon-codex-mcp-official-fields-\(UUID().uuidString)")
+            .create()
+        defer { try? root.deleteIncludingBrokenSymlink() }
+
+        let previousHome = getenv("HOME").map { String(cString: $0) }
+        let previousNolonHome = getenv("NOLON_HOME").map { String(cString: $0) }
+        setenv("HOME", root.url.path, 1)
+        setenv("NOLON_HOME", root.folder(".nolon").url.path, 1)
+        defer {
+            if let previousHome {
+                setenv("HOME", previousHome, 1)
+            }
+            if let previousNolonHome {
+                setenv("NOLON_HOME", previousNolonHome, 1)
+            }
+        }
+
+        let configPath = ProviderTemplate.codex.defaultMcpConfigPath
+        _ = STFolder(configPath.deletingLastPathComponent()).createIfNotExists()
+        try """
+        [mcp_servers.playwright]
+        command = "npx"
+        args = ["-y", "@playwright/mcp@latest"]
+        supports_parallel_tool_calls = true
+        default_tools_approval_mode = "approve"
+        experimental_environment = "stable"
+
+        [mcp_servers.playwright.tools.browser_click]
+        approval_mode = "prompt"
+        """.write(to: configPath, atomically: true, encoding: .utf8)
+
+        let repaired = try MCPConfigManager.repairProviderMCPStateIfNeeded(for: .codex)
+        #expect(repaired == false)
+
+        let raw = try String(contentsOf: configPath, encoding: .utf8)
+        #expect(raw.contains(#"supports_parallel_tool_calls = true"#))
+        #expect(raw.contains(#"default_tools_approval_mode = "approve""#))
+        #expect(raw.contains(#"experimental_environment = "stable""#))
+        #expect(raw.contains(#"[mcp_servers.playwright.tools.browser_click]"#))
+        #expect(raw.contains(#"approval_mode = "prompt""#))
+    }
+
+    @Test("Codex MCP enable toggle preserves official server approval and parallel tool fields")
+    func codexMcpEnableTogglePreservesOfficialApprovalFields() throws {
+        let root = try STFolder(sanbox: .temporary)
+            .folder("nolon-codex-mcp-toggle-official-fields-\(UUID().uuidString)")
+            .create()
+        defer { try? root.deleteIncludingBrokenSymlink() }
+
+        let previousHome = getenv("HOME").map { String(cString: $0) }
+        let previousNolonHome = getenv("NOLON_HOME").map { String(cString: $0) }
+        setenv("HOME", root.url.path, 1)
+        setenv("NOLON_HOME", root.folder(".nolon").url.path, 1)
+        defer {
+            if let previousHome {
+                setenv("HOME", previousHome, 1)
+            }
+            if let previousNolonHome {
+                setenv("NOLON_HOME", previousNolonHome, 1)
+            }
+        }
+
+        let configPath = ProviderTemplate.codex.defaultMcpConfigPath
+        _ = STFolder(configPath.deletingLastPathComponent()).createIfNotExists()
+        try """
+        [mcp_servers.playwright]
+        command = "npx"
+        args = ["-y", "@playwright/mcp@latest"]
+        supports_parallel_tool_calls = true
+        default_tools_approval_mode = "approve"
+        experimental_environment = "stable"
+
+        [mcp_servers.playwright.tools.browser_click]
+        approval_mode = "prompt"
+        """.write(to: configPath, atomically: true, encoding: .utf8)
+
+        try MCPConfigManager.setEnabled(for: .codex, name: "playwright", enabled: false)
+
+        let raw = try String(contentsOf: configPath, encoding: .utf8)
+        #expect(raw.contains(#"enabled = false"#))
+        #expect(raw.contains(#"supports_parallel_tool_calls = true"#))
+        #expect(raw.contains(#"default_tools_approval_mode = "approve""#))
+        #expect(raw.contains(#"experimental_environment = "stable""#))
+        #expect(raw.contains(#"[mcp_servers.playwright.tools.browser_click]"#))
+        #expect(raw.contains(#"approval_mode = "prompt""#))
+    }
+
     @Test("ResourceInstaller installs Codex MCP through shared patch writer")
     func resourceInstallerInstallsCodexMcpThroughSharedPatchWriter() async throws {
         let root = try STFolder(sanbox: .temporary)

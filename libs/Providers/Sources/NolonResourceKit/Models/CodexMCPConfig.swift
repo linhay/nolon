@@ -93,6 +93,7 @@ public struct CodexNotice: Codable, Sendable {
 }
 
 public struct CodexMCPServer: Codable, Sendable {
+    public var name: String?
     public var url: String?
     public var command: String?
     public var args: [String]?
@@ -111,11 +112,16 @@ public struct CodexMCPServer: Codable, Sendable {
     public var startupTimeoutSec: Double?
     public var startupTimeoutMs: Double?
     public var toolTimeoutSec: Double?
+    public var supportsParallelToolCalls: Bool?
+    public var defaultToolsApprovalMode: String?
+    public var experimentalEnvironment: String?
+    public var tools: [String: CodexMCPToolConfig]?
     public var type: String?
     public var transport: String?
     public var identity: [String: String]?
 
     enum CodingKeys: String, CodingKey {
+        case name
         case url
         case command
         case args
@@ -134,12 +140,17 @@ public struct CodexMCPServer: Codable, Sendable {
         case startupTimeoutSec = "startup_timeout_sec"
         case startupTimeoutMs = "startup_timeout_ms"
         case toolTimeoutSec = "tool_timeout_sec"
+        case supportsParallelToolCalls = "supports_parallel_tool_calls"
+        case defaultToolsApprovalMode = "default_tools_approval_mode"
+        case experimentalEnvironment = "experimental_environment"
+        case tools
         case type
         case transport
         case identity
     }
 
     public init(
+        name: String? = nil,
         url: String? = nil,
         command: String? = nil,
         args: [String]? = nil,
@@ -158,10 +169,15 @@ public struct CodexMCPServer: Codable, Sendable {
         startupTimeoutSec: Double? = nil,
         startupTimeoutMs: Double? = nil,
         toolTimeoutSec: Double? = nil,
+        supportsParallelToolCalls: Bool? = nil,
+        defaultToolsApprovalMode: String? = nil,
+        experimentalEnvironment: String? = nil,
+        tools: [String: CodexMCPToolConfig]? = nil,
         type: String? = nil,
         transport: String? = nil,
         identity: [String: String]? = nil
     ) {
+        self.name = name
         self.url = url
         self.command = command
         self.args = args
@@ -180,6 +196,10 @@ public struct CodexMCPServer: Codable, Sendable {
         self.startupTimeoutSec = startupTimeoutSec
         self.startupTimeoutMs = startupTimeoutMs
         self.toolTimeoutSec = toolTimeoutSec
+        self.supportsParallelToolCalls = supportsParallelToolCalls
+        self.defaultToolsApprovalMode = defaultToolsApprovalMode
+        self.experimentalEnvironment = experimentalEnvironment
+        self.tools = tools
         self.type = type
         self.transport = transport
         self.identity = identity
@@ -187,6 +207,7 @@ public struct CodexMCPServer: Codable, Sendable {
 
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.name = try container.decodeIfPresent(String.self, forKey: .name)
         self.url = try container.decodeIfPresent(String.self, forKey: .url)
         self.command = try container.decodeIfPresent(String.self, forKey: .command)
         self.args = try container.decodeIfPresent([String].self, forKey: .args)
@@ -205,6 +226,10 @@ public struct CodexMCPServer: Codable, Sendable {
         self.startupTimeoutSec = try container.decodeIfPresent(Double.self, forKey: .startupTimeoutSec)
         self.startupTimeoutMs = try container.decodeIfPresent(Double.self, forKey: .startupTimeoutMs)
         self.toolTimeoutSec = try container.decodeIfPresent(Double.self, forKey: .toolTimeoutSec)
+        self.supportsParallelToolCalls = try container.decodeIfPresent(Bool.self, forKey: .supportsParallelToolCalls)
+        self.defaultToolsApprovalMode = try container.decodeIfPresent(String.self, forKey: .defaultToolsApprovalMode)
+        self.experimentalEnvironment = try container.decodeIfPresent(String.self, forKey: .experimentalEnvironment)
+        self.tools = try container.decodeIfPresent([String: CodexMCPToolConfig].self, forKey: .tools)
         self.type = try container.decodeIfPresent(String.self, forKey: .type)
         self.transport = try container.decodeIfPresent(String.self, forKey: .transport)
         self.identity = try container.decodeIfPresent([String: String].self, forKey: .identity)
@@ -212,6 +237,7 @@ public struct CodexMCPServer: Codable, Sendable {
 
     public func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encodeIfPresent(name, forKey: .name)
         try container.encodeIfPresent(url, forKey: .url)
         try container.encodeIfPresent(command, forKey: .command)
         try container.encodeIfPresent(args, forKey: .args)
@@ -230,15 +256,32 @@ public struct CodexMCPServer: Codable, Sendable {
         try container.encodeIfPresent(startupTimeoutSec, forKey: .startupTimeoutSec)
         try container.encodeIfPresent(startupTimeoutMs, forKey: .startupTimeoutMs)
         try container.encodeIfPresent(toolTimeoutSec, forKey: .toolTimeoutSec)
+        try container.encodeIfPresent(supportsParallelToolCalls, forKey: .supportsParallelToolCalls)
+        try container.encodeIfPresent(defaultToolsApprovalMode, forKey: .defaultToolsApprovalMode)
+        try container.encodeIfPresent(experimentalEnvironment, forKey: .experimentalEnvironment)
+        try container.encodeIfPresent(tools, forKey: .tools)
         try container.encodeIfPresent(type, forKey: .type)
         try container.encodeIfPresent(transport, forKey: .transport)
         try container.encodeIfPresent(identity, forKey: .identity)
     }
 }
 
+public struct CodexMCPToolConfig: Codable, Sendable {
+    public var approvalMode: String?
+
+    enum CodingKeys: String, CodingKey {
+        case approvalMode = "approval_mode"
+    }
+
+    public init(approvalMode: String? = nil) {
+        self.approvalMode = approvalMode
+    }
+}
+
 public extension CodexMCPServer {
     init(mcp: MCP) {
         let dict = mcp.json.value as? [String: Any] ?? [:]
+        self.name = dict["name"] as? String
         self.url = dict["url"] as? String
         self.command = dict["command"] as? String
         self.args = dict["args"] as? [String]
@@ -257,6 +300,15 @@ public extension CodexMCPServer {
         self.startupTimeoutSec = dict["startup_timeout_sec"] as? Double
         self.startupTimeoutMs = dict["startup_timeout_ms"] as? Double
         self.toolTimeoutSec = dict["tool_timeout_sec"] as? Double
+        self.supportsParallelToolCalls = dict["supports_parallel_tool_calls"] as? Bool
+        self.defaultToolsApprovalMode = dict["default_tools_approval_mode"] as? String
+        self.experimentalEnvironment = dict["experimental_environment"] as? String
+        self.tools = (dict["tools"] as? [String: [String: Any]])?.mapValues { tool in
+            CodexMCPToolConfig(approvalMode: tool["approval_mode"] as? String)
+        } ?? (dict["tools"] as? [String: Any])?.compactMapValues { value in
+            guard let tool = value as? [String: Any] else { return nil }
+            return CodexMCPToolConfig(approvalMode: tool["approval_mode"] as? String)
+        }
         self.type = dict["type"] as? String
         self.transport = dict["transport"] as? String
         self.identity = dict["identity"] as? [String: String]
