@@ -39,6 +39,7 @@ final class ProviderUsageAccountsViewModel {
         var listPlanColumnWidth: CGFloat { Self.listPlanColumnWidth }
         var listUsageColumnWidth: CGFloat { Self.listUsageColumnWidth }
         var accountSummaries: [UUID: CodexAuthSummary] { engine.codexAccountSummaries }
+        var cloudSyncStates: [UUID: CodexCloudSyncState] { engine.codexCloudSyncStates }
         var accountCreditsRefreshedAt: [UUID: Date] { engine.codexAccountCreditsRefreshedAt }
         var accountDisplaySections: [CodexAccountDisplaySection] { engine.codexAccountDisplaySections }
         var accountSectionTotalCountByID: [String: Int] { engine.codexAccountSectionTotalCountByID }
@@ -67,6 +68,10 @@ final class ProviderUsageAccountsViewModel {
         }
         var activatingAccountId: UUID? { engine.activatingCodexAccountId }
         var managementStatus: CodexAuthManager.CodexManagementStatus? { engine.codexManagementStatus }
+        var cloudSyncSnapshot: CodexiCloudSyncService.Snapshot { engine.codexCloudSyncSnapshot }
+        var cloudAttentionItems: [CodexCloudAttentionItem] {
+            Self.makeCloudAttentionItems(accounts: accounts, states: cloudSyncStates)
+        }
         var configEditorDraft: CodexConfigEditorDraft? {
             get { engine.codexConfigEditorDraft }
             set { engine.codexConfigEditorDraft = newValue }
@@ -169,6 +174,34 @@ final class ProviderUsageAccountsViewModel {
             await engine.refreshCodexAccountImmediately(id: id)
         }
 
+        func setCloudSyncEnabled(_ enabled: Bool) async {
+            await engine.setCodexCloudSyncEnabled(enabled)
+        }
+
+        func syncCloudNow() async {
+            await engine.syncCodexCloudNow()
+        }
+
+        func retryCloudAttentionAccount(id: UUID) async {
+            await engine.retryCodexCloudAttentionAccount(id: id)
+        }
+
+        func adoptRemoteCloudConflict(accountID: UUID) async {
+            await engine.adoptCodexCloudConflictRemote(accountID: accountID)
+        }
+
+        func keepBothCloudConflict(accountID: UUID) async {
+            await engine.splitCodexCloudConflictKeepingBoth(accountID: accountID)
+        }
+
+        func discardInvalidPendingAccount(id: UUID) async {
+            await engine.discardCodexInvalidPendingAccount(id: id)
+        }
+
+        func clearCloudData() async {
+            await engine.clearCodexCloudData()
+        }
+
         func isAccountSelected(id: UUID?) -> Bool {
             engine.isCodexAccountSelected(id: id)
         }
@@ -243,6 +276,48 @@ final class ProviderUsageAccountsViewModel {
 
         func beginNewAPIKeyAccount() {
             engine.beginNewCodexAPIKeyAccount()
+        }
+
+        static func makeCloudAttentionItems(
+            accounts: [CodexAuthAccount],
+            states: [UUID: CodexCloudSyncState]
+        ) -> [CodexCloudAttentionItem] {
+            accounts.compactMap { account in
+                guard let state = states[account.id] else { return nil }
+                switch state.syncStatus {
+                case .conflict, .invalidPending:
+                    return CodexCloudAttentionItem(account: account, state: state)
+                case .localOnly, .pendingUpload, .synced, .pendingDelete:
+                    return nil
+                }
+            }
+            .sorted { lhs, rhs in
+                let leftPriority = cloudAttentionPriority(lhs.state.syncStatus)
+                let rightPriority = cloudAttentionPriority(rhs.state.syncStatus)
+                if leftPriority != rightPriority {
+                    return leftPriority < rightPriority
+                }
+                if lhs.account.createdAt != rhs.account.createdAt {
+                    return lhs.account.createdAt > rhs.account.createdAt
+                }
+                return lhs.account.name.localizedCaseInsensitiveCompare(rhs.account.name) == .orderedAscending
+            }
+        }
+
+        static func canAdoptRemoteCloudConflict(for state: CodexCloudSyncState) -> Bool {
+            guard state.syncStatus == .conflict else { return false }
+            return CodexCloudSyncRecordPayload.decoded(from: state.conflictPayloadJSONString) != nil
+        }
+
+        private static func cloudAttentionPriority(_ status: CodexCloudSyncStatus) -> Int {
+            switch status {
+            case .invalidPending:
+                return 0
+            case .conflict:
+                return 1
+            case .localOnly, .pendingUpload, .synced, .pendingDelete:
+                return 2
+            }
         }
 
         func selectSortOption(_ option: CodexAccountSortOption) {

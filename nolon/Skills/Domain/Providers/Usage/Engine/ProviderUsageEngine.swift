@@ -59,6 +59,7 @@ final class ProviderUsageEngine: CopyToastPresenting {
     var supportedSourceModes: [ProviderSourceMode] = []
     var isMultiAccountEnabled: Bool
     var codexManagementStatus: CodexAuthManager.CodexManagementStatus?
+    var codexCloudSyncSnapshot = CodexiCloudSyncService.Snapshot()
 
     var isLoading = false
     var outcomes: [ProviderAccountUsageOutcome] = []
@@ -68,6 +69,7 @@ final class ProviderUsageEngine: CopyToastPresenting {
     var codexAccounts: [CodexAuthAccount] = []
     var codexAccountOutcomes: [ProviderAccountUsageOutcome] = []
     var codexAccountSummaries: [UUID: CodexAuthSummary] = [:]
+    var codexCloudSyncStates: [UUID: CodexCloudSyncState] = [:]
     var codexAccountCustomGroupNames: [UUID: String] = [:]
     var codexAccountCreditsRefreshedAt: [UUID: Date] = [:]
     var codexRefreshingAccountIds: Set<UUID> = []
@@ -1023,6 +1025,119 @@ final class ProviderUsageEngine: CopyToastPresenting {
     func loadCodexManagementStatus() async {
         guard usageProvider == .codex else { return }
         codexManagementStatus = await codexAuthManager.managementStatus(for: provider)
+        await CodexiCloudSyncService.shared.refresh()
+        codexCloudSyncSnapshot = CodexiCloudSyncService.shared.snapshot
+    }
+
+    func setCodexCloudSyncEnabled(_ enabled: Bool) async {
+        guard usageProvider == .codex else { return }
+        await CodexiCloudSyncService.shared.setEnabled(enabled)
+        codexCloudSyncSnapshot = CodexiCloudSyncService.shared.snapshot
+        await loadCodexManagementStatus()
+        await reloadCodexFromDisk(refreshUsage: false)
+    }
+
+    func syncCodexCloudNow() async {
+        guard usageProvider == .codex else { return }
+        await CodexiCloudSyncService.shared.syncNow()
+        codexCloudSyncSnapshot = CodexiCloudSyncService.shared.snapshot
+        await loadCodexManagementStatus()
+        await reloadCodexFromDisk(refreshUsage: false)
+    }
+
+    func retryCodexCloudAttentionAccount(id: UUID) async {
+        guard usageProvider == .codex else { return }
+        do {
+            try await codexAuthManager.retryCloudSyncUpload(accountID: id)
+            await loadCodexManagementStatus()
+            await reloadCodexFromDisk(refreshUsage: false)
+        } catch {
+            alertTitle = NSLocalizedString("codex.accounts.cloud.title", value: "iCloud 同步", comment: "Codex cloud sync title")
+            alertMessage = error.localizedDescription
+        }
+    }
+
+    func adoptCodexCloudConflictRemote(accountID: UUID) async {
+        guard usageProvider == .codex else { return }
+        do {
+            let providers = ProviderSettings.shared.providers.filter { provider in
+                provider.templateId == ProviderTemplate.codex.rawValue
+                    || provider.templateId == ProviderTemplate.codexXcode.rawValue
+            }
+            _ = try await codexAuthManager.adoptRemoteCloudConflict(accountID: accountID, providers: providers)
+            alertTitle = NSLocalizedString("codex.accounts.cloud.title", value: "iCloud 同步", comment: "Codex cloud sync title")
+            alertMessage = NSLocalizedString(
+                "codex.accounts.cloud.conflict.adopt_remote.success",
+                value: "已采用云端版本覆盖当前设备上的本地账号快照。",
+                comment: "Adopt remote cloud conflict success message"
+            )
+            await loadCodexManagementStatus()
+            await reloadCodexFromDisk(refreshUsage: false)
+        } catch {
+            alertTitle = NSLocalizedString("codex.accounts.cloud.title", value: "iCloud 同步", comment: "Codex cloud sync title")
+            alertMessage = error.localizedDescription
+        }
+    }
+
+    func splitCodexCloudConflictKeepingBoth(accountID: UUID) async {
+        guard usageProvider == .codex else { return }
+        do {
+            let result = try await codexAuthManager.splitCloudConflictKeepingBoth(accountID: accountID)
+            let duplicated = result?.duplicated.name ?? NSLocalizedString("generic.unknown", value: "Unknown", comment: "Unknown")
+            let format = NSLocalizedString(
+                "codex.accounts.cloud.conflict.keep_both.success",
+                value: "已保留当前本地账号，并新增云端副本“%@”。两条记录都会重新排队同步。",
+                comment: "Keep both cloud conflict success message"
+            )
+            alertTitle = NSLocalizedString("codex.accounts.cloud.title", value: "iCloud 同步", comment: "Codex cloud sync title")
+            alertMessage = String(format: format, duplicated)
+            await loadCodexManagementStatus()
+            await reloadCodexFromDisk(refreshUsage: false)
+        } catch {
+            alertTitle = NSLocalizedString("codex.accounts.cloud.title", value: "iCloud 同步", comment: "Codex cloud sync title")
+            alertMessage = error.localizedDescription
+        }
+    }
+
+    func discardCodexInvalidPendingAccount(id: UUID) async {
+        guard usageProvider == .codex else { return }
+        do {
+            let providers = ProviderSettings.shared.providers.filter { provider in
+                provider.templateId == ProviderTemplate.codex.rawValue
+                    || provider.templateId == ProviderTemplate.codexXcode.rawValue
+            }
+            try await codexAuthManager.discardInvalidPendingManagedAccount(id: id, providers: providers)
+            alertTitle = NSLocalizedString("codex.accounts.cloud.title", value: "iCloud 同步", comment: "Codex cloud sync title")
+            alertMessage = NSLocalizedString(
+                "codex.accounts.cloud.invalid_pending.discard.success",
+                value: "已清理该账号的本地托管残留，并退出当前设备上的激活态。",
+                comment: "Discard invalid pending local residue success message"
+            )
+            await loadCodexManagementStatus()
+            await reloadCodexFromDisk(refreshUsage: false)
+        } catch {
+            alertTitle = NSLocalizedString("codex.accounts.cloud.title", value: "iCloud 同步", comment: "Codex cloud sync title")
+            alertMessage = error.localizedDescription
+        }
+    }
+
+    func clearCodexCloudData() async {
+        guard usageProvider == .codex else { return }
+        do {
+            let deletedCount = try await CodexiCloudSyncService.shared.clearCloudData()
+            let format = NSLocalizedString(
+                "codex.accounts.cloud.clear.success",
+                value: "已清空 iCloud 中的 %d 条 Codex 账号记录，并关闭本机同步。",
+                comment: "Clear codex cloud data success message"
+            )
+            alertTitle = NSLocalizedString("codex.accounts.cloud.title", value: "iCloud 同步", comment: "Codex cloud sync title")
+            alertMessage = String(format: format, deletedCount)
+            await loadCodexManagementStatus()
+            await reloadCodexFromDisk(refreshUsage: false)
+        } catch {
+            alertTitle = NSLocalizedString("codex.accounts.cloud.title", value: "iCloud 同步", comment: "Codex cloud sync title")
+            alertMessage = error.localizedDescription
+        }
     }
 
     func enableCodexManagement() async {
@@ -1734,6 +1849,7 @@ final class ProviderUsageEngine: CopyToastPresenting {
             codexAccounts = try await codexAuthManager.loadAccounts()
             reconcileCodexSelections()
             codexAccountSummaries = loadCodexAccountSummaries(accounts: codexAccounts)
+            codexCloudSyncStates = (try? await codexAuthManager.cloudSyncStates(for: codexAccounts)) ?? [:]
             codexAccountCustomGroupNames = (try? await codexAuthManager.loadCustomGroupNamesByAccountID()) ?? [:]
             normalizeCodexGroupingOptionIfNeeded()
             activeCodexAccountId = await codexAuthManager.activeAccountId(for: provider, accounts: codexAccounts)

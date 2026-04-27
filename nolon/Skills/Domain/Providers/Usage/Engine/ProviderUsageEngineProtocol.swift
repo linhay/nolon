@@ -65,6 +65,7 @@ protocol ProviderUsageCodexEngineProtocol: AnyObject {
     var codexAccounts: [CodexAuthAccount] { get set }
     var codexAccountOutcomes: [ProviderAccountUsageOutcome] { get set }
     var codexAccountSummaries: [UUID: CodexAuthSummary] { get set }
+    var codexCloudSyncStates: [UUID: CodexCloudSyncState] { get set }
     var codexAccountCreditsRefreshedAt: [UUID: Date] { get set }
     var codexAccountDisplaySections: [CodexAccountDisplaySection] { get }
     var codexAccountSectionTotalCountByID: [String: Int] { get }
@@ -79,6 +80,7 @@ protocol ProviderUsageCodexEngineProtocol: AnyObject {
     var pendingActivateCodexAccount: CodexAuthAccount? { get set }
     var activatingCodexAccountId: UUID? { get set }
     var codexManagementStatus: CodexAuthManager.CodexManagementStatus? { get set }
+    var codexCloudSyncSnapshot: CodexiCloudSyncService.Snapshot { get set }
     var codexConfigEditorDraft: CodexConfigEditorDraft? { get set }
     var codexConfigEditorModelProviderOptions: [String] { get set }
     var codexConfigEditorErrorMessage: String? { get set }
@@ -143,6 +145,13 @@ protocol ProviderUsageCodexEngineProtocol: AnyObject {
     func setCodexAccountGroupingOption(_ option: CodexAccountGroupingOption)
     func enableCodexManagement() async
     func migrateCodexManagementData() async
+    func setCodexCloudSyncEnabled(_ enabled: Bool) async
+    func syncCodexCloudNow() async
+    func retryCodexCloudAttentionAccount(id: UUID) async
+    func adoptCodexCloudConflictRemote(accountID: UUID) async
+    func splitCodexCloudConflictKeepingBoth(accountID: UUID) async
+    func discardCodexInvalidPendingAccount(id: UUID) async
+    func clearCodexCloudData() async
     func revealCodexAccountInFinder(id: UUID)
     func copyCodexAccountAuthJSON(id: UUID)
     func editCodexAccountAuthJSON(id: UUID)

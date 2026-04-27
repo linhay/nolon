@@ -321,6 +321,42 @@ extension ProviderUsageAccountsViewModel.GeminiState {
 
 @MainActor
 extension ProviderUsageAccountsViewModel.CodexState {
+    static func cloudSyncStatusTag(for state: CodexCloudSyncState?) -> String? {
+        guard let state else { return nil }
+        switch state.syncStatus {
+        case .localOnly:
+            return NSLocalizedString("codex.accounts.cloud.tag.local_only", value: "仅本地", comment: "Local only sync tag")
+        case .pendingUpload:
+            return NSLocalizedString("codex.accounts.cloud.tag.pending_upload", value: "待上传", comment: "Pending upload sync tag")
+        case .synced:
+            return NSLocalizedString("codex.accounts.cloud.tag.synced", value: "已同步", comment: "Synced sync tag")
+        case .pendingDelete:
+            return NSLocalizedString("codex.accounts.cloud.tag.pending_delete", value: "待删除", comment: "Pending delete sync tag")
+        case .conflict:
+            return NSLocalizedString("codex.accounts.cloud.tag.conflict", value: "冲突", comment: "Conflict sync tag")
+        case .invalidPending:
+            return NSLocalizedString("codex.accounts.cloud.tag.invalid_pending", value: "待修复", comment: "Invalid pending sync tag")
+        }
+    }
+
+    static func cloudSyncTrailingText(for state: CodexCloudSyncState?) -> String? {
+        guard let state else { return nil }
+        if let error = state.lastError?.trimmingCharacters(in: .whitespacesAndNewlines), !error.isEmpty {
+            return error
+        }
+        if let lastSyncedAt = state.lastSyncedAt {
+            return String(
+                format: NSLocalizedString(
+                    "codex.accounts.cloud.trailing.synced_at",
+                    value: "上次同步 %@",
+                    comment: "Last cloud sync timestamp"
+                ),
+                lastSyncedAt.formatted(date: .abbreviated, time: .shortened)
+            )
+        }
+        return nil
+    }
+
     func makeUsageCardModel(
         outcome: ProviderAccountUsageOutcome,
         isRunningCLILogin: Bool
@@ -343,6 +379,7 @@ extension ProviderUsageAccountsViewModel.CodexState {
             )
         )
         let summary = accountID.flatMap { accountSummaries[$0] }
+        let cloudSyncState = accountID.flatMap { cloudSyncStates[$0] }
         let isSelfManagedConfiguredAccount = summary?.cardKind?.isSelfManagedConfiguredAccount == true
         let isRefreshing = accountID.map { refreshingAccountIds.contains($0) } ?? false
         let canLogin = accountSupportsLogin(accountID: accountID)
@@ -413,10 +450,14 @@ extension ProviderUsageAccountsViewModel.CodexState {
             record: record,
             primaryActions: primaryActions,
             menuActions: menuActions,
-            footer: isLoggingIn ? .init(
-                leadingTag: nil,
-                trailingText: NSLocalizedString("codex.accounts.add.cli.running", value: "Logging in…", comment: "CLI login running status")
-            ) : nil,
+            footer: {
+                let leadingTag = Self.cloudSyncStatusTag(for: cloudSyncState)
+                let trailingText = isLoggingIn
+                    ? NSLocalizedString("codex.accounts.add.cli.running", value: "Logging in…", comment: "CLI login running status")
+                    : Self.cloudSyncTrailingText(for: cloudSyncState)
+                guard leadingTag != nil || trailingText != nil else { return nil }
+                return .init(leadingTag: leadingTag, trailingText: trailingText)
+            }(),
             quotaRefreshActionID: nil,
             tapBehavior: .none
         )

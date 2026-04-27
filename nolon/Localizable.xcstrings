@@ -2752,6 +2752,606 @@
         }
       }
     },
+    "codex.accounts.cloud.attention" : {
+      "comment" : "Codex cloud sync attention summary",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "有 %1$d 个冲突、%2$d 个待修复账号，请优先处理这些卡片的云状态。"
+          }
+        }
+      }
+    },
+    "codex.accounts.cloud.attention.adopt_remote" : {
+      "comment" : "Adopt remote cloud conflict action",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "采用云端覆盖本地"
+          }
+        }
+      }
+    },
+    "codex.accounts.cloud.attention.button" : {
+      "comment" : "Show codex cloud attention sheet",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "查看冲突"
+          }
+        }
+      }
+    },
+    "codex.accounts.cloud.attention.discard_local" : {
+      "comment" : "Discard invalid pending local residue action",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "清理本地残留"
+          }
+        }
+      }
+    },
+    "codex.accounts.cloud.attention.empty" : {
+      "comment" : "Codex cloud attention empty state",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "当前没有需要手动处理的云同步问题。"
+          }
+        }
+      }
+    },
+    "codex.accounts.cloud.attention.keep_both" : {
+      "comment" : "Keep both cloud conflict action",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "两者都保留"
+          }
+        }
+      }
+    },
+    "codex.accounts.cloud.attention.retry_local" : {
+      "comment" : "Retry local cloud upload action",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "保留本地并重试上传"
+          }
+        }
+      }
+    },
+    "codex.accounts.cloud.attention.sheet.message" : {
+      "comment" : "Codex cloud attention sheet message",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "这里列出需要手动处理的 Codex 账号。你可以选择保留本地凭据并重新上传，或在 tombstone 已失效时清理本地残留。"
+          }
+        }
+      }
+    },
+    "codex.accounts.cloud.attention.sheet.title" : {
+      "comment" : "Codex cloud attention sheet title",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "冲突与待修复"
+          }
+        }
+      }
+    },
+    "codex.accounts.cloud.availability" : {
+      "comment" : "Codex cloud sync availability label",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "iCloud 账户"
+          }
+        }
+      }
+    },
+    "codex.accounts.cloud.availability.available" : {
+      "comment" : "Available cloud availability",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "可用"
+          }
+        }
+      }
+    },
+    "codex.accounts.cloud.availability.indeterminate" : {
+      "comment" : "Indeterminate cloud availability",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "无法确认"
+          }
+        }
+      }
+    },
+    "codex.accounts.cloud.availability.no_account" : {
+      "comment" : "No iCloud account",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "未登录 iCloud"
+          }
+        }
+      }
+    },
+    "codex.accounts.cloud.availability.restricted" : {
+      "comment" : "Restricted cloud availability",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "受限"
+          }
+        }
+      }
+    },
+    "codex.accounts.cloud.availability.temporary" : {
+      "comment" : "Temporary cloud availability",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "暂时不可用"
+          }
+        }
+      }
+    },
+    "codex.accounts.cloud.availability.unavailable" : {
+      "comment" : "Unavailable cloud availability",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "不可用"
+          }
+        }
+      }
+    },
+    "codex.accounts.cloud.availability.unknown" : {
+      "comment" : "Unknown cloud availability",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "未知"
+          }
+        }
+      }
+    },
+    "codex.accounts.cloud.clear.action" : {
+      "comment" : "Clear codex cloud data action",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "清空 iCloud 云副本"
+          }
+        }
+      }
+    },
+    "codex.accounts.cloud.clear.confirm" : {
+      "comment" : "Confirm clear codex cloud data",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "清空云副本"
+          }
+        }
+      }
+    },
+    "codex.accounts.cloud.clear.message" : {
+      "comment" : "Clear codex cloud data message",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "这会删除你个人 iCloud 容器中的 Codex 账号云副本，并关闭当前设备上的同步。其他设备不会自动恢复这些云记录，直到你再次明确开启同步并重新上传。"
+          }
+        }
+      }
+    },
+    "codex.accounts.cloud.clear.success" : {
+      "comment" : "Clear codex cloud data success message",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "已清空 iCloud 中的 %d 条 Codex 账号记录，并关闭本机同步。"
+          }
+        }
+      }
+    },
+    "codex.accounts.cloud.clear.title" : {
+      "comment" : "Clear codex cloud data title",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "清空 iCloud 云副本？"
+          }
+        }
+      }
+    },
+    "codex.accounts.cloud.conflict.adopt_remote.success" : {
+      "comment" : "Adopt remote cloud conflict success message",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "已采用云端版本覆盖当前设备上的本地账号快照。"
+          }
+        }
+      }
+    },
+    "codex.accounts.cloud.conflict.keep_both.success" : {
+      "comment" : "Keep both cloud conflict success message",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "已保留当前本地账号，并新增云端副本“%@”。两条记录都会重新排队同步。"
+          }
+        }
+      }
+    },
+    "codex.accounts.cloud.disable" : {
+      "comment" : "Disable codex cloud sync on this machine",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "关闭本机同步"
+          }
+        }
+      }
+    },
+    "codex.accounts.cloud.enable" : {
+      "comment" : "Enable codex cloud sync",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "开启同步"
+          }
+        }
+      }
+    },
+    "codex.accounts.cloud.error" : {
+      "comment" : "Codex cloud sync recent error label",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "最近错误"
+          }
+        }
+      }
+    },
+    "codex.accounts.cloud.invalid_pending.discard.success" : {
+      "comment" : "Discard invalid pending local residue success message",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "已清理该账号的本地托管残留，并退出当前设备上的激活态。"
+          }
+        }
+      }
+    },
+    "codex.accounts.cloud.last_synced" : {
+      "comment" : "Codex cloud sync last synced label",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "上次成功同步"
+          }
+        }
+      }
+    },
+    "codex.accounts.cloud.never" : {
+      "comment" : "No cloud sync timestamp",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "尚无"
+          }
+        }
+      }
+    },
+    "codex.accounts.cloud.none" : {
+      "comment" : "No cloud sync error",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "无"
+          }
+        }
+      }
+    },
+    "codex.accounts.cloud.pending" : {
+      "comment" : "Codex cloud sync pending label",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "待同步变更"
+          }
+        }
+      }
+    },
+    "codex.accounts.cloud.status" : {
+      "comment" : "Codex cloud sync status label",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "当前状态"
+          }
+        }
+      }
+    },
+    "codex.accounts.cloud.status.conflict" : {
+      "comment" : "Conflict cloud sync status",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "有冲突"
+          }
+        }
+      }
+    },
+    "codex.accounts.cloud.status.disabled" : {
+      "comment" : "Disabled cloud sync status",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "未开启"
+          }
+        }
+      }
+    },
+    "codex.accounts.cloud.status.failed" : {
+      "comment" : "Failed cloud sync status",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "失败"
+          }
+        }
+      }
+    },
+    "codex.accounts.cloud.status.paused" : {
+      "comment" : "Paused cloud sync status",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "已暂停"
+          }
+        }
+      }
+    },
+    "codex.accounts.cloud.status.synced" : {
+      "comment" : "Synced cloud sync status",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "已同步"
+          }
+        }
+      }
+    },
+    "codex.accounts.cloud.status.syncing" : {
+      "comment" : "Syncing cloud sync status",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "同步中"
+          }
+        }
+      }
+    },
+    "codex.accounts.cloud.summary.pending" : {
+      "comment" : "Codex cloud sync pending summary",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "待处理 %d"
+          }
+        }
+      }
+    },
+    "codex.accounts.cloud.summary.records" : {
+      "comment" : "Codex cloud sync record count summary",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "账号记录 %d"
+          }
+        }
+      }
+    },
+    "codex.accounts.cloud.sync_now" : {
+      "comment" : "Trigger codex cloud sync now",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "立即同步"
+          }
+        }
+      }
+    },
+    "codex.accounts.cloud.tag.conflict" : {
+      "comment" : "Conflict sync tag",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "冲突"
+          }
+        }
+      }
+    },
+    "codex.accounts.cloud.tag.invalid_pending" : {
+      "comment" : "Invalid pending sync tag",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "待修复"
+          }
+        }
+      }
+    },
+    "codex.accounts.cloud.tag.local_only" : {
+      "comment" : "Local only sync tag",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "仅本地"
+          }
+        }
+      }
+    },
+    "codex.accounts.cloud.tag.pending_delete" : {
+      "comment" : "Pending delete sync tag",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "待删除"
+          }
+        }
+      }
+    },
+    "codex.accounts.cloud.tag.pending_upload" : {
+      "comment" : "Pending upload sync tag",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "待上传"
+          }
+        }
+      }
+    },
+    "codex.accounts.cloud.tag.synced" : {
+      "comment" : "Synced sync tag",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "已同步"
+          }
+        }
+      }
+    },
+    "codex.accounts.cloud.title" : {
+      "comment" : "Codex cloud sync title",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "iCloud 同步"
+          }
+        }
+      }
+    },
+    "codex.accounts.cloud.trailing.synced_at" : {
+      "comment" : "Last cloud sync timestamp",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "上次同步 %@"
+          }
+        }
+      }
+    },
     "codex.accounts.config.action.format_json" : {
       "comment" : "Codex config editor format json action",
       "extractionState" : "extracted_with_value",
@@ -4019,6 +4619,30 @@
           "stringUnit" : {
             "state" : "new",
             "value" : "auth.json 未接管"
+          }
+        }
+      }
+    },
+    "codex.accounts.management.cloud_idle" : {
+      "comment" : "Codex cloud sync idle summary",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "iCloud 同步未初始化"
+          }
+        }
+      }
+    },
+    "codex.accounts.management.cloud_summary" : {
+      "comment" : "Codex cloud sync summary",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "iCloud 已同步 %1$d · 待处理 %2$d · 冲突 %3$d · 待修复 %4$d"
           }
         }
       }
@@ -12094,6 +12718,18 @@
         }
       }
     },
+    "generic.done" : {
+      "comment" : "Done",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "完成"
+          }
+        }
+      }
+    },
     "generic.error" : {
       "comment" : "Error",
       "localizations" : {
@@ -17331,6 +17967,18 @@
         }
       }
     },
+    "usage.token_trend.refresh.database.unknown" : {
+      "comment" : "Codex token trend refresh unknown database name",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "usage-index-v1.sqlite"
+          }
+        }
+      }
+    },
     "usage.token_trend.refresh.preparing.detail" : {
       "comment" : "Codex token trend refresh preparing detail",
       "extractionState" : "extracted_with_value",
@@ -17367,6 +18015,18 @@
         }
       }
     },
+    "usage.token_trend.refresh.progress.latest_rollout" : {
+      "comment" : "Codex token trend refresh latest rollout detail",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "刚完成 %@"
+          }
+        }
+      }
+    },
     "usage.token_trend.refresh.progress.none" : {
       "comment" : "Codex token trend refresh no work needed",
       "extractionState" : "extracted_with_value",
@@ -17386,7 +18046,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "new",
-            "value" : "已刷新 live %d 个、archived %d 个"
+            "value" : "已刷新 live %1$d 个、archived %2$d 个"
           }
         }
       }
@@ -17415,198 +18075,6 @@
         }
       }
     },
-    "usage.token_trend.refresh.progress.title" : {
-      "comment" : "Codex token trend refresh progress title",
-      "extractionState" : "extracted_with_value",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "正在回填派生用量"
-          }
-        }
-      }
-    },
-    "usage.token_trend.refresh.started.detail" : {
-      "comment" : "Codex token trend refresh started detail",
-      "extractionState" : "extracted_with_value",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "已扫描 %d 个会话文件，命中 %d 条缓存记录，发现 %d 个待回填会话。"
-          }
-        }
-      }
-    },
-    "usage.token_trend.refresh.started.title" : {
-      "comment" : "Codex token trend refresh started title",
-      "extractionState" : "extracted_with_value",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "正在扫描会话用量"
-          }
-        }
-      }
-    },
-    "usage.token_trend.refresh.scan_inventory.detail" : {
-      "comment" : "Codex token trend refresh scan inventory detail",
-      "extractionState" : "extracted_with_value",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "正在遍历 sessions 与 archived_sessions，准备核对本地 rollout 清单。"
-          }
-        }
-      }
-    },
-    "usage.token_trend.refresh.scan_inventory.title" : {
-      "comment" : "Codex token trend refresh scan inventory title",
-      "extractionState" : "extracted_with_value",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "正在扫描会话文件"
-          }
-        }
-      }
-    },
-    "usage.token_trend.refresh.read_usage_index.detail" : {
-      "comment" : "Codex token trend refresh read usage index detail",
-      "extractionState" : "extracted_with_value",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "正在读取 %@，准备比对 %d 个会话文件与本地 minute 索引。"
-          }
-        }
-      }
-    },
-    "usage.token_trend.refresh.read_usage_index.title" : {
-      "comment" : "Codex token trend refresh read usage index title",
-      "extractionState" : "extracted_with_value",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "正在读取用量索引数据库"
-          }
-        }
-      }
-    },
-    "usage.token_trend.refresh.reconcile_rollouts.detail" : {
-      "comment" : "Codex token trend refresh reconcile rollouts detail",
-      "extractionState" : "extracted_with_value",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "已扫描 %d 个会话文件，命中 %d 条缓存记录，发现 %d 个待回填会话。"
-          }
-        }
-      }
-    },
-    "usage.token_trend.refresh.reconcile_rollouts.title" : {
-      "comment" : "Codex token trend refresh reconcile rollouts title",
-      "extractionState" : "extracted_with_value",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "正在比对待刷新文件"
-          }
-        }
-      }
-    },
-    "usage.token_trend.refresh.read_previous_minutes.detail" : {
-      "comment" : "Codex token trend refresh read previous minutes detail",
-      "extractionState" : "extracted_with_value",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "正在从 %@ 读取 %@ 的旧分钟桶，准备计算受影响日期。"
-          }
-        }
-      }
-    },
-    "usage.token_trend.refresh.read_previous_minutes.title" : {
-      "comment" : "Codex token trend refresh read previous minutes title",
-      "extractionState" : "extracted_with_value",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "正在读取旧分钟索引"
-          }
-        }
-      }
-    },
-    "usage.token_trend.refresh.analyze_rollout.detail" : {
-      "comment" : "Codex token trend refresh analyze rollout detail",
-      "extractionState" : "extracted_with_value",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "正在解析 %@，并重算它的派生 minute 用量。"
-          }
-        }
-      }
-    },
-    "usage.token_trend.refresh.analyze_rollout.detail_with_reason" : {
-      "comment" : "Codex token trend refresh analyze rollout detail with reason",
-      "extractionState" : "extracted_with_value",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "正在解析 %@，原因：%@。"
-          }
-        }
-      }
-    },
-    "usage.token_trend.refresh.analyze_rollout.title" : {
-      "comment" : "Codex token trend refresh analyze rollout title",
-      "extractionState" : "extracted_with_value",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "正在分析会话文件"
-          }
-        }
-      }
-    },
-    "usage.token_trend.refresh.read_updated_minutes.detail" : {
-      "comment" : "Codex token trend refresh read updated minutes detail",
-      "extractionState" : "extracted_with_value",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "正在从 %@ 回读 %@ 的最新分钟桶，准备更新受影响日期。"
-          }
-        }
-      }
-    },
-    "usage.token_trend.refresh.read_updated_minutes.title" : {
-      "comment" : "Codex token trend refresh read updated minutes title",
-      "extractionState" : "extracted_with_value",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "正在回读刷新结果"
-          }
-        }
-      }
-    },
     "usage.token_trend.refresh.purge_stale_entries.detail" : {
       "comment" : "Codex token trend refresh purge stale entries detail",
       "extractionState" : "extracted_with_value",
@@ -17631,62 +18099,62 @@
         }
       }
     },
-    "usage.token_trend.refresh.progress.latest_rollout" : {
-      "comment" : "Codex token trend refresh latest rollout detail",
+    "usage.token_trend.refresh.read_previous_minutes.detail" : {
+      "comment" : "Codex token trend refresh read previous minutes detail",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "new",
-            "value" : "刚完成 %@"
+            "value" : "正在从 %1$@ 读取 %2$@ 的旧分钟桶，准备计算受影响日期。"
           }
         }
       }
     },
-    "usage.token_trend.refresh.rollout.unknown" : {
-      "comment" : "Codex token trend refresh unknown rollout label",
+    "usage.token_trend.refresh.read_previous_minutes.title" : {
+      "comment" : "Codex token trend refresh read previous minutes title",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "new",
-            "value" : "当前 rollout"
+            "value" : "正在读取旧分钟索引"
           }
         }
       }
     },
-    "usage.token_trend.refresh.database.unknown" : {
-      "comment" : "Codex token trend refresh unknown database name",
+    "usage.token_trend.refresh.read_updated_minutes.detail" : {
+      "comment" : "Codex token trend refresh read updated minutes detail",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "new",
-            "value" : "usage-index-v1.sqlite"
+            "value" : "正在从 %1$@ 回读 %2$@ 的最新分钟桶，准备更新受影响日期。"
           }
         }
       }
     },
-    "usage.token_trend.refresh.reason.new_rollout" : {
-      "comment" : "Codex token trend refresh reason new rollout",
+    "usage.token_trend.refresh.read_updated_minutes.title" : {
+      "comment" : "Codex token trend refresh read updated minutes title",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "new",
-            "value" : "发现新 rollout"
+            "value" : "正在回读刷新结果"
           }
         }
       }
     },
-    "usage.token_trend.refresh.reason.live_fingerprint_changed" : {
-      "comment" : "Codex token trend refresh reason live fingerprint changed",
+    "usage.token_trend.refresh.read_usage_index.title" : {
+      "comment" : "Codex token trend refresh read usage index title",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "new",
-            "value" : "live rollout 指纹变化"
+            "value" : "正在读取用量索引数据库"
           }
         }
       }
@@ -17723,6 +18191,42 @@
           "stringUnit" : {
             "state" : "new",
             "value" : "无法读取文件指纹"
+          }
+        }
+      }
+    },
+    "usage.token_trend.refresh.reason.live_fingerprint_changed" : {
+      "comment" : "Codex token trend refresh reason live fingerprint changed",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "live rollout 指纹变化"
+          }
+        }
+      }
+    },
+    "usage.token_trend.refresh.reason.new_rollout" : {
+      "comment" : "Codex token trend refresh reason new rollout",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "发现新 rollout"
+          }
+        }
+      }
+    },
+    "usage.token_trend.refresh.rollout.unknown" : {
+      "comment" : "Codex token trend refresh unknown rollout label",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "当前 rollout"
           }
         }
       }

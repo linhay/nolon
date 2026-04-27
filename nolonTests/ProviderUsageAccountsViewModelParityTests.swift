@@ -19,6 +19,6 @@ struct ProviderUsageAccountsViewModelParityTests {
 
         #expect(root.accountsViewModel.codex.accounts == root.state.codexEngine.codexAccounts)
         #expect(root.accountsViewModel.codex.accountSummaries == root.state.codexEngine.codexAccountSummaries)
+        #expect(root.accountsViewModel.codex.cloudSyncSnapshot == root.state.codexEngine.codexCloudSyncSnapshot)
     }
 }
-
