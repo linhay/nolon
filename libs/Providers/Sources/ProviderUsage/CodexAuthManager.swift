@@ -91,6 +91,10 @@ public actor CodexAuthManager {
     }
 
     public struct CodexManagementStatus: Sendable, Equatable {
+        public let cloudSyncedCount: Int
+        public let cloudPendingCount: Int
+        public let cloudConflictCount: Int
+        public let cloudInvalidPendingCount: Int
         public let hasProviderAuthFile: Bool
         public let providerAuthIsSymlink: Bool
         public let snapshotCount: Int
@@ -98,12 +102,20 @@ public actor CodexAuthManager {
         public let needsMigration: Bool
 
         public init(
+            cloudSyncedCount: Int = 0,
+            cloudPendingCount: Int = 0,
+            cloudConflictCount: Int = 0,
+            cloudInvalidPendingCount: Int = 0,
             hasProviderAuthFile: Bool,
             providerAuthIsSymlink: Bool,
             snapshotCount: Int,
             needsEnable: Bool,
             needsMigration: Bool
         ) {
+            self.cloudSyncedCount = cloudSyncedCount
+            self.cloudPendingCount = cloudPendingCount
+            self.cloudConflictCount = cloudConflictCount
+            self.cloudInvalidPendingCount = cloudInvalidPendingCount
             self.hasProviderAuthFile = hasProviderAuthFile
             self.providerAuthIsSymlink = providerAuthIsSymlink
             self.snapshotCount = snapshotCount
@@ -928,7 +940,12 @@ public actor CodexAuthManager {
                     stopProviderAuthPolling(for: provider.id)
                 }
             }
-            try removeCodexAccountFromSQLite(id: id)
+            let cloudSyncEnabled = (try? cloudSyncConfiguration().isEnabled) ?? false
+            if cloudSyncEnabled {
+                try markAccountPendingCloudDeletion(id: id)
+            } else {
+                try removeCodexAccountFromSQLite(id: id)
+            }
 
             guard let provider,
                   Self.isCodexTemplate(provider.templateId),
@@ -970,6 +987,9 @@ public actor CodexAuthManager {
         var accounts: [CodexAuthAccount] = []
         accounts.reserveCapacity(rows.count)
         for row in rows {
+            if row.isTombstone, row.syncStatus == .pendingDelete {
+                continue
+            }
             guard let data = try? loadCodexAccountAuthDataFromSQLite(accountID: row.id),
                   let raw = String(data: data, encoding: .utf8),
                   hasImportableCredentials(authJSONString: raw)
@@ -1245,7 +1265,12 @@ public actor CodexAuthManager {
         let providerAuthIsSymlink = providerAuth?.isSymbolicLink ?? false
         let needsEnable = hasProviderAuthFile && !providerAuthIsSymlink
         let needsMigration = needsEnable || snapshots.isEmpty
+        let overview = (try? await cloudSyncOverview()) ?? CodexCloudSyncOverview()
         return CodexManagementStatus(
+            cloudSyncedCount: overview.syncedCount,
+            cloudPendingCount: overview.pendingCount,
+            cloudConflictCount: overview.conflictCount,
+            cloudInvalidPendingCount: overview.invalidPendingCount,
             hasProviderAuthFile: hasProviderAuthFile,
             providerAuthIsSymlink: providerAuthIsSymlink,
             snapshotCount: snapshots.count,
@@ -1262,6 +1287,9 @@ public actor CodexAuthManager {
     ) async throws -> CodexAuthAccount? {
         guard Self.isCodexTemplate(provider.templateId) else { return nil }
         try await migrateLegacyIfNeeded()
+        if let blocked = try preflightBlockedByCloudSync(for: provider) {
+            throw blocked
+        }
         let reconciled = try withAuthFileLock {
             clearReadOnlyRelayEvidenceFlag(for: provider.id)
             let resolved = try reconcileProviderAuthWithSnapshotsIfNeeded(for: provider)
@@ -1340,6 +1368,11 @@ public actor CodexAuthManager {
 
     /// Activate snapshot into provider auth and persist active-account registry in one step.
     public func activateAccountAndMarkActive(_ account: CodexAuthAccount, for provider: Provider) throws {
+        if let state = try cloudSyncState(for: account.id),
+           state.isTombstone || state.syncStatus == .invalidPending
+        {
+            throw CodexCloudSyncPreflightBlock.tombstonedActiveAccount(accountID: account.id, status: state.syncStatus)
+        }
         try withAuthFileLock {
             try activateAccount(account, for: provider)
             try setActiveAccount(account, for: provider)

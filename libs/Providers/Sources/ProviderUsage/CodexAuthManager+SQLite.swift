@@ -14,6 +14,8 @@ extension CodexAuthManager {
         let name: String
         let createdAt: Date
         let identityKey: String?
+        let syncStatus: CodexCloudSyncStatus
+        let isTombstone: Bool
     }
 
     nonisolated func codexAccountsSQLiteDatabaseURL() -> URL {
@@ -84,6 +86,12 @@ extension CodexAuthManager {
                 name TEXT NOT NULL,
                 created_at TEXT NOT NULL,
                 identity_key TEXT,
+                cloud_record_name TEXT,
+                cloud_record_zone TEXT,
+                record_updated_at TEXT,
+                last_synced_at TEXT,
+                sync_status TEXT NOT NULL DEFAULT 'localOnly',
+                is_tombstone INTEGER NOT NULL DEFAULT 0,
                 updated_at TEXT NOT NULL
             );
             """
@@ -92,6 +100,42 @@ extension CodexAuthManager {
             try executeSQLite(
                 db,
                 sql: "ALTER TABLE codex_accounts ADD COLUMN identity_key TEXT;"
+            )
+        }
+        if try !sqliteColumnExists(db: db, table: "codex_accounts", column: "cloud_record_name") {
+            try executeSQLite(
+                db,
+                sql: "ALTER TABLE codex_accounts ADD COLUMN cloud_record_name TEXT;"
+            )
+        }
+        if try !sqliteColumnExists(db: db, table: "codex_accounts", column: "cloud_record_zone") {
+            try executeSQLite(
+                db,
+                sql: "ALTER TABLE codex_accounts ADD COLUMN cloud_record_zone TEXT;"
+            )
+        }
+        if try !sqliteColumnExists(db: db, table: "codex_accounts", column: "record_updated_at") {
+            try executeSQLite(
+                db,
+                sql: "ALTER TABLE codex_accounts ADD COLUMN record_updated_at TEXT;"
+            )
+        }
+        if try !sqliteColumnExists(db: db, table: "codex_accounts", column: "last_synced_at") {
+            try executeSQLite(
+                db,
+                sql: "ALTER TABLE codex_accounts ADD COLUMN last_synced_at TEXT;"
+            )
+        }
+        if try !sqliteColumnExists(db: db, table: "codex_accounts", column: "sync_status") {
+            try executeSQLite(
+                db,
+                sql: "ALTER TABLE codex_accounts ADD COLUMN sync_status TEXT NOT NULL DEFAULT 'localOnly';"
+            )
+        }
+        if try !sqliteColumnExists(db: db, table: "codex_accounts", column: "is_tombstone") {
+            try executeSQLite(
+                db,
+                sql: "ALTER TABLE codex_accounts ADD COLUMN is_tombstone INTEGER NOT NULL DEFAULT 0;"
             )
         }
         try executeSQLite(
@@ -146,6 +190,7 @@ extension CodexAuthManager {
                 relay_model_provider TEXT,
                 relay_query_params_json TEXT,
                 relay_headers_json TEXT,
+                cloud_record_system_fields_base64 TEXT,
                 updated_at TEXT NOT NULL
             );
             """
@@ -178,6 +223,36 @@ extension CodexAuthManager {
             try executeSQLite(
                 db,
                 sql: "ALTER TABLE codex_account_metadata ADD COLUMN relay_headers_json TEXT;"
+            )
+        }
+        if try !sqliteColumnExists(db: db, table: "codex_account_metadata", column: "cloud_last_error") {
+            try executeSQLite(
+                db,
+                sql: "ALTER TABLE codex_account_metadata ADD COLUMN cloud_last_error TEXT;"
+            )
+        }
+        if try !sqliteColumnExists(db: db, table: "codex_account_metadata", column: "cloud_last_error_at") {
+            try executeSQLite(
+                db,
+                sql: "ALTER TABLE codex_account_metadata ADD COLUMN cloud_last_error_at TEXT;"
+            )
+        }
+        if try !sqliteColumnExists(db: db, table: "codex_account_metadata", column: "cloud_device_id") {
+            try executeSQLite(
+                db,
+                sql: "ALTER TABLE codex_account_metadata ADD COLUMN cloud_device_id TEXT;"
+            )
+        }
+        if try !sqliteColumnExists(db: db, table: "codex_account_metadata", column: "cloud_conflict_payload_json") {
+            try executeSQLite(
+                db,
+                sql: "ALTER TABLE codex_account_metadata ADD COLUMN cloud_conflict_payload_json TEXT;"
+            )
+        }
+        if try !sqliteColumnExists(db: db, table: "codex_account_metadata", column: "cloud_record_system_fields_base64") {
+            try executeSQLite(
+                db,
+                sql: "ALTER TABLE codex_account_metadata ADD COLUMN cloud_record_system_fields_base64 TEXT;"
             )
         }
         try executeSQLite(
@@ -340,7 +415,7 @@ extension CodexAuthManager {
         defer { sqlite3_close(db) }
 
         let sql = """
-        SELECT id, name, created_at, identity_key
+        SELECT id, name, created_at, identity_key, sync_status, is_tombstone
         FROM codex_accounts
         ORDER BY created_at DESC;
         """
@@ -365,6 +440,9 @@ extension CodexAuthManager {
             let name = String(cString: nameCString)
             let createdAtRaw = String(cString: createdAtCString)
             let identityKey = sqlite3_column_text(statement, 3).map { String(cString: $0) }
+            let syncStatusRaw = sqlite3_column_text(statement, 4).map { String(cString: $0) }
+            let syncStatus = CodexCloudSyncStatus(rawValue: syncStatusRaw ?? CodexCloudSyncStatus.localOnly.rawValue) ?? .localOnly
+            let isTombstone = sqlite3_column_int(statement, 5) != 0
             guard let id = UUID(uuidString: idString) else { continue }
             let createdAt = Self.makeISOFormatter().date(from: createdAtRaw) ?? Date(timeIntervalSince1970: 0)
             rows.append(
@@ -372,7 +450,9 @@ extension CodexAuthManager {
                     id: id,
                     name: name,
                     createdAt: createdAt,
-                    identityKey: identityKey
+                    identityKey: identityKey,
+                    syncStatus: syncStatus,
+                    isTombstone: isTombstone
                 )
             )
         }
@@ -404,6 +484,8 @@ extension CodexAuthManager {
 
         let nowISO = Self.makeISOFormatter().string(from: Date())
         let identityKey = buildCredentialIdentityKey(authJSONString: authJSONString)
+        let existingCloudState = try loadCodexCloudSyncStateFromSQLite(accountID: account.id)
+        let cloudSyncEnabled = (try? cloudSyncConfiguration().isEnabled) ?? false
 
         if let identityKey,
            let existingByIdentity = try queryCodexAccountRowByIdentityKeyFromSQLite(db: db, identityKey: identityKey),
@@ -496,6 +578,23 @@ extension CodexAuthManager {
             authJSONString: authJSONString,
             updatedAtISO: nowISO
         )
+        if cloudSyncEnabled {
+            try upsertCodexCloudSyncStateInSQLite(
+                CodexCloudSyncState(
+                    accountID: account.id,
+                    cloudRecordName: existingCloudState?.cloudRecordName ?? account.id.uuidString,
+                    cloudRecordZone: existingCloudState?.cloudRecordZone,
+                    recordUpdatedAt: Date(),
+                    lastSyncedAt: existingCloudState?.lastSyncedAt,
+                    syncStatus: .pendingUpload,
+                    isTombstone: false,
+                    lastError: existingCloudState?.lastError,
+                    lastErrorAt: existingCloudState?.lastErrorAt,
+                    deviceID: existingCloudState?.deviceID,
+                    conflictPayloadJSONString: existingCloudState?.conflictPayloadJSONString
+                )
+            )
+        }
     }
 
     nonisolated func queryCodexAccountRowByIdentityKeyFromSQLite(
@@ -539,7 +638,9 @@ extension CodexAuthManager {
             id: id,
             name: String(cString: nameCString),
             createdAt: createdAt,
-            identityKey: identity
+            identityKey: identity,
+            syncStatus: .localOnly,
+            isTombstone: false
         )
     }
 
@@ -990,6 +1091,153 @@ extension CodexAuthManager {
             db,
             sql: "DELETE FROM codex_active_accounts WHERE account_id = ?;",
             bindings: [.text(id.uuidString)]
+        )
+    }
+
+    nonisolated func loadCodexCloudSyncStateFromSQLite(accountID: UUID) throws -> CodexCloudSyncState? {
+        let dbURL = codexAccountsSQLiteDatabaseURL()
+        guard FileManager.default.fileExists(atPath: dbURL.path) else { return nil }
+
+        var db: OpaquePointer?
+        guard sqlite3_open_v2(dbURL.path, &db, SQLITE_OPEN_READONLY | SQLITE_OPEN_FULLMUTEX, nil) == SQLITE_OK else {
+            let code = sqlite3_errcode(db)
+            let message = String(cString: sqlite3_errmsg(db))
+            sqlite3_close(db)
+            throw NSError(domain: "CodexAuthManager.SQLiteAccounts", code: Int(code), userInfo: [
+                NSLocalizedDescriptionKey: message.isEmpty ? "Failed to open Codex accounts SQLite database." : message,
+            ])
+        }
+        defer { sqlite3_close(db) }
+
+        let sql = """
+        SELECT
+            a.cloud_record_name,
+            a.cloud_record_zone,
+            a.record_updated_at,
+            a.last_synced_at,
+            a.sync_status,
+            a.is_tombstone,
+            m.cloud_last_error,
+            m.cloud_last_error_at,
+            m.cloud_device_id,
+            m.cloud_conflict_payload_json,
+            m.cloud_record_system_fields_base64
+        FROM codex_accounts a
+        LEFT JOIN codex_account_metadata m ON m.account_id = a.id
+        WHERE a.id = ?
+        LIMIT 1;
+        """
+        var statement: OpaquePointer?
+        guard sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK else {
+            let message = String(cString: sqlite3_errmsg(db))
+            throw NSError(domain: "CodexAuthManager.SQLiteAccounts", code: Int(sqlite3_errcode(db)), userInfo: [
+                NSLocalizedDescriptionKey: message.isEmpty ? "Failed to prepare cloud sync state query." : message,
+            ])
+        }
+        defer { sqlite3_finalize(statement) }
+
+        guard sqlite3_bind_text(statement, 1, accountID.uuidString, -1, sqliteTransientDestructor) == SQLITE_OK else {
+            let message = String(cString: sqlite3_errmsg(db))
+            throw NSError(domain: "CodexAuthManager.SQLiteAccounts", code: Int(sqlite3_errcode(db)), userInfo: [
+                NSLocalizedDescriptionKey: message.isEmpty ? "Failed to bind account id." : message,
+            ])
+        }
+
+        guard sqlite3_step(statement) == SQLITE_ROW else { return nil }
+        let text: (Int32) -> String? = { index in
+            guard let raw = sqlite3_column_text(statement, index) else { return nil }
+            let value = String(cString: raw).trimmingCharacters(in: .whitespacesAndNewlines)
+            return value.isEmpty ? nil : value
+        }
+        let recordUpdatedAt = text(2).flatMap { Self.makeISOFormatter().date(from: $0) }
+        let lastSyncedAt = text(3).flatMap { Self.makeISOFormatter().date(from: $0) }
+        let lastErrorAt = text(7).flatMap { Self.makeISOFormatter().date(from: $0) }
+        let status = CodexCloudSyncStatus(rawValue: text(4) ?? CodexCloudSyncStatus.localOnly.rawValue) ?? .localOnly
+        let isTombstone = sqlite3_column_int(statement, 5) != 0
+        return CodexCloudSyncState(
+            accountID: accountID,
+            cloudRecordName: text(0),
+            cloudRecordZone: text(1),
+            recordSystemFieldsBase64: text(10),
+            recordUpdatedAt: recordUpdatedAt,
+            lastSyncedAt: lastSyncedAt,
+            syncStatus: status,
+            isTombstone: isTombstone,
+            lastError: text(6),
+            lastErrorAt: lastErrorAt,
+            deviceID: text(8),
+            conflictPayloadJSONString: text(9)
+        )
+    }
+
+    func upsertCodexCloudSyncStateInSQLite(_ state: CodexCloudSyncState) throws {
+        let dbURL = codexAccountsSQLiteDatabaseURL()
+        try ensureCodexAccountsSQLiteSchema(databaseURL: dbURL)
+        var db: OpaquePointer?
+        guard sqlite3_open_v2(dbURL.path, &db, SQLITE_OPEN_CREATE | SQLITE_OPEN_READWRITE | SQLITE_OPEN_FULLMUTEX, nil) == SQLITE_OK else {
+            let code = sqlite3_errcode(db)
+            let message = String(cString: sqlite3_errmsg(db))
+            sqlite3_close(db)
+            throw NSError(domain: "CodexAuthManager.SQLiteAccounts", code: Int(code), userInfo: [
+                NSLocalizedDescriptionKey: message.isEmpty ? "Failed to open Codex accounts SQLite database." : message,
+            ])
+        }
+        defer { sqlite3_close(db) }
+
+        let recordUpdatedAtISO = state.recordUpdatedAt.map { Self.makeISOFormatter().string(from: $0) }
+        let lastSyncedAtISO = state.lastSyncedAt.map { Self.makeISOFormatter().string(from: $0) }
+        let lastErrorAtISO = state.lastErrorAt.map { Self.makeISOFormatter().string(from: $0) }
+        let nowISO = Self.makeISOFormatter().string(from: Date())
+
+        try executeSQLite(
+            db,
+            sql: """
+            UPDATE codex_accounts
+            SET
+                cloud_record_name = ?,
+                cloud_record_zone = ?,
+                record_updated_at = ?,
+                last_synced_at = ?,
+                sync_status = ?,
+                is_tombstone = ?,
+                updated_at = ?
+            WHERE id = ?;
+            """,
+            bindings: [
+                .nullableText(state.cloudRecordName),
+                .nullableText(state.cloudRecordZone),
+                .nullableText(recordUpdatedAtISO),
+                .nullableText(lastSyncedAtISO),
+                .text(state.syncStatus.rawValue),
+                .text(state.isTombstone ? "1" : "0"),
+                .text(nowISO),
+                .text(state.accountID.uuidString),
+            ]
+        )
+        try executeSQLite(
+            db,
+            sql: """
+            INSERT INTO codex_account_metadata (
+                account_id, cloud_last_error, cloud_last_error_at, cloud_device_id, cloud_conflict_payload_json, cloud_record_system_fields_base64, updated_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(account_id) DO UPDATE SET
+                cloud_last_error=excluded.cloud_last_error,
+                cloud_last_error_at=excluded.cloud_last_error_at,
+                cloud_device_id=excluded.cloud_device_id,
+                cloud_conflict_payload_json=excluded.cloud_conflict_payload_json,
+                cloud_record_system_fields_base64=excluded.cloud_record_system_fields_base64,
+                updated_at=excluded.updated_at;
+            """,
+            bindings: [
+                .text(state.accountID.uuidString),
+                .nullableText(state.lastError),
+                .nullableText(lastErrorAtISO),
+                .nullableText(state.deviceID),
+                .nullableText(state.conflictPayloadJSONString),
+                .nullableText(state.recordSystemFieldsBase64),
+                .text(nowISO),
+            ]
         )
     }
 
