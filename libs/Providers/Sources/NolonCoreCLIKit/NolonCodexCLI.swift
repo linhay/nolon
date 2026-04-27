@@ -1149,10 +1149,8 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
         _ = codexHome.createIfNotExists()
 
         let configFile = codexHome.file("config.toml")
-        let requiredConfig = "cli_auth_credentials_store = \"file\"\n"
-        if !configFile.isExists || ((try? configFile.read()) != requiredConfig) {
-            try configFile.overlay(with: requiredConfig)
-        }
+        _ = try CodexConfigStore(file: configFile)
+            .setTopLevelStringValue(key: "cli_auth_credentials_store", value: "file")
 
         let authFileURL = codexHome.file("auth.json").url
         do {

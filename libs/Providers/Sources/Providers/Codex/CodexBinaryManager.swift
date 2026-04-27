@@ -871,51 +871,12 @@ public actor CodexBinaryManager {
 
     private func writeConfigValue(key: String, value: String, file: STFile) throws {
         guard !key.isEmpty else { return }
-        let parent = file.url.deletingLastPathComponent()
-        try fileManager.createDirectory(at: parent, withIntermediateDirectories: true)
-
-        let original = (try? String(contentsOf: file.url, encoding: .utf8)) ?? ""
-        let lines = original.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
-        let escaped = value.replacingOccurrences(of: "\"", with: "\\\"")
-        let assignLine = "\(key) = \"\(escaped)\""
-
-        var replaced = false
-        let rewritten = lines.map { line -> String in
-            let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard let equalIndex = trimmed.firstIndex(of: "=") else { return line }
-            let existingKey = trimmed[..<equalIndex].trimmingCharacters(in: .whitespacesAndNewlines)
-            if existingKey == key {
-                replaced = true
-                return assignLine
-            }
-            return line
-        }
-
-        let output: String
-        if replaced {
-            output = rewritten.joined(separator: "\n")
-        } else if original.isEmpty {
-            output = assignLine + "\n"
-        } else {
-            output = original + (original.hasSuffix("\n") ? "" : "\n") + assignLine + "\n"
-        }
-        try output.write(to: file.url, atomically: true, encoding: .utf8)
+        _ = try CodexConfigStore(file: file).setTopLevelStringValue(key: key, value: value)
     }
 
     private func removeConfigValue(key: String, file: STFile) throws {
         guard !key.isEmpty else { return }
-        let url = file.url
-        guard fileManager.fileExists(atPath: url.path) else { return }
-        let original = (try? String(contentsOf: url, encoding: .utf8)) ?? ""
-        let lines = original.split(separator: "\n", omittingEmptySubsequences: false)
-        let filtered = lines.filter { line in
-            let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard let equalIndex = trimmed.firstIndex(of: "=") else { return true }
-            let existingKey = trimmed[..<equalIndex].trimmingCharacters(in: .whitespacesAndNewlines)
-            return existingKey != key
-        }
-        let output = filtered.map(String.init).joined(separator: "\n")
-        try output.write(to: url, atomically: true, encoding: .utf8)
+        _ = try CodexConfigStore(file: file).removeTopLevelValue(key: key)
     }
 
     private func highestInstalledVersion(in manifest: CodexBinaryManifest) -> String? {

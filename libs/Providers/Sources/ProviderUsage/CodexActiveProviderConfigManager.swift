@@ -1,6 +1,7 @@
 import Foundation
 import Darwin
 import STFilePath
+import CodexProvider
 
 struct CodexActiveProviderManagedConfigState: Sendable, Equatable, Codable {
     let configFilePath: String
@@ -78,7 +79,8 @@ struct CodexActiveProviderConfigManager: Sendable {
 
     func applyRelayConfig(configFile: STFile, relay: RelayConfig) throws {
         let path = configFile.url.standardizedFileURL.path
-        let current = normalizeConfigText((try? configFile.read()) ?? "")
+        let store = CodexConfigStore(file: configFile)
+        let current = normalizeConfigText((try? store.readRaw()) ?? "")
         let currentState = stateStore.load(configFilePath: path)
         let recoveredBaseline = currentState == nil ? inferredUnmanagedConfig(from: current) : nil
         let originalRawConfig = currentState?.originalRawConfig ?? recoveredBaseline ?? current
@@ -101,7 +103,8 @@ struct CodexActiveProviderConfigManager: Sendable {
         )
         let parsedPatched = parseDocument(patchedTopLevel)
         var sections = parsedPatched.sections
-        if !sections.isEmpty, sections.last?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false {
+        if !sections.isEmpty,
+           sections.last?.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines).isEmpty == false {
             sections.append("")
         }
         sections.append("[model_providers.\(relay.providerID)]")
@@ -131,8 +134,7 @@ struct CodexActiveProviderConfigManager: Sendable {
         )
         try stateStore.save(nextState)
 
-        _ = configFile.parentFolder()?.createIfNotExists()
-        try configFile.overlay(with: render(document: finalDocument))
+        _ = try store.update { _ in render(document: finalDocument) }
     }
 
     func restoreManagedConfig(configFile: STFile) throws {
@@ -147,8 +149,7 @@ struct CodexActiveProviderConfigManager: Sendable {
         {
             try removeFileIfPresent(configFile)
         } else {
-            _ = configFile.parentFolder()?.createIfNotExists()
-            try configFile.overlay(with: state.originalRawConfig)
+            _ = try CodexConfigStore(file: configFile).update { _ in state.originalRawConfig }
         }
         try stateStore.remove(configFilePath: path)
     }
@@ -159,7 +160,7 @@ struct CodexActiveProviderConfigManager: Sendable {
 
     func baselineProviderID(configFile: STFile, defaultProviderID: String = "openai") -> String {
         let original = managedState(configFile: configFile)?.originalRawConfig
-            ?? normalizeConfigText((try? configFile.read()) ?? "")
+            ?? normalizeConfigText((try? CodexConfigStore(file: configFile).readRaw()) ?? "")
         let document = parseDocument(original)
         for line in document.preamble {
             guard parseAssignmentKey(from: line) == "model_provider",
@@ -238,18 +239,17 @@ struct CodexActiveProviderConfigManager: Sendable {
     }
 
     private func restoreManagedConfigWithoutStateIfNeeded(configFile: STFile) throws {
-        let current = normalizeConfigText((try? configFile.read()) ?? "")
+        let current = normalizeConfigText((try? CodexConfigStore(file: configFile).readRaw()) ?? "")
         guard let restored = inferredUnmanagedConfig(from: current) else {
             return
         }
 
-        if restored.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+        if restored.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines).isEmpty {
             try removeFileIfPresent(configFile)
             return
         }
 
-        _ = configFile.parentFolder()?.createIfNotExists()
-        try configFile.overlay(with: restored)
+        _ = try CodexConfigStore(file: configFile).update { _ in restored }
     }
 
     private func removingSections(named sectionNames: Set<String>, from lines: [String]) -> [String] {

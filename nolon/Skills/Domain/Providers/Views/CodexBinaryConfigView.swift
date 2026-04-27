@@ -228,10 +228,10 @@ final class CodexBinaryConfigViewModel {
         let configFile = resolvedConfigFile()
         let configPath = configFile ?? STFile("\(NSHomeDirectory())/.codex/config.toml")
         do {
-            _ = STFolder(configPath.url.deletingLastPathComponent()).createIfNotExists()
             if !configPath.isExists {
                 let initialModel = preferredModelDraft.nonEmpty ?? "gpt-5.3-codex"
-                try "model = \"\(initialModel)\"\n".write(to: configPath.url, atomically: true, encoding: .utf8)
+                _ = try CodexConfigStore(file: configPath)
+                    .setTopLevelStringValue(key: "model", value: initialModel)
             }
             NSWorkspace.shared.open(configPath.url)
         } catch {
@@ -505,12 +505,13 @@ final class CodexBinaryConfigViewModel {
     }
 
     private func loadModelFromConfig() -> String? {
-        guard let configFile = resolvedConfigFile(),
-              configFile.isExists,
-              let content = try? configFile.read() else {
+        guard let configFile = resolvedConfigFile() else {
             return nil
         }
-        return Self.parsePreferredModel(from: content)
+        let decodedConfig: CodexConfigToml? = try? CodexConfigStore(file: configFile).readConfig()
+        let trimmed = decodedConfig?.model?.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let trimmed, !trimmed.isEmpty else { return nil }
+        return trimmed
     }
 
     static func parsePreferredModel(from content: String) -> String? {

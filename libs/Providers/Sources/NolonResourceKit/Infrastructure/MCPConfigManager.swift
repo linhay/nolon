@@ -5,6 +5,7 @@ import STFilePath
 import TOML
 import STJSON
 import ProviderCatalog
+import CodexProvider
 
 public enum MCPCacheState: String, Sendable, Equatable {
     case notMigrated
@@ -287,14 +288,10 @@ private extension MCPConfigManager {
         _ = STFolder(path.deletingLastPathComponent()).createIfNotExists()
 
         if ext == "toml" {
-            let existingText = (try? String(contentsOf: path, encoding: .utf8)) ?? ""
             let renderedSection = renderCodexMCPServersSection(servers)
-            let patchedText = replaceCodexMCPServersSection(in: existingText, with: renderedSection)
-            let output = Data(patchedText.utf8)
-            if let existing = try? Data(contentsOf: path), existing == output {
-                return
+            _ = try CodexConfigStore(file: STFile(path)).update { existingText in
+                replaceCodexMCPServersSection(in: existingText, with: renderedSection)
             }
-            try output.write(to: path, options: .atomic)
             return
         }
 

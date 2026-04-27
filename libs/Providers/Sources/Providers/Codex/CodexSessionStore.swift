@@ -1608,7 +1608,7 @@ public struct CodexSessionStore: Sendable {
 
     private func loadAvailableProviderIDs(codexHome: STFolder) -> [String] {
         let configFile = codexHome.file("config.toml")
-        guard configFile.isExists, let raw = try? configFile.read() else {
+        guard let ids = try? CodexConfigStore(file: configFile).readModelProviderIDs() else {
             return [defaultProviderID]
         }
 
@@ -1624,10 +1624,8 @@ public struct CodexSessionStore: Sendable {
             result.append(normalized)
         }
 
-        for rawLine in raw.split(separator: "\n", omittingEmptySubsequences: false) {
-            let line = String(rawLine).trimmingCharacters(in: .whitespacesAndNewlines)
-            append(Self.extractQuotedValue(from: line, key: "model_provider"))
-            append(Self.extractModelProviderSectionID(from: line))
+        for providerID in ids {
+            append(providerID)
         }
         if result.isEmpty {
             let message = "CodexSessionStore: no provider IDs were parsed from \(configFile.url.path). Falling back to default provider \(defaultProviderID)."
@@ -2649,26 +2647,6 @@ public struct CodexSessionStore: Sendable {
                 return trimmed.isEmpty ? nil : trimmed
             }
         )
-    }
-
-    private static func extractQuotedValue(from line: String, key: String) -> String? {
-        guard let separatorIndex = line.firstIndex(of: "=") else { return nil }
-        let left = line[..<separatorIndex].trimmingCharacters(in: .whitespacesAndNewlines)
-        guard left == key else { return nil }
-        let rawValue = line[line.index(after: separatorIndex)...].trimmingCharacters(in: .whitespacesAndNewlines)
-        guard rawValue.first == "\"", rawValue.last == "\"", rawValue.count >= 2 else { return nil }
-        return String(rawValue.dropFirst().dropLast())
-    }
-
-    private static func extractModelProviderSectionID(from line: String) -> String? {
-        let prefix = "[model_providers."
-        let suffix = "]"
-        guard line.hasPrefix(prefix), line.hasSuffix(suffix), line.count > prefix.count + suffix.count else {
-            return nil
-        }
-        let start = line.index(line.startIndex, offsetBy: prefix.count)
-        let end = line.index(before: line.endIndex)
-        return String(line[start..<end]).trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private static func makeISO8601Formatter(fractionalSeconds: Bool) -> ISO8601DateFormatter {

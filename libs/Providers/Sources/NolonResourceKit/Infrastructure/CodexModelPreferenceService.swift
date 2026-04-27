@@ -90,13 +90,12 @@ public struct CodexModelPreferenceService: Sendable {
     public func loadRelayModelProviderIDs(for provider: Provider) -> [String] {
         guard supports(provider: provider) else { return [] }
         let configFile = resolvedConfigFile(for: provider)
-        guard configFile.isExists,
-              let raw = try? configFile.read(),
-              !raw.isEmpty
+        guard let ids = try? CodexConfigStore(file: configFile).readModelProviderIDs(),
+              !ids.isEmpty
         else {
             return []
         }
-        return Self.extractRelayModelProviderIDs(from: raw)
+        return ids
     }
 
     public func resolvedConfigFile(for provider: Provider) -> STFile {
@@ -112,9 +111,12 @@ public struct CodexModelPreferenceService: Sendable {
     public func loadConfig(for provider: Provider) -> CodexMCPConfig? {
         guard supports(provider: provider) else { return nil }
         let configFile = resolvedConfigFile(for: provider)
-        guard configFile.isExists else { return nil }
-        guard let data = try? Data(contentsOf: configFile.url), !data.isEmpty else { return nil }
-        return try? TOMLDecoder().decode(CodexMCPConfig.self, from: data)
+        guard let raw = try? CodexConfigStore(file: configFile).readRaw(),
+              !raw.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        else {
+            return nil
+        }
+        return try? TOMLDecoder().decode(CodexMCPConfig.self, from: Data(raw.utf8))
     }
 
     public func loadConfiguredModel(for provider: Provider) -> String? {
@@ -144,49 +146,5 @@ public struct CodexModelPreferenceService: Sendable {
             try await manager.clearPreferredModel(configFile: configFile)
         }
         return normalized
-    }
-
-    private static func extractRelayModelProviderIDs(from raw: String) -> [String] {
-        var result: [String] = []
-        var seen: Set<String> = []
-
-        func append(_ candidate: String) {
-            let trimmed = candidate.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !trimmed.isEmpty else { return }
-            guard seen.insert(trimmed).inserted else { return }
-            result.append(trimmed)
-        }
-
-        for line in raw.split(separator: "\n", omittingEmptySubsequences: false) {
-            let line = String(line).trimmingCharacters(in: .whitespacesAndNewlines)
-            if let value = extractQuotedValue(from: line, key: "model_provider") {
-                append(value)
-            }
-            if let providerID = extractModelProviderSectionID(from: line) {
-                append(providerID)
-            }
-        }
-
-        return result
-    }
-
-    private static func extractQuotedValue(from line: String, key: String) -> String? {
-        guard let separatorIndex = line.firstIndex(of: "=") else { return nil }
-        let left = line[..<separatorIndex].trimmingCharacters(in: .whitespacesAndNewlines)
-        guard left == key else { return nil }
-        let rawValue = line[line.index(after: separatorIndex)...].trimmingCharacters(in: .whitespacesAndNewlines)
-        guard rawValue.first == "\"", rawValue.last == "\"", rawValue.count >= 2 else { return nil }
-        return String(rawValue.dropFirst().dropLast())
-    }
-
-    private static func extractModelProviderSectionID(from line: String) -> String? {
-        let prefix = "[model_providers."
-        let suffix = "]"
-        guard line.hasPrefix(prefix), line.hasSuffix(suffix), line.count > prefix.count + suffix.count else {
-            return nil
-        }
-        let start = line.index(line.startIndex, offsetBy: prefix.count)
-        let end = line.index(before: line.endIndex)
-        return String(line[start..<end]).trimmingCharacters(in: .whitespacesAndNewlines)
     }
 }

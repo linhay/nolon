@@ -947,30 +947,9 @@ public final class SkillInstaller {
               let template = ProviderTemplate(rawValue: templateId) else {
             throw SkillError.fileOperationFailed("Invalid provider template")
         }
-        
-        let configPath = template.defaultMcpConfigPath
-        
-        // Read existing config or create new
-        var json: JSON
-        if STFile(configPath).isExists,
-           let data = try? Data(contentsOf: configPath),
-           let fileJson = try? JSON(data: data) {
-            json = fileJson
-        } else {
-            json = JSON([:])
-        }
-        
-        // Ensure mcpServers object exists
-        if json["mcpServers"].dictionary == nil {
-            json["mcpServers"] = JSON([:])
-        }
-        
-        // Add MCP configuration
-        var servers = json["mcpServers"].dictionaryValue
-        
+
         if let config = remoteMCP.configuration {
             var mcpConfig: [String: Any] = [:]
-            
             if let command = config.command {
                 mcpConfig["command"] = command
             }
@@ -980,17 +959,13 @@ public final class SkillInstaller {
             if let env = config.env {
                 mcpConfig["env"] = env
             }
-            
-            servers[remoteMCP.slug] = JSON(mcpConfig)
+            try MCPConfigManager.upsertServer(
+                for: template,
+                name: remoteMCP.slug,
+                serverConfig: mcpConfig
+            )
         }
-        
-        json["mcpServers"] = JSON(servers)
-        
-        // Write back
-        if let str = json.rawString() {
-            try str.write(to: configPath, atomically: true, encoding: .utf8)
-        }
-        
+
         // Write origin metadata
         try writeClawdhubMCPOrigin(for: provider, slug: remoteMCP.slug)
     }

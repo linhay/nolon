@@ -970,10 +970,10 @@ final class CodexAdvancedConfigViewModel {
         let configFile = resolvedConfigFile()
         let configPath = configFile ?? STFile("\(NSHomeDirectory())/.codex/config.toml")
         do {
-            _ = STFolder(configPath.url.deletingLastPathComponent()).createIfNotExists()
             if !configPath.isExists {
                 let initialModel = preferredModelDraft.nonEmpty ?? "gpt-5.3-codex"
-                try "model = \"\(initialModel)\"\n".write(to: configPath.url, atomically: true, encoding: .utf8)
+                _ = try CodexConfigStore(file: configPath)
+                    .setTopLevelStringValue(key: "model", value: initialModel)
             }
             NSWorkspace.shared.open(configPath.url)
         } catch {
@@ -1164,9 +1164,9 @@ final class CodexAdvancedConfigViewModel {
         defer { isSavingConfig = false }
 
         do {
-            let original = (try? configFile.read()) ?? ""
-            let patched = try patchService.patch(original: original, draft: makeStructuredDraft())
-            try configFile.overlay(with: patched)
+            _ = try CodexConfigStore(file: configFile).update { original in
+                try patchService.patch(original: original, draft: makeStructuredDraft())
+            }
             loadConfigDraft()
         } catch {
             configErrorMessage = error.localizedDescription
@@ -1190,7 +1190,7 @@ final class CodexAdvancedConfigViewModel {
             hasLoadedStructuredDraft = true
         }
         configFileURL = configFile.url
-        let original = (try? configFile.read()) ?? ""
+        let original = (try? CodexConfigStore(file: configFile).readRaw()) ?? ""
         let draft = patchService.extractDraft(from: original)
 
         approvalPolicyDraft = draft.approvalPolicy ?? ""
