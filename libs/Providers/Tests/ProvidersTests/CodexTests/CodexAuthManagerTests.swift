@@ -610,8 +610,11 @@ struct CodexAuthManagerTests {
         let providerAuth = try #require(await manager.authFile(for: provider))
         #expect(providerAuth.isSymbolicLink == true)
         let destination = try providerAuth.destinationOfSymbolicLink()
-        let snapshot = await manager.accountAuthFile(account)
-        #expect(STPath.standardizedPath(destination.url.path).path == STPath.standardizedPath(snapshot.url.path).path)
+        let managedActive = manager.managedActiveAuthFolder(for: provider).file("auth.json")
+        let managedActiveData = try managedActive.data()
+        let accountData = try #require(manager.accountAuthDataWithoutMaterialization(for: account))
+        #expect(STPath.standardizedPath(destination.url.path).path == STPath.standardizedPath(managedActive.url.path).path)
+        #expect(managedActiveData == accountData)
     }
     @Test("Given active snapshot symlink, when deleting that account, then provider auth symlink is removed")
     func deleteAccountRemovesProviderAuthSymlinkForDeletedActiveAccount() async throws {
@@ -1210,8 +1213,7 @@ struct CodexAuthManagerTests {
         #expect(tokenPair?.idToken == "new-id")
         #expect(tokenPair?.accessToken == "new-access")
 
-        let file = await manager.accountAuthFile(updated)
-        let summary = CodexAuthSummary.fromJSONData(try file.data())
+        let summary = CodexAuthSummary.fromJSONData(try #require(manager.accountAuthDataWithoutMaterialization(for: updated)))
         #expect(summary.lastLoginAt == loginAt)
         #expect(summary.lastSyncSucceededAt == loginAt)
         #expect(summary.lastSyncFailedAt == nil)
@@ -1259,8 +1261,7 @@ struct CodexAuthManagerTests {
         let longMessage = String(repeating: "A", count: 500)
         try await manager.updateSyncFailure(for: account, message: longMessage, date: Date(timeIntervalSince1970: 1_700_000_000))
 
-        let file = await manager.accountAuthFile(account)
-        let summary = CodexAuthSummary.fromJSONData(try file.data())
+        let summary = CodexAuthSummary.fromJSONData(try #require(manager.accountAuthDataWithoutMaterialization(for: account)))
         #expect(summary.lastSyncFailureMessage == longMessage)
     }
     @Test("Given existing snapshot with same email and same account id, when recording CLI login snapshot, then account is overwritten in-place")
@@ -1321,8 +1322,11 @@ struct CodexAuthManagerTests {
         let providerAuth = try #require(await manager.authFile(for: provider))
         #expect(providerAuth.isSymbolicLink == true)
         let destination = try providerAuth.destinationOfSymbolicLink()
-        let snapshotPath = await manager.accountAuthFile(resolved).url.path
-        #expect(STPath.standardizedPath(destination.url.path).path == STPath.standardizedPath(snapshotPath).path)
+        let managedActivePath = manager.managedActiveAuthFolder(for: provider).file("auth.json").url.path
+        let destinationData = try Data(contentsOf: destination.url)
+        let accountData = try #require(manager.accountAuthDataWithoutMaterialization(for: resolved))
+        #expect(STPath.standardizedPath(destination.url.path).path == STPath.standardizedPath(managedActivePath).path)
+        #expect(destinationData == accountData)
 
         let activeId = await manager.activeAccountId(for: provider)
         #expect(activeId == resolved.id)

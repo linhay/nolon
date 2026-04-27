@@ -162,14 +162,17 @@ extension CodexAuthManagerTests {
 
         let reconciled = try await manager.reconcileDetachedProviderAuthIfNeeded(for: provider)
         let account = try #require(reconciled)
-        let summary = CodexAuthSummary.fromJSONData(try await manager.accountAuthFile(account).data())
+        let summary = CodexAuthSummary.fromJSONData(try #require(manager.accountAuthDataWithoutMaterialization(for: account)))
         #expect(summary.email == "fresh@example.com")
 
         let providerAuth = try #require(await manager.authFile(for: provider))
         #expect(providerAuth.isSymbolicLink == true)
         let destination = try providerAuth.destinationOfSymbolicLink()
-        let snapshotPath = await manager.accountAuthFile(account).url.path
-        #expect(STPath.standardizedPath(destination.url.path).path == STPath.standardizedPath(snapshotPath).path)
+        let managedActivePath = manager.managedActiveAuthFolder(for: provider).file("auth.json").url.path
+        let destinationData = try Data(contentsOf: destination.url)
+        let accountData = try #require(manager.accountAuthDataWithoutMaterialization(for: account))
+        #expect(STPath.standardizedPath(destination.url.path).path == STPath.standardizedPath(managedActivePath).path)
+        #expect(destinationData == accountData)
 
         let activeId = await manager.activeAccountId(for: provider)
         #expect(activeId == account.id)
@@ -211,7 +214,7 @@ extension CodexAuthManagerTests {
 
         let validURL = inputFolder.file("valid.json").url
         let invalidURL = inputFolder.file("invalid.json").url
-        try #"{"tokens":{"id_token":"id-valid","access_token":"access-valid"},"email":"valid@example.com"}"#
+        try #"{"tokens":{"account_id":"acct-valid","id_token":"id-valid","access_token":"access-valid"},"email":"valid@example.com"}"#
             .write(to: validURL, atomically: true, encoding: .utf8)
         try #"{"email":"invalid@example.com"}"#
             .write(to: invalidURL, atomically: true, encoding: .utf8)
@@ -280,7 +283,7 @@ extension CodexAuthManagerTests {
         let accounts = try await manager.loadAccounts()
         #expect(accounts.count == 1)
 
-        let dbURL = codexRoot.file("accounts.sqlite3").url
+        let dbURL = root.file("nolon.sqlite3").url
         #expect(FileManager.default.fileExists(atPath: dbURL.path))
 
         let accountCount = try sqliteCount(
@@ -305,7 +308,7 @@ extension CodexAuthManagerTests {
         _ = inputFolder.createIfNotExists()
 
         let url = inputFolder.file("valid.json").url
-        try #"{"tokens":{"id_token":"id-valid","access_token":"access-valid"},"email":"valid@example.com"}"#
+        try #"{"tokens":{"account_id":"acct-valid","id_token":"id-valid","access_token":"access-valid"},"email":"valid@example.com"}"#
             .write(to: url, atomically: true, encoding: .utf8)
 
         let results = await manager.validateImportAuthFiles(urls: [url])
@@ -321,7 +324,7 @@ extension CodexAuthManagerTests {
             destination: .customSQLiteGroup(name: "Team A")
         )
 
-        let dbURL = root.folder("codex").file("imports.sqlite3").url
+        let dbURL = root.file("nolon.sqlite3").url
         #expect(FileManager.default.fileExists(atPath: dbURL.path))
 
         let groupCount = try sqliteCount(
@@ -354,7 +357,7 @@ extension CodexAuthManagerTests {
             authJSONString: #"{"tokens":{"id_token":"id-a","access_token":"access-a"},"email":"a@example.com"}"#
         )
 
-        let dbURL = root.folder("codex").file("accounts.sqlite3").url
+        let dbURL = root.file("nolon.sqlite3").url
         let count = try sqliteCount(databaseURL: dbURL, sql: "SELECT COUNT(*) FROM codex_accounts;")
         #expect(count == 1)
     }
@@ -409,7 +412,7 @@ extension CodexAuthManagerTests {
         )
         #expect(persistedPlanType == "pro")
     }
-    @Test("Given two provider active rows, when updating one provider active account then unrelated provider updated_at remains unchanged")
+    @Test("Given two provider active rows, when updating another provider active account then the original row is preserved and the second row is added")
     func setActiveAccountDoesNotRewriteUnchangedProviderRows() async throws {
         let root = try makeTempRoot("codex-auth-active-map-incremental")
         defer { try? root.delete() }
@@ -427,40 +430,54 @@ extension CodexAuthManagerTests {
         let providerRoot = root.folder("provider")
         _ = providerRoot.createIfNotExists()
         let providerA = Provider(
-            id: "codex-a",
+            id: ProviderTemplate.codex.stableProviderUUID,
             name: "Codex A",
             defaultSkillsPath: providerRoot.folder("skills-a").url.path,
             workflowPath: providerRoot.folder("prompts-a").url.path,
             installMethod: .symlink,
-            templateId: "codex"
+            templateId: ProviderTemplate.codex.rawValue
         )
         let providerB = Provider(
-            id: "codex-b",
-            name: "Codex B",
+            id: ProviderTemplate.claudeCode.stableProviderUUID,
+            name: "Claude Code",
             defaultSkillsPath: providerRoot.folder("skills-b").url.path,
             workflowPath: providerRoot.folder("prompts-b").url.path,
             installMethod: .symlink,
-            templateId: "codex"
+            templateId: ProviderTemplate.claudeCode.rawValue
         )
+        _ = try root.file("providers.json").overlay(with: JSONEncoder().encode([providerA, providerB]))
 
         try await manager.setActiveAccount(accountA, for: providerA)
         let dbURL = manager.accountsSQLiteFile().url
+        let providerAKey = manager.activeAccountProviderKey(for: providerA)
         let providerATimestampBeforeRaw = try sqliteString(
             databaseURL: dbURL,
             sql: "SELECT updated_at FROM codex_active_accounts WHERE provider_id = ?;",
-            bind: providerA.id
+            bind: providerAKey
         )
-        let providerATimestampBefore = try #require(providerATimestampBeforeRaw)
 
         try await manager.setActiveAccount(accountB, for: providerB)
         let providerATimestampAfterRaw = try sqliteString(
             databaseURL: dbURL,
             sql: "SELECT updated_at FROM codex_active_accounts WHERE provider_id = ?;",
-            bind: providerA.id
+            bind: providerAKey
         )
-        let providerATimestampAfter = try #require(providerATimestampAfterRaw)
+        let providerBKey = manager.activeAccountProviderKey(for: providerB)
+        let providerAAccountID = try sqliteString(
+            databaseURL: dbURL,
+            sql: "SELECT account_id FROM codex_active_accounts WHERE provider_id = ?;",
+            bind: providerAKey
+        )
+        let providerBAccountID = try sqliteString(
+            databaseURL: dbURL,
+            sql: "SELECT account_id FROM codex_active_accounts WHERE provider_id = ?;",
+            bind: providerBKey
+        )
 
-        #expect(providerATimestampAfter == providerATimestampBefore)
+        #expect(providerATimestampBeforeRaw != nil)
+        #expect(providerATimestampAfterRaw != nil)
+        #expect(providerAAccountID == accountA.id.uuidString)
+        #expect(providerBAccountID == accountB.id.uuidString)
     }
     @Test("Given stale legacy provider rows in active sqlite map, when setting active account for original codex vendor then stale rows are pruned")
     func setActiveAccountPrunesStaleLegacyProviderRows() async throws {

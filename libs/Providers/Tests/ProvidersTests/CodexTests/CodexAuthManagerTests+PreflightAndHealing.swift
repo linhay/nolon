@@ -310,10 +310,12 @@ extension CodexAuthManagerTests {
         let accounts = try await manager.loadAccounts()
 
         #expect(accounts.count == 1)
-        #expect(accounts.first?.relativeAuthPath == "auth/valid.json")
+        let validAccount = try #require(accounts.first)
+        let validSummary = CodexAuthSummary.fromJSONData(try #require(manager.accountAuthData(for: validAccount)))
+        #expect(validSummary.email == "valid@example.com")
         #expect(activeFile.isExists == false)
         #expect(testFile.isExists == false)
-        #expect(validFile.isExists == true)
+        #expect(validFile.isExists == false)
     }
     @Test("Given active snapshot drifted by external write, when preflight runs then active snapshot is restored and drifted auth is preserved separately")
     func preflightRestoresActiveSnapshotAfterExternalDrift() async throws {
@@ -362,7 +364,7 @@ extension CodexAuthManagerTests {
         }
         #expect(driftedFound == true)
     }
-    @Test("Given active drift payload shares account id and email with an existing snapshot, when preflight runs then existing same-identity snapshot is overwritten")
+    @Test("Given active drift payload shares account id and email with an existing snapshot, when preflight runs then active snapshot is restored without mutating the existing peer snapshot")
     func preflightOverwritesExistingSnapshotWhenDriftIdentityMatchesStrictly() async throws {
         let root = try makeTempRoot("codex-auth-preflight-drift-strict-match")
         defer { try? root.delete() }
@@ -416,8 +418,8 @@ extension CodexAuthManagerTests {
 
         let peerAfter = try #require(accounts.first(where: { $0.id == peer.id }))
         let peerPair = try await manager.readTokenPair(for: peerAfter)
-        #expect(peerPair?.idToken == "id-peer-new")
-        #expect(peerPair?.accessToken == "access-peer-new")
+        #expect(peerPair?.idToken == "id-peer-old")
+        #expect(peerPair?.accessToken == "access-peer-old")
 
         let restoredActiveID = try #require(await manager.activeAccountId(for: provider))
         let restoredActive = try #require(accounts.first(where: { $0.id == restoredActiveID }))
@@ -553,7 +555,7 @@ extension CodexAuthManagerTests {
         }
         #expect(newcomerCount == 1)
     }
-    @Test("Given duplicate snapshot ids and wrong relative path metadata, when loading accounts then id collision is healed and relative path is corrected")
+    @Test("Given duplicate snapshot ids and wrong relative path metadata, when loading accounts then id collision is healed and sqlite metadata stays consistent")
     func loadAccountsHealsDuplicateIDsAndWrongRelativePath() async throws {
         let root = try makeTempRoot("codex-auth-heal-duplicate-id")
         defer { try? root.delete() }
@@ -568,21 +570,20 @@ extension CodexAuthManagerTests {
             authJSONString: #"{"tokens":{"id_token":"id-2","access_token":"access-2"},"email":"duplicate@example.com"}"#
         )
 
-        let canonicalFile = await manager.accountAuthFile(canonical)
-        let duplicateFile = await manager.accountAuthFile(duplicate)
-        let canonicalRaw = try canonicalFile.read()
+        let canonicalData = try #require(manager.accountAuthData(for: canonical))
+        let canonicalRaw = try #require(String(data: canonicalData, encoding: .utf8))
         let polluted = canonicalRaw
             .replacingOccurrences(of: "canonical@example.com", with: "duplicate@example.com")
             .replacingOccurrences(of: "\"id-1\"", with: "\"id-2\"")
             .replacingOccurrences(of: "\"access-1\"", with: "\"access-2\"")
-        try duplicateFile.overlay(with: Data(polluted.utf8))
+        try await manager.upsertCodexAccountInSQLite(duplicate, authData: Data(polluted.utf8))
 
         let accounts = try await manager.loadAccounts()
         #expect(accounts.count == 2)
 
         var accountByEmail: [String: CodexAuthAccount] = [:]
         for account in accounts {
-            let summary = CodexAuthSummary.fromJSONData((try? await manager.accountAuthFile(account).data()) ?? Data())
+            let summary = CodexAuthSummary.fromJSONData(manager.accountAuthData(for: account) ?? Data())
             if let email = summary.email?.lowercased() {
                 accountByEmail[email] = account
             }
@@ -593,8 +594,8 @@ extension CodexAuthManagerTests {
         #expect(canonicalAfter.id == canonical.id)
         #expect(duplicateAfter.id != canonical.id)
 
-        let duplicateAfterFile = await manager.accountAuthFile(duplicateAfter)
-        let duplicateJSON = try #require(try? JSON(data: duplicateAfterFile.data()))
+        let duplicateData = try #require(manager.accountAuthDataWithoutMaterialization(for: duplicateAfter))
+        let duplicateJSON = try #require(try? JSON(data: duplicateData))
         #expect(duplicateJSON["nolon"]["account"]["relativeAuthPath"].string == duplicateAfter.relativeAuthPath)
         #expect(duplicateJSON["nolon"]["account"]["id"].string == duplicateAfter.id.uuidString)
     }
@@ -613,18 +614,18 @@ extension CodexAuthManagerTests {
             authJSONString: #"{"tokens":{"id_token":"id-2","access_token":"access-2"},"email":"duplicate@example.com"}"#
         )
 
-        let canonicalFile = await manager.accountAuthFile(canonical)
-        let duplicateFile = await manager.accountAuthFile(duplicate)
-        try duplicateFile.overlay(with: Data(try canonicalFile.read().utf8))
+        let canonicalData = try #require(manager.accountAuthDataWithoutMaterialization(for: canonical))
+        let canonicalRaw = try #require(String(data: canonicalData, encoding: .utf8))
+        try await manager.updateAccount(duplicate, authJSONString: canonicalRaw)
 
         let accounts = try await manager.loadAccounts()
         #expect(accounts.count == 1)
         let kept = try #require(accounts.first)
-        let keptSummary = CodexAuthSummary.fromJSONData((try? await manager.accountAuthFile(kept).data()) ?? Data())
+        let keptSummary = CodexAuthSummary.fromJSONData(try #require(manager.accountAuthData(for: kept)))
         #expect(keptSummary.email?.lowercased() == "canonical@example.com")
-        #expect(duplicateFile.isExists == false)
+        #expect(accounts.contains(where: { $0.id == duplicate.id }) == false)
     }
-    @Test("Given snapshot file name mismatched with email(account_id), when loading accounts then snapshot file is renamed to match email(account_id)")
+    @Test("Given sqlite-backed account metadata, when loading accounts then relative auth path remains stable and metadata stays normalized")
     func loadAccountsAlignsSnapshotFileNameWithEmailAndAccountID() async throws {
         let root = try makeTempRoot("codex-auth-align-file-name")
         defer { try? root.delete() }
@@ -635,24 +636,16 @@ extension CodexAuthManagerTests {
             authJSONString: #"{"email":"canonical@example.com","tokens":{"account_id":"acct-123","id_token":"id-1","access_token":"access-1"}}"#
         )
 
-        let oldPath = account.relativeAuthPath
-        let oldFile = await manager.accountAuthFile(account)
-        #expect(oldFile.isExists == true)
-
         let accounts = try await manager.loadAccounts()
         let aligned = try #require(accounts.first(where: { $0.id == account.id }))
-        #expect(aligned.relativeAuthPath == "auth/canonical@example.com(acct-123).json")
+        #expect(aligned.relativeAuthPath == account.relativeAuthPath)
 
-        let newFile = await manager.accountAuthFile(aligned)
-        #expect(newFile.isExists == true)
-        #expect(oldFile.isExists == false)
-
-        let json = try #require(try? JSON(data: newFile.data()))
+        let alignedData = try #require(manager.accountAuthDataWithoutMaterialization(for: aligned))
+        let json = try #require(try? JSON(data: alignedData))
         #expect(json["nolon"]["account"]["relativeAuthPath"].string == aligned.relativeAuthPath)
         #expect((json["email"].string ?? "").lowercased() == "canonical@example.com")
-        #expect(oldPath != aligned.relativeAuthPath)
     }
-    @Test("Given snapshot missing email and using account.json, when backfilling email then load accounts aligns file name to email(account_id)")
+    @Test("Given sqlite-backed account missing email, when backfilling email then relative auth path stays stable and payload email is updated")
     func backfillEmailEnablesEmailAccountIDAlignment() async throws {
         let root = try makeTempRoot("codex-auth-backfill-email-align")
         defer { try? root.delete() }
@@ -662,18 +655,15 @@ extension CodexAuthManagerTests {
             name: "account",
             authJSONString: #"{"tokens":{"account_id":"acct-raw","id_token":"id-raw","access_token":"access-raw"}}"#
         )
-        #expect(account.relativeAuthPath == "auth/account.json")
-
         try await manager.backfillEmailIfMissing(for: account, email: "fresh@example.com")
 
         let accounts = try await manager.loadAccounts()
         let aligned = try #require(accounts.first(where: { $0.id == account.id }))
-        #expect(aligned.relativeAuthPath == "auth/fresh@example.com(acct-raw).json")
+        #expect(aligned.relativeAuthPath == account.relativeAuthPath)
 
-        let alignedFile = await manager.accountAuthFile(aligned)
-        let json = try #require(try? JSON(data: alignedFile.data()))
+        let alignedData = try #require(manager.accountAuthDataWithoutMaterialization(for: aligned))
+        let json = try #require(try? JSON(data: alignedData))
         #expect((json["email"].string ?? "").lowercased() == "fresh@example.com")
-        #expect((json["nolon"]["account"]["email"].string ?? "").lowercased() == "fresh@example.com")
     }
     @Test("Given selected validated import candidates, when exporting zip, then only selected valid candidates are archived")
     func exportSelectedValidatedImportCandidatesAsZip() async throws {
@@ -691,7 +681,7 @@ extension CodexAuthManagerTests {
             reason: nil,
             suggestedName: "Selected",
             email: "selected@example.com",
-            authJSONString: #"{"auth_mode":"chatgptAuthTokens","email":"selected@example.com","tokens":{"id_token":"id-selected","access_token":"access-selected"}}"#
+            authJSONString: #"{"auth_mode":"chatgpt","email":"selected@example.com","tokens":{"account_id":"acct-selected","id_token":"id-selected","access_token":"access-selected"}}"#
         )
         let unselected = CodexAuthManager.CodexImportValidationResult(
             fileURL: unselectedURL,
@@ -699,7 +689,7 @@ extension CodexAuthManagerTests {
             reason: nil,
             suggestedName: "Unselected",
             email: "unselected@example.com",
-            authJSONString: #"{"auth_mode":"chatgptAuthTokens","email":"unselected@example.com","tokens":{"id_token":"id-unselected","access_token":"access-unselected"}}"#
+            authJSONString: #"{"auth_mode":"chatgpt","email":"unselected@example.com","tokens":{"account_id":"acct-unselected","id_token":"id-unselected","access_token":"access-unselected"}}"#
         )
         let invalid = CodexAuthManager.CodexImportValidationResult(
             fileURL: invalidURL,

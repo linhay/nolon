@@ -87,6 +87,12 @@ extension CodexAuthManager {
                !destinationData.isEmpty {
                 if let linked = matchAccount(authData: destinationData, accounts: snapshots) {
                     let activeID = activeAccountIdFromRegistry(for: provider, accounts: snapshots)
+                    if let activeID,
+                       activeID != linked.id,
+                       let active = snapshots.first(where: { $0.id == activeID }) {
+                        try relinkProviderAuth(providerAuthFile: providerAuthFile, resolved: active, provider: provider)
+                        return active
+                    }
                     if activeID == nil {
                         try setActiveAccount(linked, for: provider)
                         return linked
@@ -488,13 +494,32 @@ extension CodexAuthManager {
         let restoredAccount = accountFromNormalizedPayloadData(backupData, fallbackRelativeAuthPath: activeAccount.relativeAuthPath)
         let refreshedSnapshots = try loadAccountsFromAuthFolder()
         let refreshedRestoredAccount = refreshedSnapshots.first(where: { $0.id == restoredAccount.id }) ?? restoredAccount
-        _ = try upsertSnapshotFromProviderData(
-            authData: activeData,
-            providerRaw: String(data: activeData, encoding: .utf8),
-            snapshots: refreshedSnapshots,
-            provider: provider,
+        let driftSummary = CodexAuthSummary.fromJSONData(activeData)
+        let driftIdentity = accountIdentity(from: activeData, summary: driftSummary)
+        if let strictMatch = matchAccountByStrictIdentity(
+            authIdentity: driftIdentity,
+            snapshots: loadAccountSnapshots(for: refreshedSnapshots),
             excludedAccountID: refreshedRestoredAccount.id
-        )
+        ),
+           let activeRaw = String(data: activeData, encoding: .utf8),
+           hasImportableCredentials(authJSONString: activeRaw)
+        {
+            let normalized = try normalizeAccountPayloadData(
+                authJSONString: activeRaw,
+                preferredId: strictMatch.id,
+                preferredCreatedAt: strictMatch.createdAt,
+                relativeAuthPath: strictMatch.relativeAuthPath
+            )
+            try saveAccountAuthData(strictMatch, data: normalized)
+        } else {
+            _ = try upsertSnapshotFromProviderData(
+                authData: activeData,
+                providerRaw: String(data: activeData, encoding: .utf8),
+                snapshots: refreshedSnapshots,
+                provider: provider,
+                excludedAccountID: refreshedRestoredAccount.id
+            )
+        }
 
         if shouldClearActiveSelectionOnDriftDuringPreflight(reason: reason) {
             try clearActiveSelectionAndRestoreProviderState(for: provider)

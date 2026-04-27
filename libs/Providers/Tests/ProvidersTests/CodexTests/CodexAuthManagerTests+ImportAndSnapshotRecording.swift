@@ -359,7 +359,7 @@ extension CodexAuthManagerTests {
         let accounts = try await manager.loadAccounts()
         var matching: [CodexAuthAccount] = []
         for account in accounts {
-            guard let data = try? await manager.accountAuthFile(account).data() else { continue }
+            guard let data = manager.accountAuthData(for: account) else { continue }
             let summary = CodexAuthSummary.fromJSONData(data)
             if summary.email == "same-user@example.com" {
                 matching.append(account)
@@ -393,8 +393,9 @@ extension CodexAuthManagerTests {
         )
         #expect(updated.id == older.id)
 
-        let newerRaw = try await manager.accountAuthFile(newer).read()
-        let newerJSON = try #require(try? JSON(data: Data(newerRaw.utf8)))
+        let newerData = try #require(manager.accountAuthData(for: newer))
+        let newerJSONString = try #require(String(data: newerData, encoding: .utf8))
+        let newerJSON = try #require(try? JSON(data: Data(newerJSONString.utf8)))
         #expect(newerJSON["OPENAI_API_KEY"].string == "sk-beta-1234")
     }
 }
