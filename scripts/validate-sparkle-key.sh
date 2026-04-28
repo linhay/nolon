@@ -31,11 +31,20 @@ guard let seed = Data(base64Encoded: privateKey) else {
     exit(1)
 }
 
-do {
-    let key = try Curve25519.Signing.PrivateKey(rawRepresentation: seed)
-    print(key.publicKey.rawRepresentation.base64EncodedString())
-} catch {
-    fputs("❌ Failed to derive Sparkle public key from SPARKLE_PRIVATE_KEY: \(error)\n", stderr)
+switch seed.count {
+case 32:
+    do {
+        let key = try Curve25519.Signing.PrivateKey(rawRepresentation: seed)
+        print(key.publicKey.rawRepresentation.base64EncodedString())
+    } catch {
+        fputs("❌ Failed to derive Sparkle public key from 32-byte seed: \(error)\n", stderr)
+        exit(1)
+    }
+case 96:
+    // Sparkle legacy export format stores key material plus the 32-byte public key tail.
+    print(seed.suffix(32).base64EncodedString())
+default:
+    fputs("❌ Unsupported SPARKLE_PRIVATE_KEY payload length: \(seed.count) bytes.\n", stderr)
     exit(1)
 }
 SWIFT

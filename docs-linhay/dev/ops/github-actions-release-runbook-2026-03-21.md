@@ -8,7 +8,7 @@
 
 ## Workflow
 - 文件：`.github/workflows/release.yml`
-- Runner：`self-hosted, macOS, ARM64`（当前为 `mini.lan` 上的 runner）
+- Runner：`macos-15`（GitHub-hosted）
 - 触发方式：
   - `workflow_dispatch`（手动）
   - `push.tags = v*`（自动）
@@ -17,34 +17,39 @@
   - `changelog_file`（可选）：例如 `docs/RELEASE_NOTES_2.1.6.md`
 
 ## Secrets
-1. 必需：
+GitHub-hosted 发版现在按 Secrets 全量驱动，至少需要：
+1. 构建签名：
    - `SIGNING_IDENTITY`
-2. 可选（按签名/公证需求）：
-   - `SPARKLE_PRIVATE_KEY`（显式注入 Sparkle 私钥）
-   - `SPARKLE_KEYCHAIN_ACCOUNT`（默认 `ed25519`，用于 keychain 回退）
    - `MACOS_CERTIFICATE_P12_BASE64`
    - `MACOS_CERTIFICATE_P12_PASSWORD`
-   - `NOTARY_PROFILE`
-   - `APPLE_ID`
-   - `APPLE_APP_PASSWORD`
-   - `TEAM_ID`
+2. Sparkle：
+   - `SPARKLE_PRIVATE_KEY`
+3. 公证：
+   - 二选一：
+     - `NOTARY_PROFILE`
+     - 或 `APPLE_ID` + `APPLE_APP_PASSWORD` + `TEAM_ID`
+
+补充：
+- `SPARKLE_KEYCHAIN_ACCOUNT` 仅对 self-hosted runner 的 keychain 回退有意义；GitHub-hosted 不应依赖它。
+- workflow 现在会在“hosted 环境缺少上述 Secrets”时直接红灯，不再等到构建中后期才失败。
 
 密钥来源优先级（从高到低）：
 1. runner 本地文件：`~/.nolon/release-secrets/release.env`
 2. GitHub Secrets（同名）
 
-可用同步脚本（在仓库根目录执行）：
+当前推荐策略：
+- 正式发布以 GitHub Secrets 为准
+- self-hosted `release.env` 仅作为兼容回退，不再作为唯一配置源
+- 若需要同步旧 runner，可继续使用：
 ```bash
-./scripts/sync-release-secrets-to-mini.sh mini.lan
+./scripts/sync-release-secrets-to-mini.sh mini.local
 ```
-
-脚本会读取当前 shell 与 `.env` 中的变量，并同步到 `mini.lan:~/.nolon/release-secrets/release.env`（权限 `600`）。
 
 ## 发版流程（CI）
 1. checkout 代码并切到触发分支。
-2. 读取 runner 本地 `release.env`（若不存在则回退到 GitHub Secrets）。
+2. 尝试读取 runner 本地 `release.env`（若不存在则完全走 GitHub Secrets）。
 3. 配置 git bot 提交身份。
-4. 校验版本号输入（仅手动触发）与必需 Secret（`SIGNING_IDENTITY`）。
+4. 校验版本号输入（仅手动触发）与 hosted 发版所需 Secrets。
 5. 计算 release 参数：
    - 手动触发：`version` 来自输入
    - tag 触发：`version = GITHUB_REF_NAME` 去掉前缀 `v`，并设置 `CI_TAG_MODE=1`
@@ -65,5 +70,5 @@
    - 待 appcast 可访问后手动执行：
      - `gh release edit <tag> --draft=false --latest`
 3. 若 Sparkle 签名失败：
-   - 若走 Secret 注入，校验 `SPARKLE_PRIVATE_KEY` 是否为完整私钥文本且无多余转义。
-   - 若走 keychain 回退，确认 runner 上 `sign_update --account <account>` 可读取密钥（默认 `ed25519`）。
+   - Hosted：优先校验 `SPARKLE_PRIVATE_KEY` 是否对应 `nolon/Info.plist` 的 `SUPublicEDKey`。
+   - Self-hosted：若走 keychain 回退，确认 runner 上 `generate_keys --account ed25519 -p` 输出公钥与 `SUPublicEDKey` 一致。
