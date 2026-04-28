@@ -33,10 +33,9 @@ concurrency:
 jobs:
   release:
     name: Build and Publish Release
-    runs-on:
-      - self-hosted
-      - macOS
-      - ARM64
+    # Repo currently has no registered self-hosted runners. Use GitHub-hosted
+    # macOS so manual and tag-driven releases remain executable.
+    runs-on: macos-15
 
     steps:
       - name: Checkout
