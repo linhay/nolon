@@ -659,6 +659,106 @@ extension CodexAuthManagerTests {
         #expect(try providerAuth.read() == preservedAuthRaw)
     }
 
+    @Test("Given provider auth management is paused by an unstable external change, when external auth later becomes stable and changes again, then background poll resumes management automatically")
+    func backgroundPollResumesManagementWhenPausedAuthBecomesStableLater() async throws {
+        let root = try makeTempRoot("codex-auth-background-poll-resume-after-stable-rewrite")
+        defer { try? root.delete() }
+
+        let manager = CodexAuthManager(rootURL: root.url)
+        let provider = makeCodexProvider(root: root)
+        let configFile = root.folder("provider").file("config.toml")
+        let originalConfig = """
+        model = "o3"
+        approval_policy = "on-request"
+        """
+        try configFile.overlay(with: originalConfig + "\n")
+
+        let relay = try await manager.addConfiguredAccount(
+            name: "Relay",
+            apiKey: "rk-live-poll-resume-1234",
+            relay: .init(
+                baseURL: "https://relay.example.com/v1",
+                modelProvider: "provider-relay"
+            )
+        )
+        try await manager.activateAccountAndMarkActive(relay, for: provider)
+
+        let providerAuth = try #require(await manager.authFile(for: provider))
+        let activeFile = STFile(try providerAuth.destinationOfSymbolicLink().url.path)
+        try activeFile.overlay(with: Data(#"""
+        {
+          "auth_mode": "chatgpt",
+          "tokens": {
+            "id_token": "id-paused-unstable",
+            "access_token": "access-paused-unstable",
+            "account_id": "acct-paused-unstable"
+          }
+        }
+        """#.utf8))
+
+        await manager.pollProviderAuthChange(for: provider, authFilePath: providerAuth.url.path)
+
+        #expect(await manager.activeAccountId(for: provider) == nil)
+        #expect(try configFile.read() == originalConfig + "\n")
+        let pausedRaw = try providerAuth.read()
+        #expect(pausedRaw.contains(#""acct-paused-unstable""#))
+
+        try providerAuth.overlay(with: Data(#"""
+        {
+          "auth_mode": "chatgpt",
+          "email": "resumed@example.com",
+          "tokens": {
+            "id_token": "id-resumed",
+            "access_token": "access-resumed",
+            "account_id": "acct-resumed"
+          }
+        }
+        """#.utf8))
+
+        await manager.pollProviderAuthChange(for: provider, authFilePath: providerAuth.url.path)
+
+        let resumedActiveID = try #require(await manager.activeAccountId(for: provider))
+        let resumedAccount = try #require((try await manager.loadAccounts()).first(where: { $0.id == resumedActiveID }))
+        let resumedSummary = CodexAuthSummary.fromJSONData(try #require(manager.accountAuthData(for: resumedAccount)))
+        #expect(resumedSummary.email == "resumed@example.com")
+        #expect(try configFile.read() == originalConfig + "\n")
+    }
+
+    @Test("Given active managed api key auth drifts to the same api key payload, when background poll runs then manager keeps a single snapshot")
+    func backgroundPollDoesNotDuplicateSnapshotForStableAPIKeyIdentity() async throws {
+        let root = try makeTempRoot("codex-auth-background-poll-apikey-no-duplicate")
+        defer { try? root.delete() }
+
+        let manager = CodexAuthManager(rootURL: root.url)
+        let provider = makeCodexProvider(root: root)
+        let account = try await manager.addConfiguredAccount(
+            name: "OpenAI Direct",
+            apiKey: "sk-stable-api-key-1234",
+            relay: nil
+        )
+        try await manager.activateAccountAndMarkActive(account, for: provider)
+
+        let providerAuth = try #require(await manager.authFile(for: provider))
+        let activeFile = STFile(try providerAuth.destinationOfSymbolicLink().url.path)
+        try activeFile.overlay(with: Data(#"""
+        {
+          "auth_mode": "apikey",
+          "OPENAI_API_KEY": "sk-stable-api-key-1234"
+        }
+        """#.utf8))
+
+        await manager.pollProviderAuthChange(for: provider, authFilePath: providerAuth.url.path)
+
+        let accounts = try await manager.loadAccounts()
+        #expect(accounts.count == 1)
+        let activeID = try #require(await manager.activeAccountId(for: provider))
+        #expect(activeID == account.id)
+        let activeAccount = try #require(accounts.first(where: { $0.id == account.id }))
+        let activeData = try #require(manager.accountAuthDataWithoutMaterialization(for: activeAccount))
+        let activeJSON = try JSON(data: activeData)
+        #expect(activeJSON["OPENAI_API_KEY"].string == "sk-stable-api-key-1234")
+    }
+
     @Test("Given active drift payload shares account id but has different email from existing snapshots, when preflight runs then drift payload is saved as a new snapshot")
     func preflightCreatesNewSnapshotWhenDriftEmailDiffersUnderSameAccountID() async throws {
         let root = try makeTempRoot("codex-auth-preflight-drift-email-diff")

@@ -792,7 +792,6 @@ extension CodexAuthManager {
 extension CodexAuthManager {
     func startProviderAuthPolling(for provider: Provider) {
         stopProviderAuthPolling(for: provider.id)
-        guard isProviderAuthManagementPaused(for: provider) == false else { return }
         guard let authFile = authFile(for: provider) else { return }
         let authFilePath = authFile.url.path
         if let raw = try? String(contentsOf: URL(fileURLWithPath: authFilePath), encoding: .utf8) {
@@ -837,7 +836,16 @@ extension CodexAuthManager {
             return
         }
 
+        let wasPaused = isProviderAuthManagementPaused(for: provider)
+        let hasStableIdentity = hasStableCredentialIdentity(authData: normalizedData)
+        if wasPaused && hasStableIdentity == false {
+            return
+        }
+
         do {
+            if wasPaused && hasStableIdentity {
+                try setProviderAuthManagementPaused(false, for: provider)
+            }
             _ = try await preflightManagedAuthIfNeeded(
                 for: provider,
                 forceBackup: false,

@@ -152,6 +152,9 @@ extension CodexAuthManager {
             try removeFileOrSymlinkIfPresent(providerAuthFile)
         }
         try setProviderAuthManagementPaused(pauseMonitoring, for: provider)
+        if pauseMonitoring {
+            startProviderAuthPolling(for: provider)
+        }
     }
 
     private func activeProviderConfigIntent(

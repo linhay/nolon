@@ -1297,6 +1297,7 @@ public actor CodexAuthManager {
         try await migrateLegacyIfNeeded()
         if shouldClearActiveSelectionOnDriftDuringPreflight(reason: reason),
            isProviderAuthManagementPaused(for: provider) {
+            startProviderAuthPolling(for: provider)
             return nil
         }
         if let blocked = try preflightBlockedByCloudSync(for: provider) {
