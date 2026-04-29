@@ -220,9 +220,11 @@ jobs:
       - name: Install provisioning profile
         env:
           MACOS_PROVISIONING_PROFILE_BASE64_SECRET: ${{ secrets.MACOS_PROVISIONING_PROFILE_BASE64 }}
+          XCODE_PROVISIONING_PROFILE_SPECIFIER_SECRET: ${{ secrets.XCODE_PROVISIONING_PROFILE_SPECIFIER }}
         run: |
           set -euo pipefail
           : "${MACOS_PROVISIONING_PROFILE_BASE64:=${MACOS_PROVISIONING_PROFILE_BASE64_SECRET:-}}"
+          : "${XCODE_PROVISIONING_PROFILE_SPECIFIER:=${XCODE_PROVISIONING_PROFILE_SPECIFIER_SECRET:-}}"
 
           if [ -z "${MACOS_PROVISIONING_PROFILE_BASE64:-}" ]; then
             echo "Missing provisioning profile payload."
