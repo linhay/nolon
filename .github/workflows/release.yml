@@ -231,12 +231,25 @@ jobs:
             exit 1
           fi
 
+          if [ -z "${XCODE_PROVISIONING_PROFILE_SPECIFIER:-}" ]; then
+            echo "Missing provisioning profile name."
+            exit 1
+          fi
+
           PROFILE_DIR="${HOME}/Library/MobileDevice/Provisioning Profiles"
           PROFILE_PATH="${PROFILE_DIR}/nolon-release.provisionprofile"
+          PROFILE_PLIST="${RUNNER_TEMP}/nolon-release-profile.plist"
           mkdir -p "${PROFILE_DIR}"
-          echo "${MACOS_PROVISIONING_PROFILE_BASE64}" | base64 --decode > "${PROFILE_PATH}"
-          PROFILE_NAME="$(security cms -D -i "${PROFILE_PATH}" | plutil -extract Name raw -o - -)"
-          PROFILE_APP_ID="$(security cms -D -i "${PROFILE_PATH}" | plutil -extract Entitlements xml1 -o - - | plutil -extract 'com.apple.application-identifier' raw -o - -)"
+          printf '%s' "${MACOS_PROVISIONING_PROFILE_BASE64}" | base64 --decode > "${PROFILE_PATH}"
+
+          if ! security cms -D -i "${PROFILE_PATH}" > "${PROFILE_PLIST}"; then
+            echo "Failed to decode provisioning profile payload."
+            wc -c "${PROFILE_PATH}" || true
+            exit 1
+          fi
+
+          PROFILE_NAME="$(plutil -extract Name raw -o - "${PROFILE_PLIST}")"
+          PROFILE_APP_ID="$(plutil -extract Entitlements xml1 -o - "${PROFILE_PLIST}" | plutil -extract 'com.apple.application-identifier' raw -o - -)"
           echo "Installed provisioning profile at ${PROFILE_PATH}"
           echo "Profile name: ${PROFILE_NAME}"
           echo "Profile app id: ${PROFILE_APP_ID}"
