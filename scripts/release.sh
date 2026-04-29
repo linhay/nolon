@@ -10,6 +10,11 @@
 #
 # Optional env:
 #   SKIP_BUILD=1            Skip ./scripts/build-dmg.sh all
+#   USE_XCODE_OFFICIAL_SIGNING=1  Use xcodebuild archive/exportArchive instead of manual re-sign
+#   XCODE_EXPORT_METHOD=developer-id
+#   XCODE_SIGNING_STYLE=automatic
+#   XCODE_SIGNING_CERTIFICATE="Developer ID Application: ..."
+#   XCODE_PROVISIONING_PROFILE_SPECIFIER="Profile Name"
 #   RELEASE_CHANNEL=stable  Release channel: stable|beta
 #   CI_TAG_MODE=1           Tag-trigger mode: skip creating tag, commit appcast back to RELEASE_PUSH_BRANCH
 #   RELEASE_PUSH_BRANCH=main Target branch for appcast sync when CI_TAG_MODE=1

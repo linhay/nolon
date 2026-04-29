@@ -70,6 +70,8 @@ jobs:
             SPARKLE_KEYCHAIN_ACCOUNT
             MACOS_CERTIFICATE_P12_BASE64
             MACOS_CERTIFICATE_P12_PASSWORD
+            MACOS_PROVISIONING_PROFILE_BASE64
+            XCODE_PROVISIONING_PROFILE_SPECIFIER
             SIGNING_IDENTITY
             NOTARY_PROFILE
             APPLE_ID
@@ -113,6 +115,8 @@ jobs:
           SPARKLE_KEYCHAIN_ACCOUNT_SECRET: ${{ secrets.SPARKLE_KEYCHAIN_ACCOUNT }}
           MACOS_CERTIFICATE_P12_BASE64_SECRET: ${{ secrets.MACOS_CERTIFICATE_P12_BASE64 }}
           MACOS_CERTIFICATE_P12_PASSWORD_SECRET: ${{ secrets.MACOS_CERTIFICATE_P12_PASSWORD }}
+          MACOS_PROVISIONING_PROFILE_BASE64_SECRET: ${{ secrets.MACOS_PROVISIONING_PROFILE_BASE64 }}
+          XCODE_PROVISIONING_PROFILE_SPECIFIER_SECRET: ${{ secrets.XCODE_PROVISIONING_PROFILE_SPECIFIER }}
           SIGNING_IDENTITY_SECRET: ${{ secrets.SIGNING_IDENTITY }}
           NOTARY_PROFILE_SECRET: ${{ secrets.NOTARY_PROFILE }}
           APPLE_ID_SECRET: ${{ secrets.APPLE_ID }}
@@ -124,6 +128,8 @@ jobs:
           : "${SPARKLE_KEYCHAIN_ACCOUNT:=${SPARKLE_KEYCHAIN_ACCOUNT_SECRET:-}}"
           : "${MACOS_CERTIFICATE_P12_BASE64:=${MACOS_CERTIFICATE_P12_BASE64_SECRET:-}}"
           : "${MACOS_CERTIFICATE_P12_PASSWORD:=${MACOS_CERTIFICATE_P12_PASSWORD_SECRET:-}}"
+          : "${MACOS_PROVISIONING_PROFILE_BASE64:=${MACOS_PROVISIONING_PROFILE_BASE64_SECRET:-}}"
+          : "${XCODE_PROVISIONING_PROFILE_SPECIFIER:=${XCODE_PROVISIONING_PROFILE_SPECIFIER_SECRET:-}}"
           : "${SIGNING_IDENTITY:=${SIGNING_IDENTITY_SECRET:-}}"
           : "${NOTARY_PROFILE:=${NOTARY_PROFILE_SECRET:-}}"
           : "${APPLE_ID:=${APPLE_ID_SECRET:-}}"
@@ -142,6 +148,16 @@ jobs:
 
           if [ "${HAS_LOCAL_RELEASE_ENV}" != "1" ] && { [ -z "${MACOS_CERTIFICATE_P12_BASE64:-}" ] || [ -z "${MACOS_CERTIFICATE_P12_PASSWORD:-}" ]; }; then
             echo "Missing required secrets for hosted release: MACOS_CERTIFICATE_P12_BASE64 / MACOS_CERTIFICATE_P12_PASSWORD"
+            exit 1
+          fi
+
+          if [ -z "${MACOS_PROVISIONING_PROFILE_BASE64:-}" ]; then
+            echo "Missing required Developer ID provisioning profile payload: MACOS_PROVISIONING_PROFILE_BASE64"
+            exit 1
+          fi
+
+          if [ -z "${XCODE_PROVISIONING_PROFILE_SPECIFIER:-}" ]; then
+            echo "Missing required Developer ID provisioning profile name: XCODE_PROVISIONING_PROFILE_SPECIFIER"
             exit 1
           fi
 
@@ -201,11 +217,39 @@ jobs:
           security find-identity -v -p codesigning "${KEYCHAIN_PATH}"
           rm -f "${CERT_PATH}"
 
+      - name: Install provisioning profile
+        env:
+          MACOS_PROVISIONING_PROFILE_BASE64_SECRET: ${{ secrets.MACOS_PROVISIONING_PROFILE_BASE64 }}
+        run: |
+          set -euo pipefail
+          : "${MACOS_PROVISIONING_PROFILE_BASE64:=${MACOS_PROVISIONING_PROFILE_BASE64_SECRET:-}}"
+
+          if [ -z "${MACOS_PROVISIONING_PROFILE_BASE64:-}" ]; then
+            echo "Missing provisioning profile payload."
+            exit 1
+          fi
+
+          PROFILE_DIR="${HOME}/Library/MobileDevice/Provisioning Profiles"
+          PROFILE_PATH="${PROFILE_DIR}/nolon-release.provisionprofile"
+          mkdir -p "${PROFILE_DIR}"
+          echo "${MACOS_PROVISIONING_PROFILE_BASE64}" | base64 --decode > "${PROFILE_PATH}"
+          PROFILE_NAME="$(security cms -D -i "${PROFILE_PATH}" | plutil -extract Name raw -o - -)"
+          PROFILE_APP_ID="$(security cms -D -i "${PROFILE_PATH}" | plutil -extract Entitlements xml1 -o - - | plutil -extract 'com.apple.application-identifier' raw -o - -)"
+          echo "Installed provisioning profile at ${PROFILE_PATH}"
+          echo "Profile name: ${PROFILE_NAME}"
+          echo "Profile app id: ${PROFILE_APP_ID}"
+          if [ "${PROFILE_NAME}" != "${XCODE_PROVISIONING_PROFILE_SPECIFIER}" ]; then
+            echo "Provisioning profile name mismatch. Expected '${XCODE_PROVISIONING_PROFILE_SPECIFIER}', got '${PROFILE_NAME}'."
+            exit 1
+          fi
+
       - name: Run release script
         env:
           GH_TOKEN: ${{ github.token }}
           SPARKLE_PRIVATE_KEY_SECRET: ${{ secrets.SPARKLE_PRIVATE_KEY }}
           SPARKLE_KEYCHAIN_ACCOUNT_SECRET: ${{ secrets.SPARKLE_KEYCHAIN_ACCOUNT }}
+          MACOS_PROVISIONING_PROFILE_BASE64_SECRET: ${{ secrets.MACOS_PROVISIONING_PROFILE_BASE64 }}
+          XCODE_PROVISIONING_PROFILE_SPECIFIER_SECRET: ${{ secrets.XCODE_PROVISIONING_PROFILE_SPECIFIER }}
           SIGNING_IDENTITY_SECRET: ${{ secrets.SIGNING_IDENTITY }}
           NOTARY_PROFILE_SECRET: ${{ secrets.NOTARY_PROFILE }}
           APPLE_ID_SECRET: ${{ secrets.APPLE_ID }}
@@ -217,6 +261,8 @@ jobs:
         run: |
           : "${SPARKLE_PRIVATE_KEY:=${SPARKLE_PRIVATE_KEY_SECRET:-}}"
           : "${SPARKLE_KEYCHAIN_ACCOUNT:=${SPARKLE_KEYCHAIN_ACCOUNT_SECRET:-}}"
+          : "${MACOS_PROVISIONING_PROFILE_BASE64:=${MACOS_PROVISIONING_PROFILE_BASE64_SECRET:-}}"
+          : "${XCODE_PROVISIONING_PROFILE_SPECIFIER:=${XCODE_PROVISIONING_PROFILE_SPECIFIER_SECRET:-}}"
           : "${SIGNING_IDENTITY:=${SIGNING_IDENTITY_SECRET:-}}"
           : "${NOTARY_PROFILE:=${NOTARY_PROFILE_SECRET:-}}"
           : "${APPLE_ID:=${APPLE_ID_SECRET:-}}"
@@ -224,6 +270,10 @@ jobs:
           : "${TEAM_ID:=${TEAM_ID_SECRET:-}}"
 
           chmod +x scripts/release.sh scripts/build-dmg.sh
+          export USE_XCODE_OFFICIAL_SIGNING=1
+          export XCODE_EXPORT_METHOD=developer-id
+          export XCODE_SIGNING_STYLE=automatic
+          export XCODE_SIGNING_CERTIFICATE="${SIGNING_IDENTITY}"
           if [ -n "${{ steps.params.outputs.changelog_file }}" ]; then
             ./scripts/release.sh "${{ steps.params.outputs.version }}" "${{ steps.params.outputs.changelog_file }}"
           else
@@ -235,3 +285,4 @@ jobs:
         run: |
           rm -f "${RUNNER_TEMP}/nolon-signing.p12" || true
           security delete-keychain "${RUNNER_TEMP}/nolon-signing.keychain-db" || true
+          rm -f "${HOME}/Library/MobileDevice/Provisioning Profiles/nolon-release.provisionprofile" || true
