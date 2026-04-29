@@ -92,11 +92,14 @@ if ! command -v gh &> /dev/null; then
     exit 1
 fi
 
-# Check if authenticated
-if ! gh auth status &> /dev/null; then
-    echo -e "${RED}❌ Not authenticated with GitHub${NC}"
-    echo -e "${YELLOW}Run: gh auth login${NC}"
-    exit 1
+# Check if authenticated. In CI, GH_TOKEN/GITHUB_TOKEN is sufficient even when
+# an interactive auth status probe would time out.
+if [ -z "${GH_TOKEN:-}" ] && [ -z "${GITHUB_TOKEN:-}" ]; then
+    if ! gh auth status &> /dev/null; then
+        echo -e "${RED}❌ Not authenticated with GitHub${NC}"
+        echo -e "${YELLOW}Run: gh auth login${NC}"
+        exit 1
+    fi
 fi
 
 # Ensure working tree is clean before starting.
