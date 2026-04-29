@@ -15,6 +15,14 @@ SCHEME="nolon-app"
 PROJECT="nolon.xcodeproj"
 RELEASE_DIR="release"
 BUILD_DIR="${RELEASE_DIR}/build"
+APP_ENTITLEMENTS_PATH="nolon/nolon.entitlements"
+EMBEDDED_PROVISION_PROFILE_PATH="${EMBEDDED_PROVISION_PROFILE_PATH:-}"
+USE_XCODE_OFFICIAL_SIGNING="${USE_XCODE_OFFICIAL_SIGNING:-1}"
+XCODE_EXPORT_METHOD="${XCODE_EXPORT_METHOD:-developer-id}"
+XCODE_SIGNING_STYLE="${XCODE_SIGNING_STYLE:-automatic}"
+XCODE_TEAM_ID="${XCODE_TEAM_ID:-3L8RM3MDLS}"
+XCODE_SIGNING_CERTIFICATE="${XCODE_SIGNING_CERTIFICATE:-${SIGNING_IDENTITY:-}}"
+XCODE_PROVISIONING_PROFILE_SPECIFIER="${XCODE_PROVISIONING_PROFILE_SPECIFIER:-}"
 
 # Colors for output
 RED='\033[0;31m'
@@ -49,6 +57,20 @@ ARCH="${1:-}"
 # Ensure release directory exists
 mkdir -p "$RELEASE_DIR"
 
+validate_xcode_official_signing_inputs() {
+    if [ "$USE_XCODE_OFFICIAL_SIGNING" != "1" ]; then
+        return 0
+    fi
+
+    if [ "$XCODE_EXPORT_METHOD" = "developer-id" ] && [ -z "$XCODE_PROVISIONING_PROFILE_SPECIFIER" ]; then
+        echo -e "${RED}❌ Xcode official signing with method=developer-id requires XCODE_PROVISIONING_PROFILE_SPECIFIER.${NC}"
+        echo -e "${RED}   Provide the Developer ID provisioning profile name for bundle id nolon.overloaded.com before packaging.${NC}"
+        return 1
+    fi
+}
+
+validate_xcode_official_signing_inputs
+
 run_codesign_with_timestamp() {
     local target_path="$1"
     shift
@@ -70,6 +92,119 @@ run_codesign_with_timestamp() {
     done
 }
 
+app_requires_embedded_profile() {
+    if [ ! -f "$APP_ENTITLEMENTS_PATH" ]; then
+        return 1
+    fi
+
+    local restricted_keys=(
+        "com.apple.developer.aps-environment"
+        "com.apple.developer.icloud-container-identifiers"
+        "com.apple.developer.icloud-services"
+    )
+
+    local key
+    for key in "${restricted_keys[@]}"; do
+        if plutil -extract "$key" xml1 -o - "$APP_ENTITLEMENTS_PATH" >/dev/null 2>&1; then
+            return 0
+        fi
+    done
+
+    return 1
+}
+
+embed_provisioning_profile_if_needed() {
+    local app_path="$1"
+
+    if ! app_requires_embedded_profile; then
+        return 0
+    fi
+
+    if [ -z "$EMBEDDED_PROVISION_PROFILE_PATH" ]; then
+        echo -e "${RED}❌ Restricted entitlements detected in ${APP_ENTITLEMENTS_PATH}, but EMBEDDED_PROVISION_PROFILE_PATH is not set.${NC}"
+        echo -e "${RED}   CloudKit / Push-enabled macOS apps need a matching provisioning profile embedded in the app bundle, or launchd will reject launch.${NC}"
+        return 1
+    fi
+
+    if [ ! -f "$EMBEDDED_PROVISION_PROFILE_PATH" ]; then
+        echo -e "${RED}❌ EMBEDDED_PROVISION_PROFILE_PATH does not exist: ${EMBEDDED_PROVISION_PROFILE_PATH}${NC}"
+        return 1
+    fi
+
+    echo -e "${YELLOW}📄 Embedding provisioning profile: ${EMBEDDED_PROVISION_PROFILE_PATH}${NC}"
+    cp "$EMBEDDED_PROVISION_PROFILE_PATH" "${app_path}/Contents/embedded.provisionprofile"
+}
+
+validate_embedded_profile_if_needed() {
+    local app_path="$1"
+
+    if ! app_requires_embedded_profile; then
+        return 0
+    fi
+
+    if [ ! -f "${app_path}/Contents/embedded.provisionprofile" ]; then
+        echo -e "${RED}❌ App is signed with restricted entitlements, but Contents/embedded.provisionprofile is missing.${NC}"
+        echo -e "${RED}   This build would pass codesign verification but fail to launch under AMFI.${NC}"
+        return 1
+    fi
+}
+
+append_xcode_signing_build_settings() {
+    local settings_ref_name="$1"
+
+    if [ -n "$XCODE_TEAM_ID" ]; then
+        eval "${settings_ref_name}+=(\"DEVELOPMENT_TEAM=${XCODE_TEAM_ID}\")"
+    fi
+
+    if [ "$XCODE_SIGNING_STYLE" = "manual" ] && [ -n "$XCODE_PROVISIONING_PROFILE_SPECIFIER" ]; then
+        eval "${settings_ref_name}+=(\"PROVISIONING_PROFILE_SPECIFIER=${XCODE_PROVISIONING_PROFILE_SPECIFIER}\")"
+    fi
+}
+
+create_export_options_plist() {
+    local plist_path="$1"
+    local export_signing_style="$XCODE_SIGNING_STYLE"
+
+    if [ -n "$XCODE_PROVISIONING_PROFILE_SPECIFIER" ]; then
+        export_signing_style="manual"
+    fi
+
+    cat > "$plist_path" <<EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>method</key>
+    <string>${XCODE_EXPORT_METHOD}</string>
+    <key>signingStyle</key>
+    <string>${export_signing_style}</string>
+    <key>teamID</key>
+    <string>${XCODE_TEAM_ID}</string>
+EOF
+
+    if [ -n "$XCODE_SIGNING_CERTIFICATE" ]; then
+        cat >> "$plist_path" <<EOF
+    <key>signingCertificate</key>
+    <string>${XCODE_SIGNING_CERTIFICATE}</string>
+EOF
+    fi
+
+    if [ -n "$XCODE_PROVISIONING_PROFILE_SPECIFIER" ]; then
+        cat >> "$plist_path" <<EOF
+    <key>provisioningProfiles</key>
+    <dict>
+        <key>nolon.overloaded.com</key>
+        <string>${XCODE_PROVISIONING_PROFILE_SPECIFIER}</string>
+    </dict>
+EOF
+    fi
+
+    cat >> "$plist_path" <<EOF
+</dict>
+</plist>
+EOF
+}
+
 # Function to sign the app
 sign_app() {
     local app_path="$1"
@@ -78,6 +213,8 @@ sign_app() {
         echo -e "${YELLOW}⚠️  SIGNING_IDENTITY not set, skipping code signing${NC}"
         return 0
     fi
+
+    embed_provisioning_profile_if_needed "$app_path" || return 1
 
     # Sign embedded git binaries that live under Resources and are not always covered by --deep.
     local git_bundle_path="${app_path}/Contents/Resources/SwiftGit_SwiftGitResourcesUniversal.bundle/Contents/Resources/git-instance.bundle"
@@ -94,11 +231,22 @@ sign_app() {
     fi
     
     echo -e "${YELLOW}🔏 Signing app with: ${SIGNING_IDENTITY}${NC}"
-    run_codesign_with_timestamp "$app_path" \
-        --force \
-        --deep \
-        --options runtime \
+    local codesign_args=(
+        --force
+        --deep
+        --options runtime
         --sign "$SIGNING_IDENTITY"
+    )
+
+    if [ -f "$APP_ENTITLEMENTS_PATH" ]; then
+        echo -e "${YELLOW}☁️  Applying app entitlements: ${APP_ENTITLEMENTS_PATH}${NC}"
+        codesign_args+=(--entitlements "$APP_ENTITLEMENTS_PATH")
+    else
+        echo -e "${YELLOW}⚠️  App entitlements file not found, signing without explicit entitlements${NC}"
+    fi
+
+    run_codesign_with_timestamp "$app_path" "${codesign_args[@]}"
+    validate_embedded_profile_if_needed "$app_path" || return 1
     
     echo -e "${GREEN}✅ App signed${NC}"
 }
@@ -136,33 +284,67 @@ build_for_arch() {
     local arch="$1"
     local dmg_name="${RELEASE_DIR}/${APP_NAME}-${arch}.dmg"
     local build_suffix="${arch}"
+    local app_path
     
     echo -e "${YELLOW}🔨 Building ${APP_NAME} for ${arch}...${NC}"
-    
-    # Clean and build for specific architecture
-    xcodebuild "${XCODEBUILD_PACKAGE_FLAGS[@]}" \
-        -project "$PROJECT" \
-        -scheme "$SCHEME" \
-        -configuration Release \
-        -derivedDataPath "${BUILD_DIR}-${build_suffix}" \
-        -arch "$arch" \
-        clean build \
-        CODE_SIGNING_ALLOWED=NO
-    
-    APP_PATH="${BUILD_DIR}-${build_suffix}/Build/Products/Release/${APP_NAME}.app"
-    
-    if [ ! -d "$APP_PATH" ]; then
-        echo -e "${RED}❌ Build failed: ${APP_PATH} not found${NC}"
+
+    if [ "$USE_XCODE_OFFICIAL_SIGNING" = "1" ]; then
+        local archive_path="${BUILD_DIR}-${build_suffix}/${APP_NAME}-${arch}.xcarchive"
+        local export_path="${BUILD_DIR}-${build_suffix}/export-${arch}"
+        local export_options_plist="${BUILD_DIR}-${build_suffix}/export-options-${arch}.plist"
+        local archive_args=(
+            "${XCODEBUILD_PACKAGE_FLAGS[@]}"
+            -project "$PROJECT"
+            -scheme "$SCHEME"
+            -configuration Release
+            -archivePath "$archive_path"
+            -destination "generic/platform=macOS"
+            "ARCHS=${arch}"
+            clean
+            archive
+        )
+
+        append_xcode_signing_build_settings archive_args
+
+        echo -e "${YELLOW}🧾 Using Xcode official signing chain (archive/export).${NC}"
+        xcodebuild "${archive_args[@]}"
+
+        create_export_options_plist "$export_options_plist"
+
+        xcodebuild \
+            -exportArchive \
+            -archivePath "$archive_path" \
+            -exportPath "$export_path" \
+            -exportOptionsPlist "$export_options_plist"
+
+        app_path="${export_path}/${APP_NAME}.app"
+    else
+        xcodebuild "${XCODEBUILD_PACKAGE_FLAGS[@]}" \
+            -project "$PROJECT" \
+            -scheme "$SCHEME" \
+            -configuration Release \
+            -derivedDataPath "${BUILD_DIR}-${build_suffix}" \
+            -arch "$arch" \
+            clean build \
+            CODE_SIGNING_ALLOWED=NO
+
+        app_path="${BUILD_DIR}-${build_suffix}/Build/Products/Release/${APP_NAME}.app"
+
+        echo -e "${GREEN}✅ Build succeeded for ${arch}${NC}"
+        sign_app "$app_path"
+    fi
+
+    if [ ! -d "$app_path" ]; then
+        echo -e "${RED}❌ Build failed: ${app_path} not found${NC}"
         return 1
     fi
-    
+
+    validate_embedded_profile_if_needed "$app_path" || return 1
+
     echo -e "${GREEN}✅ Build succeeded for ${arch}${NC}"
     
-    # Sign the app
-    sign_app "$APP_PATH"
-    
     # Create DMG
-    create_dmg_for_app "$APP_PATH" "$dmg_name" "$arch"
+    create_dmg_for_app "$app_path" "$dmg_name" "$arch"
     
     # Notarize the DMG
     notarize_dmg "$dmg_name"

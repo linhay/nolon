@@ -22,6 +22,8 @@ GitHub-hosted 发版现在按 Secrets 全量驱动，至少需要：
    - `SIGNING_IDENTITY`
    - `MACOS_CERTIFICATE_P12_BASE64`
    - `MACOS_CERTIFICATE_P12_PASSWORD`
+   - `MACOS_PROVISIONING_PROFILE_BASE64`
+   - `XCODE_PROVISIONING_PROFILE_SPECIFIER`
 2. Sparkle：
    - `SPARKLE_PRIVATE_KEY`
 3. 公证：
@@ -56,7 +58,9 @@ GitHub-hosted 发版现在按 Secrets 全量驱动，至少需要：
 6. 调用 `./scripts/release.sh <version> [changelog_file]`。
 7. 脚本内完成：
    - 更新版本号与 build number
-   - 构建双架构 DMG
+   - 通过 `xcodebuild archive + exportArchive` 走 Xcode 官方签名链路构建双架构 DMG
+   - `method=developer-id`
+   - 使用已安装的证书和 provisioning profile 产出带 `embedded.provisionprofile` 的 app
    - Sparkle 签名并更新 `docs/appcast.xml` + 根目录 `appcast.xml`
    - 手动模式：提交、打 tag、推送
    - tag 模式：跳过创建 tag，仅同步 appcast commit 到 `main`
@@ -72,3 +76,31 @@ GitHub-hosted 发版现在按 Secrets 全量驱动，至少需要：
 3. 若 Sparkle 签名失败：
    - Hosted：优先校验 `SPARKLE_PRIVATE_KEY` 是否对应 `nolon/Info.plist` 的 `SUPublicEDKey`。
    - Self-hosted：若走 keychain 回退，确认 runner 上 `generate_keys --account ed25519 -p` 输出公钥与 `SUPublicEDKey` 一致。
+4. 若 `exportArchive` 失败并提示 `No profiles for 'nolon.overloaded.com' were found`：
+   - 检查 `MACOS_PROVISIONING_PROFILE_BASE64` 是否为支持 CloudKit / Push capability 的 macOS profile
+   - 检查 `XCODE_PROVISIONING_PROFILE_SPECIFIER` 是否与 profile 的 `Name` 一致
+   - 确认 profile 对应 App ID 为 `nolon.overloaded.com`
+
+## 当前有效签名组合
+- `archive`：
+  - 保持 target 自身的 automatic signing
+  - 仅从命令行补 `DEVELOPMENT_TEAM`
+  - 不要在 archive 阶段传 `PROVISIONING_PROFILE_SPECIFIER`，否则会与 automatic signing 冲突
+- `exportArchive`：
+  - `method=developer-id`
+  - 若提供 `XCODE_PROVISIONING_PROFILE_SPECIFIER`，export options plist 需切到 `signingStyle=manual`
+  - 同时写入：
+    - `signingCertificate = Developer ID Application: ...`
+    - `provisioningProfiles[nolon.overloaded.com] = <profile name>`
+
+## 已验证的 profile
+- 名称：`nolon Developer ID`
+- 类型：`MAC_APP_DIRECT`
+- bundle id：`nolon.overloaded.com`
+- 能力：
+  - CloudKit
+  - Push Notifications
+
+## 脚本兼容性注意事项
+- `scripts/build-dmg.sh` 需兼容 macOS 默认 `/bin/bash 3.2`，不能使用 `local -n`
+- 对 `generic/platform=macOS` 的 archive，不要再传 `-arch arm64`，应改用 `ARCHS=arm64`

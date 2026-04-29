@@ -10,6 +10,7 @@ import Sparkle
 import Combine
 import Observation
 import OSLog
+import Security
 import ProviderCatalog
 import ProviderUsage
 import ProvidersShared
@@ -381,9 +382,77 @@ enum CodexiCloudSyncCloudKitCodec {
     }
 }
 
-actor CodexiCloudSyncLiveCoordinator: CKSyncEngineDelegate {
-    static let shared = CodexiCloudSyncLiveCoordinator()
+enum CodexiCloudSyncCloudKitRuntimeSupport {
+    enum BootstrapState: Equatable {
+        case ready
+        case missingEntitlements
+        case unreadableSigningInfo
+    }
 
+    nonisolated static func bootstrapState(
+        signingEntitlements: [String: Any]? = currentSigningEntitlements()
+    ) -> BootstrapState {
+        guard let signingEntitlements else {
+            return .unreadableSigningInfo
+        }
+        guard hasRequiredEntitlements(in: signingEntitlements) else {
+            return .missingEntitlements
+        }
+        return .ready
+    }
+
+    nonisolated static func hasRequiredEntitlements(
+        in signingEntitlements: [String: Any],
+        containerIdentifier: String = CodexiCloudSyncCloudKitCodec.containerIdentifier
+    ) -> Bool {
+        let containerIdentifiers = stringArray(
+            from: signingEntitlements["com.apple.developer.icloud-container-identifiers"]
+        )
+        let services = stringArray(
+            from: signingEntitlements["com.apple.developer.icloud-services"]
+        )
+        return containerIdentifiers.contains(containerIdentifier) && services.contains("CloudKit")
+    }
+
+    nonisolated private static func currentSigningEntitlements() -> [String: Any]? {
+        guard let executableURL = Bundle.main.executableURL else {
+            return nil
+        }
+
+        var staticCode: SecStaticCode?
+        let staticCodeStatus = SecStaticCodeCreateWithPath(executableURL as CFURL, [], &staticCode)
+        guard staticCodeStatus == errSecSuccess, let staticCode else {
+            return nil
+        }
+
+        var signingInfo: CFDictionary?
+        let infoStatus = SecCodeCopySigningInformation(
+            staticCode,
+            SecCSFlags(rawValue: kSecCSSigningInformation),
+            &signingInfo
+        )
+        guard infoStatus == errSecSuccess,
+              let signingInfoDictionary = signingInfo as? [String: Any],
+              let entitlements = signingInfoDictionary[kSecCodeInfoEntitlementsDict as String] as? [String: Any]
+        else {
+            return nil
+        }
+        return entitlements
+    }
+
+    nonisolated private static func stringArray(from value: Any?) -> [String] {
+        switch value {
+        case let array as [String]:
+            return array
+        case let array as [NSString]:
+            return array.map(String.init)
+        default:
+            return []
+        }
+    }
+}
+
+actor CodexiCloudSyncLiveCoordinator: CKSyncEngineDelegate {
     private static let logger = Logger(subsystem: "com.nolon.app", category: "CodexiCloudSyncLiveCoordinator")
 
     private let authManager: CodexAuthManager
@@ -817,13 +886,15 @@ final class CodexiCloudSyncService {
     private var bootstrapTask: Task<Void, Never>?
     private var syncTask: Task<Void, Never>?
     #if canImport(CloudKit)
-    private let liveCoordinator: CodexiCloudSyncLiveCoordinator
+    private let cloudKitBootstrapState: CodexiCloudSyncCloudKitRuntimeSupport.BootstrapState
+    private var liveCoordinator: CodexiCloudSyncLiveCoordinator?
     #endif
 
     private init(authManager: CodexAuthManager = .shared) {
         self.authManager = authManager
         #if canImport(CloudKit)
-        self.liveCoordinator = .shared
+        self.cloudKitBootstrapState = CodexiCloudSyncCloudKitRuntimeSupport.bootstrapState()
+        self.liveCoordinator = nil
         #endif
     }
 
@@ -852,7 +923,9 @@ final class CodexiCloudSyncService {
                 await syncNow()
             } else {
                 #if canImport(CloudKit)
-                await liveCoordinator.stop()
+                if let liveCoordinator {
+                    await liveCoordinator.stop()
+                }
                 #endif
                 await refreshSnapshot(isSyncing: false)
             }
@@ -877,7 +950,10 @@ final class CodexiCloudSyncService {
                     let availability = await self.resolveAvailability(isEnabled: isEnabled)
                     if availability == .available {
                         #if canImport(CloudKit)
-                        try await self.liveCoordinator.syncNow()
+                        guard let liveCoordinator = self.makeLiveCoordinatorIfAvailable() else {
+                            throw OperationError.cloudKitUnavailable
+                        }
+                        try await liveCoordinator.syncNow()
                         #endif
                     }
                 }
@@ -894,6 +970,9 @@ final class CodexiCloudSyncService {
 
     func clearCloudData() async throws -> Int {
         #if canImport(CloudKit)
+        guard let liveCoordinator = makeLiveCoordinatorIfAvailable() else {
+            throw OperationError.cloudKitUnavailable
+        }
         let deletedCount = try await liveCoordinator.clearAllCloudRecords()
         try await authManager.resetCloudSyncMetadataAfterRemotePurge()
         try await authManager.setCloudSyncEnabled(false)
@@ -929,12 +1008,35 @@ final class CodexiCloudSyncService {
             return .unavailable
         }
         #if canImport(CloudKit)
+        guard let liveCoordinator = makeLiveCoordinatorIfAvailable() else {
+            return .unavailable
+        }
         return await liveCoordinator.accountAvailability()
         #else
         Self.logger.info("Codex cloud sync availability unavailable because CloudKit is not supported in this build.")
         return .unavailable
         #endif
     }
+
+    #if canImport(CloudKit)
+    private func makeLiveCoordinatorIfAvailable() -> CodexiCloudSyncLiveCoordinator? {
+        switch cloudKitBootstrapState {
+        case .ready:
+            if let liveCoordinator {
+                return liveCoordinator
+            }
+            let coordinator = CodexiCloudSyncLiveCoordinator(authManager: authManager)
+            liveCoordinator = coordinator
+            return coordinator
+        case .missingEntitlements:
+            Self.logger.error("CloudKit bootstrap skipped because the signed app is missing required iCloud entitlements.")
+            return nil
+        case .unreadableSigningInfo:
+            Self.logger.error("CloudKit bootstrap skipped because signing entitlements could not be read at runtime.")
+            return nil
+        }
+    }
+    #endif
 
     static func makeSnapshot(
         isEnabled: Bool,

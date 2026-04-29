@@ -610,3 +610,61 @@
 - 对 `v1` 状态的影响：
   - 代码实现层面：仍然完整
   - 真 CloudKit 运行态：当前被签名能力阻塞，尚不能宣称已完成跨设备 / 真容器验收
+
+## 2026-04-29 线上崩溃复盘：缺失 CloudKit entitlement 的发布包在启动期触发 `CKContainer` 崩溃
+- 现象：
+  - 线上 `2.1.20 (202604282246)` 用户启动即崩溃，主线程栈顶落在 `CloudKit`，调用链回溯到 `CodexiCloudSyncService.shared` 初始化。
+- 根因：
+  - app 启动时会立即构造 `CodexiCloudSyncService.shared`，其内部又立刻拿 `CodexiCloudSyncLiveCoordinator`。
+  - `CodexiCloudSyncLiveCoordinator` 初始化阶段同步执行 `CKContainer(identifier: "iCloud.nolon.overloaded.com")`。
+  - 当前 DMG 发布脚本 `scripts/build-dmg.sh` 使用 `CODE_SIGNING_ALLOWED=NO` 产出未签名 `.app`，随后再手工 `codesign --deep --options runtime --sign ...`。
+  - 该手工签名命令之前没有显式带 `--entitlements nolon/nolon.entitlements`，导致发布包最终缺少 CloudKit 所需 entitlement。
+  - 在缺 entitlement 的线上包里，`CKContainer(identifier:)` 会在 CloudKit 框架内部直接触发 `SIGTRAP`，所以崩溃发生在业务层拿到任何 `CKError` 之前。
+- 修复：
+  - app 侧新增运行时 entitlement 预检：
+    - 通过 `SecStaticCodeCreateWithPath` + `SecCodeCopySigningInformation` 读取当前签名 entitlement。
+    - 若缺少 `com.apple.developer.icloud-container-identifiers = iCloud.nolon.overloaded.com` 或 `com.apple.developer.icloud-services = CloudKit`，则不创建 `CodexiCloudSyncLiveCoordinator`，CloudKit 可用性直接降级为 `unavailable`。
+  - `CodexiCloudSyncService` 改为惰性创建 `CodexiCloudSyncLiveCoordinator`，避免 app 启动时无条件触发 `CKContainer`。
+  - 打包脚本 `scripts/build-dmg.sh` 在手工签名 app 时显式追加 `--entitlements nolon/nolon.entitlements`，避免再次产出缺 entitlement 的发布包。
+- 新增验证：
+  - `nolonTests/CodexiCloudSyncPresentationTests`
+    - 覆盖“缺 entitlement 时 bootstrap blocked”
+    - 覆盖“具备 required entitlement 时 bootstrap ready”
+  - `xcodebuild -project nolon.xcodeproj -scheme nolon-tests -configuration Debug -sdk macosx test CODE_SIGNING_ALLOWED=NO -only-testing:nolonTests/CodexiCloudSyncPresentationTests -quiet` 通过
+  - `bash -n scripts/build-dmg.sh` 通过
+- 当前结论：
+  - 这次不是 CloudKit 业务同步逻辑错误，而是“发布包签名缺 entitlement + 启动期 eager bootstrap”叠加导致的 crash。
+  - 即使后续外部签名再次失配，新的运行时代码也会退化为“CloudKit 不可用”而不是“app 启动即崩”。
+
+## 2026-04-29 本地发布验证补充：仅补 entitlement 不足以让 CloudKit / Push 版 app 可启动
+- 现象：
+  - 修复 `SIGTRAP` 后，手工重签的本地 app 已能通过 `codesign --verify --deep --strict` 与 `spctl -a -vv`。
+  - 但从 `/Applications/nolon.app` 真实启动时，仍在 launchd 阶段失败：
+    - `RBSRequestErrorDomain Code=5`
+    - `NSPOSIXErrorDomain Code=163`
+    - `Launchd job spawn failed`
+- 系统日志关键证据：
+  - `taskgated-helper`: `Unsatisfied entitlements: com.apple.developer.icloud-container-identifiers, com.apple.developer.aps-environment, com.apple.developer.icloud-services`
+  - `amfid`: `No matching profile found`
+  - `kernel`: `Code has restricted entitlements, but the validation of its code signature failed.`
+- 根因判断：
+  - 对 macOS 上带 CloudKit / Push 这类 restricted entitlements 的 app，仅在手工 `codesign` 时补 `--entitlements` 还不够。
+  - 若 bundle 内没有匹配的 `Contents/embedded.provisionprofile`，AMFI 会在进程真正启动前拒绝执行，导致表面上看成 LaunchServices / launchd 失败。
+- 对照验证：
+  - 手工重签产物：
+    - entitlement 存在
+    - `embedded.provisionprofile` 缺失
+    - launch 失败
+  - Xcode 自动签名的 Release 产物：
+    - entitlement 存在
+    - `Contents/embedded.provisionprofile` 存在
+    - LaunchServices 可正常拉起进程
+- 脚本治理更新：
+  - `scripts/build-dmg.sh` 已新增：
+    - restricted entitlement 检测（`aps-environment / icloud-container-identifiers / icloud-services`）
+    - `EMBEDDED_PROVISION_PROFILE_PATH` 注入入口
+    - 若检测到 restricted entitlements 且 bundle 中缺 `embedded.provisionprofile`，则直接 fail fast，不再继续产出假绿 DMG
+- 当前边界：
+  - 代码层 crash 已修。
+  - 发布脚本现在会阻止“无 profile 的 CloudKit 包”继续冒充可发布产物。
+  - 真正的正式发版仍需要一份和 `nolon.overloaded.com` / CloudKit / Push capability 匹配的 provisioning profile 输入到打包流程，或改走 Xcode 官方签名产物链路。

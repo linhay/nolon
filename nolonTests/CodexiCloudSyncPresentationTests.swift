@@ -309,5 +309,28 @@ struct CodexiCloudSyncPresentationTests {
         #expect(ProviderUsageAccountsViewModel.CodexState.canAdoptRemoteCloudConflict(for: conflictState) == true)
         #expect(ProviderUsageAccountsViewModel.CodexState.canAdoptRemoteCloudConflict(for: invalidState) == false)
     }
+
+    @Test("BDD: Given signing entitlements missing CloudKit container when evaluating runtime bootstrap then CloudKit startup is blocked")
+    func testBDD_GivenMissingCloudKitEntitlements_WhenEvaluatingRuntimeBootstrap_ThenStartupIsBlocked() {
+        let bootstrapState = CodexiCloudSyncCloudKitRuntimeSupport.bootstrapState(
+            signingEntitlements: [
+                "com.apple.developer.icloud-services": ["CloudKit"]
+            ]
+        )
+
+        #expect(bootstrapState == .missingEntitlements)
+    }
+
+    @Test("BDD: Given signing entitlements include required CloudKit container when evaluating runtime bootstrap then CloudKit startup is allowed")
+    func testBDD_GivenRequiredCloudKitEntitlements_WhenEvaluatingRuntimeBootstrap_ThenStartupIsAllowed() {
+        let bootstrapState = CodexiCloudSyncCloudKitRuntimeSupport.bootstrapState(
+            signingEntitlements: [
+                "com.apple.developer.icloud-container-identifiers": ["iCloud.nolon.overloaded.com"],
+                "com.apple.developer.icloud-services": ["CloudKit"]
+            ]
+        )
+
+        #expect(bootstrapState == .ready)
+    }
     #endif
 }
