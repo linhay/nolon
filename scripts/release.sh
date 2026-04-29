@@ -16,8 +16,8 @@
 #   XCODE_SIGNING_CERTIFICATE="Developer ID Application: ..."
 #   XCODE_PROVISIONING_PROFILE_SPECIFIER="Profile Name"
 #   RELEASE_CHANNEL=stable  Release channel: stable|beta
+#   RELEASE_PUSH_BRANCH=main Target branch to receive the release commit when running from detached HEAD
 #   CI_TAG_MODE=1           Tag-trigger mode: skip creating tag, commit appcast back to RELEASE_PUSH_BRANCH
-#   RELEASE_PUSH_BRANCH=main Target branch for appcast sync when CI_TAG_MODE=1
 #   UPLOAD_RETRIES=5        Retry count for each asset upload
 #   UPLOAD_SLEEP_BASE=5     Base sleep seconds between retries (exponential-ish)
 #   UPLOAD_TIMEOUT_SECONDS=1800  Per-asset upload timeout in seconds (30 min default)
@@ -57,6 +57,20 @@ fi
 TAG="v${VERSION}"
 CI_TAG_MODE="${CI_TAG_MODE:-0}"
 RELEASE_CHANNEL="${RELEASE_CHANNEL:-stable}"
+CURRENT_BRANCH="$(git symbolic-ref --quiet --short HEAD || true)"
+if [ -n "${RELEASE_PUSH_BRANCH:-}" ]; then
+    PUSH_BRANCH="${RELEASE_PUSH_BRANCH}"
+elif [ -n "$CURRENT_BRANCH" ]; then
+    PUSH_BRANCH="$CURRENT_BRANCH"
+else
+    PUSH_BRANCH="$(git remote show origin 2>/dev/null | sed -n 's/.*HEAD branch: //p' | head -n1)"
+fi
+
+if [ -z "$PUSH_BRANCH" ]; then
+    echo -e "${RED}❌ Could not determine push branch for release commit.${NC}"
+    echo -e "${YELLOW}Set RELEASE_PUSH_BRANCH explicitly and re-run:${NC} RELEASE_PUSH_BRANCH=main ./scripts/release.sh ${VERSION}${NC}"
+    exit 1
+fi
 
 case "${RELEASE_CHANNEL}" in
     stable|beta) ;;
@@ -372,13 +386,12 @@ fi
 if git diff --cached --quiet; then
     echo -e "${YELLOW}ℹ️  No git changes to commit for this run.${NC}"
 elif [ "$CI_TAG_MODE" = "1" ]; then
-    RELEASE_PUSH_BRANCH="${RELEASE_PUSH_BRANCH:-main}"
     git commit -m "chore(release): sync appcast for ${TAG}"
-    git push origin "HEAD:${RELEASE_PUSH_BRANCH}"
+    git push origin "HEAD:refs/heads/${PUSH_BRANCH}"
 else
     git commit -m "chore(release): ${TAG}"
     git tag -a "${TAG}" -m "${APP_NAME} ${VERSION}"
-    git push origin HEAD
+    git push origin "HEAD:refs/heads/${PUSH_BRANCH}"
     git push origin "${TAG}"
 fi
 
