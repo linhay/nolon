@@ -24,6 +24,7 @@ XCODE_ARCHIVE_SIGNING_STYLE="${XCODE_ARCHIVE_SIGNING_STYLE:-automatic}"
 XCODE_ARCHIVE_SIGNING_CERTIFICATE="${XCODE_ARCHIVE_SIGNING_CERTIFICATE:-}"
 XCODE_ARCHIVE_PROVISIONING_PROFILE_SPECIFIER="${XCODE_ARCHIVE_PROVISIONING_PROFILE_SPECIFIER:-}"
 XCODE_ARCHIVE_ALLOW_PROVISIONING_UPDATES="${XCODE_ARCHIVE_ALLOW_PROVISIONING_UPDATES:-1}"
+XCODE_ARCHIVE_TARGET_LEVEL_MANUAL_SIGNING="${XCODE_ARCHIVE_TARGET_LEVEL_MANUAL_SIGNING:-0}"
 XCODE_EXPORT_SIGNING_STYLE="${XCODE_EXPORT_SIGNING_STYLE:-${XCODE_SIGNING_STYLE:-automatic}}"
 XCODE_EXPORT_SIGNING_CERTIFICATE="${XCODE_EXPORT_SIGNING_CERTIFICATE:-${XCODE_SIGNING_CERTIFICATE:-${SIGNING_IDENTITY:-}}}"
 XCODE_EXPORT_PROVISIONING_PROFILE_SPECIFIER="${XCODE_EXPORT_PROVISIONING_PROFILE_SPECIFIER:-${XCODE_PROVISIONING_PROFILE_SPECIFIER:-}}"
@@ -231,6 +232,71 @@ EOF
 EOF
 }
 
+prepare_xcode_project_archive_signing_override() {
+    local backup_ref_name="$1"
+
+    if [ "$XCODE_ARCHIVE_TARGET_LEVEL_MANUAL_SIGNING" != "1" ]; then
+        return 0
+    fi
+
+    if [ -z "$XCODE_ARCHIVE_SIGNING_CERTIFICATE" ] || [ -z "$XCODE_ARCHIVE_PROVISIONING_PROFILE_SPECIFIER" ]; then
+        echo -e "${RED}❌ XCODE_ARCHIVE_TARGET_LEVEL_MANUAL_SIGNING=1 requires XCODE_ARCHIVE_SIGNING_CERTIFICATE and XCODE_ARCHIVE_PROVISIONING_PROFILE_SPECIFIER.${NC}"
+        return 1
+    fi
+
+    local project_backup
+    project_backup="$(mktemp "${PROJECT}.archive-signing.XXXXXX")"
+    cp "$PROJECT" "$project_backup"
+    eval "${backup_ref_name}=\"${project_backup}\""
+
+    python3 - "$PROJECT" "$XCODE_TEAM_ID" "$XCODE_ARCHIVE_SIGNING_CERTIFICATE" "$XCODE_ARCHIVE_PROVISIONING_PROFILE_SPECIFIER" <<'PY'
+import re
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+team = sys.argv[2]
+identity = sys.argv[3]
+profile = sys.argv[4]
+text = path.read_text()
+
+pattern = re.compile(
+    r'(CD2B1A9F2F1F624A00DF4A2B /\* Release \*/ = \{\s*isa = XCBuildConfiguration;\s*buildSettings = \{\n)(.*?)(\s*\};\s*name = Release;\s*\};)',
+    re.S,
+)
+match = pattern.search(text)
+if not match:
+    raise SystemExit("Could not locate nolon Release build configuration block in project.pbxproj")
+
+settings = match.group(2)
+settings = re.sub(r'\n\s*CODE_SIGN_STYLE = [^;]+;', '\n\t\t\t\tCODE_SIGN_STYLE = Manual;', settings)
+settings = re.sub(r'\n\s*DEVELOPMENT_TEAM = [^;]+;', f'\n\t\t\t\tDEVELOPMENT_TEAM = {team};', settings)
+settings = re.sub(r'\n\s*CODE_SIGN_IDENTITY = [^;]+;', '', settings)
+settings = re.sub(r'\n\s*PROVISIONING_PROFILE_SPECIFIER = [^;]+;', '', settings)
+
+anchor = f'\n\t\t\t\tDEVELOPMENT_TEAM = {team};'
+insertion = (
+    anchor
+    + f'\n\t\t\t\tCODE_SIGN_IDENTITY = "{identity}";'
+    + f'\n\t\t\t\tPROVISIONING_PROFILE_SPECIFIER = "{profile}";'
+)
+if anchor not in settings:
+    raise SystemExit("Could not find DEVELOPMENT_TEAM anchor in nolon Release build settings")
+settings = settings.replace(anchor, insertion, 1)
+
+updated = text[:match.start()] + match.group(1) + settings + match.group(3) + text[match.end():]
+path.write_text(updated)
+PY
+}
+
+restore_xcode_project_archive_signing_override() {
+    local project_backup="$1"
+
+    if [ -n "$project_backup" ] && [ -f "$project_backup" ]; then
+        mv "$project_backup" "$PROJECT"
+    fi
+}
+
 # Function to sign the app
 sign_app() {
     local app_path="$1"
@@ -318,6 +384,7 @@ build_for_arch() {
         local archive_path="${BUILD_DIR}-${build_suffix}/${APP_NAME}-${arch}.xcarchive"
         local export_path="${BUILD_DIR}-${build_suffix}/export-${arch}"
         local export_options_plist="${BUILD_DIR}-${build_suffix}/export-options-${arch}.plist"
+        local project_backup_path=""
         local archive_args=(
             "${XCODEBUILD_PACKAGE_FLAGS[@]}"
             -project "$PROJECT"
@@ -330,14 +397,19 @@ build_for_arch() {
             archive
         )
 
-        if [ "$XCODE_ARCHIVE_SIGNING_STYLE" = "automatic" ] && [ "$XCODE_ARCHIVE_ALLOW_PROVISIONING_UPDATES" = "1" ]; then
+        if [ "$XCODE_ARCHIVE_TARGET_LEVEL_MANUAL_SIGNING" != "1" ] && [ "$XCODE_ARCHIVE_SIGNING_STYLE" = "automatic" ] && [ "$XCODE_ARCHIVE_ALLOW_PROVISIONING_UPDATES" = "1" ]; then
             archive_args+=(-allowProvisioningUpdates)
         fi
+
+        prepare_xcode_project_archive_signing_override project_backup_path || return 1
 
         append_xcode_signing_build_settings archive_args archive
 
         echo -e "${YELLOW}🧾 Using Xcode official signing chain (archive/export).${NC}"
+        trap 'restore_xcode_project_archive_signing_override "$project_backup_path"' RETURN
         xcodebuild "${archive_args[@]}"
+        trap - RETURN
+        restore_xcode_project_archive_signing_override "$project_backup_path"
 
         create_export_options_plist "$export_options_plist"
 
