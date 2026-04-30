@@ -19,10 +19,13 @@ APP_ENTITLEMENTS_PATH="nolon/nolon.entitlements"
 EMBEDDED_PROVISION_PROFILE_PATH="${EMBEDDED_PROVISION_PROFILE_PATH:-}"
 USE_XCODE_OFFICIAL_SIGNING="${USE_XCODE_OFFICIAL_SIGNING:-1}"
 XCODE_EXPORT_METHOD="${XCODE_EXPORT_METHOD:-developer-id}"
-XCODE_SIGNING_STYLE="${XCODE_SIGNING_STYLE:-automatic}"
 XCODE_TEAM_ID="${XCODE_TEAM_ID:-3L8RM3MDLS}"
-XCODE_SIGNING_CERTIFICATE="${XCODE_SIGNING_CERTIFICATE:-${SIGNING_IDENTITY:-}}"
-XCODE_PROVISIONING_PROFILE_SPECIFIER="${XCODE_PROVISIONING_PROFILE_SPECIFIER:-}"
+XCODE_ARCHIVE_SIGNING_STYLE="${XCODE_ARCHIVE_SIGNING_STYLE:-automatic}"
+XCODE_ARCHIVE_SIGNING_CERTIFICATE="${XCODE_ARCHIVE_SIGNING_CERTIFICATE:-}"
+XCODE_ARCHIVE_PROVISIONING_PROFILE_SPECIFIER="${XCODE_ARCHIVE_PROVISIONING_PROFILE_SPECIFIER:-}"
+XCODE_EXPORT_SIGNING_STYLE="${XCODE_EXPORT_SIGNING_STYLE:-${XCODE_SIGNING_STYLE:-automatic}}"
+XCODE_EXPORT_SIGNING_CERTIFICATE="${XCODE_EXPORT_SIGNING_CERTIFICATE:-${XCODE_SIGNING_CERTIFICATE:-${SIGNING_IDENTITY:-}}}"
+XCODE_EXPORT_PROVISIONING_PROFILE_SPECIFIER="${XCODE_EXPORT_PROVISIONING_PROFILE_SPECIFIER:-${XCODE_PROVISIONING_PROFILE_SPECIFIER:-}}"
 
 # Colors for output
 RED='\033[0;31m'
@@ -62,7 +65,7 @@ validate_xcode_official_signing_inputs() {
         return 0
     fi
 
-    if [ "$XCODE_EXPORT_METHOD" = "developer-id" ] && [ -z "$XCODE_PROVISIONING_PROFILE_SPECIFIER" ]; then
+    if [ "$XCODE_EXPORT_METHOD" = "developer-id" ] && [ -z "$XCODE_EXPORT_PROVISIONING_PROFILE_SPECIFIER" ]; then
         echo -e "${RED}❌ Xcode official signing with method=developer-id requires XCODE_PROVISIONING_PROFILE_SPECIFIER.${NC}"
         echo -e "${RED}   Provide the Developer ID provisioning profile name for bundle id nolon.overloaded.com before packaging.${NC}"
         return 1
@@ -151,29 +154,43 @@ validate_embedded_profile_if_needed() {
 
 append_xcode_signing_build_settings() {
     local settings_ref_name="$1"
+    local phase="$2"
+    local signing_style
+    local signing_certificate
+    local provisioning_profile_specifier
 
     if [ -n "$XCODE_TEAM_ID" ]; then
         eval "${settings_ref_name}+=(\"DEVELOPMENT_TEAM=${XCODE_TEAM_ID}\")"
     fi
 
-    if [ "$XCODE_SIGNING_STYLE" = "manual" ]; then
+    if [ "$phase" = "archive" ]; then
+        signing_style="$XCODE_ARCHIVE_SIGNING_STYLE"
+        signing_certificate="$XCODE_ARCHIVE_SIGNING_CERTIFICATE"
+        provisioning_profile_specifier="$XCODE_ARCHIVE_PROVISIONING_PROFILE_SPECIFIER"
+    else
+        signing_style="$XCODE_EXPORT_SIGNING_STYLE"
+        signing_certificate="$XCODE_EXPORT_SIGNING_CERTIFICATE"
+        provisioning_profile_specifier="$XCODE_EXPORT_PROVISIONING_PROFILE_SPECIFIER"
+    fi
+
+    if [ "$signing_style" = "manual" ]; then
         eval "${settings_ref_name}+=(\"CODE_SIGN_STYLE=Manual\")"
 
-        if [ -n "$XCODE_SIGNING_CERTIFICATE" ]; then
-            eval "${settings_ref_name}+=(\"CODE_SIGN_IDENTITY=${XCODE_SIGNING_CERTIFICATE}\")"
+        if [ -n "$signing_certificate" ]; then
+            eval "${settings_ref_name}+=(\"CODE_SIGN_IDENTITY=${signing_certificate}\")"
         fi
 
-        if [ -n "$XCODE_PROVISIONING_PROFILE_SPECIFIER" ]; then
-            eval "${settings_ref_name}+=(\"PROVISIONING_PROFILE_SPECIFIER=${XCODE_PROVISIONING_PROFILE_SPECIFIER}\")"
+        if [ -n "$provisioning_profile_specifier" ]; then
+            eval "${settings_ref_name}+=(\"PROVISIONING_PROFILE_SPECIFIER=${provisioning_profile_specifier}\")"
         fi
     fi
 }
 
 create_export_options_plist() {
     local plist_path="$1"
-    local export_signing_style="$XCODE_SIGNING_STYLE"
+    local export_signing_style="$XCODE_EXPORT_SIGNING_STYLE"
 
-    if [ -n "$XCODE_PROVISIONING_PROFILE_SPECIFIER" ]; then
+    if [ -n "$XCODE_EXPORT_PROVISIONING_PROFILE_SPECIFIER" ]; then
         export_signing_style="manual"
     fi
 
@@ -190,19 +207,19 @@ create_export_options_plist() {
     <string>${XCODE_TEAM_ID}</string>
 EOF
 
-    if [ -n "$XCODE_SIGNING_CERTIFICATE" ]; then
+    if [ -n "$XCODE_EXPORT_SIGNING_CERTIFICATE" ]; then
         cat >> "$plist_path" <<EOF
     <key>signingCertificate</key>
-    <string>${XCODE_SIGNING_CERTIFICATE}</string>
+    <string>${XCODE_EXPORT_SIGNING_CERTIFICATE}</string>
 EOF
     fi
 
-    if [ -n "$XCODE_PROVISIONING_PROFILE_SPECIFIER" ]; then
+    if [ -n "$XCODE_EXPORT_PROVISIONING_PROFILE_SPECIFIER" ]; then
         cat >> "$plist_path" <<EOF
     <key>provisioningProfiles</key>
     <dict>
         <key>nolon.overloaded.com</key>
-        <string>${XCODE_PROVISIONING_PROFILE_SPECIFIER}</string>
+        <string>${XCODE_EXPORT_PROVISIONING_PROFILE_SPECIFIER}</string>
     </dict>
 EOF
     fi
@@ -312,7 +329,7 @@ build_for_arch() {
             archive
         )
 
-        append_xcode_signing_build_settings archive_args
+        append_xcode_signing_build_settings archive_args archive
 
         echo -e "${YELLOW}🧾 Using Xcode official signing chain (archive/export).${NC}"
         xcodebuild "${archive_args[@]}"

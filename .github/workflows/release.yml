@@ -70,7 +70,9 @@ jobs:
             SPARKLE_KEYCHAIN_ACCOUNT
             MACOS_CERTIFICATE_P12_BASE64
             MACOS_CERTIFICATE_P12_PASSWORD
+            MACOS_ARCHIVE_PROVISIONING_PROFILE_BASE64
             MACOS_PROVISIONING_PROFILE_BASE64
+            XCODE_ARCHIVE_PROVISIONING_PROFILE_SPECIFIER
             XCODE_PROVISIONING_PROFILE_SPECIFIER
             SIGNING_IDENTITY
             NOTARY_PROFILE
@@ -115,7 +117,9 @@ jobs:
           SPARKLE_KEYCHAIN_ACCOUNT_SECRET: ${{ secrets.SPARKLE_KEYCHAIN_ACCOUNT }}
           MACOS_CERTIFICATE_P12_BASE64_SECRET: ${{ secrets.MACOS_CERTIFICATE_P12_BASE64 }}
           MACOS_CERTIFICATE_P12_PASSWORD_SECRET: ${{ secrets.MACOS_CERTIFICATE_P12_PASSWORD }}
+          MACOS_ARCHIVE_PROVISIONING_PROFILE_BASE64_SECRET: ${{ secrets.MACOS_ARCHIVE_PROVISIONING_PROFILE_BASE64 }}
           MACOS_PROVISIONING_PROFILE_BASE64_SECRET: ${{ secrets.MACOS_PROVISIONING_PROFILE_BASE64 }}
+          XCODE_ARCHIVE_PROVISIONING_PROFILE_SPECIFIER_SECRET: ${{ secrets.XCODE_ARCHIVE_PROVISIONING_PROFILE_SPECIFIER }}
           XCODE_PROVISIONING_PROFILE_SPECIFIER_SECRET: ${{ secrets.XCODE_PROVISIONING_PROFILE_SPECIFIER }}
           SIGNING_IDENTITY_SECRET: ${{ secrets.SIGNING_IDENTITY }}
           NOTARY_PROFILE_SECRET: ${{ secrets.NOTARY_PROFILE }}
@@ -128,7 +132,9 @@ jobs:
           : "${SPARKLE_KEYCHAIN_ACCOUNT:=${SPARKLE_KEYCHAIN_ACCOUNT_SECRET:-}}"
           : "${MACOS_CERTIFICATE_P12_BASE64:=${MACOS_CERTIFICATE_P12_BASE64_SECRET:-}}"
           : "${MACOS_CERTIFICATE_P12_PASSWORD:=${MACOS_CERTIFICATE_P12_PASSWORD_SECRET:-}}"
+          : "${MACOS_ARCHIVE_PROVISIONING_PROFILE_BASE64:=${MACOS_ARCHIVE_PROVISIONING_PROFILE_BASE64_SECRET:-}}"
           : "${MACOS_PROVISIONING_PROFILE_BASE64:=${MACOS_PROVISIONING_PROFILE_BASE64_SECRET:-}}"
+          : "${XCODE_ARCHIVE_PROVISIONING_PROFILE_SPECIFIER:=${XCODE_ARCHIVE_PROVISIONING_PROFILE_SPECIFIER_SECRET:-}}"
           : "${XCODE_PROVISIONING_PROFILE_SPECIFIER:=${XCODE_PROVISIONING_PROFILE_SPECIFIER_SECRET:-}}"
           : "${SIGNING_IDENTITY:=${SIGNING_IDENTITY_SECRET:-}}"
           : "${NOTARY_PROFILE:=${NOTARY_PROFILE_SECRET:-}}"
@@ -148,6 +154,16 @@ jobs:
 
           if [ "${HAS_LOCAL_RELEASE_ENV}" != "1" ] && { [ -z "${MACOS_CERTIFICATE_P12_BASE64:-}" ] || [ -z "${MACOS_CERTIFICATE_P12_PASSWORD:-}" ]; }; then
             echo "Missing required secrets for hosted release: MACOS_CERTIFICATE_P12_BASE64 / MACOS_CERTIFICATE_P12_PASSWORD"
+            exit 1
+          fi
+
+          if [ -z "${MACOS_ARCHIVE_PROVISIONING_PROFILE_BASE64:-}" ]; then
+            echo "Missing required archive provisioning profile payload: MACOS_ARCHIVE_PROVISIONING_PROFILE_BASE64"
+            exit 1
+          fi
+
+          if [ -z "${XCODE_ARCHIVE_PROVISIONING_PROFILE_SPECIFIER:-}" ]; then
+            echo "Missing required archive provisioning profile name: XCODE_ARCHIVE_PROVISIONING_PROFILE_SPECIFIER"
             exit 1
           fi
 
@@ -217,46 +233,69 @@ jobs:
           security find-identity -v -p codesigning "${KEYCHAIN_PATH}"
           rm -f "${CERT_PATH}"
 
-      - name: Install provisioning profile
+      - name: Install provisioning profiles
         env:
+          MACOS_ARCHIVE_PROVISIONING_PROFILE_BASE64_SECRET: ${{ secrets.MACOS_ARCHIVE_PROVISIONING_PROFILE_BASE64 }}
           MACOS_PROVISIONING_PROFILE_BASE64_SECRET: ${{ secrets.MACOS_PROVISIONING_PROFILE_BASE64 }}
+          XCODE_ARCHIVE_PROVISIONING_PROFILE_SPECIFIER_SECRET: ${{ secrets.XCODE_ARCHIVE_PROVISIONING_PROFILE_SPECIFIER }}
           XCODE_PROVISIONING_PROFILE_SPECIFIER_SECRET: ${{ secrets.XCODE_PROVISIONING_PROFILE_SPECIFIER }}
         run: |
           set -euo pipefail
+          : "${MACOS_ARCHIVE_PROVISIONING_PROFILE_BASE64:=${MACOS_ARCHIVE_PROVISIONING_PROFILE_BASE64_SECRET:-}}"
           : "${MACOS_PROVISIONING_PROFILE_BASE64:=${MACOS_PROVISIONING_PROFILE_BASE64_SECRET:-}}"
+          : "${XCODE_ARCHIVE_PROVISIONING_PROFILE_SPECIFIER:=${XCODE_ARCHIVE_PROVISIONING_PROFILE_SPECIFIER_SECRET:-}}"
           : "${XCODE_PROVISIONING_PROFILE_SPECIFIER:=${XCODE_PROVISIONING_PROFILE_SPECIFIER_SECRET:-}}"
 
-          if [ -z "${MACOS_PROVISIONING_PROFILE_BASE64:-}" ]; then
+          if [ -z "${MACOS_ARCHIVE_PROVISIONING_PROFILE_BASE64:-}" ] || [ -z "${MACOS_PROVISIONING_PROFILE_BASE64:-}" ]; then
             echo "Missing provisioning profile payload."
             exit 1
           fi
 
-          if [ -z "${XCODE_PROVISIONING_PROFILE_SPECIFIER:-}" ]; then
+          if [ -z "${XCODE_ARCHIVE_PROVISIONING_PROFILE_SPECIFIER:-}" ] || [ -z "${XCODE_PROVISIONING_PROFILE_SPECIFIER:-}" ]; then
             echo "Missing provisioning profile name."
             exit 1
           fi
 
           PROFILE_DIR="${HOME}/Library/MobileDevice/Provisioning Profiles"
-          PROFILE_PATH="${PROFILE_DIR}/nolon-release.provisionprofile"
-          PROFILE_PLIST="${RUNNER_TEMP}/nolon-release-profile.plist"
           mkdir -p "${PROFILE_DIR}"
-          printf '%s' "${MACOS_PROVISIONING_PROFILE_BASE64}" | base64 --decode > "${PROFILE_PATH}"
+          
+          install_profile() {
+            local payload="$1"
+            local expected_name="$2"
+            local profile_path="$3"
+            local profile_plist="$4"
 
-          if ! security cms -D -i "${PROFILE_PATH}" > "${PROFILE_PLIST}"; then
-            echo "Failed to decode provisioning profile payload."
-            wc -c "${PROFILE_PATH}" || true
-            exit 1
-          fi
+            printf '%s' "${payload}" | base64 --decode > "${profile_path}"
 
-          PROFILE_NAME="$(plutil -extract Name raw -o - "${PROFILE_PLIST}")"
-          PROFILE_APP_ID="$(/usr/libexec/PlistBuddy -c 'Print :Entitlements:com.apple.application-identifier' "${PROFILE_PLIST}")"
-          echo "Installed provisioning profile at ${PROFILE_PATH}"
-          echo "Profile name: ${PROFILE_NAME}"
-          echo "Profile app id: ${PROFILE_APP_ID}"
-          if [ "${PROFILE_NAME}" != "${XCODE_PROVISIONING_PROFILE_SPECIFIER}" ]; then
-            echo "Provisioning profile name mismatch. Expected '${XCODE_PROVISIONING_PROFILE_SPECIFIER}', got '${PROFILE_NAME}'."
-            exit 1
-          fi
+            if ! security cms -D -i "${profile_path}" > "${profile_plist}"; then
+              echo "Failed to decode provisioning profile payload."
+              wc -c "${profile_path}" || true
+              exit 1
+            fi
+
+            PROFILE_NAME="$(plutil -extract Name raw -o - "${profile_plist}")"
+            PROFILE_APP_ID="$(/usr/libexec/PlistBuddy -c 'Print :Entitlements:com.apple.application-identifier' "${profile_plist}")"
+            PROFILE_TYPE="$(plutil -extract ProvisionsAllDevices raw -o - "${profile_plist}" 2>/dev/null || true)"
+            echo "Installed provisioning profile at ${profile_path}"
+            echo "Profile name: ${PROFILE_NAME}"
+            echo "Profile app id: ${PROFILE_APP_ID}"
+            if [ "${PROFILE_NAME}" != "${expected_name}" ]; then
+              echo "Provisioning profile name mismatch. Expected '${expected_name}', got '${PROFILE_NAME}'."
+              exit 1
+            fi
+          }
+
+          install_profile \
+            "${MACOS_ARCHIVE_PROVISIONING_PROFILE_BASE64}" \
+            "${XCODE_ARCHIVE_PROVISIONING_PROFILE_SPECIFIER}" \
+            "${PROFILE_DIR}/nolon-archive.provisionprofile" \
+            "${RUNNER_TEMP}/nolon-archive-profile.plist"
+
+          install_profile \
+            "${MACOS_PROVISIONING_PROFILE_BASE64}" \
+            "${XCODE_PROVISIONING_PROFILE_SPECIFIER}" \
+            "${PROFILE_DIR}/nolon-release.provisionprofile" \
+            "${RUNNER_TEMP}/nolon-release-profile.plist"
 
       - name: Run release script
         env:
@@ -264,6 +303,8 @@ jobs:
           SPARKLE_PRIVATE_KEY_SECRET: ${{ secrets.SPARKLE_PRIVATE_KEY }}
           SPARKLE_KEYCHAIN_ACCOUNT_SECRET: ${{ secrets.SPARKLE_KEYCHAIN_ACCOUNT }}
           MACOS_PROVISIONING_PROFILE_BASE64_SECRET: ${{ secrets.MACOS_PROVISIONING_PROFILE_BASE64 }}
+          MACOS_ARCHIVE_PROVISIONING_PROFILE_BASE64_SECRET: ${{ secrets.MACOS_ARCHIVE_PROVISIONING_PROFILE_BASE64 }}
+          XCODE_ARCHIVE_PROVISIONING_PROFILE_SPECIFIER_SECRET: ${{ secrets.XCODE_ARCHIVE_PROVISIONING_PROFILE_SPECIFIER }}
           XCODE_PROVISIONING_PROFILE_SPECIFIER_SECRET: ${{ secrets.XCODE_PROVISIONING_PROFILE_SPECIFIER }}
           SIGNING_IDENTITY_SECRET: ${{ secrets.SIGNING_IDENTITY }}
           NOTARY_PROFILE_SECRET: ${{ secrets.NOTARY_PROFILE }}
@@ -276,7 +317,9 @@ jobs:
         run: |
           : "${SPARKLE_PRIVATE_KEY:=${SPARKLE_PRIVATE_KEY_SECRET:-}}"
           : "${SPARKLE_KEYCHAIN_ACCOUNT:=${SPARKLE_KEYCHAIN_ACCOUNT_SECRET:-}}"
+          : "${MACOS_ARCHIVE_PROVISIONING_PROFILE_BASE64:=${MACOS_ARCHIVE_PROVISIONING_PROFILE_BASE64_SECRET:-}}"
           : "${MACOS_PROVISIONING_PROFILE_BASE64:=${MACOS_PROVISIONING_PROFILE_BASE64_SECRET:-}}"
+          : "${XCODE_ARCHIVE_PROVISIONING_PROFILE_SPECIFIER:=${XCODE_ARCHIVE_PROVISIONING_PROFILE_SPECIFIER_SECRET:-}}"
           : "${XCODE_PROVISIONING_PROFILE_SPECIFIER:=${XCODE_PROVISIONING_PROFILE_SPECIFIER_SECRET:-}}"
           : "${SIGNING_IDENTITY:=${SIGNING_IDENTITY_SECRET:-}}"
           : "${NOTARY_PROFILE:=${NOTARY_PROFILE_SECRET:-}}"
@@ -287,9 +330,10 @@ jobs:
           chmod +x scripts/release.sh scripts/build-dmg.sh
           export USE_XCODE_OFFICIAL_SIGNING=1
           export XCODE_EXPORT_METHOD=developer-id
-          export XCODE_SIGNING_STYLE=manual
-          export XCODE_SIGNING_CERTIFICATE="${SIGNING_IDENTITY}"
-          export XCODE_PROVISIONING_PROFILE_SPECIFIER="${XCODE_PROVISIONING_PROFILE_SPECIFIER}"
+          export XCODE_ARCHIVE_SIGNING_STYLE=automatic
+          export XCODE_EXPORT_SIGNING_STYLE=manual
+          export XCODE_EXPORT_SIGNING_CERTIFICATE="${SIGNING_IDENTITY}"
+          export XCODE_EXPORT_PROVISIONING_PROFILE_SPECIFIER="${XCODE_PROVISIONING_PROFILE_SPECIFIER}"
           if [ -n "${{ steps.params.outputs.changelog_file }}" ]; then
             ./scripts/release.sh "${{ steps.params.outputs.version }}" "${{ steps.params.outputs.changelog_file }}"
           else
@@ -301,4 +345,5 @@ jobs:
         run: |
           rm -f "${RUNNER_TEMP}/nolon-signing.p12" || true
           security delete-keychain "${RUNNER_TEMP}/nolon-signing.keychain-db" || true
+          rm -f "${HOME}/Library/MobileDevice/Provisioning Profiles/nolon-archive.provisionprofile" || true
           rm -f "${HOME}/Library/MobileDevice/Provisioning Profiles/nolon-release.provisionprofile" || true
