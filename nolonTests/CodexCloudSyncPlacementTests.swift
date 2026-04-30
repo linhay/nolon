@@ -7,8 +7,8 @@ import ProviderCatalog
 @MainActor
 @Suite("Codex Cloud Sync Placement")
 struct CodexCloudSyncPlacementTests {
-    @Test("advanced config page shows iCloud sync settings")
-    func advancedConfigPageShowsCloudSyncSettings() {
+    @Test("advanced config page hides iCloud sync settings when feature is off")
+    func advancedConfigPageHidesCloudSyncSettingsWhenFeatureIsOff() {
         ProviderUsageRootViewModelStore.shared.clear()
         let provider = makeCodexProvider()
 
@@ -16,8 +16,8 @@ struct CodexCloudSyncPlacementTests {
             CodexAdvancedConfigView(provider: provider)
         )
 
-        #expect(allTextValues(in: host.view).contains("Cloud Sync"))
-        #expect(allTextValues(in: host.view).contains("iCloud 同步"))
+        #expect(allTextValues(in: host.view).contains("Cloud Sync") == false)
+        #expect(allTextValues(in: host.view).contains("iCloud 同步") == false)
     }
 
     @Test("accounts page source no longer mounts iCloud sync card")

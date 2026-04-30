@@ -64,8 +64,8 @@ struct CodexiCloudSyncPresentationTests {
         #expect(snapshot.conflictCount == 1)
     }
 
-    @Test("BDD: Given failed cloud sync state when mapping account footer then tag and trailing text explain the problem")
-    func testBDD_GivenFailedCloudState_WhenMappingAccountFooter_ThenTagAndDetailAreReadable() {
+    @Test("BDD: Given failed cloud sync state when feature is off then account footer hides cloud sync tag and trailing text")
+    func testBDD_GivenFailedCloudState_WhenFeatureIsOff_ThenCloudSyncFooterStaysHidden() {
         let state = CodexCloudSyncState(
             accountID: UUID(),
             syncStatus: .invalidPending,
@@ -73,8 +73,8 @@ struct CodexiCloudSyncPresentationTests {
             lastError: "cloud tombstone blocked activation"
         )
 
-        #expect(ProviderUsageAccountsViewModel.CodexState.cloudSyncStatusTag(for: state) == "待修复")
-        #expect(ProviderUsageAccountsViewModel.CodexState.cloudSyncTrailingText(for: state) == "cloud tombstone blocked activation")
+        #expect(ProviderUsageAccountsViewModel.CodexState.cloudSyncStatusTag(for: state) == nil)
+        #expect(ProviderUsageAccountsViewModel.CodexState.cloudSyncTrailingText(for: state) == nil)
     }
 
     #if canImport(CloudKit)
@@ -310,27 +310,28 @@ struct CodexiCloudSyncPresentationTests {
         #expect(ProviderUsageAccountsViewModel.CodexState.canAdoptRemoteCloudConflict(for: invalidState) == false)
     }
 
-    @Test("BDD: Given signing entitlements missing CloudKit container when evaluating runtime bootstrap then CloudKit startup is blocked")
-    func testBDD_GivenMissingCloudKitEntitlements_WhenEvaluatingRuntimeBootstrap_ThenStartupIsBlocked() {
+    @Test("BDD: Given cloud sync is disabled by product when evaluating runtime bootstrap then CloudKit startup is blocked before entitlement checks")
+    func testBDD_GivenCloudSyncDisabledByProduct_WhenEvaluatingRuntimeBootstrap_ThenStartupIsBlockedBeforeEntitlementChecks() {
         let bootstrapState = CodexiCloudSyncCloudKitRuntimeSupport.bootstrapState(
             signingEntitlements: [
                 "com.apple.developer.icloud-services": ["CloudKit"]
             ]
         )
 
-        #expect(bootstrapState == .missingEntitlements)
+        #expect(bootstrapState == .productDisabled)
     }
 
-    @Test("BDD: Given signing entitlements include required CloudKit container when evaluating runtime bootstrap then CloudKit startup is allowed")
-    func testBDD_GivenRequiredCloudKitEntitlements_WhenEvaluatingRuntimeBootstrap_ThenStartupIsAllowed() {
-        let bootstrapState = CodexiCloudSyncCloudKitRuntimeSupport.bootstrapState(
-            signingEntitlements: [
-                "com.apple.developer.icloud-container-identifiers": ["iCloud.nolon.overloaded.com"],
-                "com.apple.developer.icloud-services": ["CloudKit"]
-            ]
+    @Test("BDD: Given cloud sync state is present on account cards when feature is off then cloud sync badges stay hidden")
+    func testBDD_GivenCloudSyncStatePresent_WhenFeatureIsOff_ThenCloudSyncBadgesStayHidden() {
+        let cloudState = CodexCloudSyncState(
+            accountID: UUID(),
+            lastSyncedAt: Date(timeIntervalSince1970: 456),
+            syncStatus: .synced,
+            isTombstone: false
         )
 
-        #expect(bootstrapState == .ready)
+        #expect(ProviderUsageAccountsViewModel.CodexState.cloudSyncStatusTag(for: cloudState) == nil)
+        #expect(ProviderUsageAccountsViewModel.CodexState.cloudSyncTrailingText(for: cloudState) == nil)
     }
     #endif
 }

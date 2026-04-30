@@ -384,14 +384,20 @@ enum CodexiCloudSyncCloudKitCodec {
 
 enum CodexiCloudSyncCloudKitRuntimeSupport {
     enum BootstrapState: Equatable {
+        case productDisabled
         case ready
         case missingEntitlements
         case unreadableSigningInfo
     }
 
+    nonisolated static let isProductEnabled = false
+
     nonisolated static func bootstrapState(
         signingEntitlements: [String: Any]? = currentSigningEntitlements()
     ) -> BootstrapState {
+        guard isProductEnabled else {
+            return .productDisabled
+        }
         guard let signingEntitlements else {
             return .unreadableSigningInfo
         }
@@ -843,7 +849,7 @@ final class CodexiCloudSyncService {
         var errorDescription: String? {
             switch self {
             case .cloudKitUnavailable:
-                return "当前构建不支持 CloudKit。"
+                return "当前构建未启用 iCloud 同步。"
             }
         }
     }
@@ -901,6 +907,11 @@ final class CodexiCloudSyncService {
     func start() {
         guard !UITestSupport.isRunningUnitTests else { return }
         guard bootstrapTask == nil else { return }
+        guard CodexiCloudSyncCloudKitRuntimeSupport.isProductEnabled else {
+            snapshot = Snapshot()
+            Self.logger.info("Codex cloud sync is disabled at the product level. Startup bootstrap skipped.")
+            return
+        }
         bootstrapTask = Task { [weak self] in
             guard let self else { return }
             defer { self.bootstrapTask = nil }
@@ -912,10 +923,22 @@ final class CodexiCloudSyncService {
     }
 
     func refresh() async {
+        guard CodexiCloudSyncCloudKitRuntimeSupport.isProductEnabled else {
+            snapshot = Snapshot()
+            return
+        }
         await refreshSnapshot(isSyncing: false)
     }
 
     func setEnabled(_ enabled: Bool) async {
+        guard CodexiCloudSyncCloudKitRuntimeSupport.isProductEnabled else {
+            if enabled {
+                Self.logger.info("Codex cloud sync enable request ignored because the feature is disabled at the product level.")
+            }
+            try? await authManager.setCloudSyncEnabled(false)
+            snapshot = Snapshot()
+            return
+        }
         do {
             try await authManager.setCloudSyncEnabled(enabled)
             Self.logger.info("Codex cloud sync toggle updated. enabled=\(enabled, privacy: .public)")
@@ -936,6 +959,10 @@ final class CodexiCloudSyncService {
     }
 
     func syncNow() async {
+        guard CodexiCloudSyncCloudKitRuntimeSupport.isProductEnabled else {
+            await refresh()
+            return
+        }
         guard syncTask == nil else {
             await syncTask?.value
             return
@@ -969,6 +996,9 @@ final class CodexiCloudSyncService {
     }
 
     func clearCloudData() async throws -> Int {
+        guard CodexiCloudSyncCloudKitRuntimeSupport.isProductEnabled else {
+            throw OperationError.cloudKitUnavailable
+        }
         #if canImport(CloudKit)
         guard let liveCoordinator = makeLiveCoordinatorIfAvailable() else {
             throw OperationError.cloudKitUnavailable
@@ -987,6 +1017,10 @@ final class CodexiCloudSyncService {
         isSyncing: Bool,
         transientError: String? = nil
     ) async {
+        guard CodexiCloudSyncCloudKitRuntimeSupport.isProductEnabled else {
+            snapshot = Snapshot()
+            return
+        }
         let isEnabled = (try? await authManager.cloudSyncConfiguration().isEnabled) ?? false
         let overview = (try? await authManager.cloudSyncOverview()) ?? CodexCloudSyncOverview()
         let availability = await resolveAvailability(isEnabled: isEnabled)
@@ -1021,6 +1055,9 @@ final class CodexiCloudSyncService {
     #if canImport(CloudKit)
     private func makeLiveCoordinatorIfAvailable() -> CodexiCloudSyncLiveCoordinator? {
         switch cloudKitBootstrapState {
+        case .productDisabled:
+            Self.logger.info("CloudKit bootstrap skipped because cloud sync is disabled at the product level.")
+            return nil
         case .ready:
             if let liveCoordinator {
                 return liveCoordinator
@@ -1167,10 +1204,6 @@ struct nolonApp: App {
         }
         .defaultSize(width: 1180, height: 780)
 
-        MenuBarExtra("nolon", systemImage: "arrow.triangle.2.circlepath.circle") {
-            CodexQuickSwitchMenuBarView()
-        }
-        .menuBarExtraStyle(.window)
     }
 
     @ViewBuilder
