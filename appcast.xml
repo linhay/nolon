@@ -2383,6 +2383,58 @@
 
     
         <item>
+            <title>2.2.2</title>
+            <pubDate>Thu, 30 Apr 2026 14:04:53 +0800</pubDate>
+            <sparkle:version>202604301346</sparkle:version>
+            <sparkle:shortVersionString>2.2.2</sparkle:shortVersionString>
+            <link>https://github.com/linhay/nolon/releases/download/v2.2.2/nolon-arm64.dmg</link>
+            <description><![CDATA[<div style="white-space: pre-wrap; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;">## nolon 2.2.2
+
+### Changes
+- fix: disable unstable menu bar extra
+- fix: support detached-head releases
+- fix: stabilize cloudkit release signing
+- ci(release): configure github automated packaging
+
+### Downloads
+
+| Platform | Architecture | Download |
+|----------|--------------|----------|
+| macOS | Apple Silicon (M1/M2/M3) | `nolon-arm64.dmg` |
+| macOS | Intel | `nolon-x86_64.dmg` |
+
+### Installation
+1. Download the appropriate DMG for your Mac
+   - **Apple Silicon** (M1, M2, M3 chips): `nolon-arm64.dmg`
+   - **Intel** (older Macs): `nolon-x86_64.dmg`
+2. Open the DMG and drag nolon to Applications
+3. Launch nolon from Applications
+
+### System Requirements
+- macOS 14.0 or later
+
+---
+*Built on 2026-04-30*</div>]]></description>
+            <enclosure url="https://github.com/linhay/nolon/releases/download/v2.2.2/nolon-arm64.dmg"
+                       sparkle:version="202604301346"
+                       sparkle:shortVersionString="2.2.2"
+                       sparkle:edSignature="5hUDgALmJYU0i/AjbMAZXszFamGZfBu0Sj8m7bfMaJcS6jM9iv8SE6nL69IkIdoGprSbldqaMhtJoBCQC03aAg=="
+                       length="12093395"
+                       type="application/x-apple-diskimage"
+                       sparkle:os="macos"
+                       xml:lang="en" />
+            <enclosure url="https://github.com/linhay/nolon/releases/download/v2.2.2/nolon-x86_64.dmg"
+                       sparkle:version="202604301346"
+                       sparkle:shortVersionString="2.2.2"
+                       sparkle:edSignature="AdBGkujLZO3rfmRhPfKbuyzZ2i+bHCScdGM4AGVjJQf54I2alY3XRqZLdKr4XkpVrVHcAyn5yFPMvntS0vD2Cw=="
+                       length="12924186"
+                       type="application/x-apple-diskimage"
+                       sparkle:os="macos"
+                       xml:lang="en" />
+        </item>
+
+    
+        <item>
             <title>2.1.20</title>
             <pubDate>Tue, 28 Apr 2026 22:56:37 +0800</pubDate>
             <sparkle:version>202604282246</sparkle:version>
