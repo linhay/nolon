@@ -156,8 +156,16 @@ append_xcode_signing_build_settings() {
         eval "${settings_ref_name}+=(\"DEVELOPMENT_TEAM=${XCODE_TEAM_ID}\")"
     fi
 
-    if [ "$XCODE_SIGNING_STYLE" = "manual" ] && [ -n "$XCODE_PROVISIONING_PROFILE_SPECIFIER" ]; then
-        eval "${settings_ref_name}+=(\"PROVISIONING_PROFILE_SPECIFIER=${XCODE_PROVISIONING_PROFILE_SPECIFIER}\")"
+    if [ "$XCODE_SIGNING_STYLE" = "manual" ]; then
+        eval "${settings_ref_name}+=(\"CODE_SIGN_STYLE=Manual\")"
+
+        if [ -n "$XCODE_SIGNING_CERTIFICATE" ]; then
+            eval "${settings_ref_name}+=(\"CODE_SIGN_IDENTITY=${XCODE_SIGNING_CERTIFICATE}\")"
+        fi
+
+        if [ -n "$XCODE_PROVISIONING_PROFILE_SPECIFIER" ]; then
+            eval "${settings_ref_name}+=(\"PROVISIONING_PROFILE_SPECIFIER=${XCODE_PROVISIONING_PROFILE_SPECIFIER}\")"
+        fi
     fi
 }
 
