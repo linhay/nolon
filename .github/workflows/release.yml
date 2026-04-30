@@ -289,6 +289,7 @@ jobs:
           export XCODE_EXPORT_METHOD=developer-id
           export XCODE_SIGNING_STYLE=automatic
           export XCODE_SIGNING_CERTIFICATE="${SIGNING_IDENTITY}"
+          export XCODE_PROVISIONING_PROFILE_SPECIFIER="${XCODE_PROVISIONING_PROFILE_SPECIFIER}"
           if [ -n "${{ steps.params.outputs.changelog_file }}" ]; then
             ./scripts/release.sh "${{ steps.params.outputs.version }}" "${{ steps.params.outputs.changelog_file }}"
           else
