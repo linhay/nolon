@@ -57,37 +57,39 @@ struct CodexAdvancedConfigView: View {
 
     var body: some View {
         NolonUI.ProviderTabScrollScaffold {
+            if CodexiCloudSyncCloudKitRuntimeSupport.isProductEnabled {
                 NolonUI.CodexAdvancedSectionHeaderView(
                     title: NSLocalizedString("codex.advanced.cloud_sync.title", value: "Cloud Sync", comment: "Cloud sync section title")
                 )
                 CodexCloudSyncSettingsView(provider: provider)
+            }
 
+            NolonUI.CodexAdvancedSectionHeaderView(
+                title: NSLocalizedString("codex.advanced.config.options.title", value: "Common Options", comment: "Common options")
+            )
+            commonOptionsSection
+
+            NolonUI.CodexAdvancedSectionHeaderView(
+                title: NSLocalizedString("codex.advanced.config.features.title", value: "Feature Flags", comment: "Feature flags")
+            )
+            featureFlagsSection
+
+            NolonUI.CodexAdvancedSectionHeaderView(
+                title: NSLocalizedString("codex.advanced.config.runtime.title", value: "History & Compaction", comment: "History and compaction")
+            )
+            runtimeControlsSection
+
+            NolonUI.CodexAdvancedSectionHeaderView(
+                title: NSLocalizedString("codex.advanced.config.multi_agent.title", value: "Multi-Agent Roles", comment: "Multi-agent roles")
+            )
+            multiAgentSection
+
+            if viewModel.isCodexXcodeProvider {
                 NolonUI.CodexAdvancedSectionHeaderView(
-                    title: NSLocalizedString("codex.advanced.config.options.title", value: "Common Options", comment: "Common options")
+                    title: NSLocalizedString("codex.advanced.xcode_links.title", value: "Xcode Folder Links", comment: "Xcode folder links section title")
                 )
-                commonOptionsSection
-
-                NolonUI.CodexAdvancedSectionHeaderView(
-                    title: NSLocalizedString("codex.advanced.config.features.title", value: "Feature Flags", comment: "Feature flags")
-                )
-                featureFlagsSection
-
-                NolonUI.CodexAdvancedSectionHeaderView(
-                    title: NSLocalizedString("codex.advanced.config.runtime.title", value: "History & Compaction", comment: "History and compaction")
-                )
-                runtimeControlsSection
-
-                NolonUI.CodexAdvancedSectionHeaderView(
-                    title: NSLocalizedString("codex.advanced.config.multi_agent.title", value: "Multi-Agent Roles", comment: "Multi-agent roles")
-                )
-                multiAgentSection
-
-                if viewModel.isCodexXcodeProvider {
-                    NolonUI.CodexAdvancedSectionHeaderView(
-                        title: NSLocalizedString("codex.advanced.xcode_links.title", value: "Xcode Folder Links", comment: "Xcode folder links section title")
-                    )
-                    xcodeFolderLinksSection
-                }
+                xcodeFolderLinksSection
+            }
         }
         .textSelection(.enabled)
         .task(id: provider.id) {

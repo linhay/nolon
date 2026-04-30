@@ -322,6 +322,7 @@ extension ProviderUsageAccountsViewModel.GeminiState {
 @MainActor
 extension ProviderUsageAccountsViewModel.CodexState {
     static func cloudSyncStatusTag(for state: CodexCloudSyncState?) -> String? {
+        guard CodexiCloudSyncCloudKitRuntimeSupport.isProductEnabled else { return nil }
         guard let state else { return nil }
         switch state.syncStatus {
         case .localOnly:
@@ -340,6 +341,7 @@ extension ProviderUsageAccountsViewModel.CodexState {
     }
 
     static func cloudSyncTrailingText(for state: CodexCloudSyncState?) -> String? {
+        guard CodexiCloudSyncCloudKitRuntimeSupport.isProductEnabled else { return nil }
         guard let state else { return nil }
         if let error = state.lastError?.trimmingCharacters(in: .whitespacesAndNewlines), !error.isEmpty {
             return error
