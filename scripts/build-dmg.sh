@@ -234,6 +234,7 @@ EOF
 
 prepare_xcode_project_archive_signing_override() {
     local backup_ref_name="$1"
+    local project_pbxproj="${PROJECT}/project.pbxproj"
 
     if [ "$XCODE_ARCHIVE_TARGET_LEVEL_MANUAL_SIGNING" != "1" ]; then
         return 0
@@ -245,11 +246,11 @@ prepare_xcode_project_archive_signing_override() {
     fi
 
     local project_backup
-    project_backup="$(mktemp "${PROJECT}.archive-signing.XXXXXX")"
-    cp "$PROJECT" "$project_backup"
+    project_backup="$(mktemp "${project_pbxproj}.archive-signing.XXXXXX")"
+    cp "$project_pbxproj" "$project_backup"
     eval "${backup_ref_name}=\"${project_backup}\""
 
-    python3 - "$PROJECT" "$XCODE_TEAM_ID" "$XCODE_ARCHIVE_SIGNING_CERTIFICATE" "$XCODE_ARCHIVE_PROVISIONING_PROFILE_SPECIFIER" <<'PY'
+    python3 - "$project_pbxproj" "$XCODE_TEAM_ID" "$XCODE_ARCHIVE_SIGNING_CERTIFICATE" "$XCODE_ARCHIVE_PROVISIONING_PROFILE_SPECIFIER" <<'PY'
 import re
 import sys
 from pathlib import Path
@@ -291,9 +292,10 @@ PY
 
 restore_xcode_project_archive_signing_override() {
     local project_backup="$1"
+    local project_pbxproj="${PROJECT}/project.pbxproj"
 
     if [ -n "$project_backup" ] && [ -f "$project_backup" ]; then
-        mv "$project_backup" "$PROJECT"
+        mv "$project_backup" "$project_pbxproj"
     fi
 }
 
