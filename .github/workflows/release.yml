@@ -34,8 +34,8 @@ jobs:
   release:
     name: Build and Publish Release
     # Repo currently has no registered self-hosted runners. Use GitHub-hosted
-    # macOS so manual and tag-driven releases remain executable.
-    runs-on: macos-15
+    # macOS 26 so Swift tools version 6.2 packages resolve under Xcode 26.
+    runs-on: macos-26
 
     steps:
       - name: Checkout
