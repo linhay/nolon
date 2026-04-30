@@ -268,6 +268,11 @@ extension CodexAuthManager {
             changed = true
         }
 
+        let shouldPopulateFetchedEmail = firstNonEmptyString(in: root, keys: ["email", "user.email", "nolon.account.email"]) == nil
+        let shouldPopulateFetchedTokenAccountID = firstNonEmptyString(in: tokens, keys: ["account_id", "accountId"]) == nil
+        let shouldPopulateFetchedRootAccountID = firstNonEmptyString(in: root, keys: ["chatgpt_account_id", "chatgptAccountId", "account_id", "accountId"]) == nil
+        let shouldPopulateFetchedPlanType = firstNonEmptyString(in: root, keys: ["plan_type", "planType"]) == nil
+        let shouldPopulateFetchedPlan = firstNonEmptyString(in: root, keys: ["plan", "subscription.plan", "account.plan"]) == nil
         let accessToken = firstNonEmptyString(in: tokens, keys: ["access_token", "accessToken"])
             ?? firstNonEmptyString(in: root, keys: ["access_token", "accessToken"])
         if let accessToken {
@@ -275,7 +280,7 @@ extension CodexAuthManager {
                 if let fetched = try await fetchCodexAccountInfoAction(accessToken) {
                     if let fetchedEmail = fetched.email?.trimmingCharacters(in: .whitespacesAndNewlines),
                        !fetchedEmail.isEmpty,
-                       firstNonEmptyString(in: root, keys: ["email", "user.email", "nolon.account.email"]) == nil
+                       shouldPopulateFetchedEmail
                     {
                         root["email"] = fetchedEmail
                         changed = true
@@ -283,11 +288,11 @@ extension CodexAuthManager {
                     if let fetchedAccountID = fetched.accountID?.trimmingCharacters(in: .whitespacesAndNewlines),
                        !fetchedAccountID.isEmpty
                     {
-                        if firstNonEmptyString(in: tokens, keys: ["account_id", "accountId"]) == nil {
+                        if shouldPopulateFetchedTokenAccountID {
                             tokens["account_id"] = fetchedAccountID
                             changed = true
                         }
-                        if firstNonEmptyString(in: root, keys: ["chatgpt_account_id", "chatgptAccountId", "account_id", "accountId"]) == nil {
+                        if shouldPopulateFetchedRootAccountID {
                             root["chatgpt_account_id"] = fetchedAccountID
                             changed = true
                         }
@@ -295,11 +300,11 @@ extension CodexAuthManager {
                     if let fetchedPlan = fetched.planType?.trimmingCharacters(in: .whitespacesAndNewlines),
                        !fetchedPlan.isEmpty
                     {
-                        if firstNonEmptyString(in: root, keys: ["plan_type", "planType"]) == nil {
+                        if shouldPopulateFetchedPlanType {
                             root["plan_type"] = fetchedPlan
                             changed = true
                         }
-                        if firstNonEmptyString(in: root, keys: ["plan", "subscription.plan", "account.plan"]) == nil {
+                        if shouldPopulateFetchedPlan {
                             root["plan"] = fetchedPlan
                             changed = true
                         }
