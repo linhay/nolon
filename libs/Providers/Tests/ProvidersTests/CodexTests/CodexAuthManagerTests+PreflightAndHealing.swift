@@ -552,6 +552,105 @@ extension CodexAuthManagerTests {
         }))
     }
 
+    @Test("Given startup preflight sees detached provider auth file, when usage load runs then selected account is not re-applied")
+    func startupPreflightDoesNotReclaimDetachedProviderAuthFile() async throws {
+        let root = try makeTempRoot("codex-auth-startup-preflight-detached-provider-auth")
+        defer { try? root.delete() }
+
+        let manager = CodexAuthManager(rootURL: root.url)
+        let provider = makeCodexProvider(root: root)
+        let configFile = root.folder("provider").file("config.toml")
+        let originalConfig = """
+        model = "o3"
+        approval_policy = "on-request"
+        """
+        try configFile.overlay(with: originalConfig + "\n")
+
+        let relay = try await manager.addConfiguredAccount(
+            name: "Relay",
+            apiKey: "rk-live-startup-detached-1234",
+            relay: .init(
+                baseURL: "https://relay.example.com/v1",
+                modelProvider: "provider-relay"
+            )
+        )
+        try await manager.activateAccountAndMarkActive(relay, for: provider)
+
+        let providerAuth = try #require(await manager.authFile(for: provider))
+        try providerAuth.overlay(with: Data(#"""
+        {
+          "auth_mode": "chatgpt",
+          "email": "external@example.com",
+          "tokens": {
+            "id_token": "id-external",
+            "access_token": "access-external",
+            "account_id": "acct-external"
+          }
+        }
+        """#.utf8))
+
+        _ = try await manager.preflightManagedAuthIfNeeded(for: provider, forceBackup: false, reason: "usage_load")
+
+        #expect(await manager.activeAccountId(for: provider) == nil)
+        #expect(providerAuth.isSymbolicLink == false)
+        #expect(try providerAuth.read().contains(#""external@example.com""#))
+        #expect(try configFile.read() == originalConfig + "\n")
+    }
+
+    @Test("Given startup preflight sees provider auth symlink outside managed active auth root, when usage load runs then selected account is not re-applied")
+    func startupPreflightDoesNotReclaimExternalProviderAuthSymlink() async throws {
+        let root = try makeTempRoot("codex-auth-startup-preflight-external-symlink")
+        defer { try? root.delete() }
+
+        let manager = CodexAuthManager(rootURL: root.url)
+        let provider = makeCodexProvider(root: root)
+        let configFile = root.folder("provider").file("config.toml")
+        let originalConfig = """
+        model = "o3"
+        approval_policy = "on-request"
+        """
+        try configFile.overlay(with: originalConfig + "\n")
+
+        let relay = try await manager.addConfiguredAccount(
+            name: "Relay",
+            apiKey: "rk-live-startup-external-symlink-1234",
+            relay: .init(
+                baseURL: "https://relay.example.com/v1",
+                modelProvider: "provider-relay"
+            )
+        )
+        try await manager.activateAccountAndMarkActive(relay, for: provider)
+
+        let providerAuth = try #require(await manager.authFile(for: provider))
+        let externalAuth = root.folder("external-auth").file("auth.json")
+        _ = externalAuth.parentFolder()?.createIfNotExists()
+        try externalAuth.overlay(with: Data(#"""
+        {
+          "auth_mode": "chatgpt",
+          "email": "external-symlink@example.com",
+          "tokens": {
+            "id_token": "id-external-symlink",
+            "access_token": "access-external-symlink",
+            "account_id": "acct-external-symlink"
+          }
+        }
+        """#.utf8))
+        try FileManager.default.removeItem(at: providerAuth.url)
+        try FileManager.default.createSymbolicLink(
+            atPath: providerAuth.url.path,
+            withDestinationPath: externalAuth.url.path
+        )
+
+        _ = try await manager.preflightManagedAuthIfNeeded(for: provider, forceBackup: false, reason: "usage_load")
+
+        #expect(await manager.activeAccountId(for: provider) == nil)
+        #expect(providerAuth.isSymbolicLink == true)
+        let destination = try providerAuth.destinationOfSymbolicLink().url.standardizedFileURL.path
+        #expect(destination == externalAuth.url.standardizedFileURL.path)
+        #expect(try providerAuth.read().contains(#""external-symlink@example.com""#))
+        #expect(try configFile.read() == originalConfig + "\n")
+    }
+
     @Test("Given runtime auth json is modified externally with stable unique identity, when background poll runs then active selection switches and management continues")
     func backgroundPollAdoptsDriftedAccountWhenIdentityIsStable() async throws {
         let root = try makeTempRoot("codex-auth-background-poll-pause-after-external-change")
@@ -659,8 +758,8 @@ extension CodexAuthManagerTests {
         #expect(try providerAuth.read() == preservedAuthRaw)
     }
 
-    @Test("Given provider auth management is paused by an unstable external change, when external auth later becomes stable and changes again, then background poll resumes management automatically")
-    func backgroundPollResumesManagementWhenPausedAuthBecomesStableLater() async throws {
+    @Test("Given provider auth management is paused by an unstable external change, when external auth later becomes stable and changes again, then background poll still does not reclaim provider auth automatically")
+    func backgroundPollDoesNotResumeManagementWhenOwnershipWasLost() async throws {
         let root = try makeTempRoot("codex-auth-background-poll-resume-after-stable-rewrite")
         defer { try? root.delete() }
 
@@ -717,10 +816,9 @@ extension CodexAuthManagerTests {
 
         await manager.pollProviderAuthChange(for: provider, authFilePath: providerAuth.url.path)
 
-        let resumedActiveID = try #require(await manager.activeAccountId(for: provider))
-        let resumedAccount = try #require((try await manager.loadAccounts()).first(where: { $0.id == resumedActiveID }))
-        let resumedSummary = CodexAuthSummary.fromJSONData(try #require(manager.accountAuthData(for: resumedAccount)))
-        #expect(resumedSummary.email == "resumed@example.com")
+        #expect(await manager.activeAccountId(for: provider) == nil)
+        #expect(providerAuth.isSymbolicLink == false)
+        #expect(try providerAuth.read().contains(#""resumed@example.com""#))
         #expect(try configFile.read() == originalConfig + "\n")
     }
 

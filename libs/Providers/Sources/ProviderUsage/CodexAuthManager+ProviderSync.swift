@@ -9,6 +9,21 @@ import ProvidersShared
 import SQLite3
 
 extension CodexAuthManager {
+    func shouldRelinquishPassiveProviderAuthManagement(for provider: Provider) -> Bool {
+        guard let providerAuthFile = authFile(for: provider) else { return false }
+        guard providerAuthFile.isExists || providerAuthFile.isSymbolicLink else { return false }
+        guard providerAuthFile.isSymbolicLink else { return true }
+        guard let destination = resolveSymlinkTarget(for: providerAuthFile),
+              destination.isExists
+        else {
+            return true
+        }
+
+        let managedRoot = standardizedPathString(nolonCodexRootFolder().folder("active-auth"))
+        let destinationPath = standardizedPathString(destination)
+        return destinationPath.hasPrefix(managedRoot + "/") == false
+    }
+
     func clearReadOnlyRelayEvidenceFlag(for providerID: String) {
         readOnlyRelayEvidenceProviderIDs.remove(providerID)
     }
@@ -843,9 +858,6 @@ extension CodexAuthManager {
         }
 
         do {
-            if wasPaused && hasStableIdentity {
-                try setProviderAuthManagementPaused(false, for: provider)
-            }
             _ = try await preflightManagedAuthIfNeeded(
                 for: provider,
                 forceBackup: false,

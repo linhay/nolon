@@ -1300,6 +1300,25 @@ public actor CodexAuthManager {
             startProviderAuthPolling(for: provider)
             return nil
         }
+        if shouldClearActiveSelectionOnDriftDuringPreflight(reason: reason) {
+            let relinquished = try withAuthFileLock {
+                guard shouldRelinquishPassiveProviderAuthManagement(for: provider) else {
+                    return false
+                }
+                try clearActiveSelectionAndRestoreProviderState(
+                    for: provider,
+                    preserveProviderAuthFile: true,
+                    pauseMonitoring: true
+                )
+                var fingerprints = loadActiveFingerprintMap()
+                fingerprints.removeValue(forKey: provider.id)
+                try saveActiveFingerprintMap(fingerprints)
+                return true
+            }
+            if relinquished {
+                return nil
+            }
+        }
         if let blocked = try preflightBlockedByCloudSync(for: provider) {
             throw blocked
         }
